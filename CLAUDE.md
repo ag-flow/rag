@@ -44,7 +44,7 @@ git push origin dev
 ssh pve "pct exec 303 -- bash -c 'cd /opt/rag && ./dev-deploy.sh'"
 ```
 
-Le script `dev-deploy.sh` (à la racine du repo) fait : `git pull origin dev` → build images backend/frontend → `docker compose -f docker-compose.dev.yml down/up`. Initialisation initiale du répertoire `/opt/rag` : voir `Install-dev.md` (exécuté par l'utilisateur).
+Le script `dev-deploy.sh` (à la racine du repo) fait : `git pull origin dev` → build images backend/frontend → `docker compose -f docker-compose-dev.yml down/up`. Initialisation initiale du répertoire `/opt/rag` : voir `Install-dev.md` (exécuté par l'utilisateur).
 
 ## Commandes essentielles
 
@@ -68,8 +68,8 @@ cd frontend && npm run format                               # Prettier
 cd backend && uv run python -m rag.db.migrations            # Applique migrations en attente
 
 # Debug LXC 303
-ssh pve "pct exec 303 -- bash -c 'cd /opt/rag && docker compose -f docker-compose.dev.yml ps'"
-ssh pve "pct exec 303 -- bash -c 'cd /opt/rag && docker compose -f docker-compose.dev.yml logs -f backend'"
+ssh pve "pct exec 303 -- bash -c 'cd /opt/rag && docker compose -f docker-compose-dev.yml ps'"
+ssh pve "pct exec 303 -- bash -c 'cd /opt/rag && docker compose -f docker-compose-dev.yml logs -f backend'"
 ```
 
 ## Layout du code
