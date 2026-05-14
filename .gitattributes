@@ -1,0 +1,10 @@
+# Force LF pour les scripts shell — sinon `\r` Windows fait planter le shebang sur Linux
+# (« bad interpreter: /usr/bin/env^M »). Même règle pour les Dockerfiles et fichiers YAML
+# côté serveur.
+*.sh         text eol=lf
+Dockerfile   text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+
+# Caddyfile parsé par Caddy sur Linux — pas de CRLF.
+Caddyfile    text eol=lf
