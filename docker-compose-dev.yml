@@ -27,6 +27,9 @@ services:
     container_name: rag-backend
     restart: unless-stopped
     env_file: .env
+    environment:
+      # SHA injecté par dev-deploy.sh au up — pas de rebuild requis quand le commit change.
+      GIT_SHA: ${GIT_SHA:-unknown}
     # Exposé sur le LAN pour curl direct sur l'API depuis le Windows dev pendant les tests.
     ports:
       - "8000:8000"

@@ -358,6 +358,11 @@ echo "[6/6] Pull images registry (postgres)..."
 docker compose -f "$COMPOSE_FILE" pull postgres || true
 
 echo "      Démarrage de la stack..."
+# Expose le SHA git courant au compose (variable interpolée dans
+# docker-compose-dev.yml → backend.environment.GIT_SHA). Fallback "unknown"
+# si jamais on est hors d'un repo git (cas du clone fraîchement créé plus haut,
+# qui a forcément un .git, mais on garde le filet).
+export GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 docker compose -f "$COMPOSE_FILE" up -d --remove-orphans --pull never
 
 echo
