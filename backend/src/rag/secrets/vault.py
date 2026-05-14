@@ -24,7 +24,8 @@ class HarpocrateVaultClient:
         from harpocrate import VaultClient as _SdkClient  # type: ignore[import-not-found]
 
         self._url = url
-        self._sdk = _SdkClient(url=url, token=token)
+        # SDK signature : VaultClient(token, base_url, wallet_key_cache_ttl=600, timeout=30.0)
+        self._sdk = _SdkClient(token=token, base_url=url)
 
     def get_secret(self, path: str) -> str:
         log.debug("vault.lookup", url=self._url, path=path)
