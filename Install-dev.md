@@ -38,10 +38,19 @@ ssh -T git@github.com
 **Important** : le chemin `/opt/rag` est figé. Le script `dev-deploy.sh` part du principe que le repo est à cet endroit.
 
 ```bash
-mkdir -p /opt
 cd /opt
 git clone --branch dev git@github.com:ag-flow/rag.git rag
 cd rag
+./dev-deploy.sh
+```
+
+reset
+```bash
+cd /opt
+rm -rf rag
+git clone --branch dev git@github.com:ag-flow/rag.git rag
+cd rag
+./dev-deploy.sh --reset
 ```
 
 La branche **`dev`** est la seule branche de livraison test — voir `CLAUDE.md` § Livraison test. Ne pas cloner d'autre branche pour cet environnement.
@@ -118,7 +127,7 @@ Le bit exécutable de `dev-deploy.sh` est déjà positionné dans l'index git (`
 Le script :
 1. `git pull origin dev`
 2. Build les images `rag-backend:latest` + `rag-frontend:latest` (uniquement si les Dockerfiles existent)
-3. `docker compose -f docker-compose.dev.yml down/up`
+3. `docker compose -f docker-compose-dev.yml down/up`
 
 > Tant que les répertoires `backend/` et `frontend/` ne contiennent pas de Dockerfile (phase d'amorçage du projet), le script skip ces builds et démarre uniquement les services tiers (postgres, caddy, pgweb). Le compose tournera proprement dès que l'implémentation arrivera.
 
@@ -127,7 +136,7 @@ Le script :
 ## Étape 5 — Vérifier
 
 ```bash
-docker compose -f docker-compose.dev.yml ps
+docker compose -f docker-compose-dev.yml ps
 ```
 
 Les services doivent être `healthy` :
@@ -160,8 +169,8 @@ URLs accessibles depuis le LAN :
 Logs :
 
 ```bash
-docker compose -f docker-compose.dev.yml logs -f backend
-docker compose -f docker-compose.dev.yml logs --tail=50 postgres
+docker compose -f docker-compose-dev.yml logs -f backend
+docker compose -f docker-compose-dev.yml logs --tail=50 postgres
 ```
 
 ---
@@ -192,13 +201,13 @@ Vérifier qu'un `Dockerfile` existe bien dans `backend/`. Tant que le code n'est
 
 ### Postgres `unhealthy`
 ```bash
-docker compose -f docker-compose.dev.yml logs --tail=100 postgres
+docker compose -f docker-compose-dev.yml logs --tail=100 postgres
 ```
 Cause fréquente : `POSTGRES_PASSWORD` absent du `.env`.
 
 ### Backend `unhealthy`
 ```bash
-docker compose -f docker-compose.dev.yml logs --tail=100 backend
+docker compose -f docker-compose-dev.yml logs --tail=100 backend
 ```
 Causes fréquentes : `DATABASE_URL` mal formée, `HARPOCRATE_API_TOKEN_RAG` manquant, `RAG_MASTER_KEY` absent. Le backend log la variable manquante au boot.
 
@@ -207,7 +216,7 @@ Causes fréquentes : `DATABASE_URL` mal formée, `HARPOCRATE_API_TOKEN_RAG` manq
 ⚠ Détruit toutes les données (workspaces, vecteurs, jobs) :
 
 ```bash
-docker compose -f docker-compose.dev.yml down -v
+docker compose -f docker-compose-dev.yml down -v
 ./dev-deploy.sh
 ```
 
@@ -222,7 +231,7 @@ Si la clé est compromise / a expiré : la révoquer côté GitHub, puis re-suiv
 /opt/rag/
 ├── .env                          # gitignored — config locale
 ├── .env.example                  # template versionné
-├── docker-compose.dev.yml        # stack de test
+├── docker-compose-dev.yml        # stack de test
 ├── dev-deploy.sh                 # script de livraison test (idempotent)
 ├── Caddyfile                     # config reverse proxy
 ├── backend/                      # FastAPI + asyncpg + indexer + sync worker (à venir)
