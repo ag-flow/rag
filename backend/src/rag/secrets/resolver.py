@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -62,16 +63,33 @@ class VaultClient(Protocol):
     def get_secret(self, path: str) -> str: ...
 
 
+@dataclass
+class _CacheEntry:
+    value: str
+    expires_at: float
+
+
 class SecretResolver:
-    """Résolveur de références déclaratives `${env://}` / `${vault://}`.
+    """Résolveur de références déclaratives avec cache RAM TTL et invalidation.
 
     - Valeurs littérales : retournées telles quelles.
-    - `${env://VAR}` : `os.environ[VAR]` (fail fast si absent).
-    - `${vault://id:path}` : appel au `VaultClient` correspondant.
+    - `${env://VAR}` : `os.environ[VAR]` (fail fast si absent, jamais caché).
+    - `${vault://id:path}` : appel au `VaultClient` correspondant, cache TTL.
+    - `cache_ttl=0` → pas de cache (utile pour tests).
+    - `invalidate(ref)` → supprime l'entrée cachée pour `ref` (silencieux si absente).
+    - `clear_cache()` → vide tout.
+    - `resolve_with_retry(ref)` → invalide + retry une fois sur 401.
     """
 
-    def __init__(self, harpocrate_clients: dict[str, VaultClient]) -> None:
+    def __init__(
+        self,
+        harpocrate_clients: dict[str, VaultClient],
+        *,
+        cache_ttl: int = 300,
+    ) -> None:
         self._clients = harpocrate_clients
+        self._cache_ttl = cache_ttl
+        self._cache: dict[str, _CacheEntry] = {}
 
     def resolve(self, value: str) -> str:
         ref = parse_ref(value)
@@ -85,15 +103,56 @@ class SecretResolver:
                 raise EnvVarMissing(f"Environment variable not set: {ref.path}") from e
 
         if ref.action == "vault":
-            return self._vault_lookup(ref.api_key_id, ref.path)
+            return self._vault_lookup_cached(value, ref.api_key_id, ref.path)
 
         raise UnknownAction(f"Unhandled action: {ref.action}")
 
-    def _vault_lookup(self, api_key_id: str | None, path: str) -> str:
+    def resolve_with_retry(self, value: str) -> str:
+        """Comme `resolve`, mais bypass cache + retente une fois sur 401.
+
+        Force une validation fraîche contre le coffre (invalidation préalable)
+        afin qu'un secret révoqué côté Harpocrate soit détecté immédiatement.
+        Sur `PermissionError`/`VaultLookupFailed`, retente une seule fois.
+        """
+        self.invalidate(value)
+        try:
+            return self.resolve(value)
+        except (PermissionError, VaultLookupFailed) as e:
+            log.warning("vault.retry_after_401", ref=value, error=str(e))
+            self.invalidate(value)
+            try:
+                return self.resolve(value)
+            except (PermissionError, KeyError) as e2:
+                raise VaultLookupFailed(f"Retry after 401 failed for {value!r}") from e2
+
+    def invalidate(self, value: str) -> None:
+        """Supprime l'entrée cachée pour `value` (silencieux si absente)."""
+        self._cache.pop(value, None)
+
+    def clear_cache(self) -> None:
+        """Vide entièrement le cache."""
+        self._cache.clear()
+
+    def _vault_lookup_cached(self, raw_ref: str, api_key_id: str | None, path: str) -> str:
+        now = time.monotonic()
+        if self._cache_ttl > 0:
+            entry = self._cache.get(raw_ref)
+            if entry is not None and entry.expires_at > now:
+                return entry.value
+
         if api_key_id is None:
             raise UnknownAction("vault:// requires an api_key_id")
-        if api_key_id not in self._clients:
+        client = self._clients.get(api_key_id)
+        if client is None:
             raise VaultLookupFailed(
-                f"No Harpocrate client configured for api_key_id={api_key_id!r}"
+                f"No Harpocrate client configured for unknown api_key_id={api_key_id!r}"
             )
-        return self._clients[api_key_id].get_secret(path)
+
+        try:
+            value = client.get_secret(path)
+        except PermissionError as e:
+            raise VaultLookupFailed(f"401 on {raw_ref!r}") from e
+
+        if self._cache_ttl > 0:
+            self._cache[raw_ref] = _CacheEntry(value=value, expires_at=now + self._cache_ttl)
+        return value
