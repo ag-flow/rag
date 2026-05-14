@@ -92,18 +92,10 @@ def build_app(
     return app
 
 
-# Module-level `app` pour `uvicorn rag.main:app` (sans flag `--factory`,
-# tel qu'utilisé par le Dockerfile T4).
-#
-# Le try/except est volontaire et pragmatique : l'import de ce module ne doit
-# pas faire planter pytest collection (qui charge le module avant l'exécution
-# des fixtures qui posent les env vars), ni l'import depuis un REPL/script
-# d'outillage qui n'a pas accès aux env vars de prod. En contexte de tests,
-# on importe `build_app` directement et la fixture pose les env avant l'appel.
-# Alternative considérée et rejetée : passer `--factory` à uvicorn dans le
-# Dockerfile (changement plus invasif, reporté).
-try:
-    app: FastAPI | None = build_app()
-except Exception:
-    # L'import du module ne doit jamais planter (pytest collection, REPL, etc.)
-    app = None
+# Pas de `app` module-level — le Dockerfile invoque uvicorn avec `--factory`
+# sur `rag.main:build_app`, ce qui appelle la factory au démarrage du serveur
+# et laisse une éventuelle ValidationError (env var manquante) remonter
+# proprement. L'alternative `try/except + app=None` masquait les vraies erreurs
+# de configuration au runtime (NoneType is not callable peu lisible).
+# En tests, on importe `build_app` directement et la fixture pose les env
+# avant l'appel.

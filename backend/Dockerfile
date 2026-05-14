@@ -46,4 +46,4 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 EXPOSE 8000
 
-CMD ["uv", "run", "--no-dev", "uvicorn", "rag.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "--no-dev", "uvicorn", "rag.main:build_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
