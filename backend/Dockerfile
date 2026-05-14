@@ -17,10 +17,15 @@ COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 
-# Download Harpocrate SDK before uv sync (pyproject.toml references vendor/)
+# Download Harpocrate SDK before uv sync (pyproject.toml references vendor/).
+# Le nom doit respecter PEP 427 (name-version-pythontag-abitag-platformtag.whl)
+# pour que uv accepte le wheel via [tool.uv.sources]. La vraie version vit dans
+# les métadonnées internes du wheel ; 0.0.0-py3-none-any est un placeholder
+# accepté côté outillage.
 ARG HARPOCRATE_URL=https://vault.yoops.org
 RUN mkdir -p /app/vendor && \
-    curl -fsSL "${HARPOCRATE_URL}/v1/sdk/python-wheel" -o /app/vendor/harpocrate-sdk.whl
+    curl -fsSL "${HARPOCRATE_URL}/v1/sdk/python-wheel" \
+        -o /app/vendor/harpocrate-0.0.0-py3-none-any.whl
 
 # Install Python deps (cacheable layer)
 COPY pyproject.toml uv.lock /app/
