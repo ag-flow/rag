@@ -20,6 +20,9 @@ services:
     networks: [rag]
 
   backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     image: rag-backend:latest
     container_name: rag-backend
     restart: unless-stopped
