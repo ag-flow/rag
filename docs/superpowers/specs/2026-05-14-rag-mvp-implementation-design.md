@@ -162,13 +162,15 @@ db/
 
 Les repositories exposent uniquement des fonctions async I/O. Les services dans `services/` orchestrent ces repositories + les autres modules (indexer, secrets, providers).
 
-### Validation pgvector dimension change
+### Changement d'indexeur — deux endpoints distincts (spec 02 + spec 05)
 
-Le `PATCH /workspaces/{name}` qui change provider/model :
-1. Lookup `current.dimension` vs `requested.dimension`.
-2. Si égales → update libre.
-3. Si différentes ET `embeddings` non vide → `409 indexer_change_requires_reindex` (spec 02).
-4. Si différentes ET `?confirm=true` → DROP TABLE embeddings + recréation avec nouvelle dimension + invalidation `indexed_documents` (truncate hashes) + déclenche job de réindex complète.
+| Cas | Endpoint | Comportement |
+|---|---|---|
+| Changement de provider/model sans vecteurs existants | `PATCH /api/admin/workspaces/{name}` | Update libre, recrée la table `embeddings` avec la nouvelle dimension (DROP + CREATE) |
+| Changement de provider/model avec vecteurs existants | `PATCH /api/admin/workspaces/{name}` | Retourne **409 `indexer_change_requires_reindex`** avec hint vers `POST /reindex?confirm=true`. Jamais de bypass via PATCH. |
+| Reset volontaire | `POST /api/admin/workspaces/{name}/reindex?confirm=true` (body avec le nouvel indexer) | DROP TABLE embeddings + recréation avec nouvelle dimension + invalidation `indexed_documents` (truncate hashes) + lance un job `triggered_by="manual"` de réindex complète |
+
+**Ambiguïté spec à clarifier en M2** : la spec 02 lignes 88-99 documente le 409 retourné par PATCH mais ne dit pas explicitement que le **body du `POST /reindex?confirm=true`** doit porter le nouvel indexer souhaité. À trancher avant l'implémentation M2 : soit le reindex body inclut un champ optionnel `indexer`, soit le PATCH stocke une "pending config" appliquée par le reindex. Décision à prendre dans le plan M2.
 
 ---
 
@@ -581,10 +583,15 @@ Si l'un échoue → on ne livre pas.
 
 **Scope** :
 - `Caddyfile` : `/api/*` → backend, `/ui*` → frontend (404 jusqu'à M5).
-- `scripts/init-rag.sh` (spec 08) idempotent.
+- `scripts/init-rag.sh` (spec 08) idempotent — préfixe `/api/admin/` à utiliser dans le curl.
 - Nettoyage `.env.example` (suppression vars hors spec).
 - Mise à jour `Install-dev.md`.
-- Spec drift : `specs/10-auth.md` ligne 146 corrigée.
+- **Mise à jour `specs/10-auth.md`** :
+  - Retirer l'accept-both sur `GET /workspaces/{name}/jobs` (ligne 146).
+  - Aligner tout le tableau "Endpoints protégés par couche" sur les nouveaux préfixes `/api/admin/*`, `/api/workspaces/*`, `/api/mcp`, `/ui-api/*`, `/ui/*`.
+  - Documenter la règle stricte "JWT only sur `/ui*`, API key only sur `/api*`".
+- **Mise à jour `specs/02-api-admin.md`, `specs/03-api-workspace.md`, `specs/04-api-mcp.md`** : préfixer les URLs des exemples (`/workspaces` → `/api/admin/workspaces`, `/workspaces/{name}/index` → `/api/workspaces/{name}/index`, `/mcp` → `/api/mcp`).
+- **Mise à jour `specs/08-docker-init.md`** : le script `init-rag.sh` appelle `/api/admin/workspaces/{name}/apikey`.
 
 **Tests minimaux** :
 - `init-rag.sh` testé dans container : `RAG_WORKSPACES='["a","b"]'` → `.rag-client.json` correct.
