@@ -5,23 +5,22 @@
 # Cible : machine de dev (LXC, VM, poste local) avec Docker installé.
 # Le script :
 #   1. git pull (ou clone si pas encore fait)
-#   2. Crée .env depuis .env.example si absent
-#   3. Crée les dossiers data/ pour les volumes Docker (gitignored)
-#   4. Build les images locales backend + frontend
-#   5. Down + up de la stack via docker-compose-dev.yml
+#   2. Crée .env depuis .env.example si absent (+ secrets aléatoires)
+#   3. Build les images locales (backend ; frontend skippé tant que M5 pas commencé)
+#   4. Down de la stack (avec -v si --reset)
+#   5. Pull postgres + up -d
+#   Final : attend que /health réponde et affiche /version (timeout 60s)
 #
 # Usage :
 #   ./dev-deploy.sh                       # reste sur la branche courante, pull
 #   ./dev-deploy.sh feat/ma-branche       # checkout cette branche, puis pull
-#   ./dev-deploy.sh --reset               # DESTRUCTIF : down + wipe data/postgres + redeploy
+#   ./dev-deploy.sh --reset               # DESTRUCTIF : down -v (purge volumes)
 #   ./dev-deploy.sh feat/ma-branche --reset
 #
-# Le flag --reset force la suppression du data dir Postgres (`data/postgres/`).
-# Utile quand le standby a été basebackuppé depuis un master avec un
-# POSTGRES_PASSWORD différent, ou pour repartir d'une base fraîche en dev.
-# Ne supprime PAS `data/backups/` ni `.env`.
-#
-# Pour la PROD (pull GHCR, pas de build local), utiliser scripts/refresh.sh.
+# Le flag --reset force un `docker compose down -v` qui purge les volumes
+# nommés Docker (`postgres_data`, `caddy_data`, `caddy_config`). La base
+# Postgres repart de zéro avec POSTGRES_PASSWORD du .env. Le `.env` est
+# conservé.
 #
 # ─── Réutilisabilité ────────────────────────────────────────────────────────
 # Ce script est conçu comme un template. Pour le reprendre dans un autre
@@ -72,9 +71,6 @@ Installer Docker sur Debian/Ubuntu :
     curl -fsSL https://get.docker.com | sh
     sudo systemctl enable --now docker
 
-Ou si tu utilises un LXC Proxmox, le recréer avec le flag --docker :
-    bash <(wget -qO- .../create-lxc.sh) <CTID> ${PROJECT_NAME}-dev --docker
-
 Puis relancer ./dev-deploy.sh.
 EOF
   exit 1
@@ -90,37 +86,37 @@ fi
 
 if [ -d ".git" ]; then
   if [ -n "$TARGET_BRANCH" ]; then
-    echo "[1/6] Repo détecté dans $(pwd) — switch vers ${TARGET_BRANCH}..."
+    echo "[1/5] Repo détecté dans $(pwd) — switch vers ${TARGET_BRANCH}..."
     git fetch origin
     git checkout "$TARGET_BRANCH"
     git pull --ff-only origin "$TARGET_BRANCH"
   else
     CURRENT_BRANCH="$(git branch --show-current)"
-    echo "[1/6] Repo détecté dans $(pwd) — pull branche courante (${CURRENT_BRANCH})..."
+    echo "[1/5] Repo détecté dans $(pwd) — pull branche courante (${CURRENT_BRANCH})..."
     git pull --ff-only
   fi
 else
   APP_DIR="${PROJECT_NAME}"
   if [ -d "$APP_DIR/.git" ]; then
     if [ -n "$TARGET_BRANCH" ]; then
-      echo "[1/6] Repo dans ./${APP_DIR} — switch vers ${TARGET_BRANCH}..."
+      echo "[1/5] Repo dans ./${APP_DIR} — switch vers ${TARGET_BRANCH}..."
       git -C "$APP_DIR" fetch origin
       git -C "$APP_DIR" checkout "$TARGET_BRANCH"
       git -C "$APP_DIR" pull --ff-only origin "$TARGET_BRANCH"
     else
       CURRENT_BRANCH="$(git -C "$APP_DIR" branch --show-current)"
-      echo "[1/6] Repo dans ./${APP_DIR} — pull branche courante (${CURRENT_BRANCH})..."
+      echo "[1/5] Repo dans ./${APP_DIR} — pull branche courante (${CURRENT_BRANCH})..."
       git -C "$APP_DIR" pull --ff-only
     fi
   else
     # Premier clone : on demande explicitement une branche cible (sinon
     # on ne sait pas laquelle prendre — pas de "branche courante" possible).
     if [ -z "$TARGET_BRANCH" ]; then
-      echo "[1/6] Aucun repo trouvé. Premier clone — précise la branche en argument :"
+      echo "[1/5] Aucun repo trouvé. Premier clone — précise la branche en argument :"
       echo "      ./dev-deploy.sh main"
       exit 1
     fi
-    echo "[1/6] Clone du repo dans ./${APP_DIR} (branche ${TARGET_BRANCH})..."
+    echo "[1/5] Clone du repo dans ./${APP_DIR} (branche ${TARGET_BRANCH})..."
     git clone --branch "$TARGET_BRANCH" "$REPO_URL" "$APP_DIR"
   fi
   cd "$APP_DIR"
@@ -198,7 +194,7 @@ sync_new_vars_from_example() {
 
 if [ ! -f ".env" ]; then
   if [ -f ".env.example" ]; then
-    echo "[2/6] .env absent → création depuis .env.example + génération secrets aléatoires"
+    echo "[2/5] .env absent → création depuis .env.example + génération secrets aléatoires"
     cp .env.example .env
 
     # Secrets auto-générés (M1) :
@@ -220,31 +216,28 @@ if [ ! -f ".env" ]; then
     echo "      ⚠  À RENSEIGNER MANUELLEMENT dans .env avant prochain deploy :"
     echo "         - HARPOCRATE_API_TOKEN_RAG  (token Harpocrate du projet RAG)"
   else
-    echo "[2/6] ⚠  .env absent et .env.example introuvable — config requise pour démarrer"
+    echo "[2/5] ⚠  .env absent et .env.example introuvable — config requise pour démarrer"
   fi
 else
-  echo "[2/6] .env déjà présent (secrets non régénérés)."
+  echo "[2/5] .env déjà présent (secrets non régénérés)."
   sync_new_vars_from_example
 fi
 
-# ─── 3) Dossiers data/ pour volumes Docker (ignorés par .gitignore) ─────────
+# Vars critiques à la M1 qui ne peuvent PAS être auto-générées (le token
+# Harpocrate doit être créé manuellement côté coffre). Si la valeur est vide,
+# le boot du backend échouera sur Pydantic Settings → on warne tôt.
+if [ -f ".env" ]; then
+  for required_key in HARPOCRATE_API_TOKEN_RAG; do
+    val="$(read_env_var "$required_key")"
+    if [ -z "$val" ]; then
+      echo "      ⚠  ${required_key} est vide dans .env — le backend ne démarrera pas tant qu'il n'est pas renseigné."
+    fi
+  done
+fi
 
-echo "[3/6] Création des dossiers data/ (gitignored) si absents..."
-mkdir -p data/postgres
-mkdir -p data/backups
-# UID 1001 = user '${PROJECT_NAME}' dans l'image backend (Dockerfile prod stage).
-# Sans ce chown, le container échoue à écrire dans /var/lib/${PROJECT_NAME}/backups.
-# `2>/dev/null || true` car en local Windows/MINGW on n'a pas chown utile.
-chown -R 1001:1001 data/backups 2>/dev/null || true
-# Override password Postgres — fichier optionnel rempli par le wizard pairing
-# côté standby. Le bind mount dans docker-compose-dev.yml exige que le fichier
-# EXISTE côté hôte (sinon Docker crée un dossier vide à sa place). On le touch
-# vide ici ; le backend l'ignore tant qu'il est vide.
-[ -f data/db-password-override.txt ] || touch data/db-password-override.txt
+# ─── 3) Build images locales ────────────────────────────────────────────────
 
-# ─── 4) Build images locales ────────────────────────────────────────────────
-
-echo "[4/6] Build de ${PROJECT_NAME}-backend:dev..."
+echo "[3/5] Build de ${PROJECT_NAME}-backend:dev..."
 if [ -f backend/Dockerfile ]; then
   # Tag :dev pour la trace de build + :latest pour que docker-compose tire l'image
   # qui vient d'être construite (le compose référence rag-backend:latest).
@@ -260,34 +253,22 @@ else
   echo "      frontend/Dockerfile absent — build skippé (jalon M5 pas encore commencé)."
 fi
 
-# ─── 5) Stop + cleanup orphelins ────────────────────────────────────────────
+# ─── 4) Stop + cleanup orphelins ────────────────────────────────────────────
 
-echo "[5/6] Arrêt de la stack (incl. orphelins)..."
+echo "[4/5] Arrêt de la stack (incl. orphelins)..."
 if [ "$RESET_DATA" = "1" ]; then
-  # `down -v` supprime aussi les volumes nommés (au cas où on en aurait
-  # ajouté plus tard). Les bind mounts (data/postgres, data/backups) ne sont
-  # PAS impactés par -v — on les nettoie explicitement juste après.
+  # `down -v` purge les volumes nommés Docker : `postgres_data` (base
+  # complète réinit au prochain up avec POSTGRES_PASSWORD du .env),
+  # `caddy_data`, `caddy_config`. Le .env est conservé.
+  echo "      ⚠  --reset : down -v (purge postgres_data + caddy_data + caddy_config)"
   docker compose -f "$COMPOSE_FILE" down -v --remove-orphans || true
 else
   docker compose -f "$COMPOSE_FILE" down --remove-orphans || true
 fi
 
-# Reset des bind mounts si demandé. On supprime UNIQUEMENT le data dir
-# Postgres : les backups (`data/backups`) et le .env sont conservés. Les
-# fichiers du data dir Postgres appartiennent à l'uid 999 du conteneur
-# (user `postgres`) → on a besoin de root sur l'hôte pour les rm. Fallback
-# sudo si rm direct échoue (cas où l'admin lance le script sans root).
-if [ "$RESET_DATA" = "1" ]; then
-  echo "      ⚠  --reset : suppression de data/postgres (DESTRUCTIF)..."
-  if [ -d "data/postgres" ]; then
-    rm -rf data/postgres 2>/dev/null || sudo rm -rf data/postgres
-  fi
-  echo "      ✓ data/postgres supprimé — Postgres se réinitialisera avec POSTGRES_PASSWORD du .env"
-fi
+# ─── 5) Pull images registry restantes (postgres) puis up ──────────────────
 
-# ─── 6) Pull images registry restantes (postgres) puis up ──────────────────
-
-echo "[6/6] Pull images registry (postgres)..."
+echo "[5/5] Pull images registry (postgres)..."
 docker compose -f "$COMPOSE_FILE" pull postgres || true
 
 echo "      Démarrage de la stack..."
@@ -299,12 +280,11 @@ export GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 docker compose -f "$COMPOSE_FILE" up -d --remove-orphans --pull never
 
 echo
-echo "✓ Déploiement DEV terminé. Services :"
+echo "✓ Stack lancée. Services :"
 docker compose -f "$COMPOSE_FILE" ps
 echo
 echo "Logs en direct :"
 echo "  docker compose -f ${COMPOSE_FILE} logs -f backend"
-echo "  docker compose -f ${COMPOSE_FILE} logs -f frontend"
 echo
 
 # ─── Affichage final : URL d'accès ──────────────────────────────────────────
@@ -320,10 +300,36 @@ if [ -z "$APP_URL" ]; then
   fi
 fi
 
-cat <<EOF
+# ─── Smoke /health : on attend que le backend réponde ─────────────────────
+# Timeout 60s (12 × 5s). Le boot inclut : pool DB + migrations idempotentes
+# + resolver. En cas d'échec on remonte un exit code non-zero pour que les
+# scripts d'orchestration (ex : CI) puissent déclencher une alerte.
+
+echo "Smoke /health (timeout 60s)..."
+SMOKE_OK=0
+for _ in $(seq 1 12); do
+  if curl -sf -m 3 "http://localhost:8000/health" >/dev/null 2>&1; then
+    SMOKE_OK=1
+    break
+  fi
+  sleep 5
+done
+
+if [ "$SMOKE_OK" = "1" ]; then
+  VERSION_JSON="$(curl -sf -m 3 http://localhost:8000/version 2>/dev/null || echo '{}')"
+  cat <<EOF
 ═════════════════════════════════════════════════════════════════
-  → API health :    ${APP_URL}/health
-  → API version :   ${APP_URL}/version
+  ✓ /health     ${APP_URL}/health → ok
+  ✓ /version    ${VERSION_JSON}
   → pgweb (DB) :    http://$(detect_eth0_ip):8081/
 ═════════════════════════════════════════════════════════════════
 EOF
+else
+  cat >&2 <<EOF
+═════════════════════════════════════════════════════════════════
+  ✗ /health n'a pas répondu en 60s — vérifier les logs :
+      docker compose -f ${COMPOSE_FILE} logs --tail=80 backend
+═════════════════════════════════════════════════════════════════
+EOF
+  exit 1
+fi
