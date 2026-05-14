@@ -134,12 +134,6 @@ gen_urlsafe() {
   openssl rand -base64 48 | tr '+/' '-_' | tr -d '=' | head -c "${1:-24}"
 }
 
-# Génère une chaîne base64 standard d'exactement N bytes décodés.
-# Pour ${PROJECT_NAME_UPPER}_HMAC_KEY (Pydantic Settings la décode → 32 bytes).
-gen_b64_bytes() {
-  openssl rand -base64 "${1:-32}" | tr -d '\n'
-}
-
 # Substitue la valeur d'une clé `KEY=...` dans un .env.
 # Délimiteur sed = `#` pour ne pas être gêné par `/` (présent dans base64).
 # Les valeurs générées ne contiennent ni `#` ni `&` (caractères spéciaux sed).
@@ -163,42 +157,6 @@ read_env_var() {
 detect_eth0_ip() {
   ip -4 -o addr show dev eth0 2>/dev/null \
     | awk '{print $4}' | cut -d/ -f1 | head -1
-}
-
-# Détecte le port HÔTE mappé sur le port 443 (HTTPS) du service frontend.
-# Source de vérité = le compose, pas l'image (l'image expose des ports
-# internes via Dockerfile EXPOSE — le mapping host n'est défini que par
-# le compose ou la CLI `docker run -p`).
-#
-# Stratégie en cascade :
-#   1) Runtime : `docker compose port frontend 443` (si les containers
-#      tournent déjà). Source de vérité absolue.
-#   2) Compose YAML : grep sur le mapping `"...:NNNN:443"`. Fonctionne
-#      avant le up.
-#   3) Fallback : 8443 (valeur du compose dev par défaut).
-detect_frontend_https_port() {
-  local port=""
-
-  # Source 1 : runtime (containers up)
-  if docker compose -f "$COMPOSE_FILE" ps -q frontend 2>/dev/null | grep -q .; then
-    port=$(docker compose -f "$COMPOSE_FILE" port frontend 443 2>/dev/null \
-           | awk -F: '{print $NF}' | head -1)
-    if [ -n "$port" ]; then
-      echo "$port"
-      return
-    fi
-  fi
-
-  # Source 2 : compose YAML (avant le up)
-  port=$(grep -oE '"[0-9.]+:[0-9]+:443"' "$COMPOSE_FILE" 2>/dev/null \
-         | head -1 | awk -F: '{print $2}')
-  if [ -n "$port" ]; then
-    echo "$port"
-    return
-  fi
-
-  # Fallback
-  echo "8443"
 }
 
 # Ajoute au .env les clés présentes dans .env.example mais manquantes côté
@@ -243,49 +201,24 @@ if [ ! -f ".env" ]; then
     echo "[2/6] .env absent → création depuis .env.example + génération secrets aléatoires"
     cp .env.example .env
 
-    # Secrets auto-générés : tout ce qui PEUT être random sans casser
-    # l'usage. Les autres valeurs (KEYCLOAK_*, PUBLIC_URL, listmonk) restent
-    # à éditer manuellement par l'admin.
+    # Secrets auto-générés (M1) :
+    # - POSTGRES_PASSWORD : 32 chars URL-safe — utilisé par DATABASE_URL et
+    #   RAG_POSTGRES_ADMIN_URL via interpolation du .env.
+    # - RAG_MASTER_KEY    : 48 chars URL-safe — Bearer admin (cf. M2).
     PG_PASS="$(gen_urlsafe 32)"
-    HMAC_KEY="$(gen_b64_bytes 32)"
-    ADMIN_PASS="$(gen_urlsafe 24)"
+    MASTER_KEY="$(gen_urlsafe 48)"
 
     set_env_value .env "POSTGRES_PASSWORD" "$PG_PASS"
-    set_env_value .env "${PROJECT_NAME_UPPER}_HMAC_KEY" "$HMAC_KEY"
-    set_env_value .env "${PROJECT_NAME_UPPER}_ADMIN_LOCAL_PASSWORD" "$ADMIN_PASS"
-    # Active aussi l'admin local par défaut en dev (sinon le password
-    # généré ne sert à rien).
-    set_env_value .env "${PROJECT_NAME_UPPER}_ADMIN_LOCAL_ENABLED" "true"
-
-    # PUBLIC_URL : URL externe d'accès au frontend en HTTPS. On résout le
-    # port directement depuis le compose (pas hardcodé) — si tu changes le
-    # mapping de port côté compose, le script suit automatiquement.
-    ETH0_IP="$(detect_eth0_ip)"
-    HTTPS_PORT="$(detect_frontend_https_port)"
-    if [ -n "$ETH0_IP" ]; then
-      PUBLIC_URL="https://${ETH0_IP}:${HTTPS_PORT}"
-      set_env_value .env "${PROJECT_NAME_UPPER}_PUBLIC_URL" "$PUBLIC_URL"
-    fi
+    set_env_value .env "${PROJECT_NAME_UPPER}_MASTER_KEY" "$MASTER_KEY"
 
     # `.env` contient des secrets : restreindre les permissions.
     chmod 600 .env
 
-    echo "      ✓ POSTGRES_PASSWORD                              : généré ($(echo -n "$PG_PASS" | wc -c) chars)"
-    echo "      ✓ ${PROJECT_NAME_UPPER}_HMAC_KEY                 : généré (base64 de 32 bytes)"
-    echo "      ✓ ${PROJECT_NAME_UPPER}_ADMIN_LOCAL_PASSWORD     : généré ($(echo -n "$ADMIN_PASS" | wc -c) chars)"
-    echo "      ✓ ${PROJECT_NAME_UPPER}_ADMIN_LOCAL_ENABLED      : true (admin local activé pour le dev)"
-    if [ -n "$ETH0_IP" ]; then
-      echo "      ✓ ${PROJECT_NAME_UPPER}_PUBLIC_URL             : ${PUBLIC_URL} (IP eth0 détectée)"
-    else
-      echo "      ⚠  ${PROJECT_NAME_UPPER}_PUBLIC_URL : eth0 non détectée — édite .env manuellement"
-    fi
+    echo "      ✓ POSTGRES_PASSWORD              : généré ($(echo -n "$PG_PASS" | wc -c) chars)"
+    echo "      ✓ ${PROJECT_NAME_UPPER}_MASTER_KEY                 : généré ($(echo -n "$MASTER_KEY" | wc -c) chars)"
     echo
-    echo "      ⚠  Login admin local : admin / ${ADMIN_PASS}"
-    echo "         (récupérable plus tard dans .env — chmod 600)"
-    echo
-    echo "      ⚠  À ÉDITER MANUELLEMENT dans .env si nécessaire :"
-    echo "         - ${PROJECT_NAME_UPPER}_KEYCLOAK_URL / REALM / CLIENT_ID  (si auth OIDC)"
-    echo "         - ${PROJECT_NAME_UPPER}_LISTMONK_*                         (si envoi mails recovery)"
+    echo "      ⚠  À RENSEIGNER MANUELLEMENT dans .env avant prochain deploy :"
+    echo "         - HARPOCRATE_API_TOKEN_RAG  (token Harpocrate du projet RAG)"
   else
     echo "[2/6] ⚠  .env absent et .env.example introuvable — config requise pour démarrer"
   fi
@@ -375,40 +308,22 @@ echo "  docker compose -f ${COMPOSE_FILE} logs -f frontend"
 echo
 
 # ─── Affichage final : URL d'accès ──────────────────────────────────────────
-# On lit la PUBLIC_URL réelle dans .env (source de vérité). Fallback sur
-# l'IP eth0 si elle existe, sinon localhost.
+# Source de vérité : RAG_PUBLIC_URL dans .env. Fallback HTTP via Caddy:80
+# sur l'IP eth0 si la var est absente (cas d'un .env très ancien).
 APP_URL="$(read_env_var "${PROJECT_NAME_UPPER}_PUBLIC_URL")"
 if [ -z "$APP_URL" ]; then
-  # À ce stade les containers tournent : detect_frontend_https_port utilise
-  # directement `docker compose port` → source de vérité runtime.
-  HTTPS_PORT_FINAL="$(detect_frontend_https_port)"
   ETH0_IP_FINAL="$(detect_eth0_ip)"
   if [ -n "$ETH0_IP_FINAL" ]; then
-    APP_URL="https://${ETH0_IP_FINAL}:${HTTPS_PORT_FINAL}"
+    APP_URL="http://${ETH0_IP_FINAL}"
   else
-    APP_URL="https://localhost:${HTTPS_PORT_FINAL}"
+    APP_URL="http://localhost"
   fi
 fi
 
 cat <<EOF
 ═════════════════════════════════════════════════════════════════
-  → Ouvre dans ton navigateur :   ${APP_URL}
+  → API health :    ${APP_URL}/health
+  → API version :   ${APP_URL}/version
+  → pgweb (DB) :    http://$(detect_eth0_ip):8081/
 ═════════════════════════════════════════════════════════════════
 EOF
-
-# ─── Affichage credentials admin local ──────────────────────────────────────
-# Si l'admin local est activé dans le .env, on rappelle username + password
-# à chaque déploiement. Évite à l'admin d'aller fouiller dans .env quand il
-# lance le script depuis une nouvelle session.
-ADMIN_ENABLED="$(read_env_var "${PROJECT_NAME_UPPER}_ADMIN_LOCAL_ENABLED")"
-if [ "$ADMIN_ENABLED" = "true" ]; then
-  ADMIN_USER="$(read_env_var "${PROJECT_NAME_UPPER}_ADMIN_LOCAL_USERNAME")"
-  ADMIN_PWD="$(read_env_var "${PROJECT_NAME_UPPER}_ADMIN_LOCAL_PASSWORD")"
-  : "${ADMIN_USER:=admin}"
-  cat <<EOF
-  → Admin local activé :
-      username : ${ADMIN_USER}
-      password : ${ADMIN_PWD}
-═════════════════════════════════════════════════════════════════
-EOF
-fi
