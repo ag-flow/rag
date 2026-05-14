@@ -38,12 +38,9 @@ services:
       interval: 10s
       retries: 5
 
-  frontend:
-    image: rag-frontend:latest
-    container_name: rag-frontend
-    restart: unless-stopped
-    depends_on: [backend]
-    networks: [rag]
+  # frontend : service réactivé en M5 (OIDC + IHM React). Caddy renvoie 404 sur
+  # /ui* tant que ce service n'est pas en place (handle géré dans Caddyfile).
+  # Pour réactiver : restaurer ce bloc + ajouter `frontend` à depends_on de caddy.
 
   caddy:
     image: caddy:2-alpine
@@ -55,7 +52,7 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    depends_on: [frontend, backend]
+    depends_on: [backend]
     networks: [rag]
 
   # http://192.168.10.184:8081/

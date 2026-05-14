@@ -312,10 +312,18 @@ chown -R 1001:1001 data/backups 2>/dev/null || true
 # ─── 4) Build images locales ────────────────────────────────────────────────
 
 echo "[4/6] Build de ${PROJECT_NAME}-backend:dev..."
-docker build -t "${PROJECT_NAME}-backend:dev" backend/
+if [ -f backend/Dockerfile ]; then
+  docker build -t "${PROJECT_NAME}-backend:dev" backend/
+else
+  echo "      backend/Dockerfile absent — build skippé (phase d'amorçage)."
+fi
 
 echo "      Build de ${PROJECT_NAME}-frontend:dev..."
-docker build -t "${PROJECT_NAME}-frontend:dev" frontend/
+if [ -f frontend/Dockerfile ]; then
+  docker build -t "${PROJECT_NAME}-frontend:dev" frontend/
+else
+  echo "      frontend/Dockerfile absent — build skippé (jalon M5 pas encore commencé)."
+fi
 
 # ─── 5) Stop + cleanup orphelins ────────────────────────────────────────────
 
