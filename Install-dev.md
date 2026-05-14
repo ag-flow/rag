@@ -38,8 +38,15 @@ ssh -T git@github.com
 **Important** : le chemin `/opt/rag` est figé. Le script `dev-deploy.sh` part du principe que le repo est à cet endroit.
 
 ```bash
-mkdir -p /opt
 cd /opt
+git clone --branch dev git@github.com:ag-flow/rag.git rag
+cd rag
+```
+
+reset
+```bash
+cd /opt
+rm -rf rag
 git clone --branch dev git@github.com:ag-flow/rag.git rag
 cd rag
 ```
