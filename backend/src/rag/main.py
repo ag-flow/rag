@@ -21,10 +21,40 @@ log = structlog.get_logger(__name__)
 ResolverFactory = Callable[[Settings], SecretResolver]
 
 
+class _LazyHarpocrateVaultClient:
+    """Wrapper paresseux : le SDK n'est instancié qu'au premier `get_secret`.
+
+    Évite que le boot du service échoue si le token est invalide ou si le
+    coffre est indisponible — l'erreur est levée seulement quand un secret
+    est réellement résolu (ce que M1 ne fait pas).
+    """
+
+    def __init__(self, identifier: str, url: str, token: str) -> None:
+        self._identifier = identifier
+        self._url = url
+        self._token = token
+        self._real: HarpocrateVaultClient | None = None
+
+    def get_secret(self, path: str) -> str:
+        if self._real is None:
+            log.info("vault.client.init", identifier=self._identifier)
+            self._real = HarpocrateVaultClient(url=self._url, token=self._token)
+        return self._real.get_secret(path)
+
+
 def _default_resolver_factory(settings: Settings) -> SecretResolver:
-    """Construit le SecretResolver à partir des api_keys Harpocrate de Settings."""
+    """Construit le SecretResolver à partir des api_keys Harpocrate de Settings.
+
+    Les clients Harpocrate sont instanciés paresseusement (cf.
+    `_LazyHarpocrateVaultClient`) — le boot du service ne dépend pas de la
+    validité du token tant qu'aucun secret n'est résolu.
+    """
     clients: dict[str, VaultClient] = {
-        identifier: HarpocrateVaultClient(url=str(cfg.url), token=cfg.token.get_secret_value())
+        identifier: _LazyHarpocrateVaultClient(
+            identifier=identifier,
+            url=str(cfg.url),
+            token=cfg.token.get_secret_value(),
+        )
         for identifier, cfg in settings.harpocrate_api_keys.items()
     }
     return SecretResolver(harpocrate_clients=clients)
