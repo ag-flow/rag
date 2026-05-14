@@ -313,14 +313,16 @@ chown -R 1001:1001 data/backups 2>/dev/null || true
 
 echo "[4/6] Build de ${PROJECT_NAME}-backend:dev..."
 if [ -f backend/Dockerfile ]; then
-  docker build -t "${PROJECT_NAME}-backend:dev" backend/
+  # Tag :dev pour la trace de build + :latest pour que docker-compose tire l'image
+  # qui vient d'être construite (le compose référence rag-backend:latest).
+  docker build -t "${PROJECT_NAME}-backend:dev" -t "${PROJECT_NAME}-backend:latest" backend/
 else
   echo "      backend/Dockerfile absent — build skippé (phase d'amorçage)."
 fi
 
 echo "      Build de ${PROJECT_NAME}-frontend:dev..."
 if [ -f frontend/Dockerfile ]; then
-  docker build -t "${PROJECT_NAME}-frontend:dev" frontend/
+  docker build -t "${PROJECT_NAME}-frontend:dev" -t "${PROJECT_NAME}-frontend:latest" frontend/
 else
   echo "      frontend/Dockerfile absent — build skippé (jalon M5 pas encore commencé)."
 fi
