@@ -1,0 +1,78 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: rag-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rag}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?postgres password required}
+      POSTGRES_DB: ${POSTGRES_DB:-rag_config}
+    # Exposé sur le LAN pour permettre au dev Windows de lancer les tests contre cette DB.
+    # Machine de test uniquement — NON sûr pour de la vraie prod.
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 5
+    networks: [rag]
+
+  backend:
+    image: rag-backend:latest
+    container_name: rag-backend
+    restart: unless-stopped
+    env_file: .env
+    # Exposé sur le LAN pour curl direct sur l'API depuis le Windows dev pendant les tests.
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [rag]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      retries: 5
+
+  frontend:
+    image: rag-frontend:latest
+    container_name: rag-frontend
+    restart: unless-stopped
+    depends_on: [backend]
+    networks: [rag]
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: rag-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [frontend, backend]
+    networks: [rag]
+
+  # http://192.168.10.184:8081/
+  pgweb:
+    image: sosedoff/pgweb:latest
+    container_name: rag-pgweb
+    restart: unless-stopped
+    environment:
+      PGWEB_DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-rag_config}?sslmode=disable
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports:
+      - "8081:8081"
+    networks: [rag]
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  rag:
+    driver: bridge
