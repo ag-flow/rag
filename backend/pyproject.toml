@@ -21,7 +21,6 @@ dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "pytest-cov>=6.0",
-    "testcontainers[postgres]>=4.8",
     "ruff>=0.7",
     "mypy>=1.13",
 ]
@@ -68,11 +67,17 @@ warn_redundant_casts = true
 files = ["src/rag"]
 
 [[tool.mypy.overrides]]
-module = ["asyncpg.*", "testcontainers.*"]
+module = ["asyncpg.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Toutes les fixtures async (dont pg_container et session_pool) doivent
+# vivre sur la même event loop que les tests pour partager les connexions
+# asyncpg. Sans ça → "Future attached to a different loop" sur les fixtures
+# scope=session.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
 pythonpath = ["src"]
 markers = [

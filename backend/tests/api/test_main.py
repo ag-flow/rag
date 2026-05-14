@@ -16,8 +16,11 @@ _MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 @pytest_asyncio.fixture
 async def test_app_client(pg_container: str) -> AsyncIterator[TestClient]:
-    os.environ.setdefault("DATABASE_URL", pg_container)
-    os.environ.setdefault("RAG_POSTGRES_ADMIN_URL", pg_container)
+    # pg_container est function-scope (DB jetable par test) → on doit forcer
+    # l'assignment et non `setdefault`, sinon DATABASE_URL pointe vers la base
+    # du test précédent (déjà droppée).
+    os.environ["DATABASE_URL"] = pg_container
+    os.environ["RAG_POSTGRES_ADMIN_URL"] = pg_container
     os.environ.setdefault("RAG_MASTER_KEY", "mk_test_xyz")
     os.environ.setdefault("RAG_PUBLIC_URL", "http://localhost:8000")
     os.environ.setdefault("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_stub")
