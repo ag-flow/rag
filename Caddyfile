@@ -1,0 +1,34 @@
+# Caddyfile dev — reverse proxy HTTP minimal pour LXC 303.
+# /api/*  → backend:8000 (FastAPI)
+# /ui*    → frontend:80 (placeholder, retournera 404 jusqu'à M5)
+# /health → backend:8000 (smoke direct)
+# /version → backend:8000 (smoke direct)
+# /       → backend:8000 message d'accueil
+#
+# Pas de TLS — Cloudflare Tunnel gère le HTTPS en front en prod.
+
+{
+    auto_https off
+}
+
+:80 {
+    handle /api/* {
+        reverse_proxy backend:8000
+    }
+
+    handle /health {
+        reverse_proxy backend:8000
+    }
+
+    handle /version {
+        reverse_proxy backend:8000
+    }
+
+    handle /ui* {
+        respond "UI not yet deployed (M5)" 404
+    }
+
+    handle {
+        respond "ag-flow.rag — see /health or /api/*" 200
+    }
+}
