@@ -41,11 +41,23 @@ target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "UP", "N", "ASYNC"]
-ignore = ["E501"]
+# E/F/W : pycodestyle + pyflakes — erreurs et style standard
+# I     : isort — ordre des imports
+# B     : flake8-bugbear — bugs probables
+# UP    : pyupgrade — syntaxe Python moderne
+# N     : pep8-naming — conventions de nom
+# ASYNC : flake8-async — anti-patterns asyncio
+# S     : flake8-bandit — sécurité (critique : ce service manipule des secrets)
+# RUF   : règles natives ruff
+# SIM   : flake8-simplify — simplifications d'idiomes
+select = ["E", "F", "W", "I", "B", "UP", "N", "ASYNC", "S", "RUF", "SIM"]
+# Pas de ignore — la longueur de ligne est gérée par le formatter (line-length=100).
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["B011"]
+# B011 : assert False — OK en tests.
+# S101 : assert dans le code applicatif — OK en tests.
+# S105/S106 : hardcoded secrets — OK dans les fixtures de tests.
+"tests/**/*.py" = ["B011", "S101", "S105", "S106"]
 
 [tool.mypy]
 python_version = "3.12"
