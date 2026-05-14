@@ -24,8 +24,12 @@ RUN mkdir -p /app/vendor && \
 
 # Install Python deps (cacheable layer)
 COPY pyproject.toml uv.lock /app/
+# Note : `--frozen` est volontairement absent tant que `uv.lock` n'a pas été
+# regénéré sur un hôte Linux/WSL avec le wheel Harpocrate présent. uv résout
+# les deps à partir de pyproject.toml au build. À ré-activer quand un lock
+# autoritaire sera commité (M2 ou plus tard, après bootstrap LXC 303).
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+    uv sync --no-dev --no-install-project
 
 # Copy application source
 COPY src /app/src
@@ -33,7 +37,7 @@ COPY migrations /app/migrations
 
 # Final install with project
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+    uv sync --no-dev
 
 EXPOSE 8000
 
