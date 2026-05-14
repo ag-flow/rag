@@ -12,9 +12,10 @@ HARPOCRATE_URL="${HARPOCRATE_URL:-https://vault.yoops.org}"
 VENDOR_DIR="$(cd "$(dirname "$0")/.." && pwd)/vendor"
 
 # Le nom doit respecter PEP 427 (nom-version-python_tag-abi_tag-platform_tag.whl)
-# pour que `uv` accepte le wheel via [tool.uv.sources]. La version 0.0.0 est un
-# placeholder ; la vraie version vit dans les métadonnées internes du wheel.
-WHEEL_NAME="harpocrate-0.0.0-py3-none-any.whl"
+# pour que `uv` accepte le wheel. La version dans le filename DOIT correspondre
+# à la version interne du wheel (uv vérifie). Quand Harpocrate sort une nouvelle
+# version, mettre à jour ici + Dockerfile + pyproject.toml [tool.uv.sources].
+WHEEL_NAME="harpocrate-0.4.0-py3-none-any.whl"
 
 mkdir -p "$VENDOR_DIR"
 rm -f "$VENDOR_DIR"/harpocrate-*.whl

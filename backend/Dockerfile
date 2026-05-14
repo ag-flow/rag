@@ -25,7 +25,7 @@ WORKDIR /app
 ARG HARPOCRATE_URL=https://vault.yoops.org
 RUN mkdir -p /app/vendor && \
     curl -fsSL "${HARPOCRATE_URL}/v1/sdk/python-wheel" \
-        -o /app/vendor/harpocrate-0.0.0-py3-none-any.whl
+        -o /app/vendor/harpocrate-0.4.0-py3-none-any.whl
 
 # Install Python deps (cacheable layer)
 COPY pyproject.toml uv.lock /app/
