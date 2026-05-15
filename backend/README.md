@@ -39,6 +39,22 @@ Cibles fréquentes :
 - Smoke (opt-in, providers réels) : `uv run pytest -m smoke -v`
 - Couverture : `uv run pytest --cov=src/rag --cov-report=term-missing`
 
+### Smoke opt-in (providers réels)
+
+Les tests smoke valident les providers d'embedding contre les vraies APIs.
+Ils sont **skippés par défaut** (`addopts = "-m 'not smoke'"` dans
+`pyproject.toml`). Pour les exécuter, définir les env vars correspondantes :
+
+```powershell
+$env:OPENAI_API_KEY_TEST = "sk-..."           # OpenAI test key
+$env:VOYAGE_API_KEY_TEST = "vk-..."           # Voyage AI test key
+$env:OLLAMA_TEST_URL     = "http://192.168.10.80:11434"   # LXC Ollama homelab
+uv run pytest -m smoke -v
+```
+
+Chaque test skip individuellement si sa variable d'env n'est pas définie.
+Coût estimé OpenAI : <$0.001 par run (text-embedding-3-small).
+
 ## Lint, format, type check
 
 ```powershell
