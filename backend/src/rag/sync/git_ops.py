@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import fnmatch
 import os
 import re
 from pathlib import Path
 
 import structlog
+
+from rag.schemas.sync import ChangeSet
 
 log = structlog.get_logger(__name__)
 
@@ -153,3 +156,76 @@ async def list_all_files(dest: Path) -> list[str]:
         error_prefix="git ls-files failed",
     )
     return [line for line in stdout.splitlines() if line]
+
+
+async def diff_changes(
+    *,
+    dest: Path,
+    from_commit: str,
+    to_commit: str,
+) -> ChangeSet:
+    """`git diff --name-status <from>..<to>` → ChangeSet typé.
+
+    Préfixes git : `A` (added), `M` (modified), `D` (deleted),
+    `R<score>` (renamed — traité comme delete+add).
+    """
+    stdout, _ = await _run_git(
+        ["diff", "--name-status", f"{from_commit}..{to_commit}"],
+        cwd=dest,
+        error_cls=GitPullError,
+        error_prefix="git diff failed",
+    )
+    added: list[str] = []
+    modified: list[str] = []
+    deleted: list[str] = []
+    for line in stdout.splitlines():
+        if not line.strip():
+            continue
+        parts = line.split("\t")
+        status = parts[0]
+        if status == "A":
+            added.append(parts[1])
+        elif status == "M":
+            modified.append(parts[1])
+        elif status == "D":
+            deleted.append(parts[1])
+        elif status.startswith("R"):
+            # Rename = delete + add
+            deleted.append(parts[1])
+            added.append(parts[2])
+    return ChangeSet(added=added, modified=modified, deleted=deleted)
+
+
+def filter_glob(
+    cs: ChangeSet,
+    *,
+    include: list[str],
+    exclude: list[str],
+) -> ChangeSet:
+    """Applique les filtres glob (`fnmatch`) sur un ChangeSet.
+
+    Un fichier passe si :
+      - il match au moins un pattern `include`
+      - ET il ne match aucun pattern `exclude`
+
+    `**/*` est traité comme `*` (récursif sur le worktree).
+    """
+
+    def _match(path: str, patterns: list[str]) -> bool:
+        for p in patterns:
+            # fnmatch supporte * mais pas ** ; on désucre.
+            adjusted = p.replace("**/", "").replace("**", "*")
+            if fnmatch.fnmatch(path, adjusted):
+                return True
+        return False
+
+    def _keep(path: str) -> bool:
+        if not _match(path, include):
+            return False
+        return not (exclude and _match(path, exclude))
+
+    return ChangeSet(
+        added=[p for p in cs.added if _keep(p)],
+        modified=[p for p in cs.modified if _keep(p)],
+        deleted=[p for p in cs.deleted if _keep(p)],
+    )
