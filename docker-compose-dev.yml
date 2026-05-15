@@ -36,6 +36,10 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
     networks: [rag]
+    volumes:
+      # M3 : clones git persistants entre runs.
+      # `dev-deploy.sh --reset` (down -v) purge ce volume au passage.
+      - rag_repos:/var/lib/rag/repos
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
@@ -75,6 +79,7 @@ volumes:
   postgres_data:
   caddy_data:
   caddy_config:
+  rag_repos:    # M3 : clones git du sync worker (/var/lib/rag/repos)
 
 networks:
   rag:
