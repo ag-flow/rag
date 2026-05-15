@@ -9,8 +9,9 @@ from rag.api.errors import (
     RefNotFoundInVault,
     VaultUnreachable,
     WorkspaceAlreadyExists,
+    WorkspaceNotFound,
 )
-from rag.db.helpers import transaction
+from rag.db.helpers import fetch_all, fetch_one, transaction
 from rag.db.workspace_schema import (
     create_embeddings_table,
     create_workspace_database,
@@ -137,4 +138,64 @@ async def create_workspace(
         "name": request.name,
         "api_key": api_key,
         "created_at": ws_row["created_at"].isoformat(),
+    }
+
+
+async def list_workspaces(config_pool: asyncpg.Pool) -> list[dict[str, object]]:
+    """Liste tous les workspaces avec leurs compteurs (0/null en M2)."""
+    rows = await fetch_all(
+        config_pool,
+        """
+        SELECT
+            w.id, w.name, w.created_at,
+            ic.provider, ic.model, ic.api_key_ref,
+            (SELECT COUNT(*) FROM workspace_sources WHERE workspace_id = w.id) AS sources_count,
+            (SELECT COUNT(*) FROM indexed_documents WHERE workspace_id = w.id) AS documents_count,
+            (SELECT MAX(indexed_at) FROM indexed_documents WHERE workspace_id = w.id)
+                AS last_indexed_at
+        FROM workspaces w
+        LEFT JOIN indexer_configs ic ON ic.workspace_id = w.id
+        ORDER BY w.created_at
+        """,
+    )
+    return [_to_workspace_dict(r) for r in rows]
+
+
+async def get_workspace(config_pool: asyncpg.Pool, *, name: str) -> dict[str, object]:
+    """Détail d'un workspace. Lève WorkspaceNotFound si miss."""
+    row = await fetch_one(
+        config_pool,
+        """
+        SELECT
+            w.id, w.name, w.created_at,
+            ic.provider, ic.model, ic.api_key_ref,
+            (SELECT COUNT(*) FROM workspace_sources WHERE workspace_id = w.id) AS sources_count,
+            (SELECT COUNT(*) FROM indexed_documents WHERE workspace_id = w.id) AS documents_count,
+            (SELECT MAX(indexed_at) FROM indexed_documents WHERE workspace_id = w.id)
+                AS last_indexed_at
+        FROM workspaces w
+        LEFT JOIN indexer_configs ic ON ic.workspace_id = w.id
+        WHERE w.name = $1
+        """,
+        name,
+    )
+    if row is None:
+        raise WorkspaceNotFound(name)
+    return _to_workspace_dict(row)
+
+
+def _to_workspace_dict(row: asyncpg.Record) -> dict[str, object]:
+    last_indexed = row["last_indexed_at"]
+    return {
+        "id": str(row["id"]),
+        "name": row["name"],
+        "indexer": {
+            "provider": row["provider"],
+            "model": row["model"],
+            "api_key_ref": row["api_key_ref"],
+        },
+        "sources_count": int(row["sources_count"]),
+        "documents_count": int(row["documents_count"]),
+        "last_indexed_at": last_indexed.isoformat() if last_indexed is not None else None,
+        "created_at": row["created_at"].isoformat(),
     }
