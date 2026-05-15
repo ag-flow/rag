@@ -213,6 +213,24 @@ async def patch_workspace(
     log.info("workspace.patched", name=name, field="api_key_ref")
 
 
+async def delete_workspace(*, name: str, config_pool: asyncpg.Pool, admin_dsn: str) -> None:
+    """Supprime le workspace : DROP DATABASE puis DELETE config (CASCADE).
+
+    Idempotent : DROP DATABASE IF EXISTS ne lève pas si la base est absente.
+    Si le workspace n'est pas en config DB → WorkspaceNotFound (404).
+    """
+    row = await fetch_one(config_pool, "SELECT id, rag_base FROM workspaces WHERE name=$1", name)
+    if row is None:
+        raise WorkspaceNotFound(name)
+
+    await drop_workspace_database(admin_dsn, row["rag_base"])
+
+    async with config_pool.acquire() as conn:
+        await conn.execute("DELETE FROM workspaces WHERE id=$1", row["id"])
+
+    log.info("workspace.deleted", name=name)
+
+
 def _to_workspace_dict(row: asyncpg.Record) -> dict[str, object]:
     last_indexed = row["last_indexed_at"]
     return {
