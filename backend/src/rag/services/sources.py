@@ -70,8 +70,8 @@ async def add_source(
     async with config_pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO workspace_sources (workspace_id, type, config)
-            VALUES ($1, $2, $3::jsonb)
+            INSERT INTO workspace_sources (workspace_id, type, config, next_sync_at)
+            VALUES ($1, $2, $3::jsonb, now())
             RETURNING id, type, config, last_indexed_at, created_at
             """,
             ws_id,

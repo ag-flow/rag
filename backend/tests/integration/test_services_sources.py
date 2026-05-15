@@ -186,3 +186,31 @@ async def test_delete_source_not_found_raises(
             source_id=str(uuid.uuid4()),
             config_pool=session_pool,
         )
+
+
+@pytest.mark.asyncio
+async def test_add_source_sets_next_sync_at_to_now(
+    pg_container: str, session_pool: asyncpg.Pool, cleanup_ws_dbs: None
+) -> None:
+    """M3 : à la création d'une source, next_sync_at doit être posé à now()
+    pour déclencher le premier sync au prochain cycle du worker."""
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    resolver = await _setup_ws(pg_container, session_pool, "ws_src_next_sync")
+
+    src = await add_source(
+        workspace_name="ws_src_next_sync",
+        request=SourceCreateRequest(
+            type="git",
+            config={"url": "https://github.com/x/y", "auth_ref": "github_token"},
+        ),
+        config_pool=session_pool,
+        resolver=resolver,  # type: ignore[arg-type]
+    )
+
+    next_at_offset = await session_pool.fetchval(
+        "SELECT EXTRACT(EPOCH FROM (next_sync_at - now())) "
+        "FROM workspace_sources WHERE id=$1::uuid",
+        src["id"],
+    )
+    # next_sync_at devrait être quasi maintenant (±5s)
+    assert -5 <= float(next_at_offset) <= 5
