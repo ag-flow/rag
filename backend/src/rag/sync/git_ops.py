@@ -59,14 +59,18 @@ async def _run_git(
     `GIT_TERMINAL_PROMPT=0` empêche git d'attendre un mot de passe interactif.
     """
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
-    proc = await asyncio.create_subprocess_exec(
-        "git",
-        *args,
-        cwd=str(cwd) if cwd else None,
-        env=env,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git",
+            *args,
+            cwd=str(cwd) if cwd else None,
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except (FileNotFoundError, NotADirectoryError) as exc:
+        # cwd absent / invalide → on remonte l'erreur typée attendue.
+        raise error_cls(f"{error_prefix}: {sanitize_git_output(str(exc))}") from exc
     stdout_b, stderr_b = await proc.communicate()
     stdout = sanitize_git_output(stdout_b.decode("utf-8", errors="replace"))
     stderr = sanitize_git_output(stderr_b.decode("utf-8", errors="replace"))
@@ -97,3 +101,40 @@ async def clone(
         error_prefix="git clone failed",
     )
     log.info("git.clone.done", dest=str(dest))
+
+
+async def head_commit(dest: Path) -> str:
+    """Retourne le SHA-1 du HEAD courant (`git rev-parse HEAD`).
+
+    Lève `GitPullError` (sanitized) si le repo est invalide / corrompu.
+    """
+    stdout, _ = await _run_git(
+        ["rev-parse", "HEAD"],
+        cwd=dest,
+        error_cls=GitPullError,
+        error_prefix="git rev-parse failed",
+    )
+    return stdout.strip()
+
+
+async def pull(*, dest: Path, branch: str) -> None:
+    """Fetch + reset --hard pour aligner sur remote/<branch>.
+
+    Lève `GitPullError` (sanitized) si fetch ou reset échoue.
+    Le `reset --hard` perd les modifs locales — voulu, le worktree est
+    contrôlé par le worker uniquement.
+    """
+    log.info("git.pull.start", dest=str(dest), branch=branch)
+    await _run_git(
+        ["fetch", "origin", branch],
+        cwd=dest,
+        error_cls=GitPullError,
+        error_prefix="git fetch failed",
+    )
+    await _run_git(
+        ["reset", "--hard", f"origin/{branch}"],
+        cwd=dest,
+        error_cls=GitPullError,
+        error_prefix="git reset failed",
+    )
+    log.info("git.pull.done", dest=str(dest), branch=branch)
