@@ -231,6 +231,29 @@ async def delete_workspace(*, name: str, config_pool: asyncpg.Pool, admin_dsn: s
     log.info("workspace.deleted", name=name)
 
 
+async def rotate_apikey(*, name: str, config_pool: asyncpg.Pool) -> str:
+    """Régénère une api_key pour le workspace, retourne la nouvelle en clair.
+
+    Invalide instantanément l'ancienne clé (UPDATE atomique du hash).
+    Lève WorkspaceNotFound si le workspace n'existe pas.
+    """
+    row = await fetch_one(config_pool, "SELECT id FROM workspaces WHERE name=$1", name)
+    if row is None:
+        raise WorkspaceNotFound(name)
+
+    new_key = generate_api_key()
+    new_hash = hash_api_key(new_key)
+    async with config_pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE workspaces SET api_key_hash=$1, updated_at=now() WHERE id=$2",
+            new_hash,
+            row["id"],
+        )
+
+    log.info("workspace.apikey_rotated", name=name)
+    return new_key
+
+
 def _to_workspace_dict(row: asyncpg.Record) -> dict[str, object]:
     last_indexed = row["last_indexed_at"]
     return {
