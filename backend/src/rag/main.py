@@ -8,6 +8,8 @@ from pathlib import Path
 import structlog
 from fastapi import FastAPI
 
+from rag.api.admin import build_admin_router
+from rag.api.errors import register_error_handlers
 from rag.api.health import build_health_router
 from rag.config import Settings
 from rag.db.migrations import run_migrations
@@ -100,6 +102,7 @@ def build_app(
         )
         await registry.start()
         app.state.pools = registry
+        app.state.admin_dsn = str(settings.rag_postgres_admin_url)
 
         target_dir = migrations_dir or _default_migrations_dir()
         await run_migrations(registry.config_pool, target_dir)
@@ -119,6 +122,8 @@ def build_app(
         lifespan=lifespan,
     )
     app.include_router(build_health_router())
+    app.include_router(build_admin_router())
+    register_error_handlers(app)
     return app
 
 
