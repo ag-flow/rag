@@ -109,11 +109,34 @@ def build_app(
 
         app.state.resolver = resolver_factory(settings)
 
+        # M3 : recovery au boot (jobs running orphelins → error)
+        from rag.sync.recovery import reset_stale_running_jobs
+
+        await reset_stale_running_jobs(registry.config_pool)
+
+        # M3 : démarre le sync worker
+        from rag.indexer.noop import NoOpIndexer
+        from rag.sync.repo_storage import RepoStorage
+        from rag.sync.worker import SyncWorker
+
+        sync_worker = SyncWorker(
+            config_pool=registry.config_pool,
+            storage=RepoStorage(root=settings.sync_repos_root),
+            indexer=NoOpIndexer(registry.config_pool),
+            resolver=app.state.resolver,
+            poll_interval_seconds=settings.sync_worker_poll_interval_seconds,
+            default_sync_interval_seconds=settings.sync_default_interval_seconds,
+        )
+        await sync_worker.start()
+        app.state.sync_worker = sync_worker
+
         log.info("app.lifespan.ready")
         try:
             yield
         finally:
             log.info("app.lifespan.shutdown")
+            if hasattr(app.state, "sync_worker"):
+                await app.state.sync_worker.stop()
             await registry.close_all()
 
     app = FastAPI(
