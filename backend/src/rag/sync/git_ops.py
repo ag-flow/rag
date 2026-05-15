@@ -138,3 +138,18 @@ async def pull(*, dest: Path, branch: str) -> None:
         error_prefix="git reset failed",
     )
     log.info("git.pull.done", dest=str(dest), branch=branch)
+
+
+async def list_all_files(dest: Path) -> list[str]:
+    """Retourne tous les fichiers trackés par git (`git ls-files`).
+
+    Sert au 1er sync d'une source (pas de `last_commit` connu) : on traite
+    tous les fichiers du worktree.
+    """
+    stdout, _ = await _run_git(
+        ["ls-files"],
+        cwd=dest,
+        error_cls=GitPullError,
+        error_prefix="git ls-files failed",
+    )
+    return [line for line in stdout.splitlines() if line]
