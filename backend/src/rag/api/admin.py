@@ -7,6 +7,7 @@ from rag.auth.bearer import require_master_key
 from rag.schemas.admin import (
     ApiKeyRotateResponse,
     JobResponse,
+    ModelEntry,
     ReindexRequest,
     SourceCreateRequest,
     SourceResponse,
@@ -155,5 +156,47 @@ def build_admin_router() -> APIRouter:
 
         rows = await list_jobs(_config_pool(request), workspace_name=name)
         return [JobResponse(**r) for r in rows]
+
+    # ─── Models registry ────────────────────────────────────────────────────
+
+    @router.get("/admin/models")
+    async def get_models(request: Request) -> list[ModelEntry]:
+        from rag.services.models import list_models
+
+        return await list_models(_config_pool(request))
+
+    @router.post("/admin/models", status_code=status.HTTP_201_CREATED)
+    async def post_model(payload: ModelEntry, request: Request) -> ModelEntry:
+        from rag.services.models import add_model
+
+        try:
+            await add_model(
+                _config_pool(request),
+                provider=payload.provider,
+                model=payload.model,
+                dimension=payload.dimension,
+            )
+        except asyncpg.UniqueViolationError as e:
+            from fastapi import HTTPException
+
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error": "model_already_exists",
+                    "provider": payload.provider,
+                    "model": payload.model,
+                },
+            ) from e
+        return payload
+
+    @router.delete(
+        "/admin/models/{provider}/{model:path}",
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
+    async def delete_model_endpoint(provider: str, model: str, request: Request) -> Response:
+        from rag.services.models import delete_model
+
+        await delete_model(_config_pool(request), provider=provider, model=model)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return router
