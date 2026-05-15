@@ -35,6 +35,31 @@ def test_derive_workspace_dsn_replaces_dbname() -> None:
     )
 
 
+def test_derive_workspace_dsn_preserves_query_string() -> None:
+    admin_dsn = "postgresql://rag:pwd@192.168.10.184:5432/postgres?sslmode=require"
+    out = derive_workspace_dsn(admin_dsn, "rag_x")
+    assert out == "postgresql://rag:pwd@192.168.10.184:5432/rag_x?sslmode=require"
+
+
+@pytest.mark.asyncio
+async def test_create_workspace_database_rejects_invalid_name(
+    pg_container: str,
+) -> None:
+    admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
+    for bad in ("", "1abc", "Has-Upper", "with space", 'inject"; DROP'):
+        with pytest.raises(ValueError, match="invalid dbname"):
+            await create_workspace_database(admin_dsn, bad)
+
+
+@pytest.mark.asyncio
+async def test_drop_workspace_database_rejects_invalid_name(
+    pg_container: str,
+) -> None:
+    admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
+    with pytest.raises(ValueError, match="invalid dbname"):
+        await drop_workspace_database(admin_dsn, 'inject"; DROP')
+
+
 @pytest.mark.asyncio
 async def test_create_workspace_database_creates_db(
     pg_container: str, ephemeral_ws_name: str

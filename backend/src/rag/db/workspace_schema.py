@@ -1,18 +1,36 @@
 from __future__ import annotations
 
+import re
+from urllib.parse import urlsplit, urlunsplit
+
 import asyncpg
 import structlog
 
 log = structlog.get_logger(__name__)
 
 
-def derive_workspace_dsn(admin_dsn: str, dbname: str) -> str:
-    """Construit le DSN de la base workspace à partir du DSN admin (/postgres → /<dbname>).
+_DBNAME_REGEX = re.compile(r"^[a-z][a-z0-9_-]{0,62}$")
 
-    Convention : `admin_dsn` doit pointer vers la base système `postgres`
-    (utilisée pour les opérations CREATE/DROP DATABASE).
+
+def _validate_dbname(dbname: str) -> None:
+    """Défense en profondeur : valide la forme du nom de base avant interpolation SQL.
+
+    Bien que la couche service valide déjà via Pydantic, ce module expose des
+    fonctions publiques susceptibles d'être appelées directement — on garde
+    donc une garde locale stricte.
     """
-    return admin_dsn.rsplit("/", 1)[0] + f"/{dbname}"
+    if not _DBNAME_REGEX.fullmatch(dbname):
+        raise ValueError(f"invalid dbname {dbname!r}: must match [a-z][a-z0-9_-]{{0,62}}$")
+
+
+def derive_workspace_dsn(admin_dsn: str, dbname: str) -> str:
+    """Construit le DSN de la base workspace à partir du DSN admin (path → /<dbname>).
+
+    Préserve scheme, netloc, query et fragment du DSN admin — uniquement la
+    base cible change. Ex. : `?sslmode=require` est conservé.
+    """
+    parts = urlsplit(admin_dsn)
+    return urlunsplit(parts._replace(path=f"/{dbname}"))
 
 
 async def create_workspace_database(admin_dsn: str, dbname: str) -> None:
@@ -26,6 +44,7 @@ async def create_workspace_database(admin_dsn: str, dbname: str) -> None:
     n'accepte pas de paramètre bindé pour un identifiant DDL. `dbname` provient
     de la validation Pydantic (regex stricte), pas d'une entrée utilisateur libre.
     """
+    _validate_dbname(dbname)
     conn = await asyncpg.connect(admin_dsn)
     try:
         await conn.execute(f'CREATE DATABASE "{dbname}"')
@@ -40,6 +59,7 @@ async def drop_workspace_database(admin_dsn: str, dbname: str) -> None:
     Idempotent : ne lève rien si la base n'existe pas. `WITH (FORCE)` ferme
     les connexions actives (utile dès M3/M4).
     """
+    _validate_dbname(dbname)
     conn = await asyncpg.connect(admin_dsn)
     try:
         await conn.execute(f'DROP DATABASE IF EXISTS "{dbname}" WITH (FORCE)')
