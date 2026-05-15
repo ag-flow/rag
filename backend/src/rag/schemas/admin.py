@@ -1,0 +1,129 @@
+from __future__ import annotations
+
+from typing import Any, Literal
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+# Regex strictement aligné design 2026-05-15 :
+# - commence par une lettre minuscule
+# - suite : minuscules / chiffres / _ / -
+# - longueur 1..63 (limite Postgres pour les identifiants de base, puisque
+#   rag_<name> doit rester un identifiant DB valide).
+_NAME_REGEX = r"^[a-z][a-z0-9_-]{0,62}$"
+
+
+class IndexerSpec(BaseModel):
+    """Indexeur d'un workspace : provider + modèle + api_key_ref (clé logique)."""
+
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    api_key_ref: str | None = None
+
+
+class WorkspaceCreateRequest(BaseModel):
+    """Payload POST /workspaces."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(pattern=_NAME_REGEX, max_length=63)
+    indexer: IndexerSpec
+
+
+class IndexerPatchSpec(BaseModel):
+    """Sous-payload PATCH /workspaces/{name} : seul api_key_ref est modifiable."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    api_key_ref: str = Field(min_length=1)
+
+
+class WorkspacePatchRequest(BaseModel):
+    """Payload PATCH /workspaces/{name}. Seul `indexer.api_key_ref` est modifiable."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    indexer: IndexerPatchSpec
+
+
+class WorkspaceResponse(BaseModel):
+    """Réponse GET/POST /workspaces/{name}."""
+
+    id: UUID
+    name: str
+    indexer: IndexerSpec
+    sources_count: int
+    documents_count: int
+    last_indexed_at: str | None
+    created_at: str
+
+
+class WorkspaceCreateResponse(BaseModel):
+    """Réponse 201 POST /workspaces — `api_key` en clair, exposée UNE FOIS."""
+
+    id: UUID
+    name: str
+    api_key: str
+    created_at: str
+
+
+class ApiKeyRotateResponse(BaseModel):
+    """Réponse POST /workspaces/{name}/rotate-apikey."""
+
+    api_key: str
+
+
+class SourceCreateRequest(BaseModel):
+    """Payload POST /workspaces/{name}/sources."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["git"]
+    config: dict[str, Any]
+
+    @field_validator("config")
+    @classmethod
+    def config_must_have_url(cls, v: dict[str, Any]) -> dict[str, Any]:
+        if "url" not in v or not v["url"]:
+            raise ValueError("config.url is required for git sources")
+        return v
+
+
+class SourceResponse(BaseModel):
+    id: UUID
+    type: str
+    config: dict[str, Any]
+    last_indexed_at: str | None
+    created_at: str
+
+
+class ReindexRequest(BaseModel):
+    """Payload POST /workspaces/{name}/reindex (body optionnel)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    indexer: IndexerSpec | None = None
+
+
+class JobResponse(BaseModel):
+    id: UUID
+    triggered_by: str
+    status: str
+    files_changed: int
+    files_skipped: int
+    error_message: str | None
+    started_at: str | None
+    finished_at: str | None
+    duration_ms: int | None
+
+
+class ModelEntry(BaseModel):
+    """Une entrée du registre model_dimensions."""
+
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    dimension: int = Field(gt=0)
