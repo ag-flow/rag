@@ -20,9 +20,12 @@ _DEFAULT_RETRY_SLEEP_SECONDS = 5.0
 class OllamaProvider:
     """Implementation `EmbeddingProvider` pour Ollama (LXC homelab).
 
-    Endpoint : `POST <base_url>/api/embeddings`.
+    Endpoint : `POST <base_url>/api/embed` (API Ollama >= 0.3, stable).
     Pas d'auth (LXC local). 1 texte par call (l'API Ollama est mono-input).
     Boucle sequentielle pour preserver l'ordre - Ollama mono-thread CPU.
+
+    Payload request  : {"model": "...", "input": "<text>"}
+    Payload response : {"embeddings": [[...float...]]}
     """
 
     def __init__(
@@ -59,8 +62,8 @@ class OllamaProvider:
         for attempt in (0, 1):
             try:
                 response = await client.post(
-                    f"{self._base_url}/api/embeddings",
-                    json={"model": self._model, "prompt": text},
+                    f"{self._base_url}/api/embed",
+                    json={"model": self._model, "input": text},
                 )
             except (httpx.TimeoutException, httpx.NetworkError) as e:
                 if attempt == 0:
@@ -73,10 +76,13 @@ class OllamaProvider:
 
             if response.status_code == 200:
                 payload: dict[str, Any] = response.json()
-                embedding = payload.get("embedding")
-                if not isinstance(embedding, list):
-                    raise EmbeddingProviderError("Ollama response missing 'embedding' field")
-                return embedding
+                embeddings = payload.get("embeddings")
+                if not isinstance(embeddings, list) or not embeddings:
+                    raise EmbeddingProviderError("Ollama response missing 'embeddings' field")
+                first = embeddings[0]
+                if not isinstance(first, list):
+                    raise EmbeddingProviderError("Ollama 'embeddings[0]' is not a list")
+                return first
 
             if response.status_code == 503:
                 if attempt == 0:

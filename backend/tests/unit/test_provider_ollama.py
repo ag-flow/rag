@@ -12,15 +12,20 @@ def _vec(dim: int = 768, fill: float = 0.3) -> list[float]:
     return [fill] * dim
 
 
+def _resp(dim: int = 768, fill: float = 0.3) -> dict:
+    """Réponse Ollama /api/embed : {"embeddings": [[...float...]]}."""
+    return {"embeddings": [_vec(dim, fill)]}
+
+
 @pytest.mark.asyncio
 async def test_ollama_embed_texts_calls_once_per_input() -> None:
-    """L'API Ollama /api/embeddings est mono-input : on doit boucler."""
+    """L'API Ollama /api/embed est mono-input : on doit boucler."""
     calls: list[dict] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
         calls.append(body)
-        return httpx.Response(200, json={"embedding": _vec()})
+        return httpx.Response(200, json=_resp())
 
     provider = OllamaProvider(
         model="nomic-embed-text",
@@ -31,9 +36,9 @@ async def test_ollama_embed_texts_calls_once_per_input() -> None:
     assert len(result) == 3
     assert len(calls) == 3
     assert calls[0]["model"] == "nomic-embed-text"
-    assert calls[0]["prompt"] == "hello"
-    assert calls[1]["prompt"] == "world"
-    assert calls[2]["prompt"] == "foo"
+    assert calls[0]["input"] == "hello"
+    assert calls[1]["input"] == "world"
+    assert calls[2]["input"] == "foo"
 
 
 @pytest.mark.asyncio
@@ -42,7 +47,7 @@ async def test_ollama_embed_texts_uses_base_url() -> None:
 
     def handler(request: httpx.Request) -> httpx.Response:
         captured_urls.append(str(request.url))
-        return httpx.Response(200, json={"embedding": _vec()})
+        return httpx.Response(200, json=_resp())
 
     provider = OllamaProvider(
         model="nomic-embed-text",
@@ -50,7 +55,7 @@ async def test_ollama_embed_texts_uses_base_url() -> None:
         transport=httpx.MockTransport(handler),
     )
     await provider.embed_texts(["hello"])
-    assert captured_urls == ["http://my-ollama.example:9999/api/embeddings"]
+    assert captured_urls == ["http://my-ollama.example:9999/api/embed"]
 
 
 @pytest.mark.asyncio
@@ -61,7 +66,7 @@ async def test_ollama_embed_empty_input_returns_empty() -> None:
     def handler(_request: httpx.Request) -> httpx.Response:
         nonlocal calls
         calls += 1
-        return httpx.Response(200, json={"embedding": _vec()})
+        return httpx.Response(200, json=_resp())
 
     provider = OllamaProvider(
         model="nomic-embed-text",
@@ -74,11 +79,27 @@ async def test_ollama_embed_empty_input_returns_empty() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ollama_embed_missing_embedding_field_raises() -> None:
+async def test_ollama_embed_missing_embeddings_field_raises() -> None:
     from rag.indexer.providers.protocol import EmbeddingProviderError
 
     def handler(_request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"not_embedding": []})
+        return httpx.Response(200, json={"not_embeddings": []})
+
+    provider = OllamaProvider(
+        model="nomic-embed-text",
+        base_url="http://x:1",
+        transport=httpx.MockTransport(handler),
+    )
+    with pytest.raises(EmbeddingProviderError):
+        await provider.embed_texts(["hello"])
+
+
+@pytest.mark.asyncio
+async def test_ollama_embed_empty_embeddings_list_raises() -> None:
+    from rag.indexer.providers.protocol import EmbeddingProviderError
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"embeddings": []})
 
     provider = OllamaProvider(
         model="nomic-embed-text",
@@ -118,7 +139,7 @@ async def test_ollama_embed_503_succeeds_on_retry() -> None:
         call_count["n"] += 1
         if call_count["n"] == 1:
             return httpx.Response(503, json={"error": "Loading"})
-        return httpx.Response(200, json={"embedding": _vec()})
+        return httpx.Response(200, json=_resp())
 
     provider = OllamaProvider(
         model="nomic-embed-text",

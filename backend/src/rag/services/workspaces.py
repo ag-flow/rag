@@ -105,13 +105,15 @@ async def create_workspace(
                 raise RuntimeError("unexpected None from RETURNING")
             await conn.execute(
                 """
-                INSERT INTO indexer_configs (workspace_id, provider, model, api_key_ref, dimension)
-                VALUES ($1, $2, $3, $4, $5)
+                INSERT INTO indexer_configs
+                    (workspace_id, provider, model, api_key_ref, base_url, dimension)
+                VALUES ($1, $2, $3, $4, $5, $6)
                 """,
                 ws_row["id"],
                 request.indexer.provider,
                 request.indexer.model,
                 request.indexer.api_key_ref,
+                request.indexer.base_url,
                 dimension,
             )
     except asyncpg.UniqueViolationError as e:
@@ -149,7 +151,7 @@ async def list_workspaces(config_pool: asyncpg.Pool) -> list[dict[str, object]]:
         """
         SELECT
             w.id, w.name, w.created_at,
-            ic.provider, ic.model, ic.api_key_ref,
+            ic.provider, ic.model, ic.api_key_ref, ic.base_url,
             (SELECT COUNT(*) FROM workspace_sources WHERE workspace_id = w.id) AS sources_count,
             (SELECT COUNT(*) FROM indexed_documents WHERE workspace_id = w.id) AS documents_count,
             (SELECT MAX(indexed_at) FROM indexed_documents WHERE workspace_id = w.id)
@@ -169,7 +171,7 @@ async def get_workspace(config_pool: asyncpg.Pool, *, name: str) -> dict[str, ob
         """
         SELECT
             w.id, w.name, w.created_at,
-            ic.provider, ic.model, ic.api_key_ref,
+            ic.provider, ic.model, ic.api_key_ref, ic.base_url,
             (SELECT COUNT(*) FROM workspace_sources WHERE workspace_id = w.id) AS sources_count,
             (SELECT COUNT(*) FROM indexed_documents WHERE workspace_id = w.id) AS documents_count,
             (SELECT MAX(indexed_at) FROM indexed_documents WHERE workspace_id = w.id)
@@ -276,6 +278,7 @@ def _to_workspace_dict(row: asyncpg.Record) -> dict[str, object]:
             "provider": row["provider"],
             "model": row["model"],
             "api_key_ref": row["api_key_ref"],
+            "base_url": row["base_url"],
         },
         "sources_count": int(row["sources_count"]),
         "documents_count": int(row["documents_count"]),

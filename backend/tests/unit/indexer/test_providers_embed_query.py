@@ -86,7 +86,7 @@ async def test_voyage_embed_texts_still_uses_input_type_document() -> None:
 @pytest.mark.asyncio
 async def test_ollama_embed_query_returns_first_vector() -> None:
     def handler(_request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"embedding": [0.7, 0.8, 0.9]})
+        return httpx.Response(200, json={"embeddings": [[0.7, 0.8, 0.9]]})
 
     transport = httpx.MockTransport(handler)
     provider = OllamaProvider(
@@ -105,7 +105,7 @@ async def test_ollama_embed_query_delegates_single_call() -> None:
     def handler(_request: httpx.Request) -> httpx.Response:
         nonlocal call_count
         call_count += 1
-        return httpx.Response(200, json={"embedding": [0.1]})
+        return httpx.Response(200, json={"embeddings": [[0.1]]})
 
     transport = httpx.MockTransport(handler)
     provider = OllamaProvider(

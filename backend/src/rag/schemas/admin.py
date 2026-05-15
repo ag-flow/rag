@@ -21,6 +21,7 @@ class IndexerSpec(BaseModel):
     provider: str = Field(min_length=1)
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
+    base_url: str | None = None
 
 
 class WorkspaceCreateRequest(BaseModel):
