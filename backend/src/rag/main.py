@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from rag.api.admin import build_admin_router
 from rag.api.errors import register_error_handlers
 from rag.api.health import build_health_router
+from rag.api.mcp import build_mcp_router
 from rag.api.workspace import build_workspace_router
 from rag.auth.workspace_auth import ApiKeyCache
 from rag.config import Settings
@@ -158,6 +159,7 @@ def build_app(
     app.include_router(build_health_router())
     app.include_router(build_admin_router())
     app.include_router(build_workspace_router())
+    app.include_router(build_mcp_router())
     register_error_handlers(app)
     return app
 
