@@ -18,7 +18,7 @@ from rag.db.workspace_schema import (
     derive_workspace_dsn,
     drop_workspace_database,
 )
-from rag.schemas.admin import WorkspaceCreateRequest
+from rag.schemas.admin import WorkspaceCreateRequest, WorkspacePatchRequest
 from rag.secrets.resolver import VaultLookupFailed
 from rag.services.apikey import generate_api_key, hash_api_key
 from rag.services.models import get_dimension_or_raise
@@ -182,6 +182,35 @@ async def get_workspace(config_pool: asyncpg.Pool, *, name: str) -> dict[str, ob
     if row is None:
         raise WorkspaceNotFound(name)
     return _to_workspace_dict(row)
+
+
+async def patch_workspace(
+    *,
+    name: str,
+    request: WorkspacePatchRequest,
+    config_pool: asyncpg.Pool,
+    resolver: _ResolverProtocol,
+) -> None:
+    """Met à jour `indexer.api_key_ref` (seul champ patchable en M2).
+
+    Eager validation de la nouvelle ref via Harpocrate avant UPDATE.
+    Lève WorkspaceNotFound si le workspace n'existe pas.
+    """
+    new_ref = request.indexer.api_key_ref
+    _validate_ref_via_vault(resolver, new_ref)
+
+    async with config_pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT id FROM workspaces WHERE name=$1", name)
+        if row is None:
+            raise WorkspaceNotFound(name)
+        await conn.execute(
+            "UPDATE indexer_configs SET api_key_ref=$1 WHERE workspace_id=$2",
+            new_ref,
+            row["id"],
+        )
+        await conn.execute("UPDATE workspaces SET updated_at=now() WHERE id=$1", row["id"])
+
+    log.info("workspace.patched", name=name, field="api_key_ref")
 
 
 def _to_workspace_dict(row: asyncpg.Record) -> dict[str, object]:
