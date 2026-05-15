@@ -11,6 +11,7 @@ from rag.api.errors import (
     WorkspaceAlreadyExists,
     WorkspaceNotFound,
 )
+from rag.auth.workspace_auth import ApiKeyCache
 from rag.db.helpers import fetch_all, fetch_one, transaction
 from rag.db.workspace_schema import (
     create_embeddings_table,
@@ -231,10 +232,19 @@ async def delete_workspace(*, name: str, config_pool: asyncpg.Pool, admin_dsn: s
     log.info("workspace.deleted", name=name)
 
 
-async def rotate_apikey(*, name: str, config_pool: asyncpg.Pool) -> str:
+async def rotate_apikey(
+    *,
+    name: str,
+    config_pool: asyncpg.Pool,
+    apikey_cache: ApiKeyCache | None = None,
+) -> str:
     """Régénère une api_key pour le workspace, retourne la nouvelle en clair.
 
-    Invalide instantanément l'ancienne clé (UPDATE atomique du hash).
+    Invalide instantanément l'ancienne clé (UPDATE atomique du hash) et,
+    si un cache est fourni, supprime toute entrée en cache pour ce
+    workspace afin que les requêtes suivantes refassent la vérification
+    bcrypt contre le nouveau hash.
+
     Lève WorkspaceNotFound si le workspace n'existe pas.
     """
     row = await fetch_one(config_pool, "SELECT id FROM workspaces WHERE name=$1", name)
@@ -249,6 +259,9 @@ async def rotate_apikey(*, name: str, config_pool: asyncpg.Pool) -> str:
             new_hash,
             row["id"],
         )
+
+    if apikey_cache is not None:
+        apikey_cache.invalidate(name)
 
     log.info("workspace.apikey_rotated", name=name)
     return new_key

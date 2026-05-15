@@ -95,7 +95,11 @@ def build_admin_router() -> APIRouter:
 
     @router.post("/workspaces/{name}/rotate-apikey")
     async def rotate_apikey_endpoint(name: str, request: Request) -> ApiKeyRotateResponse:
-        new_key = await rotate_apikey(name=name, config_pool=_config_pool(request))
+        new_key = await rotate_apikey(
+            name=name,
+            config_pool=_config_pool(request),
+            apikey_cache=request.app.state.apikey_cache,
+        )
         return ApiKeyRotateResponse(api_key=new_key)
 
     # ─── Sources ─────────────────────────────────────────────────────────────
