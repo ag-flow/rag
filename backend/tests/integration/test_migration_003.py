@@ -102,3 +102,14 @@ async def test_index_jobs_status_index_exists(session_pool: asyncpg.Pool) -> Non
             "SELECT indexname FROM pg_indexes WHERE indexname = 'idx_jobs_status_workspace'"
         )
         assert idx == "idx_jobs_status_workspace"
+
+
+@pytest.mark.asyncio
+async def test_index_jobs_workspace_started_index_exists(session_pool: asyncpg.Pool) -> None:
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    async with session_pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT indexname FROM pg_indexes "
+            "WHERE tablename = 'index_jobs' AND indexname = 'index_jobs_workspace_started'"
+        )
+    assert len(rows) == 1, "index_jobs_workspace_started doit être créé par migration 006"
