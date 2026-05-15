@@ -33,8 +33,9 @@ set -euo pipefail
 # ─── Configuration du projet (À MODIFIER lors d'une réutilisation) ──────────
 PROJECT_NAME="rag"
 PROJECT_NAME_UPPER="$(echo "$PROJECT_NAME" | tr '[:lower:]' '[:upper:]')"
-
 REPO_URL="${REPO_URL:-git@github.com:ag-flow/rag.git}"
+
+
 COMPOSE_FILE="docker-compose-dev.yml"
 
 # Parse args : on accepte un mix « branche optionnelle » + « flags --xxx ».
