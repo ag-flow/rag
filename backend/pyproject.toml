@@ -57,7 +57,9 @@ select = ["E", "F", "W", "I", "B", "UP", "N", "ASYNC", "S", "RUF", "SIM"]
 # B011 : assert False — OK en tests.
 # S101 : assert dans le code applicatif — OK en tests.
 # S105/S106 : hardcoded secrets — OK dans les fixtures de tests.
-"tests/**/*.py" = ["B011", "S101", "S105", "S106"]
+# S603/S607 : subprocess avec PATH partiel — OK dans les fixtures git
+# de tests (input contrôlé, pas d'untrusted input).
+"tests/**/*.py" = ["B011", "S101", "S105", "S106", "S603", "S607"]
 # N818 : les exceptions métier admin sont nommées par cas (WorkspaceNotFound,
 # ModelInUse, ...) — contrat figé par la spec, suffixe `Error` non souhaité.
 "src/rag/api/errors.py" = ["N818"]

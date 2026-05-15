@@ -12,13 +12,15 @@ def make_bare_repo_with_commits(tmp_path: Path, files: dict[str, str]) -> Path:
     bare = tmp_path / "bare.git"
     subprocess.run(
         ["git", "init", "--bare", "--initial-branch=main", str(bare)],
-        check=True, capture_output=True,
+        check=True,
+        capture_output=True,
     )
 
     work = tmp_path / "work"
     subprocess.run(
         ["git", "clone", str(bare), str(work)],
-        check=True, capture_output=True,
+        check=True,
+        capture_output=True,
     )
     subprocess.run(
         ["git", "-C", str(work), "config", "user.email", "test@test"],
@@ -37,11 +39,13 @@ def make_bare_repo_with_commits(tmp_path: Path, files: dict[str, str]) -> Path:
     subprocess.run(["git", "-C", str(work), "add", "."], check=True)
     subprocess.run(
         ["git", "-C", str(work), "commit", "-m", "initial"],
-        check=True, capture_output=True,
+        check=True,
+        capture_output=True,
     )
     subprocess.run(
         ["git", "-C", str(work), "push", "origin", "main"],
-        check=True, capture_output=True,
+        check=True,
+        capture_output=True,
     )
     return bare
 
@@ -60,14 +64,18 @@ def add_commit(work_dir: Path, files: dict[str, str], deletes: list[str] | None 
     subprocess.run(["git", "-C", str(work_dir), "add", "-A"], check=True)
     subprocess.run(
         ["git", "-C", str(work_dir), "commit", "-m", "update"],
-        check=True, capture_output=True,
+        check=True,
+        capture_output=True,
     )
     sha = subprocess.run(
         ["git", "-C", str(work_dir), "rev-parse", "HEAD"],
-        check=True, capture_output=True, text=True,
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout.strip()
     subprocess.run(
         ["git", "-C", str(work_dir), "push", "origin", "main"],
-        check=True, capture_output=True,
+        check=True,
+        capture_output=True,
     )
     return sha

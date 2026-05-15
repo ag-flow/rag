@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import os
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
 
@@ -14,16 +14,21 @@ _MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 
 @pytest_asyncio.fixture
-async def wired_client(pg_container: str, tmp_path: Path) -> AsyncIterator[TestClient]:
-    os.environ["DATABASE_URL"] = pg_container
-    os.environ["RAG_POSTGRES_ADMIN_URL"] = pg_container.rsplit("/", 1)[0] + "/postgres"
-    os.environ.setdefault("RAG_MASTER_KEY", "mk_test_sync")
-    os.environ.setdefault("RAG_PUBLIC_URL", "http://localhost:8000")
-    os.environ.setdefault("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_stub")
-    os.environ.setdefault("HARPOCRATE_API_URL_RAG", "https://vault.example.com")
-    os.environ.setdefault("ENVIRONMENT", "dev")
-    os.environ["SYNC_REPOS_ROOT"] = str(tmp_path / "repos")
-    os.environ["SYNC_WORKER_POLL_INTERVAL_SECONDS"] = "1"
+async def wired_client(
+    pg_container: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> AsyncIterator[TestClient]:
+    # monkeypatch.setenv restaure les env vars au teardown — sans ça
+    # SYNC_REPOS_ROOT et SYNC_WORKER_POLL_INTERVAL_SECONDS leakent
+    # vers tests/unit/test_config.py qui s'appuie sur des defaults vierges.
+    monkeypatch.setenv("DATABASE_URL", pg_container)
+    monkeypatch.setenv("RAG_POSTGRES_ADMIN_URL", pg_container.rsplit("/", 1)[0] + "/postgres")
+    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_sync")
+    monkeypatch.setenv("RAG_PUBLIC_URL", "http://localhost:8000")
+    monkeypatch.setenv("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_stub")
+    monkeypatch.setenv("HARPOCRATE_API_URL_RAG", "https://vault.example.com")
+    monkeypatch.setenv("ENVIRONMENT", "dev")
+    monkeypatch.setenv("SYNC_REPOS_ROOT", str(tmp_path / "repos"))
+    monkeypatch.setenv("SYNC_WORKER_POLL_INTERVAL_SECONDS", "1")
 
     app = build_app(
         version="0.3.0",

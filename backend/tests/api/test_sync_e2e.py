@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import os
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
 
@@ -23,16 +23,22 @@ class _AcceptAllResolver:
 async def e2e_client(
     pg_container: str,
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> AsyncIterator[tuple[TestClient, Path]]:
-    os.environ["DATABASE_URL"] = pg_container
-    os.environ["RAG_POSTGRES_ADMIN_URL"] = pg_container.rsplit("/", 1)[0] + "/postgres"
-    os.environ.setdefault("RAG_MASTER_KEY", "mk_test_e2e_sync")
-    os.environ.setdefault("RAG_PUBLIC_URL", "http://localhost:8000")
-    os.environ.setdefault("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_stub")
-    os.environ.setdefault("HARPOCRATE_API_URL_RAG", "https://vault.example.com")
-    os.environ.setdefault("ENVIRONMENT", "dev")
-    os.environ["SYNC_REPOS_ROOT"] = str(tmp_path / "repos")
-    os.environ["SYNC_WORKER_POLL_INTERVAL_SECONDS"] = "1"
+    # On force toutes les variables (pas de setdefault) pour éviter la
+    # contamination par les fixtures `admin_client` qui posent
+    # RAG_MASTER_KEY=mk_test_e2e dans le process. monkeypatch restaure
+    # l'état avant le test au teardown — pas de fuite vers les tests
+    # de unit/test_config.py qui s'appuient sur des envs vierges.
+    monkeypatch.setenv("DATABASE_URL", pg_container)
+    monkeypatch.setenv("RAG_POSTGRES_ADMIN_URL", pg_container.rsplit("/", 1)[0] + "/postgres")
+    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_e2e_sync")
+    monkeypatch.setenv("RAG_PUBLIC_URL", "http://localhost:8000")
+    monkeypatch.setenv("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_stub")
+    monkeypatch.setenv("HARPOCRATE_API_URL_RAG", "https://vault.example.com")
+    monkeypatch.setenv("ENVIRONMENT", "dev")
+    monkeypatch.setenv("SYNC_REPOS_ROOT", str(tmp_path / "repos"))
+    monkeypatch.setenv("SYNC_WORKER_POLL_INTERVAL_SECONDS", "1")
 
     app = build_app(
         version="0.3.0",
