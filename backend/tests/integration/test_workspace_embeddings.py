@@ -182,6 +182,30 @@ async def test_delete_chunks_for_absent_path_returns_zero(
 
 
 @pytest.mark.asyncio
+async def test_upsert_chunks_empty_list_deletes_existing_and_returns_zero(
+    ws_pool_with_embeddings: asyncpg.Pool,
+) -> None:
+    """Si chunks=[], on supprime ce qui existait et on retourne 0 (cas degenere)."""
+    # Setup : insere 2 chunks
+    await upsert_chunks(
+        ws_pool_with_embeddings,
+        path="a.md",
+        chunks=["c0", "c1"],
+        embeddings=[[1, 0, 0, 0], [0, 1, 0, 0]],
+    )
+    # Upsert avec chunks=[] doit supprimer et retourner 0
+    count = await upsert_chunks(
+        ws_pool_with_embeddings,
+        path="a.md",
+        chunks=[],
+        embeddings=[],
+    )
+    assert count == 0
+    rows = await ws_pool_with_embeddings.fetch("SELECT 1 FROM embeddings WHERE path='a.md'")
+    assert rows == []
+
+
+@pytest.mark.asyncio
 async def test_delete_path_alias_works(
     ws_pool_with_embeddings: asyncpg.Pool,
 ) -> None:

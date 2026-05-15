@@ -124,3 +124,56 @@ async def test_openai_embed_texts_missing_api_key_raises_auth() -> None:
     provider = OpenAIProvider(model="text-embedding-3-small", api_key=None)
     with pytest.raises(EmbeddingAuthError):
         await provider.embed_texts(["hello"])
+
+
+@pytest.mark.asyncio
+async def test_openai_embed_empty_input_returns_empty() -> None:
+    """Pas d'appel HTTP si input vide (apres check api_key)."""
+    calls = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json={"data": []})
+
+    provider = OpenAIProvider(
+        model="text-embedding-3-small",
+        api_key="sk-x",
+        transport=httpx.MockTransport(handler),
+    )
+    result = await provider.embed_texts([])
+    assert result == []
+    assert calls == 0
+
+
+@pytest.mark.asyncio
+async def test_openai_embed_texts_503_after_retry_raises_unreachable() -> None:
+    call_count = {"n": 0}
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        call_count["n"] += 1
+        return httpx.Response(503, json={"error": "Down"})
+
+    provider = OpenAIProvider(
+        model="text-embedding-3-small",
+        api_key="sk-x",
+        transport=httpx.MockTransport(handler),
+        retry_sleep_seconds=0,
+    )
+    with pytest.raises(EmbeddingProviderUnreachable):
+        await provider.embed_texts(["hello"])
+    assert call_count["n"] == 2
+
+
+@pytest.mark.asyncio
+async def test_openai_embed_texts_unexpected_status_raises_unreachable() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(418, json={"error": "Teapot"})
+
+    provider = OpenAIProvider(
+        model="text-embedding-3-small",
+        api_key="sk-x",
+        transport=httpx.MockTransport(handler),
+    )
+    with pytest.raises(EmbeddingProviderUnreachable):
+        await provider.embed_texts(["hello"])

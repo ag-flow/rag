@@ -71,3 +71,98 @@ async def test_ollama_embed_empty_input_returns_empty() -> None:
     result = await provider.embed_texts([])
     assert result == []
     assert calls == 0
+
+
+@pytest.mark.asyncio
+async def test_ollama_embed_missing_embedding_field_raises() -> None:
+    from rag.indexer.providers.protocol import EmbeddingProviderError
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"not_embedding": []})
+
+    provider = OllamaProvider(
+        model="nomic-embed-text",
+        base_url="http://x:1",
+        transport=httpx.MockTransport(handler),
+    )
+    with pytest.raises(EmbeddingProviderError):
+        await provider.embed_texts(["hello"])
+
+
+@pytest.mark.asyncio
+async def test_ollama_embed_503_after_retry_raises_unreachable() -> None:
+    from rag.indexer.providers.protocol import EmbeddingProviderUnreachable
+
+    call_count = {"n": 0}
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        call_count["n"] += 1
+        return httpx.Response(503, json={"error": "Loading model"})
+
+    provider = OllamaProvider(
+        model="nomic-embed-text",
+        base_url="http://x:1",
+        transport=httpx.MockTransport(handler),
+        retry_sleep_seconds=0,
+    )
+    with pytest.raises(EmbeddingProviderUnreachable):
+        await provider.embed_texts(["hello"])
+    assert call_count["n"] == 2
+
+
+@pytest.mark.asyncio
+async def test_ollama_embed_503_succeeds_on_retry() -> None:
+    call_count = {"n": 0}
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return httpx.Response(503, json={"error": "Loading"})
+        return httpx.Response(200, json={"embedding": _vec()})
+
+    provider = OllamaProvider(
+        model="nomic-embed-text",
+        base_url="http://x:1",
+        transport=httpx.MockTransport(handler),
+        retry_sleep_seconds=0,
+    )
+    result = await provider.embed_texts(["hello"])
+    assert len(result) == 1
+    assert call_count["n"] == 2
+
+
+@pytest.mark.asyncio
+async def test_ollama_embed_timeout_after_retry_raises_unreachable() -> None:
+    from rag.indexer.providers.protocol import EmbeddingProviderUnreachable
+
+    call_count = {"n": 0}
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        call_count["n"] += 1
+        raise httpx.TimeoutException("timeout")
+
+    provider = OllamaProvider(
+        model="nomic-embed-text",
+        base_url="http://x:1",
+        transport=httpx.MockTransport(handler),
+        retry_sleep_seconds=0,
+    )
+    with pytest.raises(EmbeddingProviderUnreachable):
+        await provider.embed_texts(["hello"])
+    assert call_count["n"] == 2
+
+
+@pytest.mark.asyncio
+async def test_ollama_embed_unexpected_status_raises_unreachable() -> None:
+    from rag.indexer.providers.protocol import EmbeddingProviderUnreachable
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, json={"error": "Model not found"})
+
+    provider = OllamaProvider(
+        model="nomic-embed-text",
+        base_url="http://x:1",
+        transport=httpx.MockTransport(handler),
+    )
+    with pytest.raises(EmbeddingProviderUnreachable):
+        await provider.embed_texts(["hello"])
