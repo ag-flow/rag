@@ -155,10 +155,65 @@ class PatchFieldNotAllowed(AdminError):
         return {"error": "patch_field_not_allowed", "field": self.field}
 
 
-def register_error_handlers(app: FastAPI) -> None:
-    """Enregistre un handler global pour `AdminError` qui sérialise en JSON."""
+class InvalidPath(AdminError):
+    http_status = 422
 
-    async def _handler(_request: Request, exc: AdminError) -> JSONResponse:
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "invalid_path", "reason": self.reason}
+
+
+class ContentTooLarge(AdminError):
+    http_status = 413
+
+    _LIMIT_BYTES = 5 * 1024 * 1024
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "content_too_large", "limit_bytes": self._LIMIT_BYTES}
+
+
+class EmbeddingProviderUnavailable(AdminError):
+    http_status = 502
+
+    def __init__(self, provider: str, reason: str) -> None:
+        super().__init__(provider, reason)
+        self.provider = provider
+        self.reason = reason
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "error": "embedding_provider_error",
+            "provider": self.provider,
+            "reason": self.reason,
+        }
+
+
+def register_error_handlers(app: FastAPI) -> None:
+    """Enregistre les handlers d'exceptions JSON globaux."""
+
+    async def _admin_handler(_request: Request, exc: AdminError) -> JSONResponse:
         return JSONResponse(status_code=exc.http_status, content=exc.to_payload())
 
-    app.add_exception_handler(AdminError, _handler)  # type: ignore[arg-type]
+    app.add_exception_handler(AdminError, _admin_handler)  # type: ignore[arg-type]
+
+    # Remap Pydantic ValidationError(content_too_large) → 413 (au lieu du 422
+    # par défaut). Le validator du DTO `PushRequest.content` lève
+    # `ValueError("content_too_large")` quand le body UTF-8 dépasse 5 MB ;
+    # ce remap aligne la réponse HTTP sur la sémantique RFC 7231 §6.5.11.
+    from fastapi.exceptions import RequestValidationError
+
+    async def _validation_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
+        for err in exc.errors():
+            msg = str(err.get("msg") or "")
+            if "content_too_large" in msg:
+                return JSONResponse(
+                    status_code=413,
+                    content=ContentTooLarge().to_payload(),
+                )
+        # Comportement Pydantic par défaut : 422 avec le détail des erreurs.
+        return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+    app.add_exception_handler(RequestValidationError, _validation_handler)  # type: ignore[arg-type]
