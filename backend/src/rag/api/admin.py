@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, Request, Response, status
 from rag.auth.bearer import require_master_key
 from rag.schemas.admin import (
     ApiKeyRotateResponse,
+    JobResponse,
+    ReindexRequest,
     SourceCreateRequest,
     SourceResponse,
     WorkspaceCreateRequest,
@@ -124,5 +126,34 @@ def build_admin_router() -> APIRouter:
             config_pool=_config_pool(request),
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    # ─── Reindex / Jobs ──────────────────────────────────────────────────────
+
+    @router.post("/workspaces/{name}/reindex", status_code=status.HTTP_202_ACCEPTED)
+    async def post_reindex(
+        name: str,
+        request: Request,
+        payload: ReindexRequest | None = None,
+        confirm: bool = False,
+    ) -> JobResponse:
+        from rag.services.jobs import reindex_workspace
+
+        new_indexer = payload.indexer if payload is not None else None
+        row = await reindex_workspace(
+            name=name,
+            new_indexer=new_indexer,
+            confirm=confirm,
+            config_pool=_config_pool(request),
+            admin_dsn=_admin_dsn(request),
+            resolver=_resolver(request),  # type: ignore[arg-type]
+        )
+        return JobResponse(**row)
+
+    @router.get("/workspaces/{name}/jobs")
+    async def get_jobs(name: str, request: Request) -> list[JobResponse]:
+        from rag.services.jobs import list_jobs
+
+        rows = await list_jobs(_config_pool(request), workspace_name=name)
+        return [JobResponse(**r) for r in rows]
 
     return router

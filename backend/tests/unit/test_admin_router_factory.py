@@ -22,3 +22,11 @@ def test_build_admin_router_includes_sources_routes() -> None:
     paths = {route.path for route in app.router.routes}  # type: ignore[attr-defined]
     assert "/workspaces/{name}/sources" in paths
     assert "/workspaces/{name}/sources/{source_id}" in paths
+
+
+def test_build_admin_router_includes_reindex_and_jobs() -> None:
+    app = FastAPI()
+    app.include_router(build_admin_router())
+    paths = {route.path for route in app.router.routes}  # type: ignore[attr-defined]
+    assert "/workspaces/{name}/reindex" in paths
+    assert "/workspaces/{name}/jobs" in paths
