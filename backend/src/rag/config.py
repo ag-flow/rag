@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import (
     AnyHttpUrl,
     BaseModel,
+    Field,
     PostgresDsn,
     SecretStr,
     field_validator,
@@ -37,6 +39,15 @@ class Settings(BaseSettings):
     environment: Literal["dev", "staging", "prod"] = "dev"
     log_level: str = "INFO"
     sync_worker_poll_interval_seconds: int = 30
+
+    # Interval par défaut entre 2 syncs d'une même source (override possible
+    # par source via config.sync_interval_seconds). 5 min = bon compromis
+    # entre fraicheur et coût bande passante GitHub.
+    sync_default_interval_seconds: int = Field(default=300, ge=60)
+
+    # Racine des clones git locaux. En prod : volume Docker named `rag_repos`
+    # monté sur /var/lib/rag/repos. En test : `tmp_path` via fixture pytest.
+    sync_repos_root: Path = Path("/var/lib/rag/repos")
 
     harpocrate_api_keys: dict[str, HarpocrateClientConfig] = {}
 
