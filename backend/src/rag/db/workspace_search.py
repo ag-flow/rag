@@ -27,6 +27,11 @@ async def vector_search(
     """
     async with workspace_pool.acquire() as conn:
         await register_vector(conn)
+        # ivfflat.probes contrôle combien de listes sont sondées : 1 (défaut)
+        # suffit en production (grande base) mais manque des voisins sur des
+        # petits datasets (tests, espaces peu peuplés). On monte à 10 pour
+        # un bon rappel tout en restant performant.
+        await conn.execute("SET ivfflat.probes = 10")
         rows = await conn.fetch(
             """
             SELECT path, chunk_index, content,

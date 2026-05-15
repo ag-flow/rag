@@ -8,6 +8,22 @@ from fastapi.testclient import TestClient
 from pgvector.asyncpg import register_vector
 
 
+def _run_async(coro):  # type: ignore[no-untyped-def]
+    """Run a coroutine in a fresh event loop, safely from a sync test body.
+
+    Using asyncio.get_event_loop().run_until_complete() is fragile when
+    pytest-asyncio manages a session-scoped Runner: between tests, the
+    Runner's internal state can silently truncate coroutine execution.
+    A dedicated fresh loop avoids any interaction with the pytest-asyncio
+    session runner and guarantees full execution of the coroutine.
+    """
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+
+
 def _make_ws(client: TestClient, admin_headers: dict[str, str], name: str) -> str:
     r = client.post(
         "/workspaces",
@@ -105,7 +121,7 @@ def test_mcp_single_returns_top_k_hits(
         await _seed_embedding(pg_container, "ws_mcp_a", "mid.md", 0, "mid content", mid)
         await _seed_embedding(pg_container, "ws_mcp_a", "far.md", 0, "far content", far)
 
-    asyncio.get_event_loop().run_until_complete(_seed())
+    _run_async(_seed())
 
     _inject_fake_provider(vec=near)
 
@@ -146,7 +162,7 @@ def test_mcp_single_min_score_strict_returns_empty(
     async def _seed() -> None:
         await _seed_embedding(pg_container, "ws_mcp_strict", "far.md", 0, "x", far)
 
-    asyncio.get_event_loop().run_until_complete(_seed())
+    _run_async(_seed())
 
     _inject_fake_provider(vec=near)
 
@@ -185,7 +201,7 @@ def test_mcp_single_default_top_k_is_5(
                 near,
             )
 
-    asyncio.get_event_loop().run_until_complete(_seed())
+    _run_async(_seed())
 
     _inject_fake_provider(vec=near)
 
