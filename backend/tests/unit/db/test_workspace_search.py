@@ -11,6 +11,7 @@ def _make_pool_returning(rows: list[dict]) -> MagicMock:
     """Fake asyncpg.Pool avec acquire()→connection qui retourne `rows`."""
     conn = MagicMock()
     conn.fetch = AsyncMock(return_value=rows)
+    conn.execute = AsyncMock(return_value="SET")  # SET ivfflat.probes = 10
     pool = MagicMock()
     pool.acquire = MagicMock()
     pool.acquire.return_value.__aenter__ = AsyncMock(return_value=conn)
