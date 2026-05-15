@@ -1,16 +1,25 @@
 from __future__ import annotations
 
+import asyncio
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 import asyncpg
+import structlog
 from fastapi import HTTPException, status
 
 from rag.api.errors import WorkspaceNotFound
 from rag.auth.workspace_auth import ApiKeyCache, _CacheEntry
-from rag.schemas.mcp import MultiWorkspaceRequest, SingleWorkspaceRequest
+from rag.db.pool import WorkspacePoolRegistry
+from rag.db.workspace_search import vector_search
+from rag.indexer.providers.factory import make_provider
+from rag.indexer.providers.protocol import EmbeddingProvider
+from rag.schemas.mcp import MultiWorkspaceRequest, SearchHit, SingleWorkspaceRequest
 from rag.services.apikey import verify_api_key
+
+log = structlog.get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -106,3 +115,113 @@ async def _load_workspace_context(
     if row is None:
         raise RuntimeError(f"workspace {name!r} disappeared between auth and load")
     return dict(row)
+
+
+# ---------------------------------------------------------------------------
+# Search orchestration
+# ---------------------------------------------------------------------------
+
+
+class _ResolverProtocol(Protocol):
+    def resolve_with_retry(self, ref: str) -> str: ...
+
+
+def _to_vault_ref(logical_key: str, *, vault_id: str = "rag") -> str:
+    return f"${{vault://{vault_id}:{logical_key}}}"
+
+
+@dataclass(frozen=True)
+class _WorkspaceResult:
+    workspace_name: str
+    indexer_used: str
+    hits: list[SearchHit]
+
+
+async def search(
+    *,
+    refs: list[McpWorkspaceRef],
+    query: str,
+    top_k: int,
+    min_score: float,
+    config_pool: asyncpg.Pool,
+    pool_registry: WorkspacePoolRegistry,
+    apikey_cache: ApiKeyCache,
+    secret_resolver: _ResolverProtocol,
+    provider_factory: Callable[..., EmbeddingProvider] | None = None,
+) -> list[SearchHit]:
+    """Orchestre la recherche MCP multi-workspace.
+
+    Fail-fast : la première exception remontée par un workspace propage
+    via `asyncio.gather` et annule les autres tasks. Aucun résultat partiel.
+
+    `provider_factory` par défaut `None` → lookup dynamique de
+    `make_provider` au runtime (permet monkey-patching côté tests
+    intégration sans avoir à passer le paramètre depuis le router).
+    """
+    factory = provider_factory if provider_factory is not None else make_provider
+
+    tasks = [
+        _search_one(
+            ref=r,
+            query=query,
+            top_k=top_k,
+            min_score=min_score,
+            config_pool=config_pool,
+            pool_registry=pool_registry,
+            apikey_cache=apikey_cache,
+            secret_resolver=secret_resolver,
+            provider_factory=factory,
+        )
+        for r in refs
+    ]
+    results = await asyncio.gather(*tasks)
+    return [hit for ws_result in results for hit in ws_result.hits]
+
+
+async def _search_one(
+    *,
+    ref: McpWorkspaceRef,
+    query: str,
+    top_k: int,
+    min_score: float,
+    config_pool: asyncpg.Pool,
+    pool_registry: WorkspacePoolRegistry,
+    apikey_cache: ApiKeyCache,
+    secret_resolver: _ResolverProtocol,
+    provider_factory: Callable[..., EmbeddingProvider],
+) -> _WorkspaceResult:
+    auth = await _authenticate(ref=ref, config_pool=config_pool, apikey_cache=apikey_cache)
+    ctx = await _load_workspace_context(config_pool, ref.name)
+
+    api_key: str | None = None
+    if ctx["api_key_ref"]:
+        api_key = secret_resolver.resolve_with_retry(_to_vault_ref(ctx["api_key_ref"]))
+
+    provider = provider_factory(
+        provider=ctx["provider"],
+        model=ctx["model"],
+        api_key=api_key,
+        base_url=ctx["base_url"],
+    )
+    query_vec = await provider.embed_query(query)
+
+    ws_pool = await pool_registry.get_workspace_pool(ref.name, ctx["rag_cnx"])
+    hits = await vector_search(
+        ws_pool,
+        query_vec=query_vec,
+        top_k=top_k,
+        min_score=min_score,
+        workspace_name=ref.name,
+        indexer_used=auth.indexer_used,
+    )
+    log.info(
+        "mcp.search.workspace_done",
+        workspace=ref.name,
+        hits=len(hits),
+        indexer=auth.indexer_used,
+    )
+    return _WorkspaceResult(
+        workspace_name=ref.name,
+        indexer_used=auth.indexer_used,
+        hits=hits,
+    )
