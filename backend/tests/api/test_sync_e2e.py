@@ -54,12 +54,16 @@ def _bearer(value: str = "mk_test_e2e_sync") -> dict[str, str]:
     return {"Authorization": f"Bearer {value}"}
 
 
+@pytest.mark.smoke
 def test_full_pipeline_create_workspace_source_reindex_done(
     e2e_client: tuple[TestClient, Path],
 ) -> None:
     """E2E complet : create workspace → add source pointant vers bare repo
     local → worker picke et exécute (next_sync_at=now() à la création) →
-    job done dans /jobs."""
+    job done dans /jobs.
+
+    Depuis M4a : RealIndexer appelle réellement OpenAI → smoke opt-in
+    (skippé par défaut, nécessite OPENAI_API_KEY)."""
     client, tmp_path = e2e_client
     bare = make_bare_repo_with_commits(
         tmp_path,

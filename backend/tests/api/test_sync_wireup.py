@@ -51,3 +51,16 @@ def test_health_responds_after_wireup(wired_client: TestClient) -> None:
     """Le lifespan complet (recovery + worker start) ne casse pas /health."""
     r = wired_client.get("/health")
     assert r.status_code == 200
+
+
+def test_sync_worker_uses_real_indexer_not_noop(wired_client: TestClient) -> None:
+    """Après M4a : l'indexer injecté au SyncWorker doit être RealIndexer."""
+    from rag.indexer.real import RealIndexer
+
+    app = wired_client.app
+    worker = app.state.sync_worker
+    # On accède au `_indexer` privé du worker - pas idéal mais nécessaire
+    # pour valider l'injection sans exposer l'attribut publiquement.
+    assert isinstance(worker._indexer, RealIndexer), (
+        f"Expected RealIndexer, got {type(worker._indexer).__name__}"
+    )

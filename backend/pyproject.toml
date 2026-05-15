@@ -89,6 +89,10 @@ pythonpath = ["src"]
 markers = [
     "smoke: end-to-end tests calling real external services (opt-in)",
 ]
+# Les tests `smoke` appellent des services externes réels (OpenAI, Voyage,
+# Ollama). Ils sont exclus par défaut et activés explicitement via
+# `uv run pytest -m smoke` (cf. README).
+addopts = "-m 'not smoke'"
 
 [tool.uv.sources]
 # Le wheel doit respecter PEP 427 (name-version-pythontag-abitag-platformtag.whl).
