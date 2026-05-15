@@ -11,6 +11,8 @@ from fastapi import FastAPI
 from rag.api.admin import build_admin_router
 from rag.api.errors import register_error_handlers
 from rag.api.health import build_health_router
+from rag.api.workspace import build_workspace_router
+from rag.auth.workspace_auth import ApiKeyCache
 from rag.config import Settings
 from rag.db.migrations import run_migrations
 from rag.db.pool import WorkspacePoolRegistry
@@ -115,18 +117,23 @@ def build_app(
         await reset_stale_running_jobs(registry.config_pool)
 
         # M4a : démarre le sync worker avec RealIndexer (remplace NoOpIndexer)
+        # M4b : indexer aussi exposé sur app.state pour le router push synchrone
         from rag.indexer.real import RealIndexer
         from rag.sync.repo_storage import RepoStorage
         from rag.sync.worker import SyncWorker
 
+        indexer = RealIndexer(
+            config_pool=registry.config_pool,
+            pool_registry=registry,
+            secret_resolver=app.state.resolver,
+        )
+        app.state.indexer = indexer
+        app.state.apikey_cache = ApiKeyCache(max_size=256, ttl_seconds=300)
+
         sync_worker = SyncWorker(
             config_pool=registry.config_pool,
             storage=RepoStorage(root=settings.sync_repos_root),
-            indexer=RealIndexer(
-                config_pool=registry.config_pool,
-                pool_registry=registry,
-                secret_resolver=app.state.resolver,
-            ),
+            indexer=indexer,
             resolver=app.state.resolver,
             poll_interval_seconds=settings.sync_worker_poll_interval_seconds,
             default_sync_interval_seconds=settings.sync_default_interval_seconds,
@@ -150,6 +157,7 @@ def build_app(
     )
     app.include_router(build_health_router())
     app.include_router(build_admin_router())
+    app.include_router(build_workspace_router())
     register_error_handlers(app)
     return app
 
