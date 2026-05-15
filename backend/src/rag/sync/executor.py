@@ -1,11 +1,29 @@
 from __future__ import annotations
 
 import json
+import shutil
+from hashlib import sha256
+from typing import Any, Protocol
+from uuid import UUID
 
 import asyncpg
 import structlog
 
-from rag.schemas.sync import JobToProcess
+from rag.indexer.protocol import IndexerProtocol
+from rag.schemas.sync import ChangeSet, JobToProcess
+from rag.secrets.resolver import VaultLookupFailed
+from rag.sync.git_ops import (
+    GitCloneError,
+    GitPullError,
+    clone,
+    diff_changes,
+    filter_glob,
+    head_commit,
+    list_all_files,
+    pull,
+    sanitize_git_output,
+)
+from rag.sync.repo_storage import RepoStorage
 
 log = structlog.get_logger(__name__)
 
@@ -76,4 +94,236 @@ async def pick_next_pending_job(
         source_config=source_config,
         indexer_provider=context["indexer_provider"] or "",
         indexer_model=context["indexer_model"] or "",
+    )
+
+
+class _ResolverProtocol(Protocol):
+    def resolve_with_retry(self, ref: str) -> str: ...
+
+
+_ERROR_MESSAGE_MAX = 500
+
+
+def _truncate(s: str, n: int = _ERROR_MESSAGE_MAX) -> str:
+    if len(s) <= n:
+        return s
+    return s[: n - 3] + "..."
+
+
+def _to_vault_ref(logical_key: str, *, vault_id: str = "rag") -> str:
+    return f"${{vault://{vault_id}:{logical_key}}}"
+
+
+def _resolve_token(
+    resolver: _ResolverProtocol,
+    config: dict[str, Any],
+) -> str | None:
+    """Résout `auth_ref` si présent. None si source publique."""
+    auth_ref = config.get("auth_ref")
+    if not auth_ref:
+        return None
+    return resolver.resolve_with_retry(_to_vault_ref(auth_ref))
+
+
+def _format_error(e: BaseException) -> str:
+    """Format compact pour `index_jobs.error_message`, sanitized."""
+    if isinstance(e, GitCloneError):
+        return _truncate(f"git clone failed: {sanitize_git_output(str(e))}")
+    if isinstance(e, GitPullError):
+        return _truncate(f"git pull failed: {sanitize_git_output(str(e))}")
+    if isinstance(e, VaultLookupFailed):
+        return _truncate(f"auth_ref not resolvable: {e}")
+    return _truncate(
+        f"unexpected: {type(e).__name__}: {sanitize_git_output(str(e))}",
+        200,
+    )
+
+
+async def _mark_job_error(
+    config_pool: asyncpg.Pool,
+    *,
+    job_id: UUID,
+    error_message: str,
+) -> None:
+    async with config_pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE index_jobs
+            SET status='error',
+                error_message=$1,
+                finished_at=now(),
+                duration_ms=CASE
+                    WHEN started_at IS NOT NULL THEN
+                        EXTRACT(MILLISECONDS FROM (now() - started_at))::int
+                    ELSE 0
+                END
+            WHERE id=$2
+            """,
+            error_message,
+            job_id,
+        )
+
+
+async def execute_next_pending_job(
+    *,
+    config_pool: asyncpg.Pool,
+    storage: RepoStorage,
+    indexer: IndexerProtocol,
+    resolver: _ResolverProtocol,
+) -> bool:
+    """Picke 1 job pending + exécute le pipeline complet.
+
+    Retourne True si un job a été traité (peu importe done/error), False si
+    aucun job pending.
+    """
+    job = await pick_next_pending_job(config_pool)
+    if job is None:
+        return False
+
+    try:
+        await _process_job(
+            job=job,
+            config_pool=config_pool,
+            storage=storage,
+            indexer=indexer,
+            resolver=resolver,
+        )
+    except Exception as e:
+        msg = _format_error(e)
+        log.exception("sync.executor.job_error", job_id=str(job.job_id))
+        await _mark_job_error(config_pool, job_id=job.job_id, error_message=msg)
+    return True
+
+
+async def _process_job(
+    *,
+    job: JobToProcess,
+    config_pool: asyncpg.Pool,
+    storage: RepoStorage,
+    indexer: IndexerProtocol,
+    resolver: _ResolverProtocol,
+) -> None:
+    config = job.source_config
+    url = config["url"]
+    branch = config.get("branch", "main")
+    include = config.get("include") or ["**/*"]
+    exclude = config.get("exclude") or []
+    last_commit = config.get("last_commit")
+
+    # 1. Résolution token (lazy)
+    token = _resolve_token(resolver, config)
+
+    # 2. Path local + clone ou pull
+    storage.ensure_exists(workspace_id=job.workspace_id, source_id=job.source_id)
+    dest = storage.path_for(workspace_id=job.workspace_id, source_id=job.source_id)
+
+    if storage.has_git(workspace_id=job.workspace_id, source_id=job.source_id):
+        await pull(dest=dest, branch=branch)
+        was_fresh_clone = False
+    else:
+        # Le ensure_exists a créé un dossier vide. `git clone` exige que la
+        # cible n'existe pas (ou soit vide). On vide puis on retire.
+        if dest.exists():
+            for child in dest.iterdir():
+                if child.is_dir():
+                    shutil.rmtree(child)
+                else:
+                    child.unlink()
+            dest.rmdir()
+        await clone(url=url, branch=branch, token=token, dest=dest)
+        was_fresh_clone = True
+
+    current = await head_commit(dest)
+
+    # 3. Diff
+    # Si pas de last_commit, ou clone frais, ou HEAD identique : on bascule
+    # sur la liste exhaustive pour passer chaque fichier dans le filtre dedup
+    # (qui les classera en skipped si le hash est inchangé).
+    if last_commit is None or was_fresh_clone or last_commit == current:
+        all_files = await list_all_files(dest)
+        changes = ChangeSet(added=all_files)
+    else:
+        changes = await diff_changes(
+            dest=dest,
+            from_commit=last_commit,
+            to_commit=current,
+        )
+    changes = filter_glob(changes, include=include, exclude=exclude)
+
+    # 4. Traite les fichiers
+    files_changed = 0
+    files_skipped = 0
+
+    for path in changes.added + changes.modified:
+        full = dest / path
+        try:
+            content = full.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, FileNotFoundError):
+            continue  # binaire / lien cassé → skip silencieux
+
+        content_hash = "sha256:" + sha256(content.encode("utf-8")).hexdigest()
+
+        async with config_pool.acquire() as conn:
+            existing = await conn.fetchval(
+                "SELECT content_hash FROM indexed_documents WHERE workspace_id=$1 AND path=$2",
+                job.workspace_id,
+                path,
+            )
+        if existing == content_hash:
+            files_skipped += 1
+            continue
+
+        await indexer.index_file(
+            workspace_id=job.workspace_id,
+            path=path,
+            content=content,
+            content_hash=content_hash,
+            indexer_used=job.indexer_used,
+        )
+        files_changed += 1
+
+    for path in changes.deleted:
+        await indexer.delete_file(workspace_id=job.workspace_id, path=path)
+        files_changed += 1
+
+    # 5. Update workspace_sources : last_commit + last_indexed_at
+    async with config_pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE workspace_sources
+            SET config = jsonb_set(
+                    coalesce(config, '{}'::jsonb),
+                    '{last_commit}',
+                    to_jsonb($1::text)
+                ),
+                last_indexed_at = now()
+            WHERE id = $2
+            """,
+            current,
+            job.source_id,
+        )
+
+    # 6. Mark done
+    async with config_pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE index_jobs
+            SET status='done',
+                finished_at=now(),
+                duration_ms=EXTRACT(MILLISECONDS FROM (now() - started_at))::int,
+                files_changed=$1,
+                files_skipped=$2
+            WHERE id=$3
+            """,
+            files_changed,
+            files_skipped,
+            job.job_id,
+        )
+
+    log.info(
+        "sync.executor.job_done",
+        job_id=str(job.job_id),
+        workspace=job.workspace_name,
+        files_changed=files_changed,
+        files_skipped=files_skipped,
     )
