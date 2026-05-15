@@ -27,7 +27,10 @@ class EmbeddingProvider(Protocol):
     """Frontière commune entre `RealIndexer` (M4a) et les implémentations
     OpenAI / Voyage / Ollama.
 
-    Chaque provider expose une seule méthode async : `embed_texts(texts)`.
+    Chaque provider expose deux méthodes async :
+    - `embed_texts(texts)` : indexation (documents).
+    - `embed_query(text)` : recherche (M4c, query unique).
+
     Les batchs internes (max 100 pour OpenAI/Voyage, 1 pour Ollama) sont
     une décision d'implémentation invisible côté caller.
     """

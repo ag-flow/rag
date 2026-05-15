@@ -93,3 +93,9 @@ class OllamaProvider:
             )
 
         raise EmbeddingProviderUnreachable("Ollama: retry loop exited unexpectedly")
+
+    async def embed_query(self, text: str) -> list[float]:
+        vectors = await self.embed_texts([text])
+        if not vectors:
+            raise EmbeddingProviderUnreachable("Ollama returned empty embedding")
+        return vectors[0]

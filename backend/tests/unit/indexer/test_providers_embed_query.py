@@ -5,6 +5,7 @@ import json as _json
 import httpx
 import pytest
 
+from rag.indexer.providers.ollama import OllamaProvider
 from rag.indexer.providers.openai import OpenAIProvider
 from rag.indexer.providers.protocol import EmbeddingProviderUnreachable
 from rag.indexer.providers.voyage import VoyageProvider
@@ -80,3 +81,37 @@ async def test_voyage_embed_texts_still_uses_input_type_document() -> None:
     )
     await provider.embed_texts(["du contenu"])
     assert captured["body"]["input_type"] == "document"
+
+
+@pytest.mark.asyncio
+async def test_ollama_embed_query_returns_first_vector() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"embedding": [0.7, 0.8, 0.9]})
+
+    transport = httpx.MockTransport(handler)
+    provider = OllamaProvider(
+        model="nomic-embed-text",
+        base_url="http://fake:11434",
+        transport=transport,
+    )
+    vec = await provider.embed_query("requête test")
+    assert vec == [0.7, 0.8, 0.9]
+
+
+@pytest.mark.asyncio
+async def test_ollama_embed_query_delegates_single_call() -> None:
+    call_count = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        return httpx.Response(200, json={"embedding": [0.1]})
+
+    transport = httpx.MockTransport(handler)
+    provider = OllamaProvider(
+        model="nomic-embed-text",
+        base_url="http://fake:11434",
+        transport=transport,
+    )
+    await provider.embed_query("x")
+    assert call_count == 1
