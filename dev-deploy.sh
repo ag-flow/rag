@@ -8,7 +8,7 @@
 #   2. Crée .env depuis .env.example si absent (+ secrets aléatoires)
 #   3. Build les images locales (backend ; frontend skippé tant que M5 pas commencé)
 #   4. Down de la stack (avec -v si --reset)
-#   5. Pull postgres + up -d
+#   5. Pull images registry (postgres + caddy + pgweb) + up -d
 #   Final : attend que /health réponde et affiche /version (timeout 60s)
 #
 # Usage :
@@ -269,8 +269,13 @@ fi
 
 # ─── 5) Pull images registry restantes (postgres) puis up ──────────────────
 
-echo "[5/5] Pull images registry (postgres)..."
-docker compose -f "$COMPOSE_FILE" pull postgres || true
+echo "[5/5] Pull images registry (postgres + caddy + pgweb)..."
+# Pull tous les services tiers : `docker compose pull` (sans argument)
+# skip automatiquement les services qui ont un `build:` (rag-backend), et
+# télécharge les autres (postgres, caddy, pgweb). Indispensable sur un LXC
+# neuf où aucune image registry n'est cachée localement — sinon le `up -d
+# --pull never` qui suit plante avec `No such image`.
+docker compose -f "$COMPOSE_FILE" pull || true
 
 echo "      Démarrage de la stack..."
 # Expose le SHA git courant au compose (variable interpolée dans
