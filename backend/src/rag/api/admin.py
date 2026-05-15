@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, Request, Response, status
 from rag.auth.bearer import require_master_key
 from rag.schemas.admin import (
     ApiKeyRotateResponse,
+    SourceCreateRequest,
+    SourceResponse,
     WorkspaceCreateRequest,
     WorkspaceCreateResponse,
     WorkspacePatchRequest,
@@ -92,5 +94,35 @@ def build_admin_router() -> APIRouter:
     async def rotate_apikey_endpoint(name: str, request: Request) -> ApiKeyRotateResponse:
         new_key = await rotate_apikey(name=name, config_pool=_config_pool(request))
         return ApiKeyRotateResponse(api_key=new_key)
+
+    # ─── Sources ─────────────────────────────────────────────────────────────
+
+    @router.post("/workspaces/{name}/sources", status_code=status.HTTP_201_CREATED)
+    async def post_source(
+        name: str, payload: SourceCreateRequest, request: Request
+    ) -> SourceResponse:
+        from rag.services.sources import add_source  # import retardé : évite cycle au boot
+
+        row = await add_source(
+            workspace_name=name,
+            request=payload,
+            config_pool=_config_pool(request),
+            resolver=_resolver(request),  # type: ignore[arg-type]
+        )
+        return SourceResponse(**row)
+
+    @router.delete(
+        "/workspaces/{name}/sources/{source_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
+    async def delete_source_endpoint(name: str, source_id: str, request: Request) -> Response:
+        from rag.services.sources import delete_source
+
+        await delete_source(
+            workspace_name=name,
+            source_id=source_id,
+            config_pool=_config_pool(request),
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return router
