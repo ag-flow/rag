@@ -72,6 +72,22 @@ def test_workspace_create_name_max_length_63() -> None:
         )
 
 
+def test_workspace_create_name_accepts_exactly_63_chars() -> None:
+    name_63 = "a" + "b" * 62  # exactement 63 chars
+    req = WorkspaceCreateRequest.model_validate(
+        {
+            "name": name_63,
+            "indexer": {
+                "provider": "openai",
+                "model": "text-embedding-3-small",
+                "api_key_ref": "k",
+            },
+        }
+    )
+    assert req.name == name_63
+    assert len(req.name) == 63
+
+
 def test_workspace_create_name_accepts_dash_and_underscore() -> None:
     req = WorkspaceCreateRequest.model_validate(
         {
