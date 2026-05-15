@@ -46,3 +46,9 @@ def test_verify_api_key_invalid_hash() -> None:
 def test_hash_api_key_rejects_empty() -> None:
     with pytest.raises(ValueError, match="empty"):
         hash_api_key("")
+
+
+def test_hash_api_key_rejects_too_long() -> None:
+    too_long = "a" * 73
+    with pytest.raises(ValueError, match="too long"):
+        hash_api_key(too_long)

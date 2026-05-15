@@ -23,10 +23,13 @@ def generate_api_key() -> str:
 def hash_api_key(key: str) -> str:
     """Calcule le hash bcrypt d'une api_key (rounds=12, ~100ms).
 
-    Lève `ValueError` si la clé est vide (cas d'usage invalide).
+    Lève `ValueError` si la clé est vide ou si elle dépasse 72 bytes UTF-8
+    (limite bcrypt 5.x).
     """
     if not key:
         raise ValueError("api_key must not be empty")
+    if len(key.encode("utf-8")) > 72:
+        raise ValueError("api_key too long (>72 bytes UTF-8)")
     salt = bcrypt.gensalt(rounds=_BCRYPT_ROUNDS)
     return bcrypt.hashpw(key.encode("utf-8"), salt).decode("ascii")
 
