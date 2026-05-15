@@ -107,6 +107,12 @@ class OpenAIProvider:
         # le type checker veut un fallback.
         raise EmbeddingProviderUnreachable("OpenAI: retry loop exited unexpectedly")
 
+    async def embed_query(self, text: str) -> list[float]:
+        vectors = await self.embed_texts([text])
+        if not vectors:
+            raise EmbeddingProviderUnreachable("OpenAI returned empty embedding")
+        return vectors[0]
+
     @staticmethod
     def _parse_response(payload: dict[str, Any]) -> list[list[float]]:
         """Extrait les embeddings triés par `index` (OpenAI les retourne déjà

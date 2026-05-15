@@ -39,3 +39,13 @@ class EmbeddingProvider(Protocol):
         Lève `EmbeddingProviderError` (ou sous-classe) sur échec.
         """
         ...
+
+    async def embed_query(self, text: str) -> list[float]:
+        """Embed une query de recherche.
+
+        Distinct de `embed_texts` pour permettre aux providers comme Voyage
+        d'utiliser `input_type="query"` (meilleure qualité search vs document).
+        Les providers sans distinction (OpenAI, Ollama) délèguent à
+        `embed_texts([text])[0]`.
+        """
+        ...
