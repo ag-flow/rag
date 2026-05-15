@@ -58,10 +58,24 @@ class VoyageProvider:
                 results.extend(await self._embed_batch(client, batch))
         return results
 
+    async def embed_query(self, text: str) -> list[float]:
+        if not self._api_key:
+            raise EmbeddingAuthError("Voyage api_key is required (got None)")
+        async with httpx.AsyncClient(
+            transport=self._transport,
+            timeout=_TIMEOUT_SECONDS,
+        ) as client:
+            batch_result = await self._embed_batch(client, [text], input_type="query")
+        if not batch_result:
+            raise EmbeddingProviderUnreachable("Voyage returned empty embedding")
+        return batch_result[0]
+
     async def _embed_batch(
         self,
         client: httpx.AsyncClient,
         batch: list[str],
+        *,
+        input_type: str = "document",
     ) -> list[list[float]]:
         for attempt in (0, 1):
             try:
@@ -71,7 +85,7 @@ class VoyageProvider:
                     json={
                         "model": self._model,
                         "input": batch,
-                        "input_type": "document",
+                        "input_type": input_type,
                     },
                 )
             except (httpx.TimeoutException, httpx.NetworkError) as e:
