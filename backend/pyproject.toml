@@ -58,6 +58,9 @@ select = ["E", "F", "W", "I", "B", "UP", "N", "ASYNC", "S", "RUF", "SIM"]
 # S101 : assert dans le code applicatif — OK en tests.
 # S105/S106 : hardcoded secrets — OK dans les fixtures de tests.
 "tests/**/*.py" = ["B011", "S101", "S105", "S106"]
+# N818 : les exceptions métier admin sont nommées par cas (WorkspaceNotFound,
+# ModelInUse, ...) — contrat figé par la spec, suffixe `Error` non souhaité.
+"src/rag/api/errors.py" = ["N818"]
 
 [tool.mypy]
 python_version = "3.12"
