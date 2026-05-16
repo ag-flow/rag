@@ -167,3 +167,46 @@ async def test_dependency_raises_not_configured_when_oidc_absent() -> None:
     dep = require_oidc_role("rag-viewer")
     with pytest.raises(OidcNotConfigured):
         await dep(req)  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_dependency_raises_session_missing_when_id_token_absent() -> None:
+    """Session cookie présent mais sans clef id_token → OidcSessionMissing (ligne 52)."""
+    oidc = MagicMock()
+    oidc.get_config = AsyncMock(
+        return_value=OidcConfig(
+            issuer="https://kc.example.com/realms/r",
+            client_id="rag-service",
+            client_secret_ref="x",
+        )
+    )
+    req = _fake_request(
+        session={"_oidc_session": {"refresh_token": "rt"}},  # pas de id_token
+        oidc_service=oidc,
+    )
+    dep = require_oidc_role("rag-viewer")
+    with pytest.raises(OidcSessionMissing):
+        await dep(req)  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_dependency_reraises_non_expired_invalid_token() -> None:
+    """OidcInvalidToken avec reason != 'expired' doit être re-levée telle quelle (ligne 59)."""
+    oidc = MagicMock()
+    oidc.verify_id_token = AsyncMock(side_effect=OidcInvalidToken("bad_signature"))
+    oidc.get_config = AsyncMock(
+        return_value=OidcConfig(
+            issuer="https://kc.example.com/realms/r",
+            client_id="rag-service",
+            client_secret_ref="x",
+        )
+    )
+    exp_future = int(time.time()) + 300
+    req = _fake_request(
+        session={"_oidc_session": {"id_token": "x.y.z", "refresh_token": "rt", "exp": exp_future}},
+        oidc_service=oidc,
+    )
+    dep = require_oidc_role("rag-viewer")
+    with pytest.raises(OidcInvalidToken) as exc:
+        await dep(req)  # type: ignore[arg-type]
+    assert exc.value.reason == "bad_signature"

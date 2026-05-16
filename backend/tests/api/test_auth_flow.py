@@ -199,3 +199,121 @@ def test_logout_clears_session_and_redirects_keycloak_logout(
     # /me ne doit plus marcher
     me_r = admin_client.get("/me")
     assert me_r.status_code == 401
+
+
+def test_refresh_returns_ok_with_new_tokens(
+    admin_client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    """POST /auth/refresh avec session active → 200 {"ok": true} (lignes 94-108)."""
+    _seed_oidc_config(admin_client, admin_headers)
+    _install_keycloak_mock(admin_client)
+    _stub_secret_resolver(admin_client)
+
+    # Login complet
+    login_r = admin_client.get("/auth/login", follow_redirects=False)
+    params = parse_qs(urlparse(login_r.headers["location"]).query)
+    admin_client.app.state._kc_mock_state["last_nonce"] = params["nonce"][0]  # type: ignore[attr-defined]
+    cb_r = admin_client.get(
+        f"/auth/callback?code=x&state={params['state'][0]}",
+        follow_redirects=False,
+    )
+    assert cb_r.status_code == 302
+
+    # Refresh — le mock token_endpoint retourne un nouveau id_token
+    import httpx
+
+    def refresh_handler(request: httpx.Request) -> httpx.Response:
+        import time
+
+        url = str(request.url)
+        if "well-known" in url:
+            return httpx.Response(200, json=_discovery_payload())
+        if "/certs" in url:
+            return httpx.Response(200, json=_jwks_payload())
+        if url.endswith("/token"):
+            now = int(time.time())
+            claims = {
+                "iss": _ISSUER,
+                "aud": _CLIENT_ID,
+                "sub": "user-uuid-42",
+                "email": "test@example.com",
+                "name": "Test User",
+                "exp": now + 600,
+                "iat": now,
+                "nonce": "",
+                "resource_access": {_CLIENT_ID: {"roles": ["rag-viewer"]}},
+            }
+            return httpx.Response(
+                200,
+                json={
+                    "id_token": _signed(claims),
+                    "access_token": "at-refreshed",
+                    "refresh_token": "rt-refreshed",
+                    "expires_in": 600,
+                    "token_type": "Bearer",
+                },
+            )
+        return httpx.Response(404)
+
+    admin_client.app.state.oidc._http_client = httpx.AsyncClient(  # type: ignore[attr-defined]
+        transport=httpx.MockTransport(refresh_handler)
+    )
+    admin_client.app.state.oidc._discovery_cache.clear()  # type: ignore[attr-defined]
+    admin_client.app.state.oidc._jwks_cache.clear()  # type: ignore[attr-defined]
+
+    refresh_r = admin_client.post("/auth/refresh")
+    assert refresh_r.status_code == 200, refresh_r.text
+    assert refresh_r.json() == {"ok": True}
+
+
+def test_refresh_401_when_refresh_token_expired(
+    admin_client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    """POST /auth/refresh quand le refresh_token est expiré (côté IDP) → 401 session_expired.
+
+    Couvre les lignes 99-101 de auth.py : OidcSessionExpired catchée dans le try/except
+    qui purge la session et re-raise.
+    """
+    _seed_oidc_config(admin_client, admin_headers)
+    _install_keycloak_mock(admin_client)
+    _stub_secret_resolver(admin_client)
+
+    # Login pour avoir une session valide
+    login_r = admin_client.get("/auth/login", follow_redirects=False)
+    params = parse_qs(urlparse(login_r.headers["location"]).query)
+    admin_client.app.state._kc_mock_state["last_nonce"] = params["nonce"][0]  # type: ignore[attr-defined]
+    cb_r = admin_client.get(
+        f"/auth/callback?code=x&state={params['state'][0]}",
+        follow_redirects=False,
+    )
+    assert cb_r.status_code == 302
+
+    # Remplace le mock httpx pour que le token_endpoint retourne 400 invalid_grant
+    import httpx
+
+    def expired_handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if "well-known" in url:
+            return httpx.Response(200, json=_discovery_payload())
+        if "/certs" in url:
+            return httpx.Response(200, json=_jwks_payload())
+        if url.endswith("/token"):
+            return httpx.Response(
+                400,
+                json={"error": "invalid_grant", "error_description": "Refresh token expired"},
+            )
+        return httpx.Response(404)
+
+    admin_client.app.state.oidc._http_client = httpx.AsyncClient(  # type: ignore[attr-defined]
+        transport=httpx.MockTransport(expired_handler)
+    )
+    admin_client.app.state.oidc._discovery_cache.clear()  # type: ignore[attr-defined]
+    admin_client.app.state.oidc._jwks_cache.clear()  # type: ignore[attr-defined]
+
+    refresh_r = admin_client.post("/auth/refresh")
+    assert refresh_r.status_code == 401, refresh_r.text
+    assert refresh_r.json()["error"] == "oidc_session_expired"
+
+    # Session doit être purgée : /me retourne 401 session_missing
+    me_r = admin_client.get("/me")
+    assert me_r.status_code == 401
