@@ -17,14 +17,14 @@ def test_harpocrate_client_config_is_exported() -> None:
 def test_settings_minimal_valid(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/rag_config")
     monkeypatch.setenv("RAG_POSTGRES_ADMIN_URL", "postgresql://u:p@h:5432/postgres")
-    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_123456")
+    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_123456_padding_padding_padding")
     monkeypatch.setenv("RAG_PUBLIC_URL", "http://localhost:8000")
     monkeypatch.setenv("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_abc")
     monkeypatch.setenv("HARPOCRATE_API_URL_RAG", "https://vault.example.com")
 
     s = Settings()
 
-    assert s.rag_master_key.get_secret_value() == "mk_test_123456"
+    assert s.rag_master_key.get_secret_value() == "mk_test_123456_padding_padding_padding"
     assert s.environment == "dev"
     assert s.log_level == "INFO"
     assert s.sync_worker_poll_interval_seconds == 30
@@ -48,7 +48,7 @@ def test_settings_missing_master_key_fails(monkeypatch: pytest.MonkeyPatch) -> N
 def test_settings_no_harpocrate_keys_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/rag_config")
     monkeypatch.setenv("RAG_POSTGRES_ADMIN_URL", "postgresql://u:p@h:5432/postgres")
-    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_123456")
+    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_123456_padding_padding_padding")
     monkeypatch.setenv("RAG_PUBLIC_URL", "http://localhost:8000")
     for k in list(os.environ):
         if k.startswith("HARPOCRATE_"):
@@ -61,7 +61,7 @@ def test_settings_no_harpocrate_keys_fails(monkeypatch: pytest.MonkeyPatch) -> N
 def test_settings_multiple_harpocrate_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/rag_config")
     monkeypatch.setenv("RAG_POSTGRES_ADMIN_URL", "postgresql://u:p@h:5432/postgres")
-    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_123456")
+    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_123456_padding_padding_padding")
     monkeypatch.setenv("RAG_PUBLIC_URL", "http://localhost:8000")
     monkeypatch.setenv("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_a")
     monkeypatch.setenv("HARPOCRATE_API_URL_RAG", "https://vault.example.com")
@@ -76,7 +76,7 @@ def test_settings_multiple_harpocrate_keys(monkeypatch: pytest.MonkeyPatch) -> N
 def test_harpocrate_token_missing_url_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/rag_config")
     monkeypatch.setenv("RAG_POSTGRES_ADMIN_URL", "postgresql://u:p@h:5432/postgres")
-    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_123456")
+    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_123456_padding_padding_padding")
     monkeypatch.setenv("RAG_PUBLIC_URL", "http://localhost:8000")
     monkeypatch.setenv("HARPOCRATE_API_TOKEN_ORPHAN", "hrpv_1_x")
     monkeypatch.delenv("HARPOCRATE_API_URL_ORPHAN", raising=False)
@@ -100,7 +100,7 @@ def test_settings_master_key_empty_string_fails(monkeypatch: pytest.MonkeyPatch)
 def test_sync_default_interval_seconds_defaults_to_300(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/rag_config")
     monkeypatch.setenv("RAG_POSTGRES_ADMIN_URL", "postgresql://u:p@h:5432/postgres")
-    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_123456")
+    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_123456_padding_padding_padding")
     monkeypatch.setenv("RAG_PUBLIC_URL", "http://localhost:8000")
     monkeypatch.setenv("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_abc")
     monkeypatch.setenv("HARPOCRATE_API_URL_RAG", "https://vault.example.com")
@@ -111,7 +111,7 @@ def test_sync_default_interval_seconds_defaults_to_300(monkeypatch: pytest.Monke
 def test_sync_default_interval_seconds_overridable(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/rag_config")
     monkeypatch.setenv("RAG_POSTGRES_ADMIN_URL", "postgresql://u:p@h:5432/postgres")
-    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_123456")
+    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_123456_padding_padding_padding")
     monkeypatch.setenv("RAG_PUBLIC_URL", "http://localhost:8000")
     monkeypatch.setenv("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_abc")
     monkeypatch.setenv("HARPOCRATE_API_URL_RAG", "https://vault.example.com")
@@ -125,7 +125,7 @@ def test_sync_repos_root_defaults_to_var_lib(monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/rag_config")
     monkeypatch.setenv("RAG_POSTGRES_ADMIN_URL", "postgresql://u:p@h:5432/postgres")
-    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_123456")
+    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_123456_padding_padding_padding")
     monkeypatch.setenv("RAG_PUBLIC_URL", "http://localhost:8000")
     monkeypatch.setenv("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_abc")
     monkeypatch.setenv("HARPOCRATE_API_URL_RAG", "https://vault.example.com")
@@ -138,7 +138,7 @@ def test_sync_repos_root_overridable(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/rag_config")
     monkeypatch.setenv("RAG_POSTGRES_ADMIN_URL", "postgresql://u:p@h:5432/postgres")
-    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_123456")
+    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_123456_padding_padding_padding")
     monkeypatch.setenv("RAG_PUBLIC_URL", "http://localhost:8000")
     monkeypatch.setenv("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_abc")
     monkeypatch.setenv("HARPOCRATE_API_URL_RAG", "https://vault.example.com")

@@ -47,7 +47,7 @@ async def admin_client(
 ) -> AsyncIterator[TestClient]:
     os.environ["DATABASE_URL"] = pg_container
     os.environ["RAG_POSTGRES_ADMIN_URL"] = pg_container.rsplit("/", 1)[0] + "/postgres"
-    os.environ.setdefault("RAG_MASTER_KEY", "mk_test_e2e")
+    os.environ.setdefault("RAG_MASTER_KEY", "mk_test_e2e_padding_padding_padding_padding")
     os.environ.setdefault("RAG_PUBLIC_URL", "http://localhost:8000")
     os.environ.setdefault("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_stub")
     os.environ.setdefault("HARPOCRATE_API_URL_RAG", "https://vault.example.com")
@@ -65,7 +65,7 @@ async def admin_client(
 
 @pytest.fixture
 def admin_headers() -> dict[str, str]:
-    return {"Authorization": "Bearer mk_test_e2e"}
+    return {"Authorization": "Bearer mk_test_e2e_padding_padding_padding_padding"}
 
 
 @pytest.fixture

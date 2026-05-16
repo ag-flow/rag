@@ -51,6 +51,8 @@ class Settings(BaseSettings):
 
     harpocrate_api_keys: dict[str, HarpocrateClientConfig] = {}
 
+    rag_session_secret: SecretStr = SecretStr("")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -105,3 +107,20 @@ class Settings(BaseSettings):
             for identifier, parts in keys.items()
         }
         return data
+
+    @model_validator(mode="after")
+    def fill_session_secret_fallback(self) -> Settings:
+        """`RAG_SESSION_SECRET` (32+ chars) signe les cookies `_oidc_session`.
+
+        Fallback dev : si absent, utilise `RAG_MASTER_KEY` (qui doit alors
+        etre lui-meme >= 32 chars). En prod, fournir explicitement
+        `RAG_SESSION_SECRET=<openssl rand -hex 32>`.
+        """
+        if not self.rag_session_secret.get_secret_value():
+            self.rag_session_secret = self.rag_master_key
+        if len(self.rag_session_secret.get_secret_value()) < 32:
+            raise ValueError(
+                "RAG_SESSION_SECRET must be >= 32 chars "
+                "(use `openssl rand -hex 32` to generate one)"
+            )
+        return self

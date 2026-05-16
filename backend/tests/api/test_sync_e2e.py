@@ -27,12 +27,12 @@ async def e2e_client(
 ) -> AsyncIterator[tuple[TestClient, Path]]:
     # On force toutes les variables (pas de setdefault) pour éviter la
     # contamination par les fixtures `admin_client` qui posent
-    # RAG_MASTER_KEY=mk_test_e2e dans le process. monkeypatch restaure
+    # RAG_MASTER_KEY=mk_test_e2e_padding_... dans le process. monkeypatch restaure
     # l'état avant le test au teardown — pas de fuite vers les tests
     # de unit/test_config.py qui s'appuient sur des envs vierges.
     monkeypatch.setenv("DATABASE_URL", pg_container)
     monkeypatch.setenv("RAG_POSTGRES_ADMIN_URL", pg_container.rsplit("/", 1)[0] + "/postgres")
-    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_e2e_sync")
+    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_e2e_sync_padding_padding_padding")
     monkeypatch.setenv("RAG_PUBLIC_URL", "http://localhost:8000")
     monkeypatch.setenv("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_stub")
     monkeypatch.setenv("HARPOCRATE_API_URL_RAG", "https://vault.example.com")
@@ -50,7 +50,7 @@ async def e2e_client(
         yield client, tmp_path
 
 
-def _bearer(value: str = "mk_test_e2e_sync") -> dict[str, str]:
+def _bearer(value: str = "mk_test_e2e_sync_padding_padding_padding") -> dict[str, str]:
     return {"Authorization": f"Bearer {value}"}
 
 
