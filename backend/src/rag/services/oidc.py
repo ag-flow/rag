@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import secrets
 import time
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
+from urllib.parse import urlencode
 
 import asyncpg
 import httpx
@@ -13,7 +15,7 @@ from joserfc.errors import BadSignatureError, ExpiredTokenError, InvalidClaimErr
 from joserfc.jwk import KeySet
 from joserfc.jwt import JWTClaimsRegistry
 
-from rag.api.errors import OidcInvalidToken, OidcKeycloakUnreachable
+from rag.api.errors import OidcInvalidToken, OidcKeycloakUnreachable, OidcNotConfigured
 
 log = structlog.get_logger(__name__)
 
@@ -217,3 +219,40 @@ class OidcService:
         client_section = resource_access.get(client_id) or {}
         roles = client_section.get("roles") or []
         return list(roles)
+
+    # --- Authorize + Logout URL ---
+
+    async def build_authorize_url(self) -> tuple[str, str, str]:
+        """Construit l'URL d'authorize Keycloak avec state + nonce aléatoires.
+
+        Returns (url, state, nonce). Le caller stocke (state, nonce) dans
+        un cookie éphémère (Starlette session) pour validation au callback.
+
+        Raise OidcNotConfigured si aucune config OIDC en DB.
+        """
+        cfg = await self.get_config()
+        if cfg is None:
+            raise OidcNotConfigured()
+        discovery = await self._discover(cfg)
+
+        state = secrets.token_urlsafe(32)
+        nonce = secrets.token_urlsafe(32)
+        params = {
+            "client_id": cfg.client_id,
+            "redirect_uri": f"{self._public_url}/auth/callback",
+            "response_type": "code",
+            "scope": "openid email profile",
+            "state": state,
+            "nonce": nonce,
+        }
+        url = f"{discovery.authorization_endpoint}?{urlencode(params)}"
+        return url, state, nonce
+
+    async def build_logout_url(self, *, id_token: str, config: OidcConfig) -> str:
+        """Construit l'URL de logout Keycloak avec id_token_hint."""
+        discovery = await self._discover(config)
+        params = {
+            "id_token_hint": id_token,
+            "post_logout_redirect_uri": f"{self._public_url}/",
+        }
+        return f"{discovery.end_session_endpoint}?{urlencode(params)}"
