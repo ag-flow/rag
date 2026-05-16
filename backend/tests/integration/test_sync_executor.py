@@ -19,7 +19,7 @@ MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 class _StubResolver:
     """Stub : retourne 'tok-x' quel que soit le ref demandé."""
 
-    def resolve_with_retry(self, ref: str) -> str:
+    async def resolve_with_retry(self, ref: str) -> str:
         return "tok-x"
 
 

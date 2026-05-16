@@ -34,7 +34,7 @@ def _fake_pool_for_upsert() -> tuple[MagicMock, MagicMock]:
 
 def _fake_resolver() -> MagicMock:
     r = MagicMock()
-    r.resolve_with_retry = MagicMock(return_value="resolved-secret")
+    r.resolve_with_retry = AsyncMock(return_value="resolved-secret")
     return r
 
 

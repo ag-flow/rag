@@ -29,7 +29,7 @@ class _StubResolver:
         self._known = known
         self._raise = raise_on
 
-    def resolve_with_retry(self, ref: str) -> str:
+    async def resolve_with_retry(self, ref: str) -> str:
         if self._raise is not None:
             raise self._raise
         # Le service appelle resolve_with_retry sur ${vault://rag:<logical>}

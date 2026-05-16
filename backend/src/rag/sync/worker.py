@@ -16,7 +16,7 @@ log = structlog.get_logger(__name__)
 
 
 class _ResolverProtocol(Protocol):
-    def resolve_with_retry(self, ref: str) -> str: ...
+    async def resolve_with_retry(self, ref: str) -> str: ...
 
 
 class SyncWorker:

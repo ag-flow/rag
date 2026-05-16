@@ -18,22 +18,22 @@ class FakeVaultClient:
         return self._secrets[path]
 
 
-def test_resolver_uses_correct_vault_client() -> None:
+async def test_resolver_uses_correct_vault_client() -> None:
     api1 = FakeVaultClient({"shared/openai": "sk-real-from-api1"})
     api2 = FakeVaultClient({"shared/openai": "sk-real-from-api2"})
 
     r = SecretResolver(harpocrate_clients={"api1": api1, "api2": api2})
 
-    assert r.resolve("${vault://api1:shared/openai}") == "sk-real-from-api1"
-    assert r.resolve("${vault://api2:shared/openai}") == "sk-real-from-api2"
+    assert await r.resolve("${vault://api1:shared/openai}") == "sk-real-from-api1"
+    assert await r.resolve("${vault://api2:shared/openai}") == "sk-real-from-api2"
     assert api1.calls == ["shared/openai"]
     assert api2.calls == ["shared/openai"]
 
 
-def test_resolver_unknown_api_key_id() -> None:
+async def test_resolver_unknown_api_key_id() -> None:
     r = SecretResolver(harpocrate_clients={"api1": FakeVaultClient({})})
     with pytest.raises(VaultLookupFailed, match="unknown"):
-        r.resolve("${vault://unknown:foo}")
+        await r.resolve("${vault://unknown:foo}")
 
 
 def test_harpocrate_client_implements_protocol() -> None:

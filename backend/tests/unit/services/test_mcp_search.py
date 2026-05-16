@@ -31,7 +31,7 @@ class _FakeResolver:
     def __init__(self) -> None:
         self.calls = 0
 
-    def resolve_with_retry(self, _ref: str) -> str:
+    async def resolve_with_retry(self, _ref: str) -> str:
         self.calls += 1
         return "resolved-secret"
 

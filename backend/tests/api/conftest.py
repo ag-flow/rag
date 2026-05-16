@@ -21,10 +21,10 @@ class _ApiStubResolver:
     def __init__(self) -> None:
         self.known: set[str] = {"openai_embedding_key", "voyage_api_key", "github_token", "vk", "k"}
 
-    def resolve(self, ref: str) -> str:
-        return self.resolve_with_retry(ref)
+    async def resolve(self, ref: str) -> str:
+        return await self.resolve_with_retry(ref)
 
-    def resolve_with_retry(self, ref: str) -> str:
+    async def resolve_with_retry(self, ref: str) -> str:
         import re
 
         m = re.fullmatch(r"\$\{vault://[^:]+:([^}]+)\}", ref)

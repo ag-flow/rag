@@ -27,7 +27,7 @@ log = structlog.get_logger(__name__)
 
 
 class _ResolverProtocol(Protocol):
-    def resolve_with_retry(self, ref: str) -> str: ...
+    async def resolve_with_retry(self, ref: str) -> str: ...
 
 
 @dataclass(frozen=True)
@@ -325,7 +325,7 @@ class OidcService:
         fréquentes, pas de cache pour éviter de tenir un secret en mémoire).
         """
         discovery = await self._discover(config)
-        client_secret = self._secret_resolver.resolve_with_retry(
+        client_secret = await self._secret_resolver.resolve_with_retry(
             f"${{vault://rag:{config.client_secret_ref}}}"
         )
         payload = {

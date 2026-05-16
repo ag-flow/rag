@@ -35,7 +35,7 @@ class _StubProvider:
 
 
 class _StubResolver:
-    def resolve_with_retry(self, ref: str) -> str:
+    async def resolve_with_retry(self, ref: str) -> str:
         return "tok-stub"
 
 

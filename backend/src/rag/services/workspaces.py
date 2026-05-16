@@ -28,7 +28,7 @@ log = structlog.get_logger(__name__)
 
 
 class _ResolverProtocol(Protocol):
-    def resolve_with_retry(self, ref: str) -> str: ...
+    async def resolve_with_retry(self, ref: str) -> str: ...
 
 
 def to_vault_ref(logical_key: str, *, vault_id: str = "rag") -> str:
@@ -41,11 +41,11 @@ def to_vault_ref(logical_key: str, *, vault_id: str = "rag") -> str:
     return f"${{vault://{vault_id}:{logical_key}}}"
 
 
-def _validate_ref_via_vault(resolver: _ResolverProtocol, logical_key: str) -> None:
+async def _validate_ref_via_vault(resolver: _ResolverProtocol, logical_key: str) -> None:
     """Eager validation : la ref doit résoudre. Sinon : 422 ou 503 selon la cause."""
     ref = to_vault_ref(logical_key)
     try:
-        resolver.resolve_with_retry(ref)
+        await resolver.resolve_with_retry(ref)
     except VaultLookupFailed as e:
         raise RefNotFoundInVault(logical_key) from e
     except (ConnectionError, TimeoutError) as e:
@@ -78,7 +78,7 @@ async def create_workspace(
 
     # 2. Eager validation de la ref Harpocrate (sauf si None, ex: Ollama sans auth)
     if request.indexer.api_key_ref is not None:
-        _validate_ref_via_vault(resolver, request.indexer.api_key_ref)
+        await _validate_ref_via_vault(resolver, request.indexer.api_key_ref)
 
     # 3. Génération api_key
     api_key = generate_api_key()
@@ -200,7 +200,7 @@ async def patch_workspace(
     Lève WorkspaceNotFound si le workspace n'existe pas.
     """
     new_ref = request.indexer.api_key_ref
-    _validate_ref_via_vault(resolver, new_ref)
+    await _validate_ref_via_vault(resolver, new_ref)
 
     async with config_pool.acquire() as conn:
         row = await conn.fetchrow("SELECT id FROM workspaces WHERE name=$1", name)

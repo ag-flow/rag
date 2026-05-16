@@ -91,7 +91,7 @@ class SecretResolver:
         self._cache_ttl = cache_ttl
         self._cache: dict[str, _CacheEntry] = {}
 
-    def resolve(self, value: str) -> str:
+    async def resolve(self, value: str) -> str:
         ref = parse_ref(value)
         if ref is None:
             return value
@@ -103,11 +103,11 @@ class SecretResolver:
                 raise EnvVarMissing(f"Environment variable not set: {ref.path}") from e
 
         if ref.action == "vault":
-            return self._vault_lookup_cached(value, ref.api_key_id, ref.path)
+            return await self._vault_lookup_cached(value, ref.api_key_id, ref.path)
 
         raise UnknownAction(f"Unhandled action: {ref.action}")
 
-    def resolve_with_retry(self, value: str) -> str:
+    async def resolve_with_retry(self, value: str) -> str:
         """Comme `resolve`, mais bypass cache + retente une fois sur 401.
 
         Force une validation fraîche contre le coffre (invalidation préalable)
@@ -116,12 +116,12 @@ class SecretResolver:
         """
         self.invalidate(value)
         try:
-            return self.resolve(value)
+            return await self.resolve(value)
         except (PermissionError, VaultLookupFailed) as e:
             log.warning("vault.retry_after_401", ref=value, error=str(e))
             self.invalidate(value)
             try:
-                return self.resolve(value)
+                return await self.resolve(value)
             except (PermissionError, KeyError) as e2:
                 raise VaultLookupFailed(f"Retry after 401 failed for {value!r}") from e2
 
@@ -133,7 +133,7 @@ class SecretResolver:
         """Vide entièrement le cache."""
         self._cache.clear()
 
-    def _vault_lookup_cached(self, raw_ref: str, api_key_id: str | None, path: str) -> str:
+    async def _vault_lookup_cached(self, raw_ref: str, api_key_id: str | None, path: str) -> str:
         now = time.monotonic()
         if self._cache_ttl > 0:
             entry = self._cache.get(raw_ref)

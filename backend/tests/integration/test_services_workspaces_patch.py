@@ -25,7 +25,7 @@ class _Resolver:
     def __init__(self, known: set[str]) -> None:
         self._known = known
 
-    def resolve_with_retry(self, ref: str) -> str:
+    async def resolve_with_retry(self, ref: str) -> str:
         m = re.fullmatch(r"\$\{vault://[^:]+:([^}]+)\}", ref)
         assert m
         logical = m.group(1)

@@ -39,7 +39,7 @@ def _discovery_payload(issuer: str) -> dict:
 
 
 class _FakeResolver:
-    def resolve_with_retry(self, _ref: str) -> str:
+    async def resolve_with_retry(self, _ref: str) -> str:
         return "resolved-client-secret"
 
 

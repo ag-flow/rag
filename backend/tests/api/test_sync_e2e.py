@@ -15,7 +15,7 @@ _MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 
 class _AcceptAllResolver:
-    def resolve_with_retry(self, ref: str) -> str:
+    async def resolve_with_retry(self, ref: str) -> str:
         return "tok-x"
 
 

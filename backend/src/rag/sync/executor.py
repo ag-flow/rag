@@ -98,7 +98,7 @@ async def pick_next_pending_job(
 
 
 class _ResolverProtocol(Protocol):
-    def resolve_with_retry(self, ref: str) -> str: ...
+    async def resolve_with_retry(self, ref: str) -> str: ...
 
 
 _ERROR_MESSAGE_MAX = 500
@@ -114,7 +114,7 @@ def _to_vault_ref(logical_key: str, *, vault_id: str = "rag") -> str:
     return f"${{vault://{vault_id}:{logical_key}}}"
 
 
-def _resolve_token(
+async def _resolve_token(
     resolver: _ResolverProtocol,
     config: dict[str, Any],
 ) -> str | None:
@@ -122,7 +122,7 @@ def _resolve_token(
     auth_ref = config.get("auth_ref")
     if not auth_ref:
         return None
-    return resolver.resolve_with_retry(_to_vault_ref(auth_ref))
+    return await resolver.resolve_with_retry(_to_vault_ref(auth_ref))
 
 
 def _format_error(e: BaseException) -> str:
@@ -211,7 +211,7 @@ async def _process_job(
     last_commit = config.get("last_commit")
 
     # 1. Résolution token (lazy)
-    token = _resolve_token(resolver, config)
+    token = await _resolve_token(resolver, config)
 
     # 2. Path local + clone ou pull
     storage.ensure_exists(workspace_id=job.workspace_id, source_id=job.source_id)

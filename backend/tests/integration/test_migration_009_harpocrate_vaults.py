@@ -14,9 +14,7 @@ MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 async def test_harpocrate_vaults_table_exists(session_pool: asyncpg.Pool):
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT to_regclass('public.harpocrate_vaults') AS table_oid"
-        )
+        row = await conn.fetchrow("SELECT to_regclass('public.harpocrate_vaults') AS table_oid")
     assert row["table_oid"] is not None
 
 

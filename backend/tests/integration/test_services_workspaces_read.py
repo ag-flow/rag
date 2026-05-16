@@ -16,7 +16,7 @@ MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 
 class _StubResolver:
-    def resolve_with_retry(self, ref: str) -> str:
+    async def resolve_with_retry(self, ref: str) -> str:
         m = re.fullmatch(r"\$\{vault://[^:]+:([^}]+)\}", ref)
         assert m
         return "sk-stub"

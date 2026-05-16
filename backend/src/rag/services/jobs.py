@@ -24,7 +24,7 @@ log = structlog.get_logger(__name__)
 
 
 class _ResolverProtocol(Protocol):
-    def resolve_with_retry(self, ref: str) -> str: ...
+    async def resolve_with_retry(self, ref: str) -> str: ...
 
 
 async def create_pending_job(
@@ -94,9 +94,9 @@ def _to_vault_ref(logical_key: str, *, vault_id: str = "rag") -> str:
     return f"${{vault://{vault_id}:{logical_key}}}"
 
 
-def _validate_ref_via_vault(resolver: _ResolverProtocol, logical_key: str) -> None:
+async def _validate_ref_via_vault(resolver: _ResolverProtocol, logical_key: str) -> None:
     try:
-        resolver.resolve_with_retry(_to_vault_ref(logical_key))
+        await resolver.resolve_with_retry(_to_vault_ref(logical_key))
     except VaultLookupFailed as e:
         raise RefNotFoundInVault(logical_key) from e
     except (ConnectionError, TimeoutError) as e:
@@ -147,7 +147,7 @@ async def reindex_workspace(
         config_pool, provider=new_indexer.provider, model=new_indexer.model
     )
     if new_indexer.api_key_ref is not None:
-        _validate_ref_via_vault(resolver, new_indexer.api_key_ref)
+        await _validate_ref_via_vault(resolver, new_indexer.api_key_ref)
 
     documents_count = await fetch_one(
         config_pool,

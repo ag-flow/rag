@@ -16,7 +16,7 @@ MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 
 class _Resolver:
-    def resolve_with_retry(self, ref: str) -> str:
+    async def resolve_with_retry(self, ref: str) -> str:
         assert re.fullmatch(r"\$\{vault://[^:]+:[^}]+\}", ref)
         return "sk-x"
 

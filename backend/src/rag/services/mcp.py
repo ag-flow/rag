@@ -123,7 +123,7 @@ async def _load_workspace_context(
 
 
 class _ResolverProtocol(Protocol):
-    def resolve_with_retry(self, ref: str) -> str: ...
+    async def resolve_with_retry(self, ref: str) -> str: ...
 
 
 def _to_vault_ref(logical_key: str, *, vault_id: str = "rag") -> str:
@@ -195,7 +195,7 @@ async def _search_one(
 
     api_key: str | None = None
     if ctx["api_key_ref"]:
-        api_key = secret_resolver.resolve_with_retry(_to_vault_ref(ctx["api_key_ref"]))
+        api_key = await secret_resolver.resolve_with_retry(_to_vault_ref(ctx["api_key_ref"]))
 
     provider = provider_factory(
         provider=ctx["provider"],

@@ -20,39 +20,39 @@ class CountingFakeClient:
         return self.value
 
 
-def test_cache_hit_avoids_second_lookup() -> None:
+async def test_cache_hit_avoids_second_lookup() -> None:
     client = CountingFakeClient("v")
     r = SecretResolver(harpocrate_clients={"api1": client}, cache_ttl=60)
 
-    assert r.resolve("${vault://api1:k}") == "v"
-    assert r.resolve("${vault://api1:k}") == "v"
+    assert await r.resolve("${vault://api1:k}") == "v"
+    assert await r.resolve("${vault://api1:k}") == "v"
     assert client.calls == 1
 
 
-def test_cache_expires_after_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_cache_expires_after_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
     client = CountingFakeClient("v")
     r = SecretResolver(harpocrate_clients={"api1": client}, cache_ttl=10)
 
     now = [time.monotonic()]
     monkeypatch.setattr("rag.secrets.resolver.time.monotonic", lambda: now[0])
 
-    r.resolve("${vault://api1:k}")
+    await r.resolve("${vault://api1:k}")
     now[0] += 5
-    r.resolve("${vault://api1:k}")
+    await r.resolve("${vault://api1:k}")
     assert client.calls == 1
 
     now[0] += 6  # total 11 > ttl 10
-    r.resolve("${vault://api1:k}")
+    await r.resolve("${vault://api1:k}")
     assert client.calls == 2
 
 
-def test_invalidate_clears_specific_ref() -> None:
+async def test_invalidate_clears_specific_ref() -> None:
     client = CountingFakeClient("v")
     r = SecretResolver(harpocrate_clients={"api1": client}, cache_ttl=300)
 
-    r.resolve("${vault://api1:k}")
+    await r.resolve("${vault://api1:k}")
     r.invalidate("${vault://api1:k}")
-    r.resolve("${vault://api1:k}")
+    await r.resolve("${vault://api1:k}")
     assert client.calls == 2
 
 
@@ -62,35 +62,35 @@ def test_invalidate_unknown_ref_is_silent() -> None:
     r.invalidate("${vault://api1:not_cached}")  # ne lève rien
 
 
-def test_clear_cache_empties_all() -> None:
+async def test_clear_cache_empties_all() -> None:
     client = CountingFakeClient("v")
     r = SecretResolver(harpocrate_clients={"api1": client}, cache_ttl=300)
-    r.resolve("${vault://api1:a}")
-    r.resolve("${vault://api1:b}")
+    await r.resolve("${vault://api1:a}")
+    await r.resolve("${vault://api1:b}")
     assert client.calls == 2
     r.clear_cache()
-    r.resolve("${vault://api1:a}")
-    r.resolve("${vault://api1:b}")
+    await r.resolve("${vault://api1:a}")
+    await r.resolve("${vault://api1:b}")
     assert client.calls == 4
 
 
-def test_resolve_with_retry_after_401_invalidates_and_retries() -> None:
+async def test_resolve_with_retry_after_401_invalidates_and_retries() -> None:
     client = CountingFakeClient("v")
     r = SecretResolver(harpocrate_clients={"api1": client}, cache_ttl=300)
 
-    r.resolve("${vault://api1:k}")  # cached
+    await r.resolve("${vault://api1:k}")  # cached
     assert client.calls == 1
 
     # Simule un 401 sur le prochain lookup en forçant un nouvel appel
     client.fail_until_invalidate = True
     with pytest.raises(VaultLookupFailed):
-        r.resolve_with_retry("${vault://api1:k}")
+        await r.resolve_with_retry("${vault://api1:k}")
 
     # Après échec persistant : 1 succès initial + (1 invalidate + 1 retry) = au moins 2 calls
     assert client.calls >= 2
 
 
-def test_resolve_with_retry_succeeds_after_one_retry() -> None:
+async def test_resolve_with_retry_succeeds_after_one_retry() -> None:
     """Si le 401 disparaît au retry, on retourne la valeur."""
 
     class FlippyClient:
@@ -119,4 +119,4 @@ def test_resolve_with_retry_succeeds_after_one_retry() -> None:
 
     r = SecretResolver(harpocrate_clients={"api1": FailThenOk()}, cache_ttl=300)
     # Première tentative échoue → invalidate → retry réussit
-    assert r.resolve_with_retry("${vault://api1:k}") == "ok"
+    assert await r.resolve_with_retry("${vault://api1:k}") == "ok"

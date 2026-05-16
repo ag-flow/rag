@@ -44,19 +44,19 @@ def test_parse_unknown_action_raises() -> None:
         parse_ref("${file:///etc/passwd}")
 
 
-def test_resolver_returns_literal_unchanged() -> None:
+async def test_resolver_returns_literal_unchanged() -> None:
     r = SecretResolver(harpocrate_clients={})
-    assert r.resolve("plain-token") == "plain-token"
+    assert await r.resolve("plain-token") == "plain-token"
 
 
-def test_resolver_resolves_env(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_resolver_resolves_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MY_KEY", "value-from-env")
     r = SecretResolver(harpocrate_clients={})
-    assert r.resolve("${env://MY_KEY}") == "value-from-env"
+    assert await r.resolve("${env://MY_KEY}") == "value-from-env"
 
 
-def test_resolver_env_missing_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_resolver_env_missing_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ABSENT", raising=False)
     r = SecretResolver(harpocrate_clients={})
     with pytest.raises(EnvVarMissing, match="ABSENT"):
-        r.resolve("${env://ABSENT}")
+        await r.resolve("${env://ABSENT}")

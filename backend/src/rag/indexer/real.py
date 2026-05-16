@@ -17,7 +17,7 @@ log = structlog.get_logger(__name__)
 
 
 class _ResolverProtocol(Protocol):
-    def resolve_with_retry(self, ref: str) -> str: ...
+    async def resolve_with_retry(self, ref: str) -> str: ...
 
 
 def _to_vault_ref(logical_key: str, *, vault_id: str = "rag") -> str:
@@ -72,7 +72,7 @@ class RealIndexer:
 
         api_key: str | None = None
         if ctx["api_key_ref"]:
-            api_key = self._secret_resolver.resolve_with_retry(
+            api_key = await self._secret_resolver.resolve_with_retry(
                 _to_vault_ref(ctx["api_key_ref"]),
             )
 
