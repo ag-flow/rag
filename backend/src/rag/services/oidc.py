@@ -15,7 +15,13 @@ from joserfc.errors import BadSignatureError, ExpiredTokenError, InvalidClaimErr
 from joserfc.jwk import KeySet
 from joserfc.jwt import JWTClaimsRegistry
 
-from rag.api.errors import OidcInvalidToken, OidcKeycloakUnreachable, OidcNotConfigured
+from rag.api.errors import (
+    OidcInvalidCode,
+    OidcInvalidToken,
+    OidcKeycloakUnreachable,
+    OidcNotConfigured,
+    OidcSessionExpired,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -31,6 +37,16 @@ class OidcConfig:
     issuer: str
     client_id: str
     client_secret_ref: str  # clé logique Harpocrate
+
+
+@dataclass(frozen=True)
+class _TokenPair:
+    """Résultat d'un exchange code ou d'un refresh token."""
+
+    id_token: str
+    access_token: str
+    refresh_token: str
+    expires_at: int  # epoch seconds
 
 
 @dataclass(frozen=True)
@@ -247,6 +263,110 @@ class OidcService:
         }
         url = f"{discovery.authorization_endpoint}?{urlencode(params)}"
         return url, state, nonce
+
+    # --- Token exchange + refresh ---
+
+    async def exchange_code(
+        self,
+        *,
+        code: str,
+        expected_nonce: str,
+        config: OidcConfig,
+    ) -> _TokenPair:
+        """POST token_endpoint avec grant_type=authorization_code.
+
+        Vérifie la signature + claims du id_token et contrôle le nonce.
+
+        Raise OidcInvalidCode si Keycloak rejette le code.
+        Raise OidcInvalidToken si nonce ne match pas.
+        """
+        return await self._token_request(
+            config=config,
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": f"{self._public_url}/auth/callback",
+            },
+            expected_nonce=expected_nonce,
+        )
+
+    async def refresh(
+        self,
+        *,
+        refresh_token: str,
+        config: OidcConfig,
+    ) -> _TokenPair:
+        """POST token_endpoint avec grant_type=refresh_token.
+
+        Raise OidcSessionExpired si Keycloak rejette le refresh_token.
+        """
+        try:
+            return await self._token_request(
+                config=config,
+                data={
+                    "grant_type": "refresh_token",
+                    "refresh_token": refresh_token,
+                },
+                expected_nonce=None,
+            )
+        except OidcInvalidCode as e:
+            raise OidcSessionExpired() from e
+
+    async def _token_request(
+        self,
+        *,
+        config: OidcConfig,
+        data: dict[str, str],
+        expected_nonce: str | None,
+    ) -> _TokenPair:
+        """Factorise l'appel POST au token_endpoint.
+
+        Résout le client_secret via Harpocrate à chaque appel (actions peu
+        fréquentes, pas de cache pour éviter de tenir un secret en mémoire).
+        """
+        discovery = await self._discover(config)
+        client_secret = self._secret_resolver.resolve_with_retry(
+            f"${{vault://rag:{config.client_secret_ref}}}"
+        )
+        payload = {
+            **data,
+            "client_id": config.client_id,
+            "client_secret": client_secret,
+        }
+
+        client = self._http_client or httpx.AsyncClient(timeout=10.0)
+        owned_client = self._http_client is None
+        try:
+            resp = await client.post(discovery.token_endpoint, data=payload)
+        finally:
+            if owned_client:
+                await client.aclose()
+
+        if resp.status_code != 200:
+            try:
+                body: dict[str, Any] = resp.json()
+                reason = body.get("error", f"http_{resp.status_code}")
+            except Exception:
+                reason = f"http_{resp.status_code}"
+            raise OidcInvalidCode(str(reason))
+
+        body = resp.json()
+        id_token: str = body["id_token"]
+
+        # Vérification nonce uniquement au callback (protection replay attacks).
+        # Pour le refresh, Keycloak peut émettre un id_token sans nonce.
+        if expected_nonce is not None:
+            claims = await self.verify_id_token(id_token, config=config)
+            if claims.get("nonce") != expected_nonce:
+                raise OidcInvalidToken("nonce_mismatch")
+
+        now = int(time.time())
+        return _TokenPair(
+            id_token=id_token,
+            access_token=body["access_token"],
+            refresh_token=body.get("refresh_token", ""),
+            expires_at=now + int(body.get("expires_in", 300)),
+        )
 
     async def build_logout_url(self, *, id_token: str, config: OidcConfig) -> str:
         """Construit l'URL de logout Keycloak avec id_token_hint."""
