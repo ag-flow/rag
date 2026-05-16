@@ -45,9 +45,18 @@ services:
       interval: 10s
       retries: 5
 
-  # frontend : service réactivé en M5 (OIDC + IHM React). Caddy renvoie 404 sur
-  # /ui* tant que ce service n'est pas en place (handle géré dans Caddyfile).
-  # Pour réactiver : restaurer ce bloc + ajouter `frontend` à depends_on de caddy.
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: rag-frontend:latest
+    container_name: rag-frontend
+    restart: unless-stopped
+    networks: [rag]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/healthz"]
+      interval: 10s
+      retries: 5
 
   caddy:
     image: caddy:2-alpine
@@ -59,7 +68,7 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    depends_on: [backend]
+    depends_on: [backend, frontend]
     networks: [rag]
 
   # http://192.168.10.184:8081/
