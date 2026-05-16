@@ -191,6 +191,100 @@ class EmbeddingProviderUnavailable(AdminError):
         }
 
 
+class OidcNotConfigured(AdminError):
+    http_status = 503
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "error": "oidc_not_configured",
+            "message": "POST /admin/oidc avec la master-key pour configurer Keycloak",
+        }
+
+
+class OidcKeycloakUnreachable(AdminError):
+    http_status = 503
+
+    def __init__(self, issuer: str) -> None:
+        super().__init__(issuer)
+        self.issuer = issuer
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "oidc_keycloak_unreachable", "issuer": self.issuer}
+
+
+class OidcStateMissing(AdminError):
+    http_status = 400
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "oidc_state_missing"}
+
+
+class OidcStateMismatch(AdminError):
+    http_status = 400
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "oidc_state_mismatch"}
+
+
+class OidcInvalidCode(AdminError):
+    http_status = 400
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "oidc_invalid_code", "reason": self.reason}
+
+
+class OidcSessionMissing(AdminError):
+    http_status = 401
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "oidc_session_missing"}
+
+
+class OidcInvalidSession(AdminError):
+    http_status = 401
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "oidc_invalid_session"}
+
+
+class OidcSessionExpired(AdminError):
+    http_status = 401
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "oidc_session_expired"}
+
+
+class OidcInvalidToken(AdminError):
+    http_status = 401
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "oidc_invalid_token", "reason": self.reason}
+
+
+class OidcRoleForbidden(AdminError):
+    http_status = 403
+
+    def __init__(self, *, required: str, has: list[str]) -> None:
+        super().__init__(required)
+        self.required = required
+        self.has = list(has)
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "error": "oidc_role_forbidden",
+            "required": self.required,
+            "has": self.has,
+        }
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """Enregistre les handlers d'exceptions JSON globaux."""
 
