@@ -132,11 +132,11 @@ async def test_test_connection_404_with_probe_path_is_ko(
 
 
 @pytest.mark.asyncio
-async def test_test_connection_404_without_probe_path_is_ok(
+async def test_test_connection_without_probe_path_uses_whoami(
     session_pool: asyncpg.Pool,
     monkeypatch,
 ):
-    """probe_path=None : on classifie 404 sur __probe__ comme 'auth ok'."""
+    """probe_path=None : on appelle whoami() au lieu d'un probe sur __probe__."""
     _set_env(monkeypatch)
     await run_migrations(session_pool, MIGRATIONS_DIR)
     svc = HarpocrateVaultsService(Settings())
@@ -144,12 +144,33 @@ async def test_test_connection_404_without_probe_path_is_ok(
         seeded = await _seed(svc, conn)  # probe_path default = None
         with patch("rag.services.harpocrate_vaults.HarpocrateVaultClient") as mock_client:
             instance = MagicMock()
-            instance.get_secret.side_effect = _FakeSdkError(404)
+            instance.whoami.return_value = MagicMock(api_key_id="k-001")
             mock_client.return_value = instance
             result = await svc.test_connection(conn, seeded.id)
     assert result.ok is True
-    assert "auth ok" in result.detail
-    assert result.probe_path_used == "__probe__"
+    assert "whoami" in result.detail
+    assert result.probe_path_used == "whoami"
+
+
+@pytest.mark.asyncio
+async def test_test_connection_whoami_401_returns_ko(
+    session_pool: asyncpg.Pool,
+    monkeypatch,
+):
+    """whoami() sur 401 (api_key invalide) → ok=False."""
+    _set_env(monkeypatch)
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    svc = HarpocrateVaultsService(Settings())
+    async with session_pool.acquire() as conn:
+        seeded = await _seed(svc, conn)
+        with patch("rag.services.harpocrate_vaults.HarpocrateVaultClient") as mock_client:
+            instance = MagicMock()
+            instance.whoami.side_effect = _FakeSdkError(401)
+            mock_client.return_value = instance
+            result = await svc.test_connection(conn, seeded.id)
+    assert result.ok is False
+    assert "auth refusée" in result.detail
+    assert result.probe_path_used == "whoami"
 
 
 @pytest.mark.asyncio

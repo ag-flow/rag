@@ -14,6 +14,7 @@ from rag.schemas.harpocrate_vaults import (
     VaultSummary,
     VaultTestConnectionResult,
     VaultUpdateRequest,
+    WalletInfoResponse,
 )
 from rag.secrets.exceptions import (
     HarpocrateDekMissingError,
@@ -25,7 +26,6 @@ from rag.secrets.vault import HarpocrateVaultClient
 log = structlog.get_logger(__name__)
 
 _DEFAULT_CACHE_TTL_SECONDS = 60
-_PROBE_PATH_FALLBACK = "__probe__"
 
 # Toutes les requêtes sont des littéraux statiques (pas de f-string) pour
 # satisfaire ruff S608 et éviter toute ambiguïté sur la provenance des
@@ -291,9 +291,45 @@ class HarpocrateVaultsService:
         if api_key is None:
             raise VaultNotFoundError(str(vault_id))
 
-        path = vault.probe_path or _PROBE_PATH_FALLBACK
+        client = HarpocrateVaultClient(url=vault.base_url, token=api_key)
+
+        # Cas auth-only : pas de probe_path → whoami()
+        if vault.probe_path is None:
+            try:
+                client.whoami()
+                return VaultTestConnectionResult(
+                    ok=True,
+                    detail="auth ok (whoami)",
+                    probe_path_used="whoami",
+                )
+            except Exception as exc:
+                status_code = getattr(
+                    getattr(exc, "response", None),
+                    "status_code",
+                    None,
+                )
+                log.info(
+                    "vault.test_connection",
+                    vault_id=str(vault_id),
+                    ok=False,
+                    status_code=status_code,
+                    mode="whoami",
+                )
+                if status_code in (401, 403):
+                    return VaultTestConnectionResult(
+                        ok=False,
+                        detail=f"auth refusée ({status_code})",
+                        probe_path_used="whoami",
+                    )
+                return VaultTestConnectionResult(
+                    ok=False,
+                    detail=f"erreur SDK : {type(exc).__name__}",
+                    probe_path_used="whoami",
+                )
+
+        # Cas test bout-en-bout : probe_path renseigné → get_secret
+        path = vault.probe_path
         try:
-            client = HarpocrateVaultClient(url=vault.base_url, token=api_key)
             client.get_secret(path)
             return VaultTestConnectionResult(
                 ok=True,
@@ -320,12 +356,6 @@ class HarpocrateVaultsService:
                     probe_path_used=path,
                 )
             if status_code == 404:
-                if vault.probe_path is None:
-                    return VaultTestConnectionResult(
-                        ok=True,
-                        detail=("auth ok (404 sur __probe__ — secret inexistant attendu)"),
-                        probe_path_used=path,
-                    )
                 return VaultTestConnectionResult(
                     ok=False,
                     detail=f"probe_path '{path}' introuvable",
@@ -336,6 +366,44 @@ class HarpocrateVaultsService:
                 detail=f"erreur SDK : {type(exc).__name__}",
                 probe_path_used=path,
             )
+
+    async def get_wallet_info(
+        self,
+        conn: Connection,
+        vault_id: UUID,
+    ) -> WalletInfoResponse:
+        """Combine whoami() + info() pour retourner les métadonnées du wallet.
+
+        Raise VaultNotFoundError si vault_id inconnu côté DB.
+        Les exceptions SDK (réseau, 401, etc.) sont propagées telles quelles
+        pour que le router les map en HTTP.
+        """
+        vault = await self.get_by_id(conn, vault_id)
+        if vault is None:
+            raise VaultNotFoundError(str(vault_id))
+        api_key = await self.reveal_api_key(conn, vault_id)
+        if api_key is None:
+            raise VaultNotFoundError(str(vault_id))
+
+        client = HarpocrateVaultClient(url=vault.base_url, token=api_key)
+        api_key_info = client.whoami()
+        wallet = client.info()
+
+        # getattr défensif : les modèles SDK peuvent exposer wallet_id ou id
+        wallet_id_value = getattr(wallet, "wallet_id", None) or getattr(wallet, "id", None)
+        log.info(
+            "vault.info_fetched",
+            vault_id=str(vault_id),
+            wallet_id=str(wallet_id_value),
+        )
+
+        return WalletInfoResponse(
+            wallet_id=wallet_id_value,
+            wallet_name=getattr(wallet, "name", None),
+            api_key_id=api_key_info.api_key_id,
+            permissions=list(getattr(api_key_info, "permissions", []) or []),
+            api_key_expires_at=getattr(api_key_info, "expires_at", None),
+        )
 
     def _invalidate_caches(self) -> None:
         self._default_cache = None
