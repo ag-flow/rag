@@ -50,8 +50,13 @@ async def admin_client(
     # Force-set (pas setdefault) : évite la pollution d'env entre modules de test.
     os.environ["RAG_MASTER_KEY"] = "mk_test_e2e_padding_padding_padding_padding"
     os.environ.setdefault("RAG_PUBLIC_URL", "http://localhost:8000")
-    os.environ.setdefault("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_stub")
-    os.environ.setdefault("HARPOCRATE_API_URL_RAG", "https://vault.example.com")
+    # Pas de HARPOCRATE_API_TOKEN_RAG/URL_RAG : on évite que `seed_vaults_from_env_if_empty`
+    # auto-crée un coffre "rag" au boot, ce qui polluerait les tests qui veulent piloter
+    # la table eux-mêmes (notamment test_admin_harpocrate_vaults.py).
+    # Les tests qui consomment des refs `${vault://rag:...}` passent par `_ApiStubResolver`
+    # injecté via `resolver_factory`, indépendant de settings.harpocrate_api_keys.
+    os.environ.pop("HARPOCRATE_API_TOKEN_RAG", None)
+    os.environ.pop("HARPOCRATE_API_URL_RAG", None)
     os.environ.setdefault(
         "HARPOCRATE_DEK",
         "passphrase-of-at-least-32-characters-long",
