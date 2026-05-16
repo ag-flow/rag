@@ -22,7 +22,7 @@ async def wired_client(
     # vers tests/unit/test_config.py qui s'appuie sur des defaults vierges.
     monkeypatch.setenv("DATABASE_URL", pg_container)
     monkeypatch.setenv("RAG_POSTGRES_ADMIN_URL", pg_container.rsplit("/", 1)[0] + "/postgres")
-    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_sync")
+    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_sync_padding_padding_padding_padding")
     monkeypatch.setenv("RAG_PUBLIC_URL", "http://localhost:8000")
     monkeypatch.setenv("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_stub")
     monkeypatch.setenv("HARPOCRATE_API_URL_RAG", "https://vault.example.com")
