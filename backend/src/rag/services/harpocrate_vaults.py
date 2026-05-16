@@ -12,16 +12,20 @@ from rag.schemas.harpocrate_vaults import (
     VaultCreateRequest,
     VaultRotateApiKeyRequest,
     VaultSummary,
+    VaultTestConnectionResult,
     VaultUpdateRequest,
 )
 from rag.secrets.exceptions import (
     HarpocrateDekMissingError,
     VaultNameAlreadyExistsError,
+    VaultNotFoundError,
 )
+from rag.secrets.vault import HarpocrateVaultClient
 
 log = structlog.get_logger(__name__)
 
 _DEFAULT_CACHE_TTL_SECONDS = 60
+_PROBE_PATH_FALLBACK = "__probe__"
 
 # Toutes les requêtes sont des littéraux statiques (pas de f-string) pour
 # satisfaire ruff S608 et éviter toute ambiguïté sur la provenance des
@@ -273,6 +277,65 @@ class HarpocrateVaultsService:
             self._invalidate_caches()
             log.info("vault.deleted", vault_id=str(vault_id))
         return deleted
+
+    async def test_connection(
+        self,
+        conn: Connection,
+        vault_id: UUID,
+    ) -> VaultTestConnectionResult:
+        vault = await self.get_by_id(conn, vault_id)
+        if vault is None:
+            raise VaultNotFoundError(str(vault_id))
+
+        api_key = await self.reveal_api_key(conn, vault_id)
+        if api_key is None:
+            raise VaultNotFoundError(str(vault_id))
+
+        path = vault.probe_path or _PROBE_PATH_FALLBACK
+        try:
+            client = HarpocrateVaultClient(url=vault.base_url, token=api_key)
+            client.get_secret(path)
+            return VaultTestConnectionResult(
+                ok=True,
+                detail="secret résolu",
+                probe_path_used=path,
+            )
+        except Exception as exc:
+            status_code = getattr(
+                getattr(exc, "response", None),
+                "status_code",
+                None,
+            )
+            log.info(
+                "vault.test_connection",
+                vault_id=str(vault_id),
+                ok=False,
+                status_code=status_code,
+                probe_path_used=path,
+            )
+            if status_code in (401, 403):
+                return VaultTestConnectionResult(
+                    ok=False,
+                    detail=f"auth refusée ({status_code})",
+                    probe_path_used=path,
+                )
+            if status_code == 404:
+                if vault.probe_path is None:
+                    return VaultTestConnectionResult(
+                        ok=True,
+                        detail=("auth ok (404 sur __probe__ — secret inexistant attendu)"),
+                        probe_path_used=path,
+                    )
+                return VaultTestConnectionResult(
+                    ok=False,
+                    detail=f"probe_path '{path}' introuvable",
+                    probe_path_used=path,
+                )
+            return VaultTestConnectionResult(
+                ok=False,
+                detail=f"erreur SDK : {type(exc).__name__}",
+                probe_path_used=path,
+            )
 
     def _invalidate_caches(self) -> None:
         self._default_cache = None
