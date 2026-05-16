@@ -28,7 +28,9 @@ class Settings(BaseSettings):
 
     Les paires HARPOCRATE_API_TOKEN_<ID> / HARPOCRATE_API_URL_<ID> sont
     consolidées dans `harpocrate_api_keys: dict[str, HarpocrateClientConfig]`
-    via un model_validator. Au moins une paire est requise.
+    via un model_validator. Aucune paire n'est requise au boot ; la
+    vérification de la disponibilité d'un coffre est déléguée au runtime
+    (résolution via DB ou env selon le composant appelant).
     """
 
     database_url: PostgresDsn
@@ -51,6 +53,12 @@ class Settings(BaseSettings):
 
     harpocrate_api_keys: dict[str, HarpocrateClientConfig] = {}
 
+    harpocrate_dek: SecretStr | None = Field(
+        default=None,
+        description="Passphrase pgcrypto pour chiffrer les api_keys en DB. "
+        "Min 32 chars. Requis dès qu'un coffre est créé.",
+    )
+
     rag_session_secret: SecretStr = SecretStr("")
 
     model_config = SettingsConfigDict(
@@ -66,6 +74,16 @@ class Settings(BaseSettings):
     def master_key_non_empty(cls, v: SecretStr) -> SecretStr:
         if not v.get_secret_value().strip():
             raise ValueError("RAG_MASTER_KEY must not be empty")
+        return v
+
+    @field_validator("harpocrate_dek")
+    @classmethod
+    def _validate_harpocrate_dek_length(cls, v: SecretStr | None) -> SecretStr | None:
+        if v is None:
+            return None
+        raw = v.get_secret_value()
+        if len(raw) < 32:
+            raise ValueError("HARPOCRATE_DEK doit faire au moins 32 caractères")
         return v
 
     @model_validator(mode="before")
@@ -85,10 +103,10 @@ class Settings(BaseSettings):
                 keys.setdefault(identifier, {})["url"] = env_value
 
         if not keys:
-            raise ValueError(
-                "No Harpocrate API key configured — set HARPOCRATE_API_TOKEN_<ID> "
-                "and HARPOCRATE_API_URL_<ID> (at least one pair)."
-            )
+            # Aucune paire env Harpocrate déclarée : on tolère ce cas au boot,
+            # la résolution effective d'un coffre est déléguée aux composants
+            # runtime (DB-first, env-fallback). `harpocrate_api_keys` reste {}.
+            return data
 
         for identifier, parts in keys.items():
             if "token" not in parts:

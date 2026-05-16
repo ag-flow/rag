@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 import pytest
 from pydantic import ValidationError
 
@@ -42,19 +40,6 @@ def test_settings_missing_master_key_fails(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.delenv("RAG_MASTER_KEY", raising=False)
 
     with pytest.raises(ValidationError):
-        Settings()
-
-
-def test_settings_no_harpocrate_keys_fails(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/rag_config")
-    monkeypatch.setenv("RAG_POSTGRES_ADMIN_URL", "postgresql://u:p@h:5432/postgres")
-    monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_123456_padding_padding_padding")
-    monkeypatch.setenv("RAG_PUBLIC_URL", "http://localhost:8000")
-    for k in list(os.environ):
-        if k.startswith("HARPOCRATE_"):
-            monkeypatch.delenv(k, raising=False)
-
-    with pytest.raises(ValidationError, match="No Harpocrate API key configured"):
         Settings()
 
 
