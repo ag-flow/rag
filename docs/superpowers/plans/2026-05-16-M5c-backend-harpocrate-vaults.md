@@ -15,7 +15,7 @@
 | Fichier | Statut | Responsabilité |
 |---|---|---|
 | `backend/src/rag/config.py` | **Modify** | Suppression validator harpocrate_api_keys + ajout `harpocrate_dek: SecretStr \| None` |
-| `backend/migrations/004_harpocrate_vaults.sql` | **Create** | Table + index unique partiel + trigger updated_at |
+| `backend/migrations/009_harpocrate_vaults.sql` | **Create** | Table + index unique partiel + trigger updated_at |
 | `backend/src/rag/secrets/refs.py` | **Create** | `parse_ref` / `build_ref` / `is_vault_ref` (pur, sans I/O) |
 | `backend/src/rag/secrets/exceptions.py` | **Create** | `HarpocrateVaultsError`, `HarpocrateDekMissingError`, `VaultNameAlreadyExistsError`, `VaultNotFoundError` |
 | `backend/src/rag/schemas/harpocrate_vaults.py` | **Create** | DTOs Pydantic v2 (Summary, Create, Update, Rotate, TestResult, Reveal) |
@@ -174,83 +174,106 @@ git commit -m "feat(M5c): Settings.harpocrate_dek + relaxation harpocrate_api_ke
 
 ---
 
-## Task 2: Migration SQL `004_harpocrate_vaults.sql`
+## Task 2: Migration SQL `009_harpocrate_vaults.sql`
 
 **Files:**
-- Create: `backend/migrations/004_harpocrate_vaults.sql`
-- Create: `backend/tests/unit/test_migration_004.py`
+- Create: `backend/migrations/009_harpocrate_vaults.sql`
+- Create: `backend/tests/integration/test_migration_009_harpocrate_vaults.py`
+
+**Conventions projet à respecter (vérifiées par lecture du repo)** :
+- La fixture `db_conn` n'existe pas. Le pattern projet utilise `session_pool: asyncpg.Pool` + `await run_migrations(session_pool, MIGRATIONS_DIR)` au début du test (cf. `tests/integration/test_services_sources.py:21,74`).
+- `updated_at` n'est PAS maintenu par trigger. Les services Python font explicitement `SET ..., updated_at = now()` dans leurs UPDATE (cf. `services/workspaces.py:214,260`). La migration M5c NE crée PAS de trigger.
 
 - [ ] **Step 1: Écrire le test de migration**
 
-`backend/tests/unit/test_migration_004.py` :
+`backend/tests/integration/test_migration_009_harpocrate_vaults.py` :
 
 ```python
 from __future__ import annotations
 
+from pathlib import Path
+
+import asyncpg
 import pytest
+
+from rag.db.migrations import run_migrations
+
+MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 
 @pytest.mark.asyncio
-async def test_harpocrate_vaults_table_exists(db_conn):
-    row = await db_conn.fetchrow(
-        "SELECT to_regclass('public.harpocrate_vaults') AS table_oid"
-    )
+async def test_harpocrate_vaults_table_exists(session_pool: asyncpg.Pool):
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    async with session_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT to_regclass('public.harpocrate_vaults') AS table_oid"
+        )
     assert row["table_oid"] is not None
 
 
 @pytest.mark.asyncio
-async def test_unique_default_index(db_conn):
+async def test_unique_default_index(session_pool: asyncpg.Pool):
     """L'index unique partiel empêche deux coffres is_default=true simultanés."""
-    await db_conn.execute("DELETE FROM harpocrate_vaults")
-    await db_conn.execute(
-        """
-        INSERT INTO harpocrate_vaults (id, name, label, base_url, api_key_id,
-            api_key_encrypted, is_default)
-        VALUES (gen_random_uuid(), 'a', 'A', 'https://a', 'k1',
-            pgp_sym_encrypt('secret', 'passphrase-of-at-least-32-characters-long'), true)
-        """
-    )
-    with pytest.raises(Exception, match="harpocrate_vaults_one_default"):
-        await db_conn.execute(
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    passphrase = "passphrase-of-at-least-32-characters-long"
+    async with session_pool.acquire() as conn:
+        await conn.execute("DELETE FROM harpocrate_vaults")
+        await conn.execute(
             """
             INSERT INTO harpocrate_vaults (id, name, label, base_url, api_key_id,
                 api_key_encrypted, is_default)
-            VALUES (gen_random_uuid(), 'b', 'B', 'https://b', 'k2',
-                pgp_sym_encrypt('secret', 'passphrase-of-at-least-32-characters-long'), true)
-            """
+            VALUES (gen_random_uuid(), 'a', 'A', 'https://a', 'k1',
+                pgp_sym_encrypt('secret', $1), true)
+            """,
+            passphrase,
         )
-    await db_conn.execute("DELETE FROM harpocrate_vaults")
+        with pytest.raises(asyncpg.UniqueViolationError):
+            await conn.execute(
+                """
+                INSERT INTO harpocrate_vaults (id, name, label, base_url, api_key_id,
+                    api_key_encrypted, is_default)
+                VALUES (gen_random_uuid(), 'b', 'B', 'https://b', 'k2',
+                    pgp_sym_encrypt('secret', $1), true)
+                """,
+                passphrase,
+            )
+        await conn.execute("DELETE FROM harpocrate_vaults")
 
 
 @pytest.mark.asyncio
-async def test_pgp_roundtrip(db_conn):
+async def test_pgp_roundtrip(session_pool: asyncpg.Pool):
     """pgp_sym_encrypt + pgp_sym_decrypt avec la passphrase doit redonner la valeur claire."""
-    row = await db_conn.fetchrow(
-        """
-        SELECT pgp_sym_decrypt(
-            pgp_sym_encrypt('the-secret-value', 'passphrase-of-at-least-32-characters-long'),
-            'passphrase-of-at-least-32-characters-long'
-        )::text AS plain
-        """
-    )
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    passphrase = "passphrase-of-at-least-32-characters-long"
+    async with session_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT pgp_sym_decrypt(
+                pgp_sym_encrypt('the-secret-value', $1),
+                $1
+            )::text AS plain
+            """,
+            passphrase,
+        )
     assert row["plain"] == "the-secret-value"
 ```
-
-La fixture `db_conn` existe dans `conftest.py` (héritée de M2).
 
 - [ ] **Step 2: Lancer les tests, ils doivent échouer**
 
 ```powershell
-uv run pytest tests/unit/test_migration_004.py -v
+cd backend
+uv run pytest tests/integration/test_migration_009_harpocrate_vaults.py -v
 ```
 
 Expected : FAIL (table inexistante).
 
-- [ ] **Step 3: Créer `backend/migrations/004_harpocrate_vaults.sql`**
+- [ ] **Step 3: Créer `backend/migrations/009_harpocrate_vaults.sql`**
 
 ```sql
--- Migration 004 : coffres Harpocrate configurables côté DB (M5c)
--- Pré-requis : pgcrypto (001), set_updated_at() (001)
+-- Migration 009 : coffres Harpocrate configurables côté DB (M5c)
+-- Pré-requis : pgcrypto (activé en 001_init.sql)
+-- Note : updated_at est maintenu côté service Python (pas de trigger), conformément
+-- à la convention projet (cf. services/workspaces.py).
 
 CREATE TABLE harpocrate_vaults (
     id                uuid PRIMARY KEY,
@@ -270,26 +293,21 @@ CREATE UNIQUE INDEX harpocrate_vaults_one_default
     WHERE is_default;
 
 CREATE INDEX harpocrate_vaults_name ON harpocrate_vaults (name);
-
-CREATE TRIGGER harpocrate_vaults_set_updated_at
-    BEFORE UPDATE ON harpocrate_vaults
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 ```
 
-- [ ] **Step 4: Appliquer la migration et relancer les tests**
+- [ ] **Step 4: Relancer les tests d'intégration**
 
 ```powershell
-uv run python -m rag.db.migrations
-uv run pytest tests/unit/test_migration_004.py -v
+uv run pytest tests/integration/test_migration_009_harpocrate_vaults.py -v
 ```
 
-Expected : 3 PASS.
+Expected : 3 PASS. La fixture `session_pool` crée une base test jetable et le test applique `run_migrations` lui-même.
 
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add backend/migrations/004_harpocrate_vaults.sql backend/tests/unit/test_migration_004.py
-git commit -m "feat(M5c): migration 004 harpocrate_vaults (pgcrypto + index unique partiel)"
+git add backend/migrations/009_harpocrate_vaults.sql backend/tests/integration/test_migration_009_harpocrate_vaults.py
+git commit -m "feat(M5c): migration 009 harpocrate_vaults (pgcrypto + index unique partiel)"
 ```
 
 ---

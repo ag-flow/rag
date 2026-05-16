@@ -41,7 +41,9 @@ Le jalon préserve la rétrocompatibilité : si la table est vide au démarrage 
 - `backend/src/rag/indexer/real.py` — idem
 - `backend/src/rag/sync/executor.py` — idem ; le worker tient une référence au `client_provider` et résout le default à chaque tick
 
-## 4. Schéma SQL — migration `004_harpocrate_vaults.sql`
+## 4. Schéma SQL — migration `009_harpocrate_vaults.sql`
+
+**Note de numérotation** : la plus haute migration existante au moment du chantier est `008_ollama_mxbai_embed_large.sql`. La migration M5c prend donc `009_*`.
 
 ```sql
 CREATE TABLE harpocrate_vaults (
@@ -62,13 +64,11 @@ CREATE UNIQUE INDEX harpocrate_vaults_one_default
     WHERE is_default;
 
 CREATE INDEX harpocrate_vaults_name ON harpocrate_vaults (name);
-
-CREATE TRIGGER harpocrate_vaults_set_updated_at
-    BEFORE UPDATE ON harpocrate_vaults
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 ```
 
-**Pré-requis** : extension `pgcrypto` (activée en `001_init.sql`) et fonction `set_updated_at()` (idem).
+**Pré-requis** : extension `pgcrypto` (activée en `001_init.sql`).
+
+**Maintenance de `updated_at`** : par convention projet (cf. `services/workspaces.py:214, 260`), `updated_at = now()` est maintenu **côté service Python** dans chaque UPDATE. Pas de trigger SQL. Le service `HarpocrateVaultsService` doit explicitement inclure `, updated_at = now()` dans toutes ses méthodes `update`, `rotate_api_key`, `set_default`.
 
 **Contraintes** :
 
