@@ -96,3 +96,131 @@ async def test_get_wallet_info_raises_when_vault_absent(
         await conn.execute("DELETE FROM harpocrate_vaults")
         with pytest.raises(VaultNotFoundError):
             await svc.get_wallet_info(conn, uuid4())
+
+
+@pytest.mark.asyncio
+async def test_list_types_relays_sdk(
+    session_pool: asyncpg.Pool,
+    monkeypatch,
+):
+    _set_env(monkeypatch)
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    svc = HarpocrateVaultsService(Settings())
+    async with session_pool.acquire() as conn:
+        seeded = await _seed(svc, conn)
+        t_uuid = uuid4()
+        with patch("rag.services.harpocrate_vaults.HarpocrateVaultClient") as mock_client:
+            instance = MagicMock()
+            instance.list_types.return_value = [
+                MagicMock(
+                    type_uuid=t_uuid,
+                    type="openai_api_key",
+                    sous_type=None,
+                    label="OpenAI API key",
+                    deprecated=False,
+                ),
+            ]
+            mock_client.return_value = instance
+            result = await svc.list_types(conn, seeded.id)
+    assert len(result) == 1
+    assert result[0].type == "openai_api_key"
+    assert result[0].type_uuid == t_uuid
+
+
+@pytest.mark.asyncio
+async def test_list_types_with_q_filter(
+    session_pool: asyncpg.Pool,
+    monkeypatch,
+):
+    _set_env(monkeypatch)
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    svc = HarpocrateVaultsService(Settings())
+    async with session_pool.acquire() as conn:
+        seeded = await _seed(svc, conn)
+        with patch("rag.services.harpocrate_vaults.HarpocrateVaultClient") as mock_client:
+            instance = MagicMock()
+            instance.list_types.return_value = []
+            mock_client.return_value = instance
+            await svc.list_types(conn, seeded.id, q="openai", include_deprecated=True)
+            instance.list_types.assert_called_once_with(
+                q="openai",
+                include_deprecated=True,
+            )
+
+
+@pytest.mark.asyncio
+async def test_list_types_raises_when_vault_absent(
+    session_pool: asyncpg.Pool,
+    monkeypatch,
+):
+    _set_env(monkeypatch)
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    svc = HarpocrateVaultsService(Settings())
+    async with session_pool.acquire() as conn:
+        await conn.execute("DELETE FROM harpocrate_vaults")
+        with pytest.raises(VaultNotFoundError):
+            await svc.list_types(conn, uuid4())
+
+
+@pytest.mark.asyncio
+async def test_list_wallet_secrets_returns_paginated(
+    session_pool: asyncpg.Pool,
+    monkeypatch,
+):
+    _set_env(monkeypatch)
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    svc = HarpocrateVaultsService(Settings())
+    async with session_pool.acquire() as conn:
+        seeded = await _seed(svc, conn)
+        s_id = uuid4()
+        with patch("rag.services.harpocrate_vaults.HarpocrateVaultClient") as mock_client:
+            instance = MagicMock()
+            # MagicMock(name=...) ne fonctionne pas (consume _mock_name) — set
+            # après instanciation
+            secret_mock = MagicMock(
+                id=s_id,
+                description=None,
+                is_placeholder=False,
+                tags=["env:prod"],
+            )
+            secret_mock.name = "anthropic_key"
+            instance.list_secrets.return_value = MagicMock(
+                secrets=[secret_mock],
+                next_cursor="cursor-1",
+            )
+            mock_client.return_value = instance
+            result = await svc.list_wallet_secrets(conn, seeded.id)
+    assert len(result.secrets) == 1
+    assert result.secrets[0].id == s_id
+    assert result.secrets[0].name == "anthropic_key"
+    assert result.next_cursor == "cursor-1"
+
+
+@pytest.mark.asyncio
+async def test_list_wallet_secrets_with_path_filter(
+    session_pool: asyncpg.Pool,
+    monkeypatch,
+):
+    _set_env(monkeypatch)
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    svc = HarpocrateVaultsService(Settings())
+    async with session_pool.acquire() as conn:
+        seeded = await _seed(svc, conn)
+        with patch("rag.services.harpocrate_vaults.HarpocrateVaultClient") as mock_client:
+            instance = MagicMock()
+            instance.list_secrets.return_value = MagicMock(secrets=[], next_cursor=None)
+            mock_client.return_value = instance
+            await svc.list_wallet_secrets(
+                conn,
+                seeded.id,
+                path="/api-keys/",
+                name_contains="anthropic",
+                tag="env:prod",
+                limit=100,
+            )
+            instance.list_secrets.assert_called_once_with(
+                tag="env:prod",
+                name_contains="anthropic",
+                path="/api-keys/",
+                limit=100,
+            )

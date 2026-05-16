@@ -9,6 +9,9 @@ from asyncpg import Connection, UniqueViolationError
 
 from rag.config import Settings
 from rag.schemas.harpocrate_vaults import (
+    SecretListItem,
+    SecretListResponse,
+    SecretTypeSummary,
     VaultCreateRequest,
     VaultRotateApiKeyRequest,
     VaultSummary,
@@ -403,6 +406,93 @@ class HarpocrateVaultsService:
             api_key_id=api_key_info.api_key_id,
             permissions=list(getattr(api_key_info, "permissions", []) or []),
             api_key_expires_at=getattr(api_key_info, "expires_at", None),
+        )
+
+    async def list_types(
+        self,
+        conn: Connection,
+        vault_id: UUID,
+        *,
+        q: str | None = None,
+        include_deprecated: bool = False,
+    ) -> list[SecretTypeSummary]:
+        """Relais sur client.types.list() avec mapping en SecretTypeSummary.
+
+        Raise VaultNotFoundError si vault_id inconnu.
+        """
+        vault = await self.get_by_id(conn, vault_id)
+        if vault is None:
+            raise VaultNotFoundError(str(vault_id))
+        api_key = await self.reveal_api_key(conn, vault_id)
+        if api_key is None:
+            raise VaultNotFoundError(str(vault_id))
+
+        client = HarpocrateVaultClient(url=vault.base_url, token=api_key)
+        types_sdk = client.list_types(q=q, include_deprecated=include_deprecated)
+        result = [
+            SecretTypeSummary(
+                type_uuid=getattr(t, "type_uuid", None) or t.id,
+                type=t.type,
+                sous_type=getattr(t, "sous_type", None),
+                label=getattr(t, "label", "") or "",
+                deprecated=bool(getattr(t, "deprecated", False)),
+            )
+            for t in types_sdk
+        ]
+        log.info(
+            "vault.types_listed",
+            vault_id=str(vault_id),
+            count=len(result),
+        )
+        return result
+
+    async def list_wallet_secrets(
+        self,
+        conn: Connection,
+        vault_id: UUID,
+        *,
+        path: str | None = None,
+        name_contains: str | None = None,
+        tag: str | None = None,
+        limit: int = 50,
+    ) -> SecretListResponse:
+        """Relais sur client.secrets.list_secrets() avec mapping.
+
+        Raise VaultNotFoundError si vault_id inconnu.
+        """
+        vault = await self.get_by_id(conn, vault_id)
+        if vault is None:
+            raise VaultNotFoundError(str(vault_id))
+        api_key = await self.reveal_api_key(conn, vault_id)
+        if api_key is None:
+            raise VaultNotFoundError(str(vault_id))
+
+        client = HarpocrateVaultClient(url=vault.base_url, token=api_key)
+        sdk_resp = client.list_secrets(
+            tag=tag,
+            name_contains=name_contains,
+            path=path,
+            limit=limit,
+        )
+        items = [
+            SecretListItem(
+                id=s.id,
+                name=s.name,
+                description=getattr(s, "description", None),
+                is_placeholder=bool(getattr(s, "is_placeholder", False)),
+                tags=list(getattr(s, "tags", []) or []),
+            )
+            for s in getattr(sdk_resp, "secrets", [])
+        ]
+        log.info(
+            "vault.secrets_listed",
+            vault_id=str(vault_id),
+            count=len(items),
+            path=path,
+        )
+        return SecretListResponse(
+            secrets=items,
+            next_cursor=getattr(sdk_resp, "next_cursor", None),
         )
 
     def _invalidate_caches(self) -> None:
