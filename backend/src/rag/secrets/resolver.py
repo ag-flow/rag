@@ -4,9 +4,12 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import structlog
+
+if TYPE_CHECKING:
+    from rag.secrets.client_provider import HarpocrateClientProvider
 
 log = structlog.get_logger(__name__)
 
@@ -83,11 +86,17 @@ class SecretResolver:
 
     def __init__(
         self,
-        harpocrate_clients: dict[str, VaultClient],
+        harpocrate_clients: dict[str, VaultClient] | None = None,
         *,
+        client_provider: HarpocrateClientProvider | None = None,
         cache_ttl: int = 300,
     ) -> None:
+        if (harpocrate_clients is None) == (client_provider is None):
+            raise ValueError(
+                "SecretResolver requiert EXACTEMENT un de (harpocrate_clients, client_provider)"
+            )
         self._clients = harpocrate_clients
+        self._provider = client_provider
         self._cache_ttl = cache_ttl
         self._cache: dict[str, _CacheEntry] = {}
 
@@ -120,6 +129,10 @@ class SecretResolver:
         except (PermissionError, VaultLookupFailed) as e:
             log.warning("vault.retry_after_401", ref=value, error=str(e))
             self.invalidate(value)
+            if self._provider is not None:
+                # Force le provider à recharger depuis la DB (un coffre peut avoir
+                # été rotaté/recréé entre temps).
+                self._provider.invalidate()
             try:
                 return await self.resolve(value)
             except (PermissionError, KeyError) as e2:
@@ -142,11 +155,21 @@ class SecretResolver:
 
         if api_key_id is None:
             raise UnknownAction("vault:// requires an api_key_id")
-        client = self._clients.get(api_key_id)
-        if client is None:
-            raise VaultLookupFailed(
-                f"No Harpocrate client configured for unknown api_key_id={api_key_id!r}"
-            )
+
+        # Récupère le client soit via provider (DB-live) soit via dict legacy.
+        if self._provider is not None:
+            try:
+                client: VaultClient = await self._provider.get_client(api_key_id)
+            except Exception as exc:
+                raise VaultLookupFailed(
+                    f"No Harpocrate client for unknown api_key_id={api_key_id!r}"
+                ) from exc
+        else:
+            client = self._clients.get(api_key_id) if self._clients else None  # type: ignore[assignment]
+            if client is None:
+                raise VaultLookupFailed(
+                    f"No Harpocrate client configured for unknown api_key_id={api_key_id!r}"
+                )
 
         try:
             value = client.get_secret(path)

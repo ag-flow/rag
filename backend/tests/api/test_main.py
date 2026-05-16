@@ -30,7 +30,7 @@ async def test_app_client(pg_container: str) -> AsyncIterator[TestClient]:
     app = build_app(
         version="0.1.0",
         git_sha="testsha",
-        resolver_factory=lambda _cfg: SecretResolver(harpocrate_clients={}),
+        resolver_factory=lambda _cfg, _app: SecretResolver(harpocrate_clients={}),
         migrations_dir=_MIGRATIONS_DIR,
     )
 

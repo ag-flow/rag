@@ -19,10 +19,13 @@ def _payload(**overrides: Any) -> dict[str, Any]:
 
 
 def test_create_returns_201_no_api_key_in_response(
-    admin_client: TestClient, admin_headers: dict[str, str],
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
 ) -> None:
     r = admin_client.post(
-        "/api/admin/harpocrate-vaults", json=_payload(), headers=admin_headers,
+        "/api/admin/harpocrate-vaults",
+        json=_payload(),
+        headers=admin_headers,
     )
     assert r.status_code == 201, r.text
     body = r.json()
@@ -31,10 +34,13 @@ def test_create_returns_201_no_api_key_in_response(
 
 
 def test_create_duplicate_name_returns_409(
-    admin_client: TestClient, admin_headers: dict[str, str],
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
 ) -> None:
     r1 = admin_client.post(
-        "/api/admin/harpocrate-vaults", json=_payload(), headers=admin_headers,
+        "/api/admin/harpocrate-vaults",
+        json=_payload(),
+        headers=admin_headers,
     )
     assert r1.status_code == 201
     r2 = admin_client.post(
@@ -54,7 +60,8 @@ def test_create_duplicate_name_returns_409(
 
 
 def test_create_invalid_slug_returns_422(
-    admin_client: TestClient, admin_headers: dict[str, str],
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
 ) -> None:
     r = admin_client.post(
         "/api/admin/harpocrate-vaults",
@@ -65,10 +72,13 @@ def test_create_invalid_slug_returns_422(
 
 
 def test_list_no_api_key_in_response(
-    admin_client: TestClient, admin_headers: dict[str, str],
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
 ) -> None:
     admin_client.post(
-        "/api/admin/harpocrate-vaults", json=_payload(), headers=admin_headers,
+        "/api/admin/harpocrate-vaults",
+        json=_payload(),
+        headers=admin_headers,
     )
     r = admin_client.get("/api/admin/harpocrate-vaults", headers=admin_headers)
     assert r.status_code == 200
@@ -77,19 +87,24 @@ def test_list_no_api_key_in_response(
 
 
 def test_get_by_id(
-    admin_client: TestClient, admin_headers: dict[str, str],
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
 ) -> None:
     created = admin_client.post(
-        "/api/admin/harpocrate-vaults", json=_payload(), headers=admin_headers,
+        "/api/admin/harpocrate-vaults",
+        json=_payload(),
+        headers=admin_headers,
     ).json()
     r = admin_client.get(
-        f"/api/admin/harpocrate-vaults/{created['id']}", headers=admin_headers,
+        f"/api/admin/harpocrate-vaults/{created['id']}",
+        headers=admin_headers,
     )
     assert r.status_code == 200
 
 
 def test_get_nonexistent_returns_404(
-    admin_client: TestClient, admin_headers: dict[str, str],
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
 ) -> None:
     r = admin_client.get(
         "/api/admin/harpocrate-vaults/00000000-0000-0000-0000-000000000000",
@@ -99,10 +114,13 @@ def test_get_nonexistent_returns_404(
 
 
 def test_patch_name_field_rejected_422(
-    admin_client: TestClient, admin_headers: dict[str, str],
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
 ) -> None:
     created = admin_client.post(
-        "/api/admin/harpocrate-vaults", json=_payload(), headers=admin_headers,
+        "/api/admin/harpocrate-vaults",
+        json=_payload(),
+        headers=admin_headers,
     ).json()
     r = admin_client.patch(
         f"/api/admin/harpocrate-vaults/{created['id']}",
@@ -113,10 +131,13 @@ def test_patch_name_field_rejected_422(
 
 
 def test_patch_is_default_field_rejected_422(
-    admin_client: TestClient, admin_headers: dict[str, str],
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
 ) -> None:
     created = admin_client.post(
-        "/api/admin/harpocrate-vaults", json=_payload(), headers=admin_headers,
+        "/api/admin/harpocrate-vaults",
+        json=_payload(),
+        headers=admin_headers,
     ).json()
     r = admin_client.patch(
         f"/api/admin/harpocrate-vaults/{created['id']}",
@@ -127,10 +148,13 @@ def test_patch_is_default_field_rejected_422(
 
 
 def test_patch_updates_label(
-    admin_client: TestClient, admin_headers: dict[str, str],
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
 ) -> None:
     created = admin_client.post(
-        "/api/admin/harpocrate-vaults", json=_payload(), headers=admin_headers,
+        "/api/admin/harpocrate-vaults",
+        json=_payload(),
+        headers=admin_headers,
     ).json()
     r = admin_client.patch(
         f"/api/admin/harpocrate-vaults/{created['id']}",
@@ -142,22 +166,29 @@ def test_patch_updates_label(
 
 
 def test_delete_default_alone_returns_204(
-    admin_client: TestClient, admin_headers: dict[str, str],
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
 ) -> None:
     created = admin_client.post(
-        "/api/admin/harpocrate-vaults", json=_payload(), headers=admin_headers,
+        "/api/admin/harpocrate-vaults",
+        json=_payload(),
+        headers=admin_headers,
     ).json()
     r = admin_client.delete(
-        f"/api/admin/harpocrate-vaults/{created['id']}", headers=admin_headers,
+        f"/api/admin/harpocrate-vaults/{created['id']}",
+        headers=admin_headers,
     )
     assert r.status_code == 204
 
 
 def test_delete_default_with_others_returns_409(
-    admin_client: TestClient, admin_headers: dict[str, str],
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
 ) -> None:
     default = admin_client.post(
-        "/api/admin/harpocrate-vaults", json=_payload(), headers=admin_headers,
+        "/api/admin/harpocrate-vaults",
+        json=_payload(),
+        headers=admin_headers,
     ).json()
     admin_client.post(
         "/api/admin/harpocrate-vaults",
@@ -165,16 +196,20 @@ def test_delete_default_with_others_returns_409(
         headers=admin_headers,
     )
     r = admin_client.delete(
-        f"/api/admin/harpocrate-vaults/{default['id']}", headers=admin_headers,
+        f"/api/admin/harpocrate-vaults/{default['id']}",
+        headers=admin_headers,
     )
     assert r.status_code == 409
 
 
 def test_set_default_swaps(
-    admin_client: TestClient, admin_headers: dict[str, str],
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
 ) -> None:
     first = admin_client.post(
-        "/api/admin/harpocrate-vaults", json=_payload(), headers=admin_headers,
+        "/api/admin/harpocrate-vaults",
+        json=_payload(),
+        headers=admin_headers,
     ).json()
     second = admin_client.post(
         "/api/admin/harpocrate-vaults",
@@ -187,17 +222,21 @@ def test_set_default_swaps(
     )
     assert r.status_code == 200
     refreshed_first = admin_client.get(
-        f"/api/admin/harpocrate-vaults/{first['id']}", headers=admin_headers,
+        f"/api/admin/harpocrate-vaults/{first['id']}",
+        headers=admin_headers,
     ).json()
     assert refreshed_first["is_default"] is False
     assert r.json()["is_default"] is True
 
 
 def test_rotate_api_key(
-    admin_client: TestClient, admin_headers: dict[str, str],
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
 ) -> None:
     created = admin_client.post(
-        "/api/admin/harpocrate-vaults", json=_payload(), headers=admin_headers,
+        "/api/admin/harpocrate-vaults",
+        json=_payload(),
+        headers=admin_headers,
     ).json()
     r = admin_client.post(
         f"/api/admin/harpocrate-vaults/{created['id']}/rotate-api-key",
@@ -214,10 +253,13 @@ def test_rotate_api_key(
 
 
 def test_reveal_api_key(
-    admin_client: TestClient, admin_headers: dict[str, str],
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
 ) -> None:
     created = admin_client.post(
-        "/api/admin/harpocrate-vaults", json=_payload(), headers=admin_headers,
+        "/api/admin/harpocrate-vaults",
+        json=_payload(),
+        headers=admin_headers,
     ).json()
     r = admin_client.get(
         f"/api/admin/harpocrate-vaults/{created['id']}/api-key",

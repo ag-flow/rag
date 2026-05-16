@@ -43,7 +43,7 @@ async def e2e_client(
     app = build_app(
         version="0.3.0",
         git_sha="testsha",
-        resolver_factory=lambda _cfg: _AcceptAllResolver(),  # type: ignore[return-value]
+        resolver_factory=lambda _cfg, _app: _AcceptAllResolver(),  # type: ignore[return-value]
         migrations_dir=_MIGRATIONS_DIR,
     )
     with TestClient(app) as client:

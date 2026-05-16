@@ -22,53 +22,41 @@ from rag.config import Settings
 from rag.db.migrations import run_migrations
 from rag.db.pool import WorkspacePoolRegistry
 from rag.logging_setup import setup_logging
-from rag.secrets.resolver import SecretResolver, VaultClient
-from rag.secrets.vault import HarpocrateVaultClient
+from rag.secrets.bootstrap import seed_vaults_from_env_if_empty
+from rag.secrets.client_provider import HarpocrateClientProvider
+from rag.secrets.resolver import SecretResolver
 from rag.services.harpocrate_vaults import HarpocrateVaultsService
 from rag.services.oidc import OidcService
 
 log = structlog.get_logger(__name__)
 
-ResolverFactory = Callable[[Settings], SecretResolver]
+ResolverFactory = Callable[[Settings, FastAPI], SecretResolver]
 
 
-class _LazyHarpocrateVaultClient:
-    """Wrapper paresseux : le SDK n'est instancié qu'au premier `get_secret`.
+def _default_resolver_factory(settings: Settings, app: FastAPI) -> SecretResolver:
+    """Factory par défaut : monte la chaîne Harpocrate DB-first.
 
-    Évite que le boot du service échoue si le token est invalide ou si le
-    coffre est indisponible — l'erreur est levée seulement quand un secret
-    est réellement résolu (ce que M1 ne fait pas).
+    - Construit le `HarpocrateClientProvider` (cache TTL des clients SDK,
+      DB-first avec fallback env),
+    - Bind le provider au `HarpocrateVaultsService` déjà attaché par le
+      lifespan, afin que ses invalidations cache après
+      `create/update/rotate/set_default/delete` se propagent au provider,
+    - Expose le provider sur `app.state.client_provider` pour les futurs
+      consumers,
+    - Retourne un `SecretResolver` qui consomme le provider.
+
+    Prérequis : `app.state.pools` et `app.state.harpocrate_vaults_service`
+    doivent déjà être initialisés par le lifespan.
     """
-
-    def __init__(self, identifier: str, url: str, token: str) -> None:
-        self._identifier = identifier
-        self._url = url
-        self._token = token
-        self._real: HarpocrateVaultClient | None = None
-
-    def get_secret(self, path: str) -> str:
-        if self._real is None:
-            log.info("vault.client.init", identifier=self._identifier)
-            self._real = HarpocrateVaultClient(url=self._url, token=self._token)
-        return self._real.get_secret(path)
-
-
-def _default_resolver_factory(settings: Settings) -> SecretResolver:
-    """Construit le SecretResolver à partir des api_keys Harpocrate de Settings.
-
-    Les clients Harpocrate sont instanciés paresseusement (cf.
-    `_LazyHarpocrateVaultClient`) — le boot du service ne dépend pas de la
-    validité du token tant qu'aucun secret n'est résolu.
-    """
-    clients: dict[str, VaultClient] = {
-        identifier: _LazyHarpocrateVaultClient(
-            identifier=identifier,
-            url=str(cfg.url),
-            token=cfg.token.get_secret_value(),
-        )
-        for identifier, cfg in settings.harpocrate_api_keys.items()
-    }
-    return SecretResolver(harpocrate_clients=clients)
+    vaults_service: HarpocrateVaultsService = app.state.harpocrate_vaults_service
+    client_provider = HarpocrateClientProvider(
+        settings=settings,
+        vaults_service=vaults_service,
+        db_pool=app.state.pools.config_pool,
+    )
+    vaults_service.bind_client_provider(client_provider)
+    app.state.client_provider = client_provider
+    return SecretResolver(client_provider=client_provider)
 
 
 def _default_migrations_dir() -> Path:
@@ -116,8 +104,27 @@ def build_app(
         target_dir = migrations_dir or _default_migrations_dir()
         await run_migrations(registry.config_pool, target_dir)
 
-        app.state.resolver = resolver_factory(settings)
+        # Le service Harpocrate est créé ici (et non dans la factory) pour que
+        # les tests qui injectent un `resolver_factory` stub bénéficient quand
+        # même du service + du seed env (rétrocompat).
         app.state.harpocrate_vaults_service = HarpocrateVaultsService(settings)
+
+        # La factory par défaut crée le `HarpocrateClientProvider`, le binde
+        # au service ci-dessus, et retourne un `SecretResolver` qui consomme
+        # le provider. Les factories stub (tests) peuvent retourner un
+        # resolver arbitraire ; dans ce cas, `client_provider` n'est pas
+        # attaché à `app.state` (le service reste utilisable directement).
+        app.state.resolver = resolver_factory(settings, app)
+
+        # Rétrocompat M4/M5a/M5b : si la table est vide et que des
+        # HARPOCRATE_API_TOKEN_<ID> sont posés dans l'env, on les sème comme
+        # coffres DB pour que les refs ${vault://rag:...} continuent de résoudre.
+        await seed_vaults_from_env_if_empty(
+            settings=settings,
+            pool=registry.config_pool,
+            vaults_service=app.state.harpocrate_vaults_service,
+        )
+
         app.state.oidc = OidcService(
             config_pool=registry.config_pool,
             secret_resolver=app.state.resolver,

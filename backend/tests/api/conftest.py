@@ -53,14 +53,15 @@ async def admin_client(
     os.environ.setdefault("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_stub")
     os.environ.setdefault("HARPOCRATE_API_URL_RAG", "https://vault.example.com")
     os.environ.setdefault(
-        "HARPOCRATE_DEK", "passphrase-of-at-least-32-characters-long",
+        "HARPOCRATE_DEK",
+        "passphrase-of-at-least-32-characters-long",
     )
     os.environ.setdefault("ENVIRONMENT", "dev")
 
     app = build_app(
         version="0.2.0",
         git_sha="testsha",
-        resolver_factory=lambda _cfg: admin_resolver,  # type: ignore[return-value]
+        resolver_factory=lambda _cfg, _app: admin_resolver,  # type: ignore[return-value]
         migrations_dir=_MIGRATIONS_DIR,
     )
     with TestClient(app) as client:

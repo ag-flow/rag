@@ -33,7 +33,7 @@ async def wired_client(
     app = build_app(
         version="0.3.0",
         git_sha="testsha",
-        resolver_factory=lambda _cfg: SecretResolver(harpocrate_clients={}),
+        resolver_factory=lambda _cfg, _app: SecretResolver(harpocrate_clients={}),
         migrations_dir=_MIGRATIONS_DIR,
     )
     with TestClient(app) as client:
