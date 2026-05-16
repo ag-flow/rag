@@ -54,7 +54,8 @@ async def test_seed_creates_vault_named_rag(
         v = await svc.get_by_name(conn, "rag")
     assert v is not None
     assert v.is_default is True
-    assert v.api_key_id == "env:RAG"
+    # Pydantic Settings normalise les noms d'env vars en lowercase → identifier='rag'
+    assert v.api_key_id == "env:rag"
 
 
 @pytest.mark.asyncio
