@@ -54,6 +54,7 @@ async def test_delete_workspace_drops_db_and_config(
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
+        default_vault_name="rag",
     )
 
     await delete_workspace(name="ws_del", config_pool=session_pool, admin_dsn=admin_dsn)
@@ -94,6 +95,7 @@ async def test_delete_workspace_idempotent_retry_after_partial_failure(
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
+        default_vault_name="rag",
     )
 
     admin = await asyncpg.connect(admin_dsn)

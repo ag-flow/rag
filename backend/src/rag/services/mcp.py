@@ -17,6 +17,7 @@ from rag.db.workspace_search import vector_search
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
 from rag.schemas.mcp import MultiWorkspaceRequest, SearchHit, SingleWorkspaceRequest
+from rag.secrets.refs import build_ref
 from rag.services.apikey import verify_api_key
 
 log = structlog.get_logger(__name__)
@@ -126,8 +127,9 @@ class _ResolverProtocol(Protocol):
     async def resolve_with_retry(self, ref: str) -> str: ...
 
 
-def _to_vault_ref(logical_key: str, *, vault_id: str = "rag") -> str:
-    return f"${{vault://{vault_id}:{logical_key}}}"
+def _to_vault_ref(logical_key: str, vault_name: str) -> str:
+    """Construit une ref ``${vault://<vault_name>:<logical>}`` dynamique."""
+    return build_ref(vault_name, logical_key)
 
 
 @dataclass(frozen=True)
@@ -147,6 +149,7 @@ async def search(
     pool_registry: WorkspacePoolRegistry,
     apikey_cache: ApiKeyCache,
     secret_resolver: _ResolverProtocol,
+    default_vault_name: str,
     provider_factory: Callable[..., EmbeddingProvider] | None = None,
 ) -> list[SearchHit]:
     """Orchestre la recherche MCP multi-workspace.
@@ -170,6 +173,7 @@ async def search(
             pool_registry=pool_registry,
             apikey_cache=apikey_cache,
             secret_resolver=secret_resolver,
+            default_vault_name=default_vault_name,
             provider_factory=factory,
         )
         for r in refs
@@ -188,6 +192,7 @@ async def _search_one(
     pool_registry: WorkspacePoolRegistry,
     apikey_cache: ApiKeyCache,
     secret_resolver: _ResolverProtocol,
+    default_vault_name: str,
     provider_factory: Callable[..., EmbeddingProvider],
 ) -> _WorkspaceResult:
     auth = await _authenticate(ref=ref, config_pool=config_pool, apikey_cache=apikey_cache)
@@ -195,7 +200,9 @@ async def _search_one(
 
     api_key: str | None = None
     if ctx["api_key_ref"]:
-        api_key = await secret_resolver.resolve_with_retry(_to_vault_ref(ctx["api_key_ref"]))
+        api_key = await secret_resolver.resolve_with_retry(
+            _to_vault_ref(ctx["api_key_ref"], default_vault_name)
+        )
 
     provider = provider_factory(
         provider=ctx["provider"],

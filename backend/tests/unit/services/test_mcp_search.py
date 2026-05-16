@@ -114,6 +114,7 @@ async def test_search_single_workspace_returns_hits(monkeypatch) -> None:
         pool_registry=registry,
         apikey_cache=cache,
         secret_resolver=resolver,
+        default_vault_name="rag",
         provider_factory=lambda **_kw: provider,  # type: ignore[arg-type]
     )
 
@@ -157,6 +158,7 @@ async def test_search_skips_vault_when_api_key_ref_is_none(monkeypatch) -> None:
         pool_registry=registry,
         apikey_cache=cache,
         secret_resolver=resolver,
+        default_vault_name="rag",
         provider_factory=lambda **_kw: provider,  # type: ignore[arg-type]
     )
     assert resolver.calls == 0  # api_key_ref None → no vault call
@@ -237,6 +239,7 @@ async def test_search_multi_workspace_concat_in_order(monkeypatch) -> None:
         pool_registry=registry,
         apikey_cache=cache,
         secret_resolver=_FakeResolver(),
+        default_vault_name="rag",
         provider_factory=lambda **_kw: provider,  # type: ignore[arg-type]
     )
 
@@ -260,6 +263,7 @@ async def test_search_fail_fast_on_workspace_not_found() -> None:
             pool_registry=registry,
             apikey_cache=cache,
             secret_resolver=_FakeResolver(),
+            default_vault_name="rag",
         )
 
 
@@ -290,5 +294,6 @@ async def test_search_fail_fast_on_bad_apikey(monkeypatch) -> None:
             pool_registry=registry,
             apikey_cache=cache,
             secret_resolver=_FakeResolver(),
+            default_vault_name="rag",
         )
     assert exc.value.status_code == 401

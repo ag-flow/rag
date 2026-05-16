@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request, status
 
 from rag.schemas.mcp import McpRequest, McpResponse
 from rag.services.mcp import normalize_refs, search
@@ -18,6 +18,13 @@ def build_mcp_router() -> APIRouter:
     @router.post("/mcp", response_model=McpResponse)
     async def post_mcp(payload: McpRequest, request: Request) -> McpResponse:
         refs = normalize_refs(payload)
+        provider = request.app.state.client_provider
+        default_vault = await provider.get_default_vault_name()
+        if default_vault is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": "no_default_vault_configured"},
+            )
         hits = await search(
             refs=refs,
             query=payload.query,
@@ -27,6 +34,7 @@ def build_mcp_router() -> APIRouter:
             pool_registry=request.app.state.pools,
             apikey_cache=request.app.state.apikey_cache,
             secret_resolver=request.app.state.resolver,
+            default_vault_name=default_vault,
         )
         return McpResponse(query=payload.query, results=hits)
 

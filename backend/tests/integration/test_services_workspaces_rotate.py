@@ -55,6 +55,7 @@ async def test_rotate_apikey_returns_new_key_and_updates_hash(
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
+        default_vault_name="rag",
     )
     old_key = create_resp["api_key"]
 

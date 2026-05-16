@@ -55,6 +55,7 @@ async def test_create_pending_job_inserts_row(
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
+        default_vault_name="rag",
     )
 
     job = await create_pending_job(
@@ -99,6 +100,7 @@ async def test_list_jobs_ordered_desc(
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
+        default_vault_name="rag",
     )
 
     ws_id = await session_pool.fetchval("SELECT id FROM workspaces WHERE name='ws_jobs_order'")

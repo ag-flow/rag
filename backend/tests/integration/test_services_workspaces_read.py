@@ -66,6 +66,7 @@ async def test_list_workspaces_includes_created(
             config_pool=session_pool,
             admin_dsn=admin_dsn,
             resolver=_StubResolver(),  # type: ignore[arg-type]
+            default_vault_name="rag",
         )
 
     rows = await list_workspaces(session_pool)
@@ -92,6 +93,7 @@ async def test_get_workspace_returns_detail(
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=_StubResolver(),  # type: ignore[arg-type]
+        default_vault_name="rag",
     )
 
     detail = await get_workspace(session_pool, name="ws_detail")

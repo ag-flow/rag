@@ -16,6 +16,7 @@ from rag.api.errors import (
 )
 from rag.db.helpers import fetch_all, fetch_one
 from rag.schemas.admin import SourceCreateRequest
+from rag.secrets.refs import build_ref
 from rag.secrets.resolver import VaultLookupFailed
 
 log = structlog.get_logger(__name__)
@@ -25,13 +26,18 @@ class _ResolverProtocol(Protocol):
     async def resolve_with_retry(self, ref: str) -> str: ...
 
 
-def _to_vault_ref(logical_key: str, *, vault_id: str = "rag") -> str:
-    return f"${{vault://{vault_id}:{logical_key}}}"
+def _to_vault_ref(logical_key: str, vault_name: str) -> str:
+    """Construit une ref ``${vault://<vault_name>:<logical>}`` dynamique."""
+    return build_ref(vault_name, logical_key)
 
 
-async def _validate_ref_via_vault(resolver: _ResolverProtocol, logical_key: str) -> None:
+async def _validate_ref_via_vault(
+    resolver: _ResolverProtocol,
+    logical_key: str,
+    vault_name: str,
+) -> None:
     try:
-        await resolver.resolve_with_retry(_to_vault_ref(logical_key))
+        await resolver.resolve_with_retry(_to_vault_ref(logical_key, vault_name))
     except VaultLookupFailed as e:
         raise RefNotFoundInVault(logical_key) from e
     except (ConnectionError, TimeoutError) as e:
@@ -51,6 +57,7 @@ async def add_source(
     request: SourceCreateRequest,
     config_pool: asyncpg.Pool,
     resolver: _ResolverProtocol,
+    default_vault_name: str,
 ) -> dict[str, Any]:
     """Crée une source pour un workspace. Eager validation `auth_ref` si présente.
 
@@ -65,7 +72,7 @@ async def add_source(
 
     auth_ref = request.config.get("auth_ref")
     if auth_ref:
-        await _validate_ref_via_vault(resolver, auth_ref)
+        await _validate_ref_via_vault(resolver, auth_ref, default_vault_name)
 
     async with config_pool.acquire() as conn:
         row = await conn.fetchrow(

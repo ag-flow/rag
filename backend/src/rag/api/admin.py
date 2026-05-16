@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncpg
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from rag.auth.bearer import require_master_key_or_oidc_role
 from rag.schemas.admin import (
@@ -39,6 +39,21 @@ def _resolver(request: Request) -> object:
     return request.app.state.resolver
 
 
+async def _resolve_default_vault_or_503(request: Request) -> str:
+    """Résout le coffre par défaut Harpocrate ou lève 503 si aucun n'est configuré.
+
+    À appeler dans tout handler qui crée/modifie une ressource avec un secret.
+    """
+    provider = request.app.state.client_provider
+    name = await provider.get_default_vault_name()
+    if name is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": "no_default_vault_configured"},
+        )
+    return name
+
+
 def build_admin_router() -> APIRouter:
     """Construit le router master-key des 13 endpoints d'administration."""
     router = APIRouter(
@@ -53,11 +68,13 @@ def build_admin_router() -> APIRouter:
         payload: WorkspaceCreateRequest,
         request: Request,
     ) -> WorkspaceCreateResponse:
+        default_vault = await _resolve_default_vault_or_503(request)
         resp = await create_workspace(
             request=payload,
             config_pool=_config_pool(request),
             admin_dsn=_admin_dsn(request),
             resolver=_resolver(request),  # type: ignore[arg-type]
+            default_vault_name=default_vault,
         )
         return WorkspaceCreateResponse.model_validate(resp)
 
@@ -75,11 +92,13 @@ def build_admin_router() -> APIRouter:
     async def patch_workspace_endpoint(
         name: str, payload: WorkspacePatchRequest, request: Request
     ) -> WorkspaceResponse:
+        default_vault = await _resolve_default_vault_or_503(request)
         await patch_workspace(
             name=name,
             request=payload,
             config_pool=_config_pool(request),
             resolver=_resolver(request),  # type: ignore[arg-type]
+            default_vault_name=default_vault,
         )
         row = await get_workspace(_config_pool(request), name=name)
         return WorkspaceResponse(**row)  # type: ignore[arg-type]
@@ -110,11 +129,13 @@ def build_admin_router() -> APIRouter:
     ) -> SourceResponse:
         from rag.services.sources import add_source  # import retardé : évite cycle au boot
 
+        default_vault = await _resolve_default_vault_or_503(request)
         row = await add_source(
             workspace_name=name,
             request=payload,
             config_pool=_config_pool(request),
             resolver=_resolver(request),  # type: ignore[arg-type]
+            default_vault_name=default_vault,
         )
         return SourceResponse(**row)
 
@@ -144,6 +165,7 @@ def build_admin_router() -> APIRouter:
         from rag.services.jobs import reindex_workspace
 
         new_indexer = payload.indexer if payload is not None else None
+        default_vault = await _resolve_default_vault_or_503(request)
         row = await reindex_workspace(
             name=name,
             new_indexer=new_indexer,
@@ -151,6 +173,7 @@ def build_admin_router() -> APIRouter:
             config_pool=_config_pool(request),
             admin_dsn=_admin_dsn(request),
             resolver=_resolver(request),  # type: ignore[arg-type]
+            default_vault_name=default_vault,
         )
         return JobResponse(**row)
 

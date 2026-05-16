@@ -70,6 +70,7 @@ async def test_patch_api_key_ref_updates_indexer_config(
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=resolver,  # type: ignore[arg-type]
+        default_vault_name="rag",
     )
 
     await patch_workspace(
@@ -77,6 +78,7 @@ async def test_patch_api_key_ref_updates_indexer_config(
         request=WorkspacePatchRequest(indexer=IndexerPatchSpec(api_key_ref="new_key")),
         config_pool=session_pool,
         resolver=resolver,  # type: ignore[arg-type]
+        default_vault_name="rag",
     )
 
     detail = await get_workspace(session_pool, name="ws_patch")
@@ -93,6 +95,7 @@ async def test_patch_workspace_not_found_raises(session_pool: asyncpg.Pool) -> N
             request=WorkspacePatchRequest(indexer=IndexerPatchSpec(api_key_ref="k")),
             config_pool=session_pool,
             resolver=resolver,  # type: ignore[arg-type]
+            default_vault_name="rag",
         )
 
 
@@ -122,4 +125,5 @@ async def test_patch_workspace_new_ref_not_in_vault_raises(
             request=WorkspacePatchRequest(indexer=IndexerPatchSpec(api_key_ref="nope")),
             config_pool=session_pool,
             resolver=resolver,  # type: ignore[arg-type]
+            default_vault_name="rag",
         )

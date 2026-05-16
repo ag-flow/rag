@@ -87,6 +87,7 @@ async def test_create_workspace_inserts_config_and_creates_db(
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=resolver,  # type: ignore[arg-type]
+        default_vault_name="rag",
     )
 
     assert resp["name"] == "ws_create_1"
@@ -137,6 +138,7 @@ async def test_create_workspace_duplicate_name_raises(
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=resolver,  # type: ignore[arg-type]
+        default_vault_name="rag",
     )
 
     with pytest.raises(WorkspaceAlreadyExists):

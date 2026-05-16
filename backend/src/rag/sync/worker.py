@@ -19,6 +19,10 @@ class _ResolverProtocol(Protocol):
     async def resolve_with_retry(self, ref: str) -> str: ...
 
 
+class _ClientProviderProtocol(Protocol):
+    async def get_default_vault_name(self) -> str | None: ...
+
+
 class SyncWorker:
     """Worker asyncio géré par le lifespan FastAPI.
 
@@ -44,6 +48,7 @@ class SyncWorker:
         storage: RepoStorage,
         indexer: IndexerProtocol,
         resolver: _ResolverProtocol,
+        client_provider: _ClientProviderProtocol,
         poll_interval_seconds: int,
         default_sync_interval_seconds: int,
     ) -> None:
@@ -51,6 +56,7 @@ class SyncWorker:
         self._storage = storage
         self._indexer = indexer
         self._resolver = resolver
+        self._client_provider = client_provider
         self._poll_interval = poll_interval_seconds
         self._default_sync_interval = default_sync_interval_seconds
         self._task: asyncio.Task[None] | None = None
@@ -93,6 +99,7 @@ class SyncWorker:
                     storage=self._storage,
                     indexer=self._indexer,
                     resolver=self._resolver,
+                    client_provider=self._client_provider,
                 )
             except Exception:
                 log.exception("sync.worker.cycle_error")

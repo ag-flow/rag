@@ -20,6 +20,7 @@ from rag.db.workspace_schema import (
     drop_workspace_database,
 )
 from rag.schemas.admin import WorkspaceCreateRequest, WorkspacePatchRequest
+from rag.secrets.refs import build_ref
 from rag.secrets.resolver import VaultLookupFailed
 from rag.services.apikey import generate_api_key, hash_api_key
 from rag.services.models import get_dimension_or_raise
@@ -31,19 +32,25 @@ class _ResolverProtocol(Protocol):
     async def resolve_with_retry(self, ref: str) -> str: ...
 
 
-def to_vault_ref(logical_key: str, *, vault_id: str = "rag") -> str:
-    """Convertit une clé logique simple en ref `${vault://<id>:<logical>}`.
+def to_vault_ref(logical_key: str, vault_name: str) -> str:
+    """Convertit une clé logique simple en ref ``${vault://<vault_name>:<logical>}``.
 
-    Le service stocke en base la clé logique simple (`"openai_embedding_key"`)
-    pour rester aligné spec 06-secrets.md. Mais le `SecretResolver` M1 attend le
-    formalisme déclaratif `${vault://id:path}`. Cette fonction fait le pont.
+    `vault_name` est résolu dynamiquement à chaque appel (via
+    `HarpocrateClientProvider.get_default_vault_name()` côté router) — plus de
+    hardcodage. Le service stocke toujours la clé logique simple en base
+    (`"openai_embedding_key"`), mais le `SecretResolver` attend le formalisme
+    déclaratif. Cette fonction fait le pont.
     """
-    return f"${{vault://{vault_id}:{logical_key}}}"
+    return build_ref(vault_name, logical_key)
 
 
-async def _validate_ref_via_vault(resolver: _ResolverProtocol, logical_key: str) -> None:
+async def _validate_ref_via_vault(
+    resolver: _ResolverProtocol,
+    logical_key: str,
+    vault_name: str,
+) -> None:
     """Eager validation : la ref doit résoudre. Sinon : 422 ou 503 selon la cause."""
-    ref = to_vault_ref(logical_key)
+    ref = to_vault_ref(logical_key, vault_name)
     try:
         await resolver.resolve_with_retry(ref)
     except VaultLookupFailed as e:
@@ -58,6 +65,7 @@ async def create_workspace(
     config_pool: asyncpg.Pool,
     admin_dsn: str,
     resolver: _ResolverProtocol,
+    default_vault_name: str,
 ) -> dict[str, str]:
     """Crée un workspace + sa base pgvector + sa table embeddings.
 
@@ -78,7 +86,7 @@ async def create_workspace(
 
     # 2. Eager validation de la ref Harpocrate (sauf si None, ex: Ollama sans auth)
     if request.indexer.api_key_ref is not None:
-        await _validate_ref_via_vault(resolver, request.indexer.api_key_ref)
+        await _validate_ref_via_vault(resolver, request.indexer.api_key_ref, default_vault_name)
 
     # 3. Génération api_key
     api_key = generate_api_key()
@@ -193,6 +201,7 @@ async def patch_workspace(
     request: WorkspacePatchRequest,
     config_pool: asyncpg.Pool,
     resolver: _ResolverProtocol,
+    default_vault_name: str,
 ) -> None:
     """Met à jour `indexer.api_key_ref` (seul champ patchable en M2).
 
@@ -200,7 +209,7 @@ async def patch_workspace(
     Lève WorkspaceNotFound si le workspace n'existe pas.
     """
     new_ref = request.indexer.api_key_ref
-    await _validate_ref_via_vault(resolver, new_ref)
+    await _validate_ref_via_vault(resolver, new_ref, default_vault_name)
 
     async with config_pool.acquire() as conn:
         row = await conn.fetchrow("SELECT id FROM workspaces WHERE name=$1", name)

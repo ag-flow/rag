@@ -63,6 +63,7 @@ async def _setup_ws(pg_container: str, session_pool: asyncpg.Pool, name: str) ->
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=resolver,  # type: ignore[arg-type]
+        default_vault_name="rag",
     )
     return resolver
 
@@ -88,6 +89,7 @@ async def test_add_source_git_inserts_row(
         ),
         config_pool=session_pool,
         resolver=resolver,  # type: ignore[arg-type]
+        default_vault_name="rag",
     )
     assert src["type"] == "git"
     assert src["config"]["url"] == "https://github.com/gael/harpocrate"
@@ -148,6 +150,7 @@ async def test_add_source_no_auth_ref_does_not_resolve(
         ),
         config_pool=session_pool,
         resolver=resolver,  # type: ignore[arg-type]
+        default_vault_name="rag",
     )
     assert src["type"] == "git"
 
@@ -166,6 +169,7 @@ async def test_delete_source_removes_row(
         ),
         config_pool=session_pool,
         resolver=resolver,  # type: ignore[arg-type]
+        default_vault_name="rag",
     )
 
     await delete_source(workspace_name="ws_src_del", source_id=src["id"], config_pool=session_pool)
@@ -205,6 +209,7 @@ async def test_add_source_sets_next_sync_at_to_now(
         ),
         config_pool=session_pool,
         resolver=resolver,  # type: ignore[arg-type]
+        default_vault_name="rag",
     )
 
     next_at_offset = await session_pool.fetchval(

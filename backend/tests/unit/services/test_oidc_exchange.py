@@ -43,6 +43,14 @@ class _FakeResolver:
         return "resolved-client-secret"
 
 
+class _FakeClientProvider:
+    def __init__(self, default_vault_name: str | None = "rag") -> None:
+        self._name = default_vault_name
+
+    async def get_default_vault_name(self) -> str | None:
+        return self._name
+
+
 def _make_service(
     issuer: str,
     *,
@@ -66,6 +74,7 @@ def _make_service(
     svc = OidcService(
         config_pool=None,
         secret_resolver=_FakeResolver(),
+        client_provider=_FakeClientProvider(),
         public_url="https://rag.example.com",
         http_client=client,
     )

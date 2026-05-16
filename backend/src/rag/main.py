@@ -34,19 +34,24 @@ ResolverFactory = Callable[[Settings, FastAPI], SecretResolver]
 
 
 def _default_resolver_factory(settings: Settings, app: FastAPI) -> SecretResolver:
-    """Factory par défaut : monte la chaîne Harpocrate DB-first.
+    """Factory par défaut : retourne un `SecretResolver` qui consomme le
+    `HarpocrateClientProvider` posé sur `app.state.client_provider` par le
+    lifespan (cf. `_build_client_provider`).
 
-    - Construit le `HarpocrateClientProvider` (cache TTL des clients SDK,
-      DB-first avec fallback env),
-    - Bind le provider au `HarpocrateVaultsService` déjà attaché par le
-      lifespan, afin que ses invalidations cache après
-      `create/update/rotate/set_default/delete` se propagent au provider,
-    - Expose le provider sur `app.state.client_provider` pour les futurs
-      consumers,
-    - Retourne un `SecretResolver` qui consomme le provider.
+    Les factories stub (tests) peuvent retourner un resolver arbitraire
+    bâti sur `harpocrate_clients={}` ; le `client_provider` reste branché
+    en `app.state` et continue à servir les sites qui en ont besoin
+    (routers, worker, OidcService).
+    """
+    return SecretResolver(client_provider=app.state.client_provider)
+
+
+def _build_client_provider(settings: Settings, app: FastAPI) -> HarpocrateClientProvider:
+    """Construit le `HarpocrateClientProvider` (DB-first + fallback env) et
+    binde le `HarpocrateVaultsService` pour propager les invalidations cache.
 
     Prérequis : `app.state.pools` et `app.state.harpocrate_vaults_service`
-    doivent déjà être initialisés par le lifespan.
+    doivent déjà être initialisés.
     """
     vaults_service: HarpocrateVaultsService = app.state.harpocrate_vaults_service
     client_provider = HarpocrateClientProvider(
@@ -55,8 +60,7 @@ def _default_resolver_factory(settings: Settings, app: FastAPI) -> SecretResolve
         db_pool=app.state.pools.config_pool,
     )
     vaults_service.bind_client_provider(client_provider)
-    app.state.client_provider = client_provider
-    return SecretResolver(client_provider=client_provider)
+    return client_provider
 
 
 def _default_migrations_dir() -> Path:
@@ -109,11 +113,16 @@ def build_app(
         # même du service + du seed env (rétrocompat).
         app.state.harpocrate_vaults_service = HarpocrateVaultsService(settings)
 
-        # La factory par défaut crée le `HarpocrateClientProvider`, le binde
-        # au service ci-dessus, et retourne un `SecretResolver` qui consomme
-        # le provider. Les factories stub (tests) peuvent retourner un
-        # resolver arbitraire ; dans ce cas, `client_provider` n'est pas
-        # attaché à `app.state` (le service reste utilisable directement).
+        # Le `HarpocrateClientProvider` est branché en `app.state` AVANT le
+        # resolver_factory pour que tous les sites (routers, worker, OidcService)
+        # puissent appeler `await app.state.client_provider.get_default_vault_name()`,
+        # même quand un test injecte un `resolver_factory` stub.
+        app.state.client_provider = _build_client_provider(settings, app)
+
+        # La factory par défaut retourne un `SecretResolver` qui consomme
+        # `app.state.client_provider`. Les factories stub (tests) peuvent
+        # retourner un resolver arbitraire ; `client_provider` reste attaché
+        # à `app.state` indépendamment.
         app.state.resolver = resolver_factory(settings, app)
 
         # Rétrocompat M4/M5a/M5b : si la table est vide et que des
@@ -128,6 +137,7 @@ def build_app(
         app.state.oidc = OidcService(
             config_pool=registry.config_pool,
             secret_resolver=app.state.resolver,
+            client_provider=app.state.client_provider,
             public_url=str(settings.rag_public_url).rstrip("/"),
         )
         app.state.public_url = str(settings.rag_public_url).rstrip("/")
@@ -147,6 +157,7 @@ def build_app(
             config_pool=registry.config_pool,
             pool_registry=registry,
             secret_resolver=app.state.resolver,
+            client_provider=app.state.client_provider,
         )
         app.state.indexer = indexer
         app.state.apikey_cache = ApiKeyCache(max_size=256, ttl_seconds=300)
@@ -156,6 +167,7 @@ def build_app(
             storage=RepoStorage(root=settings.sync_repos_root),
             indexer=indexer,
             resolver=app.state.resolver,
+            client_provider=app.state.client_provider,
             poll_interval_seconds=settings.sync_worker_poll_interval_seconds,
             default_sync_interval_seconds=settings.sync_default_interval_seconds,
         )

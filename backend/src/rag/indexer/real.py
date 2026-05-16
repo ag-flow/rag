@@ -12,6 +12,7 @@ from rag.db.workspace_embeddings import delete_path, upsert_chunks
 from rag.indexer.chunking import chunk_text
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
+from rag.secrets.refs import build_ref
 
 log = structlog.get_logger(__name__)
 
@@ -20,8 +21,21 @@ class _ResolverProtocol(Protocol):
     async def resolve_with_retry(self, ref: str) -> str: ...
 
 
-def _to_vault_ref(logical_key: str, *, vault_id: str = "rag") -> str:
-    return f"${{vault://{vault_id}:{logical_key}}}"
+class _ClientProviderProtocol(Protocol):
+    async def get_default_vault_name(self) -> str | None: ...
+
+
+def _to_vault_ref(logical_key: str, vault_name: str) -> str:
+    """Construit une ref ``${vault://<vault_name>:<logical>}`` dynamique."""
+    return build_ref(vault_name, logical_key)
+
+
+class _NoDefaultVaultError(RuntimeError):
+    """Levée quand aucun coffre par défaut n'est configuré alors qu'un
+    secret est requis pour indexer ce workspace."""
+
+    def __init__(self) -> None:
+        super().__init__("no default Harpocrate vault configured")
 
 
 class RealIndexer:
@@ -47,11 +61,13 @@ class RealIndexer:
         config_pool: asyncpg.Pool,
         pool_registry: WorkspacePoolRegistry,
         secret_resolver: _ResolverProtocol,
+        client_provider: _ClientProviderProtocol,
         provider_factory: Callable[..., EmbeddingProvider] = make_provider,
     ) -> None:
         self._config_pool = config_pool
         self._pool_registry = pool_registry
         self._secret_resolver = secret_resolver
+        self._client_provider = client_provider
         self._provider_factory = provider_factory
 
     async def index_file(
@@ -72,8 +88,16 @@ class RealIndexer:
 
         api_key: str | None = None
         if ctx["api_key_ref"]:
+            default_vault_name = await self._client_provider.get_default_vault_name()
+            if default_vault_name is None:
+                log.warning(
+                    "real_indexer.no_default_vault",
+                    workspace_id=str(workspace_id),
+                    path=path,
+                )
+                raise _NoDefaultVaultError()
             api_key = await self._secret_resolver.resolve_with_retry(
-                _to_vault_ref(ctx["api_key_ref"]),
+                _to_vault_ref(ctx["api_key_ref"], default_vault_name),
             )
 
         provider = self._provider_factory(

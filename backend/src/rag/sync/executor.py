@@ -11,6 +11,7 @@ import structlog
 
 from rag.indexer.protocol import IndexerProtocol
 from rag.schemas.sync import ChangeSet, JobToProcess
+from rag.secrets.refs import build_ref
 from rag.secrets.resolver import VaultLookupFailed
 from rag.sync.git_ops import (
     GitCloneError,
@@ -101,6 +102,10 @@ class _ResolverProtocol(Protocol):
     async def resolve_with_retry(self, ref: str) -> str: ...
 
 
+class _ClientProviderProtocol(Protocol):
+    async def get_default_vault_name(self) -> str | None: ...
+
+
 _ERROR_MESSAGE_MAX = 500
 
 
@@ -110,19 +115,21 @@ def _truncate(s: str, n: int = _ERROR_MESSAGE_MAX) -> str:
     return s[: n - 3] + "..."
 
 
-def _to_vault_ref(logical_key: str, *, vault_id: str = "rag") -> str:
-    return f"${{vault://{vault_id}:{logical_key}}}"
+def _to_vault_ref(logical_key: str, vault_name: str) -> str:
+    """Construit une ref ``${vault://<vault_name>:<logical>}`` dynamique."""
+    return build_ref(vault_name, logical_key)
 
 
 async def _resolve_token(
     resolver: _ResolverProtocol,
     config: dict[str, Any],
+    default_vault_name: str,
 ) -> str | None:
     """Résout `auth_ref` si présent. None si source publique."""
     auth_ref = config.get("auth_ref")
     if not auth_ref:
         return None
-    return await resolver.resolve_with_retry(_to_vault_ref(auth_ref))
+    return await resolver.resolve_with_retry(_to_vault_ref(auth_ref, default_vault_name))
 
 
 def _format_error(e: BaseException) -> str:
@@ -170,23 +177,30 @@ async def execute_next_pending_job(
     storage: RepoStorage,
     indexer: IndexerProtocol,
     resolver: _ResolverProtocol,
+    client_provider: _ClientProviderProtocol,
 ) -> bool:
     """Picke 1 job pending + exécute le pipeline complet.
 
     Retourne True si un job a été traité (peu importe done/error), False si
     aucun job pending.
+
+    Si la source nécessite un secret (`auth_ref` présent) mais qu'aucun coffre
+    Harpocrate par défaut n'est configuré, le job est marqué en erreur (le
+    worker ne plante pas, le tick suivant rejouera).
     """
     job = await pick_next_pending_job(config_pool)
     if job is None:
         return False
 
     try:
+        default_vault_name = await client_provider.get_default_vault_name()
         await _process_job(
             job=job,
             config_pool=config_pool,
             storage=storage,
             indexer=indexer,
             resolver=resolver,
+            default_vault_name=default_vault_name,
         )
     except Exception as e:
         msg = _format_error(e)
@@ -202,6 +216,7 @@ async def _process_job(
     storage: RepoStorage,
     indexer: IndexerProtocol,
     resolver: _ResolverProtocol,
+    default_vault_name: str | None,
 ) -> None:
     config = job.source_config
     url = config["url"]
@@ -210,8 +225,15 @@ async def _process_job(
     exclude = config.get("exclude") or []
     last_commit = config.get("last_commit")
 
-    # 1. Résolution token (lazy)
-    token = await _resolve_token(resolver, config)
+    # 1. Résolution token (lazy). Si auth_ref présent mais pas de coffre
+    # par défaut configuré, on échoue le job proprement.
+    if config.get("auth_ref") and default_vault_name is None:
+        raise RuntimeError("no default Harpocrate vault configured")
+    token = (
+        await _resolve_token(resolver, config, default_vault_name)
+        if default_vault_name is not None
+        else None
+    )
 
     # 2. Path local + clone ou pull
     storage.ensure_exists(workspace_id=job.workspace_id, source_id=job.source_id)

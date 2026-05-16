@@ -36,6 +36,21 @@ class _ApiStubResolver:
         return f"value-of-{logical}"
 
 
+class _ApiStubClientProvider:
+    """Stub `HarpocrateClientProvider` : default vault toujours 'rag'.
+
+    Surchargé via le `resolver_factory` du conftest pour que les routers M5c
+    (qui appellent `app.state.client_provider.get_default_vault_name()`)
+    reçoivent un nom de coffre sans s'appuyer sur la DB.
+    """
+
+    async def get_default_vault_name(self) -> str | None:
+        return "rag"
+
+    def invalidate(self) -> None:
+        pass
+
+
 @pytest.fixture
 def admin_resolver() -> _ApiStubResolver:
     return _ApiStubResolver()
@@ -63,10 +78,18 @@ async def admin_client(
     )
     os.environ.setdefault("ENVIRONMENT", "dev")
 
+    def _factory(_cfg, app_in):  # type: ignore[no-untyped-def]
+        # Le lifespan a déjà branché un `client_provider` "réel" sur
+        # `app.state` ; on le remplace par un stub qui retourne toujours
+        # le coffre "rag" pour que les routers M5c puissent fonctionner
+        # sans table `harpocrate_vaults` peuplée.
+        app_in.state.client_provider = _ApiStubClientProvider()
+        return admin_resolver
+
     app = build_app(
         version="0.2.0",
         git_sha="testsha",
-        resolver_factory=lambda _cfg, _app: admin_resolver,  # type: ignore[return-value]
+        resolver_factory=_factory,  # type: ignore[arg-type]
         migrations_dir=_MIGRATIONS_DIR,
     )
     with TestClient(app) as client:

@@ -17,6 +17,7 @@ from rag.db.workspace_schema import (
     derive_workspace_dsn,
 )
 from rag.schemas.admin import IndexerSpec
+from rag.secrets.refs import build_ref
 from rag.secrets.resolver import VaultLookupFailed
 from rag.services.models import get_dimension_or_raise
 
@@ -90,13 +91,18 @@ def _job_to_dict(row: asyncpg.Record) -> dict[str, Any]:
     }
 
 
-def _to_vault_ref(logical_key: str, *, vault_id: str = "rag") -> str:
-    return f"${{vault://{vault_id}:{logical_key}}}"
+def _to_vault_ref(logical_key: str, vault_name: str) -> str:
+    """Construit une ref ``${vault://<vault_name>:<logical>}`` dynamique."""
+    return build_ref(vault_name, logical_key)
 
 
-async def _validate_ref_via_vault(resolver: _ResolverProtocol, logical_key: str) -> None:
+async def _validate_ref_via_vault(
+    resolver: _ResolverProtocol,
+    logical_key: str,
+    vault_name: str,
+) -> None:
     try:
-        await resolver.resolve_with_retry(_to_vault_ref(logical_key))
+        await resolver.resolve_with_retry(_to_vault_ref(logical_key, vault_name))
     except VaultLookupFailed as e:
         raise RefNotFoundInVault(logical_key) from e
     except (ConnectionError, TimeoutError) as e:
@@ -111,6 +117,7 @@ async def reindex_workspace(
     config_pool: asyncpg.Pool,
     admin_dsn: str,
     resolver: _ResolverProtocol,
+    default_vault_name: str,
 ) -> dict[str, Any]:
     """Crée un job pending. Si new_indexer diffère du courant → flow de changement.
 
@@ -147,7 +154,7 @@ async def reindex_workspace(
         config_pool, provider=new_indexer.provider, model=new_indexer.model
     )
     if new_indexer.api_key_ref is not None:
-        await _validate_ref_via_vault(resolver, new_indexer.api_key_ref)
+        await _validate_ref_via_vault(resolver, new_indexer.api_key_ref, default_vault_name)
 
     documents_count = await fetch_one(
         config_pool,

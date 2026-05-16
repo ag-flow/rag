@@ -23,6 +23,16 @@ class _StubResolver:
         return "tok-x"
 
 
+class _StubClientProvider:
+    """Stub : default vault 'rag' (None pour simuler l'absence de coffre)."""
+
+    def __init__(self, default_name: str | None = "rag") -> None:
+        self._name = default_name
+
+    async def get_default_vault_name(self) -> str | None:
+        return self._name
+
+
 async def _make_workspace_with_indexer(
     pool: asyncpg.Pool,
     name: str,
@@ -92,6 +102,7 @@ async def test_executor_first_sync_all_files_indexed(
         storage=storage,
         indexer=indexer,
         resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
     )
     assert processed is True
 
@@ -130,6 +141,7 @@ async def test_executor_second_sync_no_change_skips_all(
         storage=storage,
         indexer=indexer,
         resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
     )
 
     # 2e sync : nouveau job pending sans changement remote
@@ -139,6 +151,7 @@ async def test_executor_second_sync_no_change_skips_all(
         storage=storage,
         indexer=indexer,
         resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
     )
 
     row = await session_pool.fetchrow(
@@ -169,6 +182,7 @@ async def test_executor_second_sync_detects_modify_and_delete(
         storage=storage,
         indexer=indexer,
         resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
     )
 
     # Modifie b.md, ajoute c.md, supprime a.md
@@ -181,6 +195,7 @@ async def test_executor_second_sync_detects_modify_and_delete(
         storage=storage,
         indexer=indexer,
         resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
     )
 
     row = await session_pool.fetchrow(
@@ -223,6 +238,7 @@ async def test_executor_failure_on_invalid_url_marks_error(
         storage=storage,
         indexer=indexer,
         resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
     )
 
     row = await session_pool.fetchrow(
@@ -246,5 +262,6 @@ async def test_executor_returns_false_when_no_pending(
         storage=storage,
         indexer=indexer,
         resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
     )
     assert processed is False

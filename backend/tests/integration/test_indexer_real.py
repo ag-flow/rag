@@ -39,6 +39,13 @@ class _StubResolver:
         return "tok-stub"
 
 
+class _StubClientProvider:
+    """Fournit un default vault name fixe ('rag') pour les tests."""
+
+    async def get_default_vault_name(self) -> str | None:
+        return "rag"
+
+
 @pytest_asyncio.fixture
 async def real_indexer_setup(
     pg_container: str,
@@ -139,6 +146,7 @@ async def test_real_indexer_index_file_inserts_chunks_and_indexed_documents(
         config_pool=session_pool,
         pool_registry=setup["registry"],
         secret_resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
         provider_factory=_factory_with_stub(stub),
     )
 
@@ -183,6 +191,7 @@ async def test_real_indexer_index_file_replaces_old_chunks(
         config_pool=session_pool,
         pool_registry=setup["registry"],
         secret_resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
         provider_factory=_factory_with_stub(_StubProvider()),
     )
     # Index v1
@@ -220,6 +229,7 @@ async def test_real_indexer_index_file_empty_content_returns_zero(
         config_pool=session_pool,
         pool_registry=setup["registry"],
         secret_resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
         provider_factory=_factory_with_stub(stub),
     )
     n = await indexer.index_file(
@@ -249,6 +259,7 @@ async def test_real_indexer_delete_file_removes_chunks_and_metadata(
         config_pool=session_pool,
         pool_registry=setup["registry"],
         secret_resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
         provider_factory=_factory_with_stub(_StubProvider()),
     )
     await indexer.index_file(
@@ -291,6 +302,7 @@ async def test_real_indexer_provider_auth_error_propagates(
         config_pool=session_pool,
         pool_registry=setup["registry"],
         secret_resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
         provider_factory=_factory_with_stub(bad_stub),
     )
     with pytest.raises(EmbeddingAuthError):

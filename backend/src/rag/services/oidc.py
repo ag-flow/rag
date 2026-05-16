@@ -21,13 +21,19 @@ from rag.api.errors import (
     OidcKeycloakUnreachable,
     OidcNotConfigured,
     OidcSessionExpired,
+    VaultUnreachable,
 )
+from rag.secrets.refs import build_ref
 
 log = structlog.get_logger(__name__)
 
 
 class _ResolverProtocol(Protocol):
     async def resolve_with_retry(self, ref: str) -> str: ...
+
+
+class _ClientProviderProtocol(Protocol):
+    async def get_default_vault_name(self) -> str | None: ...
 
 
 @dataclass(frozen=True)
@@ -75,10 +81,16 @@ class OidcService:
         config_pool: asyncpg.Pool,
         secret_resolver: _ResolverProtocol,
         public_url: str,
+        client_provider: _ClientProviderProtocol | None = None,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
+        """`client_provider` est requis pour `exchange_code`/`refresh`
+        (résolution du `client_secret` via le coffre par défaut). Les tests
+        qui ne touchent que le discovery/JWKS/roles peuvent l'omettre.
+        """
         self._config_pool = config_pool
         self._secret_resolver = secret_resolver
+        self._client_provider = client_provider
         self._public_url = public_url.rstrip("/")
         self._http_client = http_client  # injection pour tests
         self._discovery_cache: dict[str, _DiscoveryDoc] = {}
@@ -325,8 +337,14 @@ class OidcService:
         fréquentes, pas de cache pour éviter de tenir un secret en mémoire).
         """
         discovery = await self._discover(config)
+        if self._client_provider is None:
+            raise RuntimeError("OidcService.exchange_code/refresh requires a client_provider")
+        default_vault_name = await self._client_provider.get_default_vault_name()
+        if default_vault_name is None:
+            log.warning("oidc.token_request.no_default_vault")
+            raise VaultUnreachable()
         client_secret = await self._secret_resolver.resolve_with_retry(
-            f"${{vault://rag:{config.client_secret_ref}}}"
+            build_ref(default_vault_name, config.client_secret_ref)
         )
         payload = {
             **data,

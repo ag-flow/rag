@@ -52,6 +52,7 @@ async def _create_with_doc(pg_container: str, session_pool: asyncpg.Pool, name: 
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
+        default_vault_name="rag",
     )
     ws_id = await session_pool.fetchval("SELECT id FROM workspaces WHERE name=$1", name)
     await session_pool.execute(
@@ -76,6 +77,7 @@ async def test_reindex_no_indexer_change_creates_pending(
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
+        default_vault_name="rag",
     )
     assert job["status"] == "pending"
     assert job["triggered_by"] == "manual"
@@ -114,6 +116,7 @@ async def test_reindex_indexer_change_with_confirm_recreates_table_and_invalidat
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
+        default_vault_name="rag",
     )
     assert job["status"] == "pending"
     assert job["triggered_by"] == "reindex_indexer_change"
@@ -161,4 +164,5 @@ async def test_reindex_workspace_not_found(session_pool: asyncpg.Pool) -> None:
             config_pool=session_pool,
             admin_dsn="postgresql://x:y@z:5432/postgres",
             resolver=_Resolver(),  # type: ignore[arg-type]
+            default_vault_name="rag",
         )

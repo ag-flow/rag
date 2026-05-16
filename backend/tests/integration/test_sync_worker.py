@@ -21,6 +21,11 @@ class _StubResolver:
         return "tok-x"
 
 
+class _StubClientProvider:
+    async def get_default_vault_name(self) -> str | None:
+        return "rag"
+
+
 @pytest.mark.asyncio
 async def test_worker_processes_pending_job_within_one_cycle(
     session_pool: asyncpg.Pool,
@@ -58,6 +63,7 @@ async def test_worker_processes_pending_job_within_one_cycle(
         storage=RepoStorage(root=tmp_path / "repos"),
         indexer=NoOpIndexer(session_pool),
         resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
         poll_interval_seconds=1,
         default_sync_interval_seconds=300,
     )
@@ -104,6 +110,7 @@ async def test_worker_schedules_due_sources(
         storage=RepoStorage(root=tmp_path / "repos"),
         indexer=NoOpIndexer(session_pool),
         resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
         poll_interval_seconds=1,
         default_sync_interval_seconds=300,
     )
@@ -129,6 +136,7 @@ async def test_worker_stop_idempotent(session_pool: asyncpg.Pool, tmp_path: Path
         storage=RepoStorage(root=tmp_path / "repos"),
         indexer=NoOpIndexer(session_pool),
         resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
         poll_interval_seconds=30,
         default_sync_interval_seconds=300,
     )
