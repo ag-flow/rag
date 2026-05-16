@@ -28,6 +28,9 @@ export default [
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      // TypeScript vérifie les types globaux (RequestInit, etc.) ; no-undef crée des
+      // faux positifs sur les types de lib DOM non couverts par globals.browser.
+      "no-undef": "off",
     },
   },
 ];
