@@ -50,8 +50,6 @@ def test_harpocrate_api_keys_now_optional(monkeypatch):
     être autorisé (la résolution échouera en runtime si aucun coffre n'est en DB)."""
     for k, v in _base_env().items():
         monkeypatch.setenv(k, v)
-    for k in list(monkeypatch._setitem):  # noqa: B007 - nettoyer toute paire Harpocrate
-        pass
     monkeypatch.delenv("HARPOCRATE_API_TOKEN_RAG", raising=False)
     monkeypatch.delenv("HARPOCRATE_API_URL_RAG", raising=False)
     settings = Settings()
