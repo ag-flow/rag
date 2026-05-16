@@ -97,7 +97,8 @@ markers = [
 addopts = "-m 'not smoke'"
 
 [tool.uv.sources]
-# Le wheel doit respecter PEP 427 (name-version-pythontag-abitag-platformtag.whl).
-# Le script fetch-harpocrate-sdk.sh télécharge sous ce nom canonique factice ;
-# la vraie version vit dans les métadonnées internes du wheel.
-harpocrate = { path = "vendor/harpocrate-0.4.0-py3-none-any.whl" }
+# SDK Harpocrate v0.6.0 vendoré en source local éditable. Permet de patcher
+# le SDK rapidement sans avoir à rebuild/republier le wheel.
+# Le précédent wheel `vendor/harpocrate-0.4.0-py3-none-any.whl` a été retiré
+# au profit du source.
+harpocrate = { path = "vendor/harpocrate-sdk", editable = true }
