@@ -10,7 +10,9 @@ from asyncpg import Connection, UniqueViolationError
 from rag.config import Settings
 from rag.schemas.harpocrate_vaults import (
     VaultCreateRequest,
+    VaultRotateApiKeyRequest,
     VaultSummary,
+    VaultUpdateRequest,
 )
 from rag.secrets.exceptions import (
     HarpocrateDekMissingError,
@@ -59,6 +61,31 @@ _INSERT_VAULT = (
     "RETURNING id, name, label, base_url, api_key_id, probe_path, "
     "is_default, created_at, updated_at"
 )
+_UPDATE_VAULT_FULL = (
+    "UPDATE harpocrate_vaults SET "
+    "label = $2, base_url = $3, probe_path = $4, "
+    "updated_at = now() "
+    "WHERE id = $1 "
+    "RETURNING id, name, label, base_url, api_key_id, probe_path, "
+    "is_default, created_at, updated_at"
+)
+_UPDATE_ROTATE_API_KEY = (
+    "UPDATE harpocrate_vaults SET "
+    "api_key_id = $2, "
+    "api_key_encrypted = pgp_sym_encrypt($3::text, $4::text), "
+    "updated_at = now() "
+    "WHERE id = $1 "
+    "RETURNING id, name, label, base_url, api_key_id, probe_path, "
+    "is_default, created_at, updated_at"
+)
+_SELECT_DEFAULT_ID = "SELECT id FROM harpocrate_vaults WHERE is_default = true"
+_PROMOTE_DEFAULT = (
+    "UPDATE harpocrate_vaults SET is_default = true, updated_at = now() "
+    "WHERE id = $1 "
+    "RETURNING id, name, label, base_url, api_key_id, probe_path, "
+    "is_default, created_at, updated_at"
+)
+_DELETE_VAULT = "DELETE FROM harpocrate_vaults WHERE id = $1"
 
 
 class HarpocrateVaultsService:
@@ -157,6 +184,95 @@ class HarpocrateVaultsService:
             is_default=req.is_default,
         )
         return VaultSummary.model_validate(dict(row))
+
+    async def update(
+        self,
+        conn: Connection,
+        vault_id: UUID,
+        req: VaultUpdateRequest,
+    ) -> VaultSummary | None:
+        current = await self.get_by_id(conn, vault_id)
+        if current is None:
+            return None
+        fields = req.model_dump(exclude_unset=True)
+        label = fields.get("label", current.label)
+        base_url = fields.get("base_url", current.base_url)
+        # Pour probe_path : si la clé est dans le payload (set explicite),
+        # on prend la valeur fournie (qui peut être None après validation
+        # Pydantic '' → None). Sinon, on garde la valeur courante. Comme
+        # `model_dump(exclude_unset=True)` ne contient la clé que si elle a
+        # été explicitement fournie, `.get` avec fallback est équivalent au
+        # ternaire `if "probe_path" in fields`.
+        probe_path = fields.get("probe_path", current.probe_path)
+
+        row = await conn.fetchrow(
+            _UPDATE_VAULT_FULL,
+            vault_id,
+            label,
+            base_url,
+            probe_path,
+        )
+        self._invalidate_caches()
+        log.info(
+            "vault.updated",
+            vault_id=str(vault_id),
+            fields_changed=list(fields.keys()),
+        )
+        return VaultSummary.model_validate(dict(row))
+
+    async def rotate_api_key(
+        self,
+        conn: Connection,
+        vault_id: UUID,
+        req: VaultRotateApiKeyRequest,
+    ) -> VaultSummary | None:
+        dek = self._require_dek()
+        previous = await self.get_by_id(conn, vault_id)
+        if previous is None:
+            return None
+        row = await conn.fetchrow(
+            _UPDATE_ROTATE_API_KEY,
+            vault_id,
+            req.api_key_id,
+            req.api_key,
+            dek,
+        )
+        self._invalidate_caches()
+        log.info(
+            "vault.api_key_rotated",
+            vault_id=str(vault_id),
+            api_key_id_old=previous.api_key_id,
+            api_key_id_new=req.api_key_id,
+        )
+        return VaultSummary.model_validate(dict(row))
+
+    async def set_default(
+        self,
+        conn: Connection,
+        vault_id: UUID,
+    ) -> VaultSummary | None:
+        target = await self.get_by_id(conn, vault_id)
+        if target is None:
+            return None
+        async with conn.transaction():
+            previous_id = await conn.fetchval(_SELECT_DEFAULT_ID)
+            await conn.execute(_DEMOTE_DEFAULT)
+            row = await conn.fetchrow(_PROMOTE_DEFAULT, vault_id)
+        self._invalidate_caches()
+        log.info(
+            "vault.default_changed",
+            vault_id_old=str(previous_id) if previous_id else None,
+            vault_id_new=str(vault_id),
+        )
+        return VaultSummary.model_validate(dict(row))
+
+    async def delete(self, conn: Connection, vault_id: UUID) -> bool:
+        result = await conn.execute(_DELETE_VAULT, vault_id)
+        deleted = result.endswith(" 1")
+        if deleted:
+            self._invalidate_caches()
+            log.info("vault.deleted", vault_id=str(vault_id))
+        return deleted
 
     def _invalidate_caches(self) -> None:
         self._default_cache = None
