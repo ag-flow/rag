@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 
 from rag.api.admin import build_admin_router
+from rag.api.admin_harpocrate_vaults import router as admin_harpocrate_vaults_router
 from rag.api.admin_oidc import build_admin_oidc_router
 from rag.api.auth import build_auth_router
 from rag.api.errors import register_error_handlers
@@ -23,6 +24,7 @@ from rag.db.pool import WorkspacePoolRegistry
 from rag.logging_setup import setup_logging
 from rag.secrets.resolver import SecretResolver, VaultClient
 from rag.secrets.vault import HarpocrateVaultClient
+from rag.services.harpocrate_vaults import HarpocrateVaultsService
 from rag.services.oidc import OidcService
 
 log = structlog.get_logger(__name__)
@@ -115,6 +117,7 @@ def build_app(
         await run_migrations(registry.config_pool, target_dir)
 
         app.state.resolver = resolver_factory(settings)
+        app.state.harpocrate_vaults_service = HarpocrateVaultsService(settings)
         app.state.oidc = OidcService(
             config_pool=registry.config_pool,
             secret_resolver=app.state.resolver,
@@ -175,6 +178,7 @@ def build_app(
     app.include_router(build_health_router())
     app.include_router(build_admin_router())
     app.include_router(build_admin_oidc_router())
+    app.include_router(admin_harpocrate_vaults_router)
     app.include_router(build_auth_router())
     app.include_router(build_workspace_router())
     app.include_router(build_mcp_router())
