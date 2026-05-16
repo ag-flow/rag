@@ -82,6 +82,10 @@ class Settings(BaseSettings):
         if v is None:
             return None
         raw = v.get_secret_value()
+        # Une valeur vide (HARPOCRATE_DEK= dans .env) est traitée comme absente —
+        # le DEK est optionnel tant qu'aucun coffre n'est créé en DB.
+        if raw == "":
+            return None
         if len(raw) < 32:
             raise ValueError("HARPOCRATE_DEK doit faire au moins 32 caractères")
         return v

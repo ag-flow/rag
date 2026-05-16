@@ -45,6 +45,14 @@ def test_dek_under_32_chars_rejected(monkeypatch):
         Settings()
 
 
+def test_dek_empty_string_treated_as_none(monkeypatch):
+    """HARPOCRATE_DEK= (vide) dans .env doit être équivalent à absent."""
+    for k, v in _base_env(HARPOCRATE_DEK="").items():
+        monkeypatch.setenv(k, v)
+    settings = Settings()
+    assert settings.harpocrate_dek is None
+
+
 def test_harpocrate_api_keys_now_optional(monkeypatch):
     """Le validator strict de M4 est supprimé : un boot sans env Harpocrate doit
     être autorisé (la résolution échouera en runtime si aucun coffre n'est en DB)."""
