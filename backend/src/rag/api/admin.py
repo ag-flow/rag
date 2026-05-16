@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncpg
 from fastapi import APIRouter, Depends, Request, Response, status
 
-from rag.auth.bearer import require_master_key
+from rag.auth.bearer import require_master_key_or_oidc_role
 from rag.schemas.admin import (
     ApiKeyRotateResponse,
     JobResponse,
@@ -43,7 +43,7 @@ def build_admin_router() -> APIRouter:
     """Construit le router master-key des 13 endpoints d'administration."""
     router = APIRouter(
         tags=["admin"],
-        dependencies=[Depends(require_master_key)],
+        dependencies=[Depends(require_master_key_or_oidc_role("rag-admin"))],
     )
 
     # ─── Workspaces ─────────────────────────────────────────────────────────
