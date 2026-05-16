@@ -1,0 +1,14 @@
+{
+  "sections": {
+    "administration": "Administration",
+    "usage": "Usage"
+  },
+  "items": {
+    "workspaces": "Workspaces",
+    "sources": "Sources",
+    "jobs": "Jobs",
+    "models": "Models",
+    "push": "Push activity",
+    "mcp": "MCP search"
+  }
+}

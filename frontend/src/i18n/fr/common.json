@@ -1,0 +1,15 @@
+{
+  "buttons": {
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "create": "Créer",
+    "delete": "Supprimer",
+    "confirm": "Confirmer"
+  },
+  "loading": "Chargement…",
+  "errors": {
+    "generic": "Une erreur est survenue, réessayez.",
+    "network": "Problème de connexion",
+    "forbidden": "Permissions insuffisantes — contactez un admin."
+  }
+}

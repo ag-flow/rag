@@ -1,0 +1,51 @@
+{
+  "title": "Workspaces",
+  "create": "Créer un workspace",
+  "empty": {
+    "title": "Aucun workspace",
+    "description": "Créez votre premier workspace pour commencer à indexer du contenu via git ou via push synchrone."
+  },
+  "table": {
+    "name": "Nom",
+    "indexer": "Indexer",
+    "sources": "Sources",
+    "documents": "Documents",
+    "last_indexed": "Dernière indexation",
+    "actions": "Actions",
+    "never": "Jamais"
+  },
+  "form": {
+    "name": "Nom",
+    "name_help": "Lettres minuscules, chiffres, _ ou - · max 64",
+    "indexer": "Indexer",
+    "provider": "Provider",
+    "model": "Modèle",
+    "api_key_ref": "Référence clé d'API (Vault)",
+    "api_key_ref_help_present": "Clé présente dans Harpocrate",
+    "api_key_ref_help_missing": "Clé absente du vault",
+    "base_url": "Base URL",
+    "base_url_optional": "(optionnel — Ollama uniquement)"
+  },
+  "actions": {
+    "rotate_apikey": "Régénérer l'api_key",
+    "reindex": "Lancer une réindexation",
+    "delete": "Supprimer"
+  },
+  "delete_dialog": {
+    "title": "Supprimer {{name}} ?",
+    "irreversible": "Cette action est irréversible. Conséquences :",
+    "consequences": {
+      "db": "La base pgvector rag_{{name}} sera droppée.",
+      "docs": "Les {{count}} documents indexés seront perdus.",
+      "apikey": "L'api_key du workspace sera révoquée immédiatement.",
+      "agents": "Les agents utilisant cette api_key recevront 401."
+    },
+    "confirm_button": "Supprimer définitivement"
+  },
+  "toasts": {
+    "created": "Workspace {{name}} créé.",
+    "deleted": "Workspace {{name}} supprimé.",
+    "apikey_rotated": "Nouvelle api_key pour {{name}}. À copier maintenant, elle ne s'affichera plus.",
+    "reindex_started": "Réindexation de {{name}} démarrée."
+  }
+}

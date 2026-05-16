@@ -1,0 +1,51 @@
+{
+  "title": "Workspaces",
+  "create": "Create workspace",
+  "empty": {
+    "title": "No workspace yet",
+    "description": "Create your first workspace to start indexing content via git or synchronous push."
+  },
+  "table": {
+    "name": "Name",
+    "indexer": "Indexer",
+    "sources": "Sources",
+    "documents": "Documents",
+    "last_indexed": "Last indexed",
+    "actions": "Actions",
+    "never": "Never"
+  },
+  "form": {
+    "name": "Name",
+    "name_help": "Lowercase letters, digits, _ or - · max 64",
+    "indexer": "Indexer",
+    "provider": "Provider",
+    "model": "Model",
+    "api_key_ref": "API key reference (Vault)",
+    "api_key_ref_help_present": "Key present in Harpocrate",
+    "api_key_ref_help_missing": "Key missing from vault",
+    "base_url": "Base URL",
+    "base_url_optional": "(optional — Ollama only)"
+  },
+  "actions": {
+    "rotate_apikey": "Rotate api_key",
+    "reindex": "Trigger reindex",
+    "delete": "Delete"
+  },
+  "delete_dialog": {
+    "title": "Delete {{name}}?",
+    "irreversible": "This action is irreversible. Consequences:",
+    "consequences": {
+      "db": "The pgvector database rag_{{name}} will be dropped.",
+      "docs": "The {{count}} indexed documents will be lost.",
+      "apikey": "The workspace api_key will be revoked immediately.",
+      "agents": "Agents using this api_key will receive 401."
+    },
+    "confirm_button": "Delete permanently"
+  },
+  "toasts": {
+    "created": "Workspace {{name}} created.",
+    "deleted": "Workspace {{name}} deleted.",
+    "apikey_rotated": "New api_key for {{name}}. Copy it now, it won't be shown again.",
+    "reindex_started": "Reindexing {{name}} started."
+  }
+}

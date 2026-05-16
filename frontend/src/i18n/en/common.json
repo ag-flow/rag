@@ -1,0 +1,15 @@
+{
+  "buttons": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "create": "Create",
+    "delete": "Delete",
+    "confirm": "Confirm"
+  },
+  "loading": "Loading…",
+  "errors": {
+    "generic": "An error occurred, please retry.",
+    "network": "Connection problem",
+    "forbidden": "Insufficient permissions — contact an admin."
+  }
+}
