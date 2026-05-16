@@ -9,6 +9,7 @@ import structlog
 from fastapi import FastAPI
 
 from rag.api.admin import build_admin_router
+from rag.api.admin_oidc import build_admin_oidc_router
 from rag.api.errors import register_error_handlers
 from rag.api.health import build_health_router
 from rag.api.mcp import build_mcp_router
@@ -20,6 +21,7 @@ from rag.db.pool import WorkspacePoolRegistry
 from rag.logging_setup import setup_logging
 from rag.secrets.resolver import SecretResolver, VaultClient
 from rag.secrets.vault import HarpocrateVaultClient
+from rag.services.oidc import OidcService
 
 log = structlog.get_logger(__name__)
 
@@ -111,6 +113,11 @@ def build_app(
         await run_migrations(registry.config_pool, target_dir)
 
         app.state.resolver = resolver_factory(settings)
+        app.state.oidc = OidcService(
+            config_pool=registry.config_pool,
+            secret_resolver=app.state.resolver,
+            public_url=str(settings.rag_public_url).rstrip("/"),
+        )
 
         # M3 : recovery au boot (jobs running orphelins → error)
         from rag.sync.recovery import reset_stale_running_jobs
@@ -158,6 +165,7 @@ def build_app(
     )
     app.include_router(build_health_router())
     app.include_router(build_admin_router())
+    app.include_router(build_admin_oidc_router())
     app.include_router(build_workspace_router())
     app.include_router(build_mcp_router())
     register_error_handlers(app)
