@@ -65,7 +65,7 @@ async def create_workspace(
     config_pool: asyncpg.Pool,
     admin_dsn: str,
     resolver: _ResolverProtocol,
-    default_vault_name: str,
+    default_vault_name: str = "rag",
 ) -> dict[str, str]:
     """Crée un workspace + sa base pgvector + sa table embeddings.
 
@@ -201,7 +201,7 @@ async def patch_workspace(
     request: WorkspacePatchRequest,
     config_pool: asyncpg.Pool,
     resolver: _ResolverProtocol,
-    default_vault_name: str,
+    default_vault_name: str = "rag",
 ) -> None:
     """Met à jour `indexer.api_key_ref` (seul champ patchable en M2).
 

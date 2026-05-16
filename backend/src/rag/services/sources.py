@@ -57,7 +57,7 @@ async def add_source(
     request: SourceCreateRequest,
     config_pool: asyncpg.Pool,
     resolver: _ResolverProtocol,
-    default_vault_name: str,
+    default_vault_name: str = "rag",
 ) -> dict[str, Any]:
     """Crée une source pour un workspace. Eager validation `auth_ref` si présente.
 

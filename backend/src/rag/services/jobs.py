@@ -117,7 +117,7 @@ async def reindex_workspace(
     config_pool: asyncpg.Pool,
     admin_dsn: str,
     resolver: _ResolverProtocol,
-    default_vault_name: str,
+    default_vault_name: str = "rag",
 ) -> dict[str, Any]:
     """Crée un job pending. Si new_indexer diffère du courant → flow de changement.
 

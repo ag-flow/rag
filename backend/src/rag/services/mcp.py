@@ -149,7 +149,7 @@ async def search(
     pool_registry: WorkspacePoolRegistry,
     apikey_cache: ApiKeyCache,
     secret_resolver: _ResolverProtocol,
-    default_vault_name: str,
+    default_vault_name: str = "rag",
     provider_factory: Callable[..., EmbeddingProvider] | None = None,
 ) -> list[SearchHit]:
     """Orchestre la recherche MCP multi-workspace.
@@ -192,7 +192,7 @@ async def _search_one(
     pool_registry: WorkspacePoolRegistry,
     apikey_cache: ApiKeyCache,
     secret_resolver: _ResolverProtocol,
-    default_vault_name: str,
+    default_vault_name: str = "rag",
     provider_factory: Callable[..., EmbeddingProvider],
 ) -> _WorkspaceResult:
     auth = await _authenticate(ref=ref, config_pool=config_pool, apikey_cache=apikey_cache)
