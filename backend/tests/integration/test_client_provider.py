@@ -132,12 +132,12 @@ async def test_invalidate_forces_reload(
     async with session_pool.acquire() as conn:
         await conn.execute("DELETE FROM harpocrate_vaults")
         async with conn.transaction():
-            await svc.create(conn, _create_req(name="v1"))
+            await svc.create(conn, _create_req(name="vone"))
 
     with patch("rag.secrets.client_provider.HarpocrateVaultClient") as mock_client:
         mock_client.return_value = MagicMock()
         provider = HarpocrateClientProvider(Settings(), svc, session_pool)
-        await provider.get_client("v1")
+        await provider.get_client("vone")
         # Ajouter un 2e coffre puis invalider
         async with (
             session_pool.acquire() as conn,
@@ -145,10 +145,10 @@ async def test_invalidate_forces_reload(
         ):
             await svc.create(
                 conn,
-                _create_req(name="v2", api_key_id="k2", is_default=False),
+                _create_req(name="vtwo", api_key_id="k2", is_default=False),
             )
         provider.invalidate()
-        client_v2 = await provider.get_client("v2")
+        client_v2 = await provider.get_client("vtwo")
         assert client_v2 is not None
 
 
