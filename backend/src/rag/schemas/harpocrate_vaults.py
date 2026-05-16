@@ -102,3 +102,40 @@ class VaultRevealApiKeyResponse(BaseModel):
     id: UUID
     api_key_id: str
     api_key: str
+
+
+class WalletInfoResponse(BaseModel):
+    """Métadonnées du coffre Harpocrate (combinaison whoami + info)."""
+
+    wallet_id: UUID
+    wallet_name: str | None
+    api_key_id: str
+    permissions: list[str]
+    api_key_expires_at: datetime | None
+
+
+class SecretTypeSummary(BaseModel):
+    """Résumé d'un type du catalogue Harpocrate."""
+
+    type_uuid: UUID
+    type: str
+    sous_type: str | None
+    label: str
+    deprecated: bool
+
+
+class SecretListItem(BaseModel):
+    """Résumé d'un secret du wallet (sans valeur)."""
+
+    id: UUID
+    name: str
+    description: str | None
+    is_placeholder: bool
+    tags: list[str]
+
+
+class SecretListResponse(BaseModel):
+    """Réponse paginée du listing des secrets."""
+
+    secrets: list[SecretListItem]
+    next_cursor: str | None

@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from uuid import uuid4
+
 import pytest
 from pydantic import ValidationError
 
 from rag.schemas.harpocrate_vaults import (
+    SecretListItem,
+    SecretListResponse,
+    SecretTypeSummary,
     VaultCreateRequest,
     VaultRotateApiKeyRequest,
     VaultUpdateRequest,
+    WalletInfoResponse,
 )
 
 
@@ -86,3 +93,73 @@ def test_rotate_requires_both_fields():
     assert req.api_key_id == "k-002"
     with pytest.raises(ValidationError):
         VaultRotateApiKeyRequest(api_key="x" * 12)
+
+
+def test_wallet_info_response_minimal():
+    info = WalletInfoResponse(
+        wallet_id=uuid4(),
+        wallet_name=None,
+        api_key_id="k-001",
+        permissions=["read", "write"],
+        api_key_expires_at=None,
+    )
+    assert info.permissions == ["read", "write"]
+    assert info.wallet_name is None
+
+
+def test_wallet_info_response_full():
+    expires = datetime(2026, 12, 31, tzinfo=UTC)
+    info = WalletInfoResponse(
+        wallet_id=uuid4(),
+        wallet_name="prod-wallet",
+        api_key_id="k-001",
+        permissions=["read"],
+        api_key_expires_at=expires,
+    )
+    assert info.api_key_expires_at == expires
+
+
+def test_secret_type_summary():
+    t = SecretTypeSummary(
+        type_uuid=uuid4(),
+        type="openai_api_key",
+        sous_type=None,
+        label="OpenAI API key",
+        deprecated=False,
+    )
+    assert t.type == "openai_api_key"
+    assert t.deprecated is False
+
+
+def test_secret_list_item():
+    item = SecretListItem(
+        id=uuid4(),
+        name="anthropic_key",
+        description=None,
+        is_placeholder=False,
+        tags=[],
+    )
+    assert item.name == "anthropic_key"
+    assert item.tags == []
+
+
+def test_secret_list_response_paginated():
+    resp = SecretListResponse(
+        secrets=[
+            SecretListItem(
+                id=uuid4(),
+                name="k1",
+                description=None,
+                is_placeholder=False,
+                tags=["env:prod"],
+            ),
+        ],
+        next_cursor="opaque-cursor-1",
+    )
+    assert len(resp.secrets) == 1
+    assert resp.next_cursor == "opaque-cursor-1"
+
+
+def test_secret_list_response_no_cursor():
+    resp = SecretListResponse(secrets=[], next_cursor=None)
+    assert resp.next_cursor is None
