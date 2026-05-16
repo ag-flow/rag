@@ -300,14 +300,20 @@ def register_error_handlers(app: FastAPI) -> None:
     from fastapi.exceptions import RequestValidationError
 
     async def _validation_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
-        for err in exc.errors():
+        errors = exc.errors()
+        for err in errors:
             msg = str(err.get("msg") or "")
             if "content_too_large" in msg:
                 return JSONResponse(
                     status_code=413,
                     content=ContentTooLarge().to_payload(),
                 )
-        # Comportement Pydantic par défaut : 422 avec le détail des erreurs.
-        return JSONResponse(status_code=422, content={"detail": exc.errors()})
+            # Pydantic v2 met l'exception source dans ctx['error'] quand un
+            # validator custom raise ValueError — pas JSON-serializable.
+            # On stringifie pour préserver l'info sans casser la réponse.
+            ctx = err.get("ctx")
+            if ctx and "error" in ctx and not isinstance(ctx["error"], str):
+                ctx["error"] = str(ctx["error"])
+        return JSONResponse(status_code=422, content={"detail": errors})
 
     app.add_exception_handler(RequestValidationError, _validation_handler)  # type: ignore[arg-type]

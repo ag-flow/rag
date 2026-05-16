@@ -52,6 +52,9 @@ async def admin_client(
     os.environ.setdefault("RAG_PUBLIC_URL", "http://localhost:8000")
     os.environ.setdefault("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_stub")
     os.environ.setdefault("HARPOCRATE_API_URL_RAG", "https://vault.example.com")
+    os.environ.setdefault(
+        "HARPOCRATE_DEK", "passphrase-of-at-least-32-characters-long",
+    )
     os.environ.setdefault("ENVIRONMENT", "dev")
 
     app = build_app(
