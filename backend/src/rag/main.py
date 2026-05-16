@@ -7,9 +7,11 @@ from pathlib import Path
 
 import structlog
 from fastapi import FastAPI
+from starlette.middleware.sessions import SessionMiddleware
 
 from rag.api.admin import build_admin_router
 from rag.api.admin_oidc import build_admin_oidc_router
+from rag.api.auth import build_auth_router
 from rag.api.errors import register_error_handlers
 from rag.api.health import build_health_router
 from rag.api.mcp import build_mcp_router
@@ -118,6 +120,7 @@ def build_app(
             secret_resolver=app.state.resolver,
             public_url=str(settings.rag_public_url).rstrip("/"),
         )
+        app.state.public_url = str(settings.rag_public_url).rstrip("/")
 
         # M3 : recovery au boot (jobs running orphelins → error)
         from rag.sync.recovery import reset_stale_running_jobs
@@ -163,9 +166,16 @@ def build_app(
         version=version,
         lifespan=lifespan,
     )
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.rag_session_secret.get_secret_value(),
+        same_site="lax",
+        https_only=(settings.environment != "dev"),
+    )
     app.include_router(build_health_router())
     app.include_router(build_admin_router())
     app.include_router(build_admin_oidc_router())
+    app.include_router(build_auth_router())
     app.include_router(build_workspace_router())
     app.include_router(build_mcp_router())
     register_error_handlers(app)
