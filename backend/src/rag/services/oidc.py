@@ -7,10 +7,13 @@ from typing import Any, Protocol, cast
 import asyncpg
 import httpx
 import structlog
+from joserfc import jwt as joserfc_jwt
 from joserfc._keys import KeySetSerialization
+from joserfc.errors import BadSignatureError, ExpiredTokenError, InvalidClaimError, JoseError
 from joserfc.jwk import KeySet
+from joserfc.jwt import JWTClaimsRegistry
 
-from rag.api.errors import OidcKeycloakUnreachable
+from rag.api.errors import OidcInvalidToken, OidcKeycloakUnreachable
 
 log = structlog.get_logger(__name__)
 
@@ -168,3 +171,49 @@ class OidcService:
         self._jwks_cache[discovery.jwks_uri] = keyset
         log.info("oidc.jwks.fetched", jwks_uri=discovery.jwks_uri)
         return keyset
+
+    # --- JWT verify + roles ---
+
+    async def verify_id_token(
+        self,
+        id_token: str,
+        *,
+        config: OidcConfig,
+    ) -> dict[str, Any]:
+        """Vérifie signature (JWKS), iss, aud, exp.
+
+        Raise OidcInvalidToken("expired") sur exp dépassé.
+        Raise OidcInvalidToken("...") sur signature/iss/aud invalides.
+        """
+        discovery = await self._discover(config)
+        keyset = await self._jwks(discovery)
+
+        try:
+            token = joserfc_jwt.decode(id_token, key=keyset, algorithms=["RS256"])
+        except BadSignatureError as e:
+            raise OidcInvalidToken("bad_signature") from e
+        except JoseError as e:
+            raise OidcInvalidToken(f"jose_error: {type(e).__name__}") from e
+
+        registry = JWTClaimsRegistry(
+            iss={"essential": True, "value": config.issuer},
+            aud={"essential": True, "value": config.client_id},
+            exp={"essential": True},
+        )
+        try:
+            registry.validate(token.claims)
+        except ExpiredTokenError as e:
+            raise OidcInvalidToken("expired") from e
+        except InvalidClaimError as e:
+            raise OidcInvalidToken(f"invalid_claim:{e.claim}") from e
+        except JoseError as e:
+            raise OidcInvalidToken(f"jose_error: {type(e).__name__}") from e
+
+        return dict(token.claims)
+
+    def extract_roles(self, claims: dict[str, Any], client_id: str) -> list[str]:
+        """Extrait `claims.resource_access.<client_id>.roles` ou []."""
+        resource_access = claims.get("resource_access") or {}
+        client_section = resource_access.get(client_id) or {}
+        roles = client_section.get("roles") or []
+        return list(roles)
