@@ -7,12 +7,15 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from rag.auth.bearer import require_master_key_or_oidc_role
 from rag.schemas.harpocrate_vaults import (
+    SecretListResponse,
+    SecretTypeSummary,
     VaultCreateRequest,
     VaultRevealApiKeyResponse,
     VaultRotateApiKeyRequest,
     VaultSummary,
     VaultTestConnectionResult,
     VaultUpdateRequest,
+    WalletInfoResponse,
 )
 from rag.secrets.exceptions import (
     VaultNameAlreadyExistsError,
@@ -162,3 +165,65 @@ async def reveal_api_key(vault_id: UUID, request: Request) -> VaultRevealApiKeyR
         api_key = await svc.reveal_api_key(conn, vault_id)
     log.warning("vault.reveal", vault_id=str(vault_id), actor=actor)
     return VaultRevealApiKeyResponse(id=v.id, api_key_id=v.api_key_id, api_key=api_key or "")
+
+
+@router.get("/{vault_id}/info", response_model=WalletInfoResponse)
+async def get_vault_info(
+    vault_id: UUID,
+    request: Request,
+) -> WalletInfoResponse:
+    svc = request.app.state.harpocrate_vaults_service
+    pool = request.app.state.pools.config_pool
+    async with pool.acquire() as conn:
+        try:
+            result = await svc.get_wallet_info(conn, vault_id)
+        except VaultNotFoundError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found") from exc
+    log.info("vault.info.http", vault_id=str(vault_id), actor=_actor(request))
+    return result
+
+
+@router.get("/{vault_id}/types", response_model=list[SecretTypeSummary])
+async def list_vault_types(
+    vault_id: UUID,
+    request: Request,
+    q: str | None = None,
+    include_deprecated: bool = False,
+) -> list[SecretTypeSummary]:
+    svc = request.app.state.harpocrate_vaults_service
+    pool = request.app.state.pools.config_pool
+    async with pool.acquire() as conn:
+        try:
+            return await svc.list_types(
+                conn,
+                vault_id,
+                q=q,
+                include_deprecated=include_deprecated,
+            )
+        except VaultNotFoundError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found") from exc
+
+
+@router.get("/{vault_id}/secrets", response_model=SecretListResponse)
+async def list_vault_secrets(
+    vault_id: UUID,
+    request: Request,
+    path: str | None = None,
+    name_contains: str | None = None,
+    tag: str | None = None,
+    limit: int = 50,
+) -> SecretListResponse:
+    svc = request.app.state.harpocrate_vaults_service
+    pool = request.app.state.pools.config_pool
+    async with pool.acquire() as conn:
+        try:
+            return await svc.list_wallet_secrets(
+                conn,
+                vault_id,
+                path=path,
+                name_contains=name_contains,
+                tag=tag,
+                limit=limit,
+            )
+        except VaultNotFoundError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found") from exc
