@@ -5,3 +5,6 @@ dist/
 *.log
 .vite/
 coverage/
+# Negate root-level lib/ rule that would wrongly ignore frontend/src/lib/
+!src/lib/
+!src/lib/**
