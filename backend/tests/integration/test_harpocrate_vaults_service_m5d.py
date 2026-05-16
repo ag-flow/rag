@@ -70,10 +70,11 @@ async def test_get_wallet_info_combines_whoami_and_info(
                 permissions=["read", "write"],
                 expires_at=expires,
             )
-            instance.info.return_value = MagicMock(
-                wallet_id=wallet_id,
-                name="prod-wallet",
-            )
+            # MagicMock(name=...) set le _mock_name interne (utilisé pour le repr),
+            # pas un attribut .name. On set name après instanciation.
+            wallet_mock = MagicMock(wallet_id=wallet_id)
+            wallet_mock.name = "prod-wallet"
+            instance.info.return_value = wallet_mock
             mock_client.return_value = instance
             result = await svc.get_wallet_info(conn, seeded.id)
     assert result.wallet_id == wallet_id
