@@ -225,3 +225,14 @@ backend/.ruff_cache/
 backend/.mypy_cache/
 backend/__pycache__/
 backend/**/__pycache__/
+
+# Frontend — artefacts générés par tsc -b et vite (configs JS depuis configs TS)
+frontend/*.tsbuildinfo
+frontend/vite.config.d.ts
+frontend/vite.config.js
+frontend/vitest.config.d.ts
+frontend/vitest.config.js
+
+# Outils Claude Code / Superpowers (état local, mockups brainstorm)
+.claude/
+.superpowers/
