@@ -270,12 +270,13 @@ fi
 # ─── 5) Pull images registry restantes (postgres) puis up ──────────────────
 
 echo "[5/5] Pull images registry (postgres + caddy + pgweb)..."
-# Pull tous les services tiers : `docker compose pull` (sans argument)
-# skip automatiquement les services qui ont un `build:` (rag-backend), et
-# télécharge les autres (postgres, caddy, pgweb). Indispensable sur un LXC
-# neuf où aucune image registry n'est cachée localement — sinon le `up -d
-# --pull never` qui suit plante avec `No such image`.
-docker compose -f "$COMPOSE_FILE" pull || true
+# On pull SEULEMENT les services tiers (services avec `image:` pur, sans `build:`).
+# Les services rag-backend et rag-frontend ont à la fois `image:` et `build:` :
+# `docker compose pull` SANS argument tente quand même de les pull depuis le
+# registry (qui n'existe pas — images custom buildées localement en étape [3/5])
+# et affiche des erreurs « pull access denied » qui polluent la sortie sans
+# bloquer le déploiement. On préfère lister explicitement les services tiers.
+docker compose -f "$COMPOSE_FILE" pull postgres caddy pgweb || true
 
 echo "      Démarrage de la stack..."
 # Expose le SHA git courant au compose (variable interpolée dans
