@@ -4,6 +4,7 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useVault } from "@/hooks/useHarpocrateVaults";
 import { VaultHeader } from "@/pages/harpocrate/VaultHeader";
 import { VaultDetailTab } from "@/pages/harpocrate/VaultDetailTab";
+import { VaultSecretsTab } from "@/pages/harpocrate/VaultSecretsTab";
 
 interface VaultDetailPanelProps {
   vaultId: string;
@@ -51,9 +52,7 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
           </TabsContent>
 
           <TabsContent value="secrets">
-            <div className="text-sm text-slate-400 italic py-6">
-              Onglet Secrets — T8 à venir.
-            </div>
+            <VaultSecretsTab vaultId={vault.id} />
           </TabsContent>
 
           <TabsContent value="info">

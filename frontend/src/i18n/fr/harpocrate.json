@@ -38,6 +38,27 @@
     "saved_toast": "Coffre mis à jour",
     "save_error_toast": "Erreur lors de la mise à jour"
   },
+  "secrets": {
+    "filter_name_placeholder": "Filtrer par nom...",
+    "filter_path_placeholder": "path/",
+    "filter_tag_all": "Tag : tous",
+    "col_name": "Nom",
+    "col_description": "Description",
+    "col_type": "Type",
+    "type_secret": "secret",
+    "type_placeholder": "placeholder",
+    "copy": "Copier",
+    "copy_aria": "Copier le nom du secret",
+    "copied_toast": "{{name}} copié",
+    "no_description": "—",
+    "count": "{{count}} secret",
+    "count_plural": "{{count}} secrets",
+    "has_more": "Plus de résultats disponibles côté backend (filtre pour affiner).",
+    "loading_error_title": "Impossible de joindre Harpocrate",
+    "loading_error_body": "Le backend n'a pas pu lister les secrets. Vérifie la connectivité réseau et l'api_key.",
+    "retry": "Réessayer",
+    "empty": "Aucun secret trouvé."
+  },
   "create_dialog": {
     "title": "Créer un nouveau coffre Harpocrate",
     "subtitle": "Connecte le backend à un serveur Harpocrate via une api_key existante.",

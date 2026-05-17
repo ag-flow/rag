@@ -38,6 +38,27 @@
     "saved_toast": "Vault updated",
     "save_error_toast": "Update failed"
   },
+  "secrets": {
+    "filter_name_placeholder": "Filter by name…",
+    "filter_path_placeholder": "path/",
+    "filter_tag_all": "Tag: all",
+    "col_name": "Name",
+    "col_description": "Description",
+    "col_type": "Type",
+    "type_secret": "secret",
+    "type_placeholder": "placeholder",
+    "copy": "Copy",
+    "copy_aria": "Copy secret name",
+    "copied_toast": "{{name}} copied",
+    "no_description": "—",
+    "count": "{{count}} secret",
+    "count_plural": "{{count}} secrets",
+    "has_more": "More results available on the backend (refine the filter).",
+    "loading_error_title": "Cannot reach Harpocrate",
+    "loading_error_body": "The backend could not list secrets. Check network connectivity and api_key.",
+    "retry": "Retry",
+    "empty": "No secrets found."
+  },
   "create_dialog": {
     "title": "Create a new Harpocrate vault",
     "subtitle": "Connect the backend to a Harpocrate server with an existing api_key.",
