@@ -42,6 +42,14 @@
     },
     "confirm_button": "Supprimer définitivement"
   },
+  "model": {
+    "title": "Modèle d'indexation",
+    "provider": "Provider",
+    "model": "Modèle",
+    "base_url": "Base URL",
+    "api_key_ref": "Référence clé d'API",
+    "immutableNote": "Ces paramètres sont définis à la création du workspace et ne peuvent pas être modifiés. Pour changer de modèle ou de provider, recréez le workspace."
+  },
   "toasts": {
     "created": "Workspace {{name}} créé.",
     "deleted": "Workspace {{name}} supprimé.",

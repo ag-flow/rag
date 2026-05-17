@@ -42,6 +42,14 @@
     },
     "confirm_button": "Delete permanently"
   },
+  "model": {
+    "title": "Indexer model",
+    "provider": "Provider",
+    "model": "Model",
+    "base_url": "Base URL",
+    "api_key_ref": "API key reference",
+    "immutableNote": "These parameters are set at workspace creation and cannot be changed. To switch model or provider, recreate the workspace."
+  },
   "toasts": {
     "created": "Workspace {{name}} created.",
     "deleted": "Workspace {{name}} deleted.",
