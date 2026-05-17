@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 def _make_ws(client: TestClient, admin_headers: dict[str, str], name: str) -> str:
     """Crée un workspace et retourne l'api_key clair."""
     r = client.post(
-        "/workspaces",
+        "/api/admin/workspaces",
         headers=admin_headers,
         json={
             "name": name,
@@ -144,7 +144,7 @@ def test_rotate_apikey_invalidates_cache(
     assert r.status_code == 200
 
     # rotate la clé
-    r2 = admin_client.post("/workspaces/ws_rot/rotate-apikey", headers=admin_headers)
+    r2 = admin_client.post("/api/admin/workspaces/ws_rot/rotate-apikey", headers=admin_headers)
     assert r2.status_code == 200
 
     # push avec l'ancienne clé : doit échouer 401 (cache invalidé + nouveau hash en DB)

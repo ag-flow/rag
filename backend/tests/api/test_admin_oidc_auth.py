@@ -92,7 +92,7 @@ def _seed_and_login(
 ) -> None:
     """Pose la config OIDC + simule un login complet pour avoir un cookie session."""
     r = client.post(
-        "/admin/oidc",
+        "/api/admin/oidc",
         headers=admin_headers,
         json={
             "issuer": _ISSUER,
@@ -127,7 +127,7 @@ def test_post_workspaces_with_master_key_still_works(
 ) -> None:
     """Non-régression : Bearer master-key reste accepté."""
     r = admin_client.post(
-        "/workspaces",
+        "/api/admin/workspaces",
         headers=admin_headers,
         json={
             "name": "ws_mk",
@@ -150,7 +150,7 @@ def test_post_workspaces_with_oidc_admin_role_succeeds(
     _seed_and_login(admin_client, admin_headers, roles=["rag-admin"])
 
     r = admin_client.post(
-        "/workspaces",
+        "/api/admin/workspaces",
         json={
             "name": "ws_oidc",
             "indexer": {
@@ -172,7 +172,7 @@ def test_post_workspaces_with_oidc_viewer_role_returns_403(
     _seed_and_login(admin_client, admin_headers, roles=["rag-viewer"])
 
     r = admin_client.post(
-        "/workspaces",
+        "/api/admin/workspaces",
         json={
             "name": "ws_viewer",
             "indexer": {
@@ -192,7 +192,7 @@ def test_post_workspaces_without_auth_returns_401(
 ) -> None:
     """Sans Bearer ni cookie → 401."""
     r = admin_client.post(
-        "/workspaces",
+        "/api/admin/workspaces",
         json={"name": "x", "indexer": {"provider": "x", "model": "x"}},
     )
     assert r.status_code == 401
@@ -208,7 +208,7 @@ def test_admin_oidc_endpoint_still_requires_master_key(
 
     # Tentative sans Bearer (cookie OIDC actif)
     r = admin_client.post(
-        "/admin/oidc",
+        "/api/admin/oidc",
         json={
             "issuer": "https://kc.other.com/realms/r",
             "client_id": "other",

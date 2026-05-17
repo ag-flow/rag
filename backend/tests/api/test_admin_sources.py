@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 def _setup_ws(client: TestClient, headers: dict[str, str], name: str) -> None:
     client.post(
-        "/workspaces",
+        "/api/admin/workspaces",
         headers=headers,
         json={
             "name": name,
@@ -23,7 +23,7 @@ def test_post_source_201(
 ) -> None:
     _setup_ws(admin_client, admin_headers, "ws_src_e2e_a")
     r = admin_client.post(
-        "/workspaces/ws_src_e2e_a/sources",
+        "/api/admin/workspaces/ws_src_e2e_a/sources",
         headers=admin_headers,
         json={
             "type": "git",
@@ -44,7 +44,7 @@ def test_post_source_404_workspace_not_found(
     admin_client: TestClient, admin_headers: dict[str, str]
 ) -> None:
     r = admin_client.post(
-        "/workspaces/absent/sources",
+        "/api/admin/workspaces/absent/sources",
         headers=admin_headers,
         json={"type": "git", "config": {"url": "https://x/y"}},
     )
@@ -56,7 +56,7 @@ def test_post_source_422_non_git(
 ) -> None:
     _setup_ws(admin_client, admin_headers, "ws_src_e2e_b")
     r = admin_client.post(
-        "/workspaces/ws_src_e2e_b/sources",
+        "/api/admin/workspaces/ws_src_e2e_b/sources",
         headers=admin_headers,
         json={"type": "confluence", "config": {"url": "https://wiki.example.com"}},
     )
@@ -68,7 +68,7 @@ def test_delete_source_204(
 ) -> None:
     _setup_ws(admin_client, admin_headers, "ws_src_e2e_c")
     create = admin_client.post(
-        "/workspaces/ws_src_e2e_c/sources",
+        "/api/admin/workspaces/ws_src_e2e_c/sources",
         headers=admin_headers,
         json={
             "type": "git",
@@ -76,7 +76,7 @@ def test_delete_source_204(
         },
     ).json()
     r = admin_client.delete(
-        f"/workspaces/ws_src_e2e_c/sources/{create['id']}", headers=admin_headers
+        f"/api/admin/workspaces/ws_src_e2e_c/sources/{create['id']}", headers=admin_headers
     )
     assert r.status_code == 204
 
@@ -88,6 +88,6 @@ def test_delete_source_404_unknown_id(
 
     _setup_ws(admin_client, admin_headers, "ws_src_e2e_d")
     r = admin_client.delete(
-        f"/workspaces/ws_src_e2e_d/sources/{uuid.uuid4()}", headers=admin_headers
+        f"/api/admin/workspaces/ws_src_e2e_d/sources/{uuid.uuid4()}", headers=admin_headers
     )
     assert r.status_code == 404

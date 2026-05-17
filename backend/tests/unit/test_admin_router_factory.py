@@ -36,5 +36,5 @@ def test_build_admin_router_includes_models_routes() -> None:
     app = FastAPI()
     app.include_router(build_admin_router())
     paths = {route.path for route in app.router.routes}  # type: ignore[attr-defined]
-    assert "/admin/models" in paths
-    assert "/admin/models/{provider}/{model:path}" in paths
+    assert "/models" in paths
+    assert "/models/{provider}/{model:path}" in paths

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# M5e-T11 — Smoke E2E sur LXC 303, mode dégradé.
+# M5e-T11 / M5f — Smoke E2E sur LXC 303, mode dégradé.
 #
 # La création workspace via API requiert un coffre Harpocrate par défaut
 # valide (design pré-existant, hors scope M5e). Le LXC 303 n'a pas de token
@@ -16,7 +16,7 @@ DEK=$(grep ^RAG_API_KEY_DEK= "$ENV_FILE" | cut -d= -f2-)
 
 API_KEY="smoke-key-$(date +%s)"
 FP=$(printf '%s' "$API_KEY" | sha256sum | cut -d' ' -f1)
-BASE=http://localhost:8000/workspaces
+BASE=http://localhost:8000/api/admin/workspaces
 SQL_INSERT="INSERT INTO workspaces (name, api_key_encrypted, api_key_fingerprint, rag_cnx, rag_base) VALUES ('ws_smoke_m5e', pgp_sym_encrypt('${API_KEY}'::text, '${DEK}'::text)::bytea, '${FP}', 'postgresql://smoke/none', 'rag_smoke');"
 
 echo "=== INSERT direct workspace ws_smoke_m5e (bypass Harpocrate) ==="

@@ -28,7 +28,7 @@ def test_mcp_e2e_ollama_search_returns_relevant_doc(
     # 1. Crée workspace Ollama (pas d'api_key_ref pour Ollama).
     # Utilise mxbai-embed-large (disponible homelab, 1024 dim).
     r = admin_client.post(
-        "/workspaces",
+        "/api/admin/workspaces",
         headers=admin_headers,
         json={
             "name": "ws_mcp_smoke",

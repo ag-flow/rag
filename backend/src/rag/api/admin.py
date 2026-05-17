@@ -225,13 +225,13 @@ def build_admin_router() -> APIRouter:
 
     # ─── Models registry ────────────────────────────────────────────────────
 
-    @router.get("/admin/models")
+    @router.get("/models")
     async def get_models(request: Request) -> list[ModelEntry]:
         from rag.services.models import list_models
 
         return await list_models(_config_pool(request))
 
-    @router.post("/admin/models", status_code=status.HTTP_201_CREATED)
+    @router.post("/models", status_code=status.HTTP_201_CREATED)
     async def post_model(payload: ModelEntry, request: Request) -> ModelEntry:
         from rag.services.models import add_model
 
@@ -256,7 +256,7 @@ def build_admin_router() -> APIRouter:
         return payload
 
     @router.delete(
-        "/admin/models/{provider}/{model:path}",
+        "/models/{provider}/{model:path}",
         status_code=status.HTTP_204_NO_CONTENT,
     )
     async def delete_model_endpoint(provider: str, model: str, request: Request) -> Response:

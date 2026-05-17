@@ -26,7 +26,7 @@ def _run_async(coro):  # type: ignore[no-untyped-def]
 
 def _make_ws(client: TestClient, admin_headers: dict[str, str], name: str) -> str:
     r = client.post(
-        "/workspaces",
+        "/api/admin/workspaces",
         headers=admin_headers,
         json={
             "name": name,

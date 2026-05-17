@@ -34,7 +34,7 @@ def _make_ws(
     if base_url is not None:
         indexer_body["base_url"] = base_url
     r = client.post(
-        "/workspaces",
+        "/api/admin/workspaces",
         headers=admin_headers,
         json={"name": name, "indexer": indexer_body},
     )

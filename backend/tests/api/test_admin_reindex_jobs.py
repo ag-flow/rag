@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 def _setup_ws_with_doc(client: TestClient, headers: dict[str, str], name: str) -> None:
     client.post(
-        "/workspaces",
+        "/api/admin/workspaces",
         headers=headers,
         json={
             "name": name,
@@ -40,7 +40,7 @@ def test_post_reindex_no_change_202_pending(
     admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
 ) -> None:
     _setup_ws_with_doc(admin_client, admin_headers, "ws_re_e2e_a")
-    r = admin_client.post("/workspaces/ws_re_e2e_a/reindex", headers=admin_headers)
+    r = admin_client.post("/api/admin/workspaces/ws_re_e2e_a/reindex", headers=admin_headers)
     assert r.status_code == 202
     body = r.json()
     assert body["status"] == "pending"
@@ -52,7 +52,7 @@ def test_post_reindex_indexer_change_409_without_confirm(
 ) -> None:
     _setup_ws_with_doc(admin_client, admin_headers, "ws_re_e2e_b")
     r = admin_client.post(
-        "/workspaces/ws_re_e2e_b/reindex",
+        "/api/admin/workspaces/ws_re_e2e_b/reindex",
         headers=admin_headers,
         json={
             "indexer": {
@@ -73,7 +73,7 @@ def test_post_reindex_indexer_change_with_confirm_202(
 ) -> None:
     _setup_ws_with_doc(admin_client, admin_headers, "ws_re_e2e_c")
     r = admin_client.post(
-        "/workspaces/ws_re_e2e_c/reindex?confirm=true",
+        "/api/admin/workspaces/ws_re_e2e_c/reindex?confirm=true",
         headers=admin_headers,
         json={
             "indexer": {
@@ -91,8 +91,8 @@ def test_get_jobs_lists_pending(
     admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
 ) -> None:
     _setup_ws_with_doc(admin_client, admin_headers, "ws_re_e2e_d")
-    admin_client.post("/workspaces/ws_re_e2e_d/reindex", headers=admin_headers)
-    r = admin_client.get("/workspaces/ws_re_e2e_d/jobs", headers=admin_headers)
+    admin_client.post("/api/admin/workspaces/ws_re_e2e_d/reindex", headers=admin_headers)
+    r = admin_client.get("/api/admin/workspaces/ws_re_e2e_d/jobs", headers=admin_headers)
     assert r.status_code == 200
     jobs = r.json()
     assert len(jobs) >= 1

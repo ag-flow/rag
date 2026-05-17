@@ -17,7 +17,7 @@ def test_auth_callback_400_state_missing(
     admin_client: TestClient, admin_headers: dict[str, str]
 ) -> None:
     admin_client.post(
-        "/admin/oidc",
+        "/api/admin/oidc",
         headers=admin_headers,
         json={
             "issuer": "https://kc.example.com/realms/test",
@@ -41,7 +41,7 @@ def test_refresh_401_without_session(
     admin_client: TestClient, admin_headers: dict[str, str]
 ) -> None:
     admin_client.post(
-        "/admin/oidc",
+        "/api/admin/oidc",
         headers=admin_headers,
         json={
             "issuer": "https://kc.example.com/realms/test",
@@ -69,7 +69,7 @@ def test_auth_callback_400_state_mismatch(
 ) -> None:
     """State du cookie != state QS → 400 oidc_state_mismatch (ligne 64)."""
     admin_client.post(
-        "/admin/oidc",
+        "/api/admin/oidc",
         headers=admin_headers,
         json={
             "issuer": "https://kc.example.com/realms/test",

@@ -89,7 +89,7 @@ def _install_keycloak_mock(client: TestClient, *, roles: list[str] | None = None
 
 def _seed_oidc_config(client: TestClient, admin_headers: dict[str, str]) -> None:
     r = client.post(
-        "/admin/oidc",
+        "/api/admin/oidc",
         headers=admin_headers,
         json={
             "issuer": _ISSUER,

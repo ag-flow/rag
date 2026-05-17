@@ -28,7 +28,7 @@ def test_push_e2e_indexes_embeddings_in_pgvector(
     """End-to-end : crée un workspace Ollama, push 1 doc, vérifie pgvector."""
     # 1. Crée le workspace avec provider Ollama (pas d'api_key_ref nécessaire).
     r = admin_client.post(
-        "/workspaces",
+        "/api/admin/workspaces",
         headers=admin_headers,
         json={
             "name": "ws_smoke_ollama",

@@ -72,7 +72,7 @@ def test_full_pipeline_create_workspace_source_reindex_done(
 
     # 1. Create workspace
     r = client.post(
-        "/workspaces",
+        "/api/admin/workspaces",
         headers=_bearer(),
         json={
             "name": "ws_e2e_sync",
@@ -87,7 +87,7 @@ def test_full_pipeline_create_workspace_source_reindex_done(
 
     # 2. Add source (next_sync_at=now() → worker va picker au prochain cycle)
     r = client.post(
-        "/workspaces/ws_e2e_sync/sources",
+        "/api/admin/workspaces/ws_e2e_sync/sources",
         headers=_bearer(),
         json={
             "type": "git",
@@ -100,7 +100,7 @@ def test_full_pipeline_create_workspace_source_reindex_done(
     deadline = time.time() + 20
     final_status = None
     while time.time() < deadline:
-        jobs = client.get("/workspaces/ws_e2e_sync/jobs", headers=_bearer()).json()
+        jobs = client.get("/api/admin/workspaces/ws_e2e_sync/jobs", headers=_bearer()).json()
         if jobs and jobs[0]["status"] in ("done", "error"):
             final_status = jobs[0]
             break

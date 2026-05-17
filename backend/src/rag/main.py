@@ -206,8 +206,8 @@ def build_app(
         https_only=(settings.environment != "dev"),
     )
     app.include_router(build_health_router())
-    app.include_router(build_admin_router())
-    app.include_router(build_admin_oidc_router())
+    app.include_router(build_admin_router(), prefix="/api/admin")
+    app.include_router(build_admin_oidc_router(), prefix="/api/admin")
     app.include_router(admin_harpocrate_vaults_router)
     app.include_router(build_auth_router())
     app.include_router(build_workspace_router())
