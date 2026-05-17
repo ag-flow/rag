@@ -128,3 +128,28 @@ class ModelEntry(BaseModel):
     provider: str = Field(min_length=1)
     model: str = Field(min_length=1)
     dimension: int = Field(gt=0)
+
+
+class RerankSpec(BaseModel):
+    """Body PUT /workspaces/{name}/rerank."""
+
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+    provider: Literal["cohere", "voyage", "ollama"]
+    model: str = Field(min_length=1)
+    api_key_ref: str | None = None
+    base_url: str | None = None
+    top_k_pre_rerank: int = Field(default=50, gt=0, le=500)
+
+
+class RerankConfigResponse(BaseModel):
+    """Réponse GET / PUT /workspaces/{name}/rerank."""
+
+    workspace_id: UUID
+    provider: str
+    model: str
+    api_key_ref: str | None
+    base_url: str | None
+    top_k_pre_rerank: int
+    created_at: str
+    updated_at: str
