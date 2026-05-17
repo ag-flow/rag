@@ -16,6 +16,8 @@ from rag.db.pool import WorkspacePoolRegistry
 from rag.db.workspace_search import vector_search
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
+from rag.rerank.protocol import RerankProvider
+from rag.rerank.providers.factory import make_rerank_provider as _make_rerank_default
 from rag.schemas.mcp import MultiWorkspaceRequest, SearchHit, SingleWorkspaceRequest
 from hashlib import sha256
 from secrets import compare_digest
@@ -107,6 +109,10 @@ async def _load_workspace_context(
 ) -> dict[str, Any]:
     """Charge provider+model+api_key_ref+base_url+rag_cnx pour un workspace.
 
+    Charge aussi la config rerank (LEFT JOIN). Si rerank_configs n'a pas de row,
+    le dict retourné contient `rerank=None`. Sinon contient
+    `rerank={provider, model, api_key_ref, base_url, top_k_pre_rerank}`.
+
     Lève RuntimeError si workspace inexistant — `_authenticate` est censé
     avoir validé l'existence avant cet appel ; un None ici trahit une
     corruption d'état entre les deux SELECT.
@@ -119,16 +125,37 @@ async def _load_workspace_context(
             ic.provider AS provider,
             ic.model AS model,
             ic.api_key_ref AS api_key_ref,
-            ic.base_url AS base_url
+            ic.base_url AS base_url,
+            rc.provider AS rerank_provider,
+            rc.model AS rerank_model,
+            rc.api_key_ref AS rerank_api_key_ref,
+            rc.base_url AS rerank_base_url,
+            rc.top_k_pre_rerank AS rerank_top_k_pre_rerank
         FROM workspaces w
         JOIN indexer_configs ic ON ic.workspace_id = w.id
+        LEFT JOIN rerank_configs rc ON rc.workspace_id = w.id
         WHERE w.name = $1
         """,
         name,
     )
     if row is None:
         raise RuntimeError(f"workspace {name!r} disappeared between auth and load")
-    return dict(row)
+    ctx = dict(row)
+    if ctx.get("rerank_provider") is not None:
+        ctx["rerank"] = {
+            "provider": ctx["rerank_provider"],
+            "model": ctx["rerank_model"],
+            "api_key_ref": ctx["rerank_api_key_ref"],
+            "base_url": ctx["rerank_base_url"],
+            "top_k_pre_rerank": ctx["rerank_top_k_pre_rerank"],
+        }
+    else:
+        ctx["rerank"] = None
+    # Cleanup : retirer les clés intermédiaires
+    for k in ("rerank_provider", "rerank_model", "rerank_api_key_ref",
+              "rerank_base_url", "rerank_top_k_pre_rerank"):
+        ctx.pop(k, None)
+    return ctx
 
 
 # ---------------------------------------------------------------------------
@@ -165,6 +192,7 @@ async def search(
     secret_resolver: _ResolverProtocol,
     default_vault_name: str = "rag",
     provider_factory: Callable[..., EmbeddingProvider] | None = None,
+    rerank_factory: Callable[..., RerankProvider] | None = None,
 ) -> list[SearchHit]:
     """Orchestre la recherche MCP multi-workspace.
 
@@ -174,8 +202,12 @@ async def search(
     `provider_factory` par défaut `None` → lookup dynamique de
     `make_provider` au runtime (permet monkey-patching côté tests
     intégration sans avoir à passer le paramètre depuis le router).
+
+    `rerank_factory` par défaut `None` → `_make_rerank_default` (opt-in :
+    workspaces sans rerank_configs row = comportement inchangé).
     """
     factory = provider_factory if provider_factory is not None else make_provider
+    rfactory = rerank_factory if rerank_factory is not None else _make_rerank_default
 
     tasks = [
         _search_one(
@@ -190,6 +222,7 @@ async def search(
             secret_resolver=secret_resolver,
             default_vault_name=default_vault_name,
             provider_factory=factory,
+            rerank_factory=rfactory,
         )
         for r in refs
     ]
@@ -208,8 +241,9 @@ async def _search_one(
     apikey_cache: ApiKeyCache,
     api_key_dek: str,
     secret_resolver: _ResolverProtocol,
-    default_vault_name: str = "rag",
+    default_vault_name: str,
     provider_factory: Callable[..., EmbeddingProvider],
+    rerank_factory: Callable[..., RerankProvider],
 ) -> _WorkspaceResult:
     auth = await _authenticate(ref=ref, config_pool=config_pool, apikey_cache=apikey_cache, api_key_dek=api_key_dek)
     ctx = await _load_workspace_context(config_pool, ref.name)
@@ -228,15 +262,50 @@ async def _search_one(
     )
     query_vec = await provider.embed_query(query)
 
+    rerank_cfg = ctx.get("rerank")
+    pre_top_k = max(top_k, rerank_cfg["top_k_pre_rerank"]) if rerank_cfg else top_k
+
     ws_pool = await pool_registry.get_workspace_pool(ref.name, ctx["rag_cnx"])
     hits = await vector_search(
         ws_pool,
         query_vec=query_vec,
-        top_k=top_k,
+        top_k=pre_top_k,
         min_score=min_score,
         workspace_name=ref.name,
         indexer_used=auth.indexer_used,
     )
+
+    # Rerank conditionnel : config présente + > 1 hit (singleton skip)
+    if rerank_cfg and len(hits) > 1:
+        rerank_api_key: str | None = None
+        if rerank_cfg["api_key_ref"]:
+            rerank_api_key = await secret_resolver.resolve_with_retry(
+                _to_vault_ref(rerank_cfg["api_key_ref"], default_vault_name)
+            )
+        reranker = rerank_factory(
+            provider=rerank_cfg["provider"],
+            model=rerank_cfg["model"],
+            api_key=rerank_api_key,
+            base_url=rerank_cfg["base_url"],
+        )
+        documents = [h.content for h in hits]
+        indices = await reranker.rerank(query=query, documents=documents, top_k=top_k)
+        hits = [hits[i] for i in indices]
+        log.info(
+            "mcp.rerank.applied",
+            workspace=ref.name,
+            pre_hits=len(documents),
+            post_hits=len(hits),
+            provider=rerank_cfg["provider"],
+            model=rerank_cfg["model"],
+        )
+    elif rerank_cfg:
+        log.debug(
+            "mcp.rerank.skipped_singleton_or_empty",
+            workspace=ref.name,
+            hits=len(hits),
+        )
+
     log.info(
         "mcp.search.workspace_done",
         workspace=ref.name,
@@ -246,5 +315,5 @@ async def _search_one(
     return _WorkspaceResult(
         workspace_name=ref.name,
         indexer_used=auth.indexer_used,
-        hits=hits,
+        hits=hits[:top_k],
     )
