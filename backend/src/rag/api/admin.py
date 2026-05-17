@@ -95,6 +95,31 @@ def build_admin_router() -> APIRouter:
         row = await get_workspace(_config_pool(request), name=name)
         return WorkspaceResponse(**row)  # type: ignore[arg-type]
 
+    @router.get("/workspaces/{name}/apikey")
+    async def get_apikey_endpoint(name: str, request: Request) -> ApiKeyRotateResponse:
+        """Retourne l'api_key en clair du workspace. Idempotent.
+
+        Conforme spec 08 : sert à `init-rag.sh` côté ag.flow.docker pour
+        provisionner `.rag-client.json` au démarrage container.
+        """
+        dek: str | None = request.app.state.settings.api_key_dek
+        if dek is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="api_key_dek_unavailable",
+            )
+        row = await _config_pool(request).fetchrow(
+            "SELECT pgp_sym_decrypt(api_key_encrypted, $2::text)::text AS api_key "
+            "FROM workspaces WHERE name = $1",
+            name, dek,
+        )
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="workspace_not_found",
+            )
+        return ApiKeyRotateResponse(api_key=row["api_key"])
+
     @router.patch("/workspaces/{name}")
     async def patch_workspace_endpoint(
         name: str, payload: WorkspacePatchRequest, request: Request
