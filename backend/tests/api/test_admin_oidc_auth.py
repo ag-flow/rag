@@ -198,21 +198,41 @@ def test_post_workspaces_without_auth_returns_401(
     assert r.status_code == 401
 
 
-def test_admin_oidc_endpoint_still_requires_master_key(
+def test_admin_oidc_endpoint_accepts_oidc_admin_role(
     admin_client: TestClient,
     admin_headers: dict[str, str],
     cleanup_ws_dbs_api: None,
 ) -> None:
-    """`POST /admin/oidc` reste master-key only (anti-lockout)."""
+    """`POST /admin/oidc` accepte OIDC rag-admin sans Bearer."""
     _seed_and_login(admin_client, admin_headers, roles=["rag-admin"])
 
-    # Tentative sans Bearer (cookie OIDC actif)
+    # Appel sans Bearer (cookie OIDC actif avec rôle rag-admin)
     r = admin_client.post(
         "/api/admin/oidc",
         json={
             "issuer": "https://kc.other.com/realms/r",
             "client_id": "other",
-            "client_secret_ref": "other",
+            "client_secret_ref": "other_ref",
         },
     )
-    assert r.status_code == 401
+    assert r.status_code in (200, 201), r.text
+
+
+def test_post_oidc_with_oidc_viewer_role_returns_403(
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
+    cleanup_ws_dbs_api: None,
+) -> None:
+    """OIDC rag-viewer sans Bearer → 403 oidc_role_forbidden sur POST /admin/oidc."""
+    _seed_and_login(admin_client, admin_headers, roles=["rag-viewer"])
+
+    r = admin_client.post(
+        "/api/admin/oidc",
+        json={
+            "issuer": "https://kc.example.com/realms/test",
+            "client_id": "rag",
+            "client_secret_ref": "kc_rag_secret",
+        },
+    )
+    assert r.status_code == 403
+    assert r.json()["error"] == "oidc_role_forbidden"

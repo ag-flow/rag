@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Request, status
 
 from rag.api.errors import OidcNotConfigured
-from rag.auth.bearer import require_master_key
+from rag.auth.bearer import require_master_key_or_oidc_role
 from rag.schemas.oidc import OidcConfigCreate, OidcConfigRead
 
 
@@ -11,7 +11,7 @@ def build_admin_oidc_router() -> APIRouter:
     """Router master-key : CRUD config OIDC (singleton)."""
     router = APIRouter(
         tags=["admin"],
-        dependencies=[Depends(require_master_key)],
+        dependencies=[Depends(require_master_key_or_oidc_role("rag-admin"))],
     )
 
     @router.post("/oidc", status_code=status.HTTP_201_CREATED)
