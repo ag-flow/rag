@@ -59,6 +59,8 @@ class Settings(BaseSettings):
         "Min 32 chars. Requis dès qu'un coffre est créé.",
     )
 
+    api_key_dek: str | None = Field(default=None, alias="RAG_API_KEY_DEK")
+
     rag_session_secret: SecretStr = SecretStr("")
 
     model_config = SettingsConfigDict(
@@ -88,6 +90,17 @@ class Settings(BaseSettings):
             return None
         if len(raw) < 32:
             raise ValueError("HARPOCRATE_DEK doit faire au moins 32 caractères")
+        return v
+
+    @field_validator("api_key_dek")
+    @classmethod
+    def _validate_api_key_dek(cls, v: str | None) -> str | None:
+        # Une valeur vide (RAG_API_KEY_DEK= dans .env) est traitée comme absente —
+        # symétrique au comportement HARPOCRATE_DEK.
+        if not v:
+            return None
+        if len(v) < 32:
+            raise ValueError("RAG_API_KEY_DEK doit faire au moins 32 caractères")
         return v
 
     @model_validator(mode="before")
