@@ -36,7 +36,8 @@
     "save": "Enregistrer",
     "cancel": "Annuler",
     "saved_toast": "Coffre mis à jour",
-    "save_error_toast": "Erreur lors de la mise à jour"
+    "save_error_toast": "Erreur lors de la mise à jour",
+    "load_error": "Erreur lors du chargement du coffre."
   },
   "secrets": {
     "filter_name_placeholder": "Filtrer par nom...",

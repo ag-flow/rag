@@ -36,7 +36,8 @@
     "save": "Save",
     "cancel": "Cancel",
     "saved_toast": "Vault updated",
-    "save_error_toast": "Update failed"
+    "save_error_toast": "Update failed",
+    "load_error": "Failed to load vault."
   },
   "secrets": {
     "filter_name_placeholder": "Filter by name…",
