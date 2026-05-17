@@ -6,12 +6,14 @@ import frCommon from "@/i18n/fr/common.json";
 import frAuth from "@/i18n/fr/auth.json";
 import frNav from "@/i18n/fr/nav.json";
 import frWorkspaces from "@/i18n/fr/workspaces.json";
+import frWorkspace from "@/i18n/fr/workspace.json";
 import frHarpocrate from "@/i18n/fr/harpocrate.json";
 
 import enCommon from "@/i18n/en/common.json";
 import enAuth from "@/i18n/en/auth.json";
 import enNav from "@/i18n/en/nav.json";
 import enWorkspaces from "@/i18n/en/workspaces.json";
+import enWorkspace from "@/i18n/en/workspace.json";
 import enHarpocrate from "@/i18n/en/harpocrate.json";
 
 void i18n
@@ -20,7 +22,7 @@ void i18n
   .init({
     fallbackLng: "fr",
     supportedLngs: ["fr", "en"],
-    ns: ["common", "auth", "nav", "workspaces", "harpocrate"],
+    ns: ["common", "auth", "nav", "workspaces", "workspace", "harpocrate"],
     defaultNS: "common",
     resources: {
       fr: {
@@ -28,6 +30,7 @@ void i18n
         auth: frAuth,
         nav: frNav,
         workspaces: frWorkspaces,
+        workspace: frWorkspace,
         harpocrate: frHarpocrate,
       },
       en: {
@@ -35,6 +38,7 @@ void i18n
         auth: enAuth,
         nav: enNav,
         workspaces: enWorkspaces,
+        workspace: enWorkspace,
         harpocrate: enHarpocrate,
       },
     },

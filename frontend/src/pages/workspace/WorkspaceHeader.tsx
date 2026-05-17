@@ -18,16 +18,14 @@ interface Props {
   onDelete: () => void;
 }
 
-function formatRelative(iso: string): string {
-  const date = new Date(iso);
-  const diffMs = Date.now() - date.getTime();
+function relativeTimeRaw(iso: string): { key: string; count: number } {
+  const diffMs = Date.now() - new Date(iso).getTime();
   const minutes = Math.floor(diffMs / 60_000);
-  if (minutes < 1) return "à l'instant";
-  if (minutes < 60) return `il y a ${minutes} min`;
+  if (minutes < 1) return { key: "time.justNow", count: 0 };
+  if (minutes < 60) return { key: "time.minutesAgo", count: minutes };
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `il y a ${hours} h`;
-  const days = Math.floor(hours / 24);
-  return `il y a ${days} j`;
+  if (hours < 24) return { key: "time.hoursAgo", count: hours };
+  return { key: "time.daysAgo", count: Math.floor(hours / 24) };
 }
 
 export function WorkspaceHeader({
@@ -43,7 +41,14 @@ export function WorkspaceHeader({
       <div>
         <h2 className="text-xl font-semibold text-slate-900">{workspace.name}</h2>
         <p className="text-xs text-slate-500">
-          {t("header.created", { when: formatRelative(workspace.created_at) })}
+          {(() => {
+            const rel = relativeTimeRaw(workspace.created_at);
+            const when =
+              rel.key === "time.justNow"
+                ? t("time.justNow")
+                : t(rel.key, { count: rel.count });
+            return t("header.created", { when });
+          })()}
         </p>
       </div>
       <div className="flex items-center gap-2">

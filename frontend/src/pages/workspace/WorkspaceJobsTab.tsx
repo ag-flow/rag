@@ -15,14 +15,14 @@ const statusVariant: Record<Job["status"], "default" | "secondary" | "destructiv
   error: "destructive",
 };
 
-function relativeTime(iso: string | null): string {
-  if (!iso) return "—";
+function relativeTimeRaw(iso: string | null): { key: string; count: number } | null {
+  if (!iso) return null;
   const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (m < 1) return "à l'instant";
-  if (m < 60) return `il y a ${m} min`;
+  if (m < 1) return { key: "time.justNow", count: 0 };
+  if (m < 60) return { key: "time.minutesAgo", count: m };
   const h = Math.floor(m / 60);
-  if (h < 24) return `il y a ${h} h`;
-  return `il y a ${Math.floor(h / 24)} j`;
+  if (h < 24) return { key: "time.hoursAgo", count: h };
+  return { key: "time.daysAgo", count: Math.floor(h / 24) };
 }
 
 function formatDuration(ms: number | null): string {
@@ -73,7 +73,15 @@ export function WorkspaceJobsTab({ name, enabled }: Props) {
                   {t("jobs.changes", { changed: job.files_changed, skipped: job.files_skipped })}
                 </span>
                 <span className="text-xs text-slate-500 ml-auto">{formatDuration(job.duration_ms)}</span>
-                <span className="text-xs text-slate-500">{relativeTime(job.started_at)}</span>
+                <span className="text-xs text-slate-500">
+                  {(() => {
+                    const rel = relativeTimeRaw(job.started_at);
+                    if (!rel) return "—";
+                    return rel.key === "time.justNow"
+                      ? t("time.justNow")
+                      : t(rel.key, { count: rel.count });
+                  })()}
+                </span>
               </button>
               {isOpen && hasError && (
                 <div className="border-t border-slate-100 px-3 py-2 bg-red-50 text-xs text-red-700 font-mono">

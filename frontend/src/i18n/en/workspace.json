@@ -1,0 +1,145 @@
+{
+  "title": "Workspaces",
+  "list": {
+    "header": "Workspaces",
+    "new": "+ New"
+  },
+  "empty": {
+    "title": "No workspace yet",
+    "description": "Create your first workspace to index sources."
+  },
+  "header": {
+    "created": "created {{when}}",
+    "reindex": "Reindex",
+    "menu": {
+      "reveal": "Reveal API key",
+      "rotate": "Rotate API key",
+      "delete": "Delete workspace"
+    }
+  },
+  "tabs": {
+    "detail": "Detail",
+    "sources": "Git sources ({{count}})",
+    "jobs": "Jobs",
+    "model": "Model"
+  },
+  "detail": {
+    "stats": {
+      "title": "Statistics",
+      "sources": "{{count}} sources",
+      "documents": "{{count}} documents",
+      "lastIndexed": "last sync: {{when}}"
+    },
+    "apikey": {
+      "title": "Workspace API key",
+      "reveal": "Reveal",
+      "rotate": "Rotate"
+    },
+    "apiKeyRef": {
+      "title": "Harpocrate reference",
+      "editable": "editable",
+      "save": "Save",
+      "errors": {
+        "alphanum_underscore_only": "Allowed characters: a-z, A-Z, 0-9, underscore."
+      }
+    },
+    "ids": {
+      "title": "Identifiers (read-only)",
+      "name": "name",
+      "id": "id"
+    },
+    "save": {
+      "success": "Reference saved.",
+      "error": "Error saving."
+    }
+  },
+  "sources": {
+    "title": "Git sources ({{count}})",
+    "addButton": "Add source",
+    "empty": "No sources. Add one to get started.",
+    "neverSynced": "never synced",
+    "deleteAction": "Delete",
+    "fields": {
+      "url": "URL",
+      "branch": "Branch",
+      "auth_ref": "Auth reference",
+      "include": "Include",
+      "exclude": "Exclude"
+    },
+    "add": {
+      "title": "Add git source",
+      "submit": "Add",
+      "success": "Source added.",
+      "error": "Failed to add source.",
+      "errors": {
+        "invalid_url": "Invalid URL."
+      }
+    },
+    "delete": {
+      "title": "Delete source",
+      "warning": "This removes the source. Already indexed documents remain.",
+      "confirm": "Delete",
+      "success": "Source deleted.",
+      "error": "Failed to delete source."
+    }
+  },
+  "jobs": {
+    "title": "Jobs ({{count}})",
+    "empty": "No indexing jobs.",
+    "changes": "{{changed}} ch / {{skipped}} sk"
+  },
+  "model": {
+    "title": "Indexer model",
+    "provider": "provider",
+    "model": "model",
+    "base_url": "base_url",
+    "api_key_ref": "api_key_ref",
+    "immutableNote": "The model is immutable. Changing provider or model would invalidate all vector dimensions and require a full reindex, not supported in this version."
+  },
+  "dialog": {
+    "cancel": "Cancel",
+    "close": "Close",
+    "reveal": {
+      "title": "Reveal API key",
+      "warning": "Displays the API key in plain text. Continue?",
+      "confirm": "Reveal",
+      "copyHint": "Copy the key now — it will be masked in 30 seconds.",
+      "autoMaskNote": "The key will be automatically masked in 30 seconds.",
+      "copied": "Key copied.",
+      "error": "Failed to reveal key."
+    },
+    "rotate": {
+      "title": "Rotate API key",
+      "warning": "This immediately invalidates the current key. Existing agents will need to be reconfigured.",
+      "confirmLabel": "Type \"{{name}}\" to confirm",
+      "confirm": "Rotate",
+      "copyHint": "New key generated. Copy it now — it won't be shown again.",
+      "oneTimeWarning": "One-time display: the key won't be accessible after closing (except via Reveal).",
+      "success": "Key rotated.",
+      "error": "Failed to rotate key.",
+      "copied": "Key copied."
+    },
+    "reindex": {
+      "title": "Reindex",
+      "warning": "All workspace sources will be re-synced. Unchanged documents are skipped (SHA-256 deduplication).",
+      "confirm": "Trigger reindex",
+      "success": "Reindex triggered.",
+      "error": "Failed to trigger reindex."
+    },
+    "delete": {
+      "title": "Delete workspace",
+      "warning": "Deletes the workspace + its pgvector database + all indexed documents. Irreversible.",
+      "confirmLabel": "Type \"{{name}}\" to confirm",
+      "confirm": "Delete permanently",
+      "success": "Workspace deleted.",
+      "error": "Failed to delete workspace."
+    }
+  },
+  "optional": "optional",
+  "time": {
+    "justNow": "just now",
+    "minutesAgo": "{{count}} min ago",
+    "hoursAgo": "{{count}} h ago",
+    "daysAgo": "{{count}} d ago"
+  }
+}

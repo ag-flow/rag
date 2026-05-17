@@ -19,14 +19,14 @@ interface Props {
   enabled: boolean;
 }
 
-function relativeTime(iso: string | null, fallback: string): string {
-  if (!iso) return fallback;
+function relativeTimeRaw(iso: string | null): { key: string; count: number } | null {
+  if (!iso) return null;
   const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (m < 1) return "à l'instant";
-  if (m < 60) return `il y a ${m} min`;
+  if (m < 1) return { key: "time.justNow", count: 0 };
+  if (m < 60) return { key: "time.minutesAgo", count: m };
   const h = Math.floor(m / 60);
-  if (h < 24) return `il y a ${h} h`;
-  return `il y a ${Math.floor(h / 24)} j`;
+  if (h < 24) return { key: "time.hoursAgo", count: h };
+  return { key: "time.daysAgo", count: Math.floor(h / 24) };
 }
 
 export function WorkspaceSourcesTab({ name, enabled }: Props) {
@@ -55,7 +55,7 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
           {t("sources.title", { count: sources.length })}
         </h3>
         <Button size="sm" onClick={() => setAddOpen(true)}>
-          <Plus className="h-3.5 w-3.5" /> {t("sources.add")}
+          <Plus className="h-3.5 w-3.5" /> {t("sources.addButton")}
         </Button>
       </div>
 
@@ -91,10 +91,13 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
                     </span>
                     <span className="text-slate-400">
                       ·{" "}
-                      {relativeTime(
-                        source.last_indexed_at,
-                        t("sources.neverSynced"),
-                      )}
+                      {(() => {
+                        const rel = relativeTimeRaw(source.last_indexed_at);
+                        if (!rel) return t("sources.neverSynced");
+                        return rel.key === "time.justNow"
+                          ? t("time.justNow")
+                          : t(rel.key, { count: rel.count });
+                      })()}
                     </span>
                   </div>
                   <DropdownMenu>
@@ -113,7 +116,7 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
                         onSelect={() => setDeleteId(source.id)}
                         className="text-red-600"
                       >
-                        {t("sources.delete")}
+                        {t("sources.deleteAction")}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
