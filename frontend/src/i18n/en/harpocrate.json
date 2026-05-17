@@ -78,6 +78,51 @@
     "loading_error_body": "The backend could not fetch wallet metadata. Check network connectivity and api_key.",
     "retry": "Retry"
   },
+  "menu": {
+    "set_default": "Set as default vault",
+    "set_default_done_toast": "Vault \"{{name}}\" set as default",
+    "set_default_error_toast": "Failed to change the default vault"
+  },
+  "replace_dialog": {
+    "title": "Replace access key",
+    "explanation": "You must have previously created a new api_key in the Harpocrate UI. Paste its token and identifier here. The associated wallet stays the same.",
+    "current_label": "Current api_key_id",
+    "new_id_label": "New api_key_id",
+    "new_id_placeholder": "k-002",
+    "new_key_label": "New api_key (token)",
+    "new_key_placeholder": "hrpv_1_...",
+    "submit": "Replace",
+    "cancel": "Cancel",
+    "replaced_toast": "Access key replaced",
+    "error_toast": "Failed to replace the key"
+  },
+  "reveal_dialog": {
+    "title": "Reveal the key in clear",
+    "warning_title": "Audit-logged action",
+    "warning_body": "This action is tracked on the backend (event vault.reveal in Loki). The value must never be copied outside a legitimate configuration use.",
+    "confirm": "Reveal key",
+    "cancel": "Cancel",
+    "revealed_id_label": "api_key_id",
+    "revealed_key_label": "api_key (clear)",
+    "show": "Show",
+    "hide": "Hide",
+    "copy": "Copy",
+    "copied_toast": "Key copied to clipboard",
+    "close": "Close",
+    "error_toast": "Failed to fetch the key"
+  },
+  "retire_dialog": {
+    "title": "Retire this vault",
+    "warning_with_wallet": "The remote Harpocrate wallet \"{{wallet_name}}\" will NOT be deleted. Only the local configuration is removed — refs ${vault://{{vault_name}}:…} will no longer resolve until another vault carries this name.",
+    "warning_without_wallet": "The remote Harpocrate wallet will NOT be deleted. Only the local configuration is removed — refs ${vault://{{vault_name}}:…} will no longer resolve until another vault carries this name.",
+    "confirm_label": "Type the vault name to confirm:",
+    "confirm_placeholder": "{{vault_name}}",
+    "submit": "Retire vault",
+    "cancel": "Cancel",
+    "retired_toast": "Vault \"{{name}}\" retired",
+    "default_conflict_toast": "Set another vault as default before retiring this one.",
+    "error_toast": "Failed to retire the vault"
+  },
   "create_dialog": {
     "title": "Create a new Harpocrate vault",
     "subtitle": "Connect the backend to a Harpocrate server with an existing api_key.",

@@ -1,11 +1,18 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { useVault } from "@/hooks/useHarpocrateVaults";
+import { useVault, useVaultWalletInfo } from "@/hooks/useHarpocrateVaults";
 import { VaultHeader } from "@/pages/harpocrate/VaultHeader";
 import { VaultDetailTab } from "@/pages/harpocrate/VaultDetailTab";
 import { VaultSecretsTab } from "@/pages/harpocrate/VaultSecretsTab";
 import { VaultWalletInfoTab } from "@/pages/harpocrate/VaultWalletInfoTab";
+import { ReplaceApiKeyDialog } from "@/pages/harpocrate/ReplaceApiKeyDialog";
+import { RevealApiKeyDialog } from "@/pages/harpocrate/RevealApiKeyDialog";
+import { RetireVaultDialog } from "@/pages/harpocrate/RetireVaultDialog";
+
+type DialogKind = "replace" | "reveal" | "retire" | null;
 
 interface VaultDetailPanelProps {
   vaultId: string;
@@ -14,6 +21,19 @@ interface VaultDetailPanelProps {
 export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
   const { t } = useTranslation("harpocrate");
   const { data: vault, isLoading, isError } = useVault(vaultId);
+  const [dialogOpen, setDialogOpen] = useState<DialogKind>(null);
+  const [, setSearchParams] = useSearchParams();
+
+  // On charge le wallet info pour disposer du nom du wallet distant et l'afficher
+  // dans le RetireVaultDialog. Si le fetch échoue ou est en cours, on retombe sur
+  // la branche `warning_without_wallet`.
+  const { data: walletInfo } = useVaultWalletInfo(vaultId, true);
+
+  function handleRetired() {
+    // Après suppression : retirer le ?vault=<id> de l'URL pour revenir à l'état
+    // "aucun coffre sélectionné".
+    setSearchParams({}, { replace: true });
+  }
 
   if (isLoading) {
     return (
@@ -34,7 +54,10 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
   return (
     <div className="px-7 py-5">
       <div className="max-w-[760px]">
-        <VaultHeader vault={vault} />
+        <VaultHeader
+          vault={vault}
+          onRetire={() => setDialogOpen("retire")}
+        />
 
         <Tabs defaultValue="detail" className="mt-4">
           <TabsList>
@@ -46,9 +69,9 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
           <TabsContent value="detail">
             <VaultDetailTab
               vault={vault}
-              onReplaceApiKey={() => alert("T10 : ReplaceApiKeyDialog à venir")}
-              onReveal={() => alert("T10 : RevealApiKeyDialog à venir")}
-              onRetire={() => alert("T10 : RetireVaultDialog à venir")}
+              onReplaceApiKey={() => setDialogOpen("replace")}
+              onReveal={() => setDialogOpen("reveal")}
+              onRetire={() => setDialogOpen("retire")}
             />
           </TabsContent>
 
@@ -61,6 +84,25 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
           </TabsContent>
         </Tabs>
       </div>
+
+      <ReplaceApiKeyDialog
+        vaultId={vault.id}
+        currentApiKeyId={vault.api_key_id}
+        open={dialogOpen === "replace"}
+        onOpenChange={(o) => setDialogOpen(o ? "replace" : null)}
+      />
+      <RevealApiKeyDialog
+        vaultId={vault.id}
+        open={dialogOpen === "reveal"}
+        onOpenChange={(o) => setDialogOpen(o ? "reveal" : null)}
+      />
+      <RetireVaultDialog
+        vault={vault}
+        walletName={walletInfo?.wallet_name ?? null}
+        open={dialogOpen === "retire"}
+        onOpenChange={(o) => setDialogOpen(o ? "retire" : null)}
+        onRetired={handleRetired}
+      />
     </div>
   );
 }

@@ -2,18 +2,31 @@ import { useTranslation } from "react-i18next";
 import { MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useTestConnection, useLastTestResult } from "@/hooks/useHarpocrateVaults";
-import { useToast } from "@/components/ui/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  useLastTestResult,
+  useSetDefaultVault,
+  useTestConnection,
+} from "@/hooks/useHarpocrateVaults";
+import { useToast } from "@/hooks/useToast";
 import type { VaultSummary } from "@/lib/harpocrate-vaults.types";
 
 interface VaultHeaderProps {
   vault: VaultSummary;
+  onRetire: () => void;
 }
 
-export function VaultHeader({ vault }: VaultHeaderProps) {
+export function VaultHeader({ vault, onRetire }: VaultHeaderProps) {
   const { t } = useTranslation("harpocrate");
   const { toast } = useToast();
   const testMutation = useTestConnection(vault.id);
+  const setDefaultMutation = useSetDefaultVault();
   const lastTest = useLastTestResult(vault.id);
 
   const handleTest = () => {
@@ -27,6 +40,20 @@ export function VaultHeader({ vault }: VaultHeaderProps) {
       },
     });
   };
+
+  async function handleSetDefault() {
+    try {
+      await setDefaultMutation.mutateAsync(vault.id);
+      toast({
+        title: t("menu.set_default_done_toast", { name: vault.name }),
+      });
+    } catch {
+      toast({
+        title: t("menu.set_default_error_toast"),
+        variant: "destructive",
+      });
+    }
+  }
 
   return (
     <div className="flex items-start justify-between pb-4 border-b border-slate-200">
@@ -62,9 +89,28 @@ export function VaultHeader({ vault }: VaultHeaderProps) {
         <Button onClick={handleTest} disabled={testMutation.isPending}>
           {t("header.test")}
         </Button>
-        <Button variant="outline" size="icon" aria-label="More actions">
-          <MoreHorizontal className="h-4 w-4" />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon" aria-label="More actions">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={handleSetDefault}
+              disabled={vault.is_default || setDefaultMutation.isPending}
+            >
+              {t("menu.set_default")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={onRetire}
+              className="text-rose-600 focus:text-rose-700 focus:bg-rose-50"
+            >
+              {t("detail.retire_vault")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

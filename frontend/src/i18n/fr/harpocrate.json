@@ -78,6 +78,51 @@
     "loading_error_body": "Le backend n'a pas pu récupérer les métadonnées du wallet. Vérifie la connectivité réseau et l'api_key.",
     "retry": "Réessayer"
   },
+  "menu": {
+    "set_default": "Désigner comme coffre par défaut",
+    "set_default_done_toast": "Coffre « {{name}} » désigné par défaut",
+    "set_default_error_toast": "Erreur lors du changement de coffre par défaut"
+  },
+  "replace_dialog": {
+    "title": "Remplacer la clé d'accès",
+    "explanation": "Vous devez avoir préalablement créé une nouvelle api_key dans l'UI Harpocrate. Collez ici son token et son identifiant. Le wallet associé reste le même.",
+    "current_label": "api_key_id actuel",
+    "new_id_label": "Nouveau api_key_id",
+    "new_id_placeholder": "k-002",
+    "new_key_label": "Nouveau api_key (token)",
+    "new_key_placeholder": "hrpv_1_...",
+    "submit": "Remplacer",
+    "cancel": "Annuler",
+    "replaced_toast": "Clé d'accès remplacée",
+    "error_toast": "Erreur lors du remplacement de la clé"
+  },
+  "reveal_dialog": {
+    "title": "Afficher la clé en clair",
+    "warning_title": "Action audit-loggée",
+    "warning_body": "Cette action est tracée côté backend (event vault.reveal dans Loki). La valeur ne doit jamais être copiée en dehors d'un usage légitime de configuration.",
+    "confirm": "Afficher la clé",
+    "cancel": "Annuler",
+    "revealed_id_label": "api_key_id",
+    "revealed_key_label": "api_key (clair)",
+    "show": "Afficher",
+    "hide": "Masquer",
+    "copy": "Copier",
+    "copied_toast": "Clé copiée dans le presse-papier",
+    "close": "Fermer",
+    "error_toast": "Erreur lors de la récupération de la clé"
+  },
+  "retire_dialog": {
+    "title": "Retirer ce coffre",
+    "warning_with_wallet": "Le wallet Harpocrate distant « {{wallet_name}} » ne sera pas supprimé. Seule la configuration locale est retirée — les refs ${vault://{{vault_name}}:…} ne résoudront plus tant qu'aucun autre coffre ne porte ce nom.",
+    "warning_without_wallet": "Le wallet Harpocrate distant ne sera pas supprimé. Seule la configuration locale est retirée — les refs ${vault://{{vault_name}}:…} ne résoudront plus tant qu'aucun autre coffre ne porte ce nom.",
+    "confirm_label": "Pour confirmer, tape le nom du coffre :",
+    "confirm_placeholder": "{{vault_name}}",
+    "submit": "Retirer le coffre",
+    "cancel": "Annuler",
+    "retired_toast": "Coffre « {{name}} » retiré",
+    "default_conflict_toast": "Désigne un autre coffre par défaut avant de retirer celui-ci.",
+    "error_toast": "Erreur lors du retrait du coffre"
+  },
   "create_dialog": {
     "title": "Créer un nouveau coffre Harpocrate",
     "subtitle": "Connecte le backend à un serveur Harpocrate via une api_key existante.",
