@@ -19,10 +19,13 @@ def _admin_dsn() -> str:
     """DSN admin (base `postgres`) du Postgres de test.
 
     Aligné CLAUDE.md : « tests connectés à un Postgres + pgvector hébergés
-    sur l'infra LXC ». Défaut = LXC 303 ; le password DOIT être fourni via
-    TEST_POSTGRES_PASSWORD (pas de défaut, on échoue explicitement).
+    sur l'infra LXC ». Défaut host = `127.0.0.1` (échec gracieux si pas de
+    Postgres local) — ne JAMAIS pointer par défaut sur un LXC partagé
+    (anciennement 192.168.10.184) pour éviter de toucher l'env d'un autre
+    utilisateur en cas d'oubli d'env var. Le password DOIT être fourni via
+    TEST_POSTGRES_PASSWORD (pas de défaut, on skip explicitement).
     """
-    host = os.environ.get("TEST_POSTGRES_HOST", "192.168.10.184")
+    host = os.environ.get("TEST_POSTGRES_HOST", "127.0.0.1")
     port = os.environ.get("TEST_POSTGRES_PORT", "5432")
     user = os.environ.get("TEST_POSTGRES_USER", "rag")
     pwd = os.environ.get("TEST_POSTGRES_PASSWORD")
@@ -50,8 +53,8 @@ async def pg_container() -> AsyncIterator[str]:
 
     Le nom `pg_container` est conservé pour la stabilité des call-sites
     historiques (la fixture spawnait un container testcontainers avant le
-    refactor T18.9). Désormais elle s'appuie sur le Postgres de l'infra de
-    dev (LXC 303 par défaut).
+    refactor T18.9). Désormais elle s'appuie sur le Postgres pointé par
+    TEST_POSTGRES_HOST (défaut 127.0.0.1 — cf. `_admin_dsn`).
     """
     admin_dsn = _admin_dsn()
     dbname = f"rag_test_{uuid.uuid4().hex[:12]}"
