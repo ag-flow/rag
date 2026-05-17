@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
-  LayoutGrid, GitBranch, Clock, Database, Send, Search,
+  LayoutGrid, GitBranch, Clock, Database, Send, Search, Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -80,6 +80,15 @@ export function Sidebar() {
         </div>
         <NavItem to="/push" icon={<Send />} label={t("items.push")} disabled />
         <NavItem to="/mcp" icon={<Search />} label={t("items.mcp")} disabled />
+
+        <div className="px-5 pt-4 pb-1 text-xs font-bold uppercase tracking-wider text-slate-600">
+          {t("sections.configuration")}
+        </div>
+        <NavItem
+          to="/settings/harpocrate-vaults"
+          icon={<Settings />}
+          label={t("items.harpocrate_vaults")}
+        />
       </nav>
     </aside>
   );

@@ -1,7 +1,8 @@
 {
   "sections": {
     "administration": "Administration",
-    "usage": "Usage"
+    "usage": "Usage",
+    "configuration": "Configuration"
   },
   "items": {
     "workspaces": "Workspaces",
@@ -9,6 +10,7 @@
     "jobs": "Jobs",
     "models": "Models",
     "push": "Push activity",
-    "mcp": "MCP search"
+    "mcp": "MCP search",
+    "harpocrate_vaults": "Harpocrate vaults"
   }
 }

@@ -1,0 +1,6 @@
+{
+  "page": {
+    "title": "Harpocrate vaults",
+    "subtitle": "Configure the vaults used by the backend to resolve external secrets."
+  }
+}
