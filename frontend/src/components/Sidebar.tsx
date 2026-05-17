@@ -73,7 +73,7 @@ export function Sidebar() {
         <NavItem to="/workspaces" icon={<LayoutGrid />} label={t("items.workspaces")} />
         <NavItem to="/sources" icon={<GitBranch />} label={t("items.sources")} disabled />
         <NavItem to="/jobs" icon={<Clock />} label={t("items.jobs")} disabled />
-        <NavItem to="/models" icon={<Database />} label={t("items.models")} disabled />
+        <NavItem to="/models" icon={<Database />} label={t("items.models")} />
 
         <div className="px-5 pt-4 pb-1 text-xs font-bold uppercase tracking-wider text-slate-600">
           {t("sections.usage")}
