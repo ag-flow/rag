@@ -8,6 +8,7 @@ import frNav from "@/i18n/fr/nav.json";
 import frWorkspaces from "@/i18n/fr/workspaces.json";
 import frWorkspace from "@/i18n/fr/workspace.json";
 import frHarpocrate from "@/i18n/fr/harpocrate.json";
+import frModels from "@/i18n/fr/models.json";
 
 import enCommon from "@/i18n/en/common.json";
 import enAuth from "@/i18n/en/auth.json";
@@ -15,6 +16,7 @@ import enNav from "@/i18n/en/nav.json";
 import enWorkspaces from "@/i18n/en/workspaces.json";
 import enWorkspace from "@/i18n/en/workspace.json";
 import enHarpocrate from "@/i18n/en/harpocrate.json";
+import enModels from "@/i18n/en/models.json";
 
 void i18n
   .use(LanguageDetector)
@@ -22,7 +24,7 @@ void i18n
   .init({
     fallbackLng: "fr",
     supportedLngs: ["fr", "en"],
-    ns: ["common", "auth", "nav", "workspaces", "workspace", "harpocrate"],
+    ns: ["common", "auth", "nav", "workspaces", "workspace", "harpocrate", "models"],
     defaultNS: "common",
     resources: {
       fr: {
@@ -32,6 +34,7 @@ void i18n
         workspaces: frWorkspaces,
         workspace: frWorkspace,
         harpocrate: frHarpocrate,
+        models: frModels,
       },
       en: {
         common: enCommon,
@@ -40,6 +43,7 @@ void i18n
         workspaces: enWorkspaces,
         workspace: enWorkspace,
         harpocrate: enHarpocrate,
+        models: enModels,
       },
     },
     interpolation: { escapeValue: false },

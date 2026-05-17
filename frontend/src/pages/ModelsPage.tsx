@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, MoreHorizontal, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,17 +14,21 @@ import type { ModelEntry } from "@/lib/models.types";
 import { AddModelDialog } from "@/pages/models/AddModelDialog";
 import { DeleteModelAlert } from "@/pages/models/DeleteModelAlert";
 
-function relativeTime(iso: string): string {
-  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (m < 1) return "à l'instant";
-  if (m < 60) return `il y a ${m} min`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `il y a ${h} h`;
-  return `il y a ${Math.floor(h / 24)} j`;
+function useRelativeTime() {
+  const { t } = useTranslation("models");
+  return (iso: string): string => {
+    const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+    if (m < 1) return t("time.now");
+    if (m < 60) return t("time.minutes", { count: m });
+    const h = Math.floor(m / 60);
+    if (h < 24) return t("time.hours", { count: h });
+    return t("time.days", { count: Math.floor(h / 24) });
+  };
 }
 
 export function ModelsPage() {
   const { t } = useTranslation("models");
+  const formatRel = useRelativeTime();
   const { data, isLoading } = useModels();
   const [addOpen, setAddOpen] = useState(false);
   const [toDelete, setToDelete] = useState<{ provider: string; model: string } | null>(null);
@@ -45,9 +49,13 @@ export function ModelsPage() {
   }, [data]);
 
   // Open all sections by default once data loads.
-  useMemo(() => {
+  useEffect(() => {
     if (grouped.length > 0) {
-      setExpanded(new Set(grouped.map(([p]) => p)));
+      setExpanded((prev) => {
+        // Only initialize once (when expanded is empty)
+        if (prev.size > 0) return prev;
+        return new Set(grouped.map(([p]) => p));
+      });
     }
   }, [grouped]);
 
@@ -122,7 +130,7 @@ export function ModelsPage() {
                             {t("row.dim", { dimension: entry.dimension })}
                           </span>
                           <span className="text-slate-400 text-xs">
-                            {relativeTime(entry.created_at)}
+                            {formatRel(entry.created_at)}
                           </span>
                         </div>
                         <DropdownMenu>
