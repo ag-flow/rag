@@ -26,9 +26,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { z } from "zod";
 import { useCreateWorkspace } from "@/hooks/useWorkspaces";
-import { workspaceCreateSchema, type WorkspaceCreate } from "@/lib/validators";
+import { workspaceCreateSchema } from "@/lib/validators";
 import { useToast } from "@/hooks/useToast";
+
+type WorkspaceFormData = z.infer<typeof workspaceCreateSchema>;
 
 const MODELS_BY_PROVIDER: Record<string, string[]> = {
   openai: ["text-embedding-3-small", "text-embedding-3-large"],
@@ -46,7 +49,7 @@ export function WorkspaceCreateDialog({ open, onOpenChange }: Props) {
   const { toast } = useToast();
   const createMutation = useCreateWorkspace();
 
-  const form = useForm<WorkspaceCreate>({
+  const form = useForm<WorkspaceFormData>({
     resolver: zodResolver(workspaceCreateSchema),
     defaultValues: {
       name: "",
@@ -61,9 +64,17 @@ export function WorkspaceCreateDialog({ open, onOpenChange }: Props) {
   const provider = form.watch("indexer.provider");
   const models = MODELS_BY_PROVIDER[provider] ?? [];
 
-  async function onSubmit(values: WorkspaceCreate) {
+  async function onSubmit(values: WorkspaceFormData) {
     try {
-      const resp = await createMutation.mutateAsync(values);
+      const payload = {
+        ...values,
+        indexer: {
+          ...values.indexer,
+          api_key_ref: values.indexer.api_key_ref ?? null,
+          base_url: values.indexer.base_url ?? null,
+        },
+      };
+      const resp = await createMutation.mutateAsync(payload);
       toast({ title: t("toasts.created", { name: resp.name }) });
       onOpenChange(false);
       form.reset();

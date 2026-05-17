@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useDeleteWorkspace } from "@/hooks/useWorkspaces";
 import { useToast } from "@/hooks/useToast";
-import type { Workspace } from "@/lib/validators";
+import type { Workspace } from "@/lib/workspaces.types";
 
 interface Props {
   workspace: Workspace;

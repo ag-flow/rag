@@ -77,9 +77,9 @@ describe("useWorkspaces hooks", () => {
     vi.spyOn(apiModule.api, "post").mockResolvedValue({ api_key: "new-key" });
 
     const { wrapper } = makeWrapper();
-    const { result } = renderHook(() => useRotateApiKey(), { wrapper });
+    const { result } = renderHook(() => useRotateApiKey("ws_a"), { wrapper });
 
-    result.current.mutate("ws_a");
+    result.current.mutate();
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.api_key).toBe("new-key");
   });
@@ -88,9 +88,9 @@ describe("useWorkspaces hooks", () => {
     const postSpy = vi.spyOn(apiModule.api, "post").mockResolvedValue({});
 
     const { wrapper } = makeWrapper();
-    const { result } = renderHook(() => useReindex(), { wrapper });
+    const { result } = renderHook(() => useReindex("ws_a"), { wrapper });
 
-    result.current.mutate("ws_a");
+    result.current.mutate();
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(postSpy).toHaveBeenCalledWith(
       "/api/admin/workspaces/ws_a/reindex?confirm=true",

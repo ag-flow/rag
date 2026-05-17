@@ -12,18 +12,18 @@ import {
 import { WorkspaceDeleteAlert } from "@/pages/WorkspaceDeleteAlert";
 import { useRotateApiKey, useReindex } from "@/hooks/useWorkspaces";
 import { useToast } from "@/hooks/useToast";
-import type { Workspace } from "@/lib/validators";
+import type { Workspace } from "@/lib/workspaces.types";
 
 export function WorkspaceActions({ workspace }: { workspace: Workspace }) {
   const { t } = useTranslation("workspaces");
   const { toast } = useToast();
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const rotateMutation = useRotateApiKey();
-  const reindexMutation = useReindex();
+  const rotateMutation = useRotateApiKey(workspace.name);
+  const reindexMutation = useReindex(workspace.name);
 
   async function handleRotate() {
     try {
-      const resp = await rotateMutation.mutateAsync(workspace.name);
+      const resp = await rotateMutation.mutateAsync();
       toast({
         title: t("toasts.apikey_rotated", { name: workspace.name }),
         description: resp.api_key,
@@ -36,7 +36,7 @@ export function WorkspaceActions({ workspace }: { workspace: Workspace }) {
 
   async function handleReindex() {
     try {
-      await reindexMutation.mutateAsync(workspace.name);
+      await reindexMutation.mutateAsync();
       toast({ title: t("toasts.reindex_started", { name: workspace.name }) });
     } catch {
       toast({ title: t("common:errors.generic"), variant: "destructive" });

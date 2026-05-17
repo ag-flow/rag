@@ -22,32 +22,6 @@ export const workspaceCreateSchema = z
     },
   );
 
-export type WorkspaceCreate = z.infer<typeof workspaceCreateSchema>;
-
-export interface Workspace {
-  id: string;
-  name: string;
-  indexer: {
-    provider: string;
-    model: string;
-    api_key_ref?: string;
-    base_url?: string;
-  };
-  sources_count: number;
-  documents_count: number;
-  last_indexed_at: string | null;
-  created_at: string;
-}
-
-export interface WorkspaceCreateResponse {
-  name: string;
-  api_key: string;
-}
-
-export interface ApiKeyRotateResponse {
-  api_key: string;
-}
-
 export interface MeResponse {
   sub: string;
   email: string | null;
