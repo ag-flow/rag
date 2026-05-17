@@ -40,10 +40,16 @@ V1 utilise un chunking naïf par taille fixe. Extensions envisagées :
 
 ### Reranking
 
-Après récupération des `top_k` chunks, un reranker améliore la pertinence avant de retourner les résultats :
+✅ Livré en M8 — cf. `docs/superpowers/specs/2026-05-17-M8-backend-reranking-design.md`.
+
+Config par workspace (table `rerank_configs`), 3 providers :
 - Cohere Rerank API
 - Voyage AI Rerank
-- Modèle local via Ollama
+- Ollama local (BGE / Jina)
+
+Fail-fast si le provider tombe (cohérent avec `mcp.py`).
+
+Frontend (onglet "Rerank" dans WorkspaceDetailPanel) → jalon M8b à venir.
 
 ---
 
