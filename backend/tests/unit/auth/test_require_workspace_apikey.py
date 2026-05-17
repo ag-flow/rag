@@ -15,6 +15,8 @@ from rag.auth.workspace_auth import (
     require_workspace_apikey,
 )
 
+_DEK = "x" * 32
+
 
 def _fake_request(headers: dict[str, str], pool, cache: ApiKeyCache):
     return SimpleNamespace(
@@ -23,6 +25,7 @@ def _fake_request(headers: dict[str, str], pool, cache: ApiKeyCache):
             state=SimpleNamespace(
                 apikey_cache=cache,
                 pools=SimpleNamespace(config_pool=pool),
+                settings=SimpleNamespace(api_key_dek=_DEK),
             )
         ),
     )
@@ -75,33 +78,31 @@ async def test_cache_hit_returns_auth_context_without_db() -> None:
 
 
 @pytest.mark.asyncio
-async def test_cache_miss_workspace_not_found_raises_404() -> None:
-    from rag.api.errors import WorkspaceNotFound
-
+async def test_cache_miss_workspace_not_found_raises_401() -> None:
+    """Workspace inconnu → 401 uniforme (ne révèle pas l'existence)."""
     cache = ApiKeyCache(max_size=4, ttl_seconds=60)
     pool = MagicMock()
     pool.fetchrow = AsyncMock(return_value=None)
     req = _fake_request({"Authorization": "Bearer some-key"}, pool, cache)
-    with pytest.raises(WorkspaceNotFound):
+    with pytest.raises(HTTPException) as exc:
         await require_workspace_apikey("ghost", req)  # type: ignore[arg-type]
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "invalid_workspace_apikey"
 
 
 @pytest.mark.asyncio
-async def test_cache_miss_invalid_bcrypt_raises_401(monkeypatch) -> None:
+async def test_cache_miss_invalid_key_raises_401() -> None:
+    """compare_digest échoue (stored != présenté) → 401."""
     cache = ApiKeyCache(max_size=4, ttl_seconds=60)
     ws_id = uuid4()
     pool = MagicMock()
     pool.fetchrow = AsyncMock(
         return_value={
             "id": ws_id,
-            "api_key_hash": "$2b$12$invalidhash",
+            "stored": "the-real-stored-key",
             "indexer_used": "openai/text-embedding-3-small",
         }
     )
-
-    from rag.auth import workspace_auth
-
-    monkeypatch.setattr(workspace_auth, "verify_api_key", lambda _k, _h: False)
 
     req = _fake_request({"Authorization": "Bearer bad-key"}, pool, cache)
     with pytest.raises(HTTPException) as exc:
@@ -112,26 +113,47 @@ async def test_cache_miss_invalid_bcrypt_raises_401(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_cache_miss_valid_bcrypt_populates_cache(monkeypatch) -> None:
+async def test_cache_miss_valid_key_populates_cache() -> None:
+    """compare_digest réussit → AuthContext retourné, entrée mise en cache."""
     cache = ApiKeyCache(max_size=4, ttl_seconds=60)
     ws_id = uuid4()
+    good_key = "good-key"
     pool = MagicMock()
     pool.fetchrow = AsyncMock(
         return_value={
             "id": ws_id,
-            "api_key_hash": "$2b$12$validhash",
+            "stored": good_key,
             "indexer_used": "voyage/voyage-3-lite",
         }
     )
 
-    from rag.auth import workspace_auth
-
-    monkeypatch.setattr(workspace_auth, "verify_api_key", lambda _k, _h: True)
-
-    req = _fake_request({"Authorization": "Bearer good-key"}, pool, cache)
+    req = _fake_request({"Authorization": f"Bearer {good_key}"}, pool, cache)
     ctx = await require_workspace_apikey("ws", req)  # type: ignore[arg-type]
     assert ctx.workspace_id == ws_id
     assert ctx.indexer_used == "voyage/voyage-3-lite"
-    cached = cache.get("ws", "good-key")
+    cached = cache.get("ws", good_key)
     assert cached is not None
     assert cached.workspace_id == ws_id
+
+
+@pytest.mark.asyncio
+async def test_dek_absent_raises_503() -> None:
+    """Si api_key_dek est None en settings → 503 avant tout accès DB."""
+    cache = ApiKeyCache(max_size=4, ttl_seconds=60)
+    pool = MagicMock()
+    pool.fetchrow = AsyncMock(side_effect=AssertionError("pool must not be called when DEK absent"))
+
+    req = SimpleNamespace(
+        headers={"Authorization": "Bearer some-key"},
+        app=SimpleNamespace(
+            state=SimpleNamespace(
+                apikey_cache=cache,
+                pools=SimpleNamespace(config_pool=pool),
+                settings=SimpleNamespace(api_key_dek=None),
+            )
+        ),
+    )
+    with pytest.raises(HTTPException) as exc:
+        await require_workspace_apikey("ws", req)  # type: ignore[arg-type]
+    assert exc.value.status_code == 503
+    assert exc.value.detail == "api_key_dek_unavailable"

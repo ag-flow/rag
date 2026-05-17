@@ -76,6 +76,10 @@ async def admin_client(
         "HARPOCRATE_DEK",
         "passphrase-of-at-least-32-characters-long",
     )
+    os.environ.setdefault(
+        "RAG_API_KEY_DEK",
+        "test-api-key-dek-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    )
     os.environ.setdefault("ENVIRONMENT", "dev")
 
     def _factory(_cfg, app_in):  # type: ignore[no-untyped-def]

@@ -3,12 +3,12 @@ from __future__ import annotations
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
+from hashlib import sha256
+from secrets import compare_digest
 from uuid import UUID
 
 import asyncpg
 from fastapi import HTTPException, Request, status
-
-from rag.api.errors import WorkspaceNotFound
 
 
 @dataclass
@@ -19,13 +19,13 @@ class _CacheEntry:
 
 
 class ApiKeyCache:
-    """Cache LRU+TTL des api_keys workspace validées par bcrypt.
+    """Cache LRU+TTL des api_keys workspace validées.
 
     Clé : (workspace_name, api_key_clair). Valeur : _CacheEntry.
 
-    Le cache ne contient que des entrées dont la vérification bcrypt a réussi.
-    Un attaquant qui présente une clé invalide paie bcrypt à chaque tentative,
-    sans pollution du cache (LRU évincte tout de toute façon).
+    Le cache ne contient que des entrées dont la vérification a réussi.
+    Un attaquant qui présente une clé invalide paie le lookup DB + compare_digest
+    à chaque tentative, sans pollution du cache.
     """
 
     def __init__(self, *, max_size: int = 256, ttl_seconds: int = 300) -> None:
@@ -83,39 +83,62 @@ async def require_workspace_apikey(
     name: str,
     request: Request,
 ) -> AuthContext:
-    """Dependency FastAPI : valide `Authorization: Bearer <WORKSPACE_API_KEY>`
-    contre `workspaces[name].api_key_hash` (bcrypt), avec cache LRU+TTL.
+    """Dependency FastAPI : valide `Authorization: Bearer <WORKSPACE_API_KEY>`.
+
+    Lookup O(1) par fingerprint SHA-256 puis comparaison timing-safe sur
+    la valeur déchiffrée (pgp_sym_decrypt). Cache LRU+TTL conservé.
 
     - 401 si bearer absent / mauvais scheme / clé invalide.
-    - 404 si workspace inexistant ou pas d'indexer_config.
+    - 401 si workspace inexistant (401 uniforme — ne révèle pas l'existence).
+    - 503 si DEK absent en config.
     - Sur succès : retourne `AuthContext(workspace_id, indexer_used)`.
     """
     api_key = _extract_bearer(request)
 
     cache: ApiKeyCache = request.app.state.apikey_cache
     pool: asyncpg.Pool = request.app.state.pools.config_pool
+    dek: str | None = request.app.state.settings.api_key_dek
+    if dek is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="api_key_dek_unavailable",
+        )
 
     entry = cache.get(name, api_key)
     if entry is not None:
         return AuthContext(workspace_id=entry.workspace_id, indexer_used=entry.indexer_used)
 
+    fingerprint = sha256(api_key.encode("utf-8")).hexdigest()
     row = await pool.fetchrow(
         """
-        SELECT w.id, w.api_key_hash,
+        SELECT w.id,
+               pgp_sym_decrypt(w.api_key_encrypted, $2::text)::text AS stored,
                ic.provider || '/' || ic.model AS indexer_used
         FROM workspaces w
         JOIN indexer_configs ic ON ic.workspace_id = w.id
-        WHERE w.name = $1
+        WHERE w.name = $1 AND w.api_key_fingerprint = $3
         """,
-        name,
+        name, dek, fingerprint,
     )
     if row is None:
-        raise WorkspaceNotFound(name)
+        # Soit le workspace n'existe pas, soit la clé ne correspond pas —
+        # 401 dans les deux cas pour ne pas révéler l'existence du workspace.
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid_workspace_apikey",
+        )
 
-    # TODO(M5e-T7): verify_api_key(bcrypt) supprimé en T4 — auth refactorisée en T7
-    # (lookup par fingerprint + pgp_sym_decrypt + compare_digest).
-    # En attendant : toute tentative d'auth workspace échoue avec 401.
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="invalid_workspace_apikey",
+    # Vérification timing-safe contre collision SHA-256 théorique.
+    if not compare_digest(api_key, row["stored"]):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid_workspace_apikey",
+        )
+
+    new_entry = _CacheEntry(
+        workspace_id=row["id"],
+        indexer_used=row["indexer_used"],
+        inserted_at=time.monotonic(),
     )
+    cache.put(name, api_key, new_entry)
+    return AuthContext(workspace_id=row["id"], indexer_used=row["indexer_used"])

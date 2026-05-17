@@ -17,8 +17,10 @@ from rag.db.workspace_search import vector_search
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
 from rag.schemas.mcp import MultiWorkspaceRequest, SearchHit, SingleWorkspaceRequest
+from hashlib import sha256
+from secrets import compare_digest
+
 from rag.secrets.refs import build_ref
-from rag.services.apikey import verify_api_key
 
 log = structlog.get_logger(__name__)
 
@@ -49,39 +51,50 @@ async def _authenticate(
     ref: McpWorkspaceRef,
     config_pool: asyncpg.Pool,
     apikey_cache: ApiKeyCache,
+    api_key_dek: str,
 ) -> _CacheEntry:
     """Valide la paire (workspace_name, api_key) avec cache LRU+TTL.
 
+    Lookup O(1) par fingerprint SHA-256 puis comparaison timing-safe sur la
+    valeur déchiffrée (pgp_sym_decrypt).
+
     Retourne un `_CacheEntry` (workspace_id, indexer_used, inserted_at).
     - WorkspaceNotFound si workspace inconnu ou pas d'indexer_config.
-    - HTTPException 401 si bcrypt verify échoue (clé invalide non mise en cache).
+    - HTTPException 401 si la clé ne correspond pas (non mise en cache).
     """
     cached = apikey_cache.get(ref.name, ref.api_key)
     if cached is not None:
         return cached
 
-    row = await config_pool.fetchrow(
+    # Premier SELECT : vérifie l'existence du workspace+indexer (pour WorkspaceNotFound).
+    exists_row = await config_pool.fetchrow(
         """
-        SELECT w.id, w.api_key_hash,
-               ic.provider || '/' || ic.model AS indexer_used
+        SELECT w.id, ic.provider || '/' || ic.model AS indexer_used
         FROM workspaces w
         JOIN indexer_configs ic ON ic.workspace_id = w.id
         WHERE w.name = $1
         """,
         ref.name,
     )
-    if row is None:
+    if exists_row is None:
         raise WorkspaceNotFound(ref.name)
 
-    if not verify_api_key(ref.api_key, row["api_key_hash"]):
+    # Deuxième SELECT : lookup par fingerprint + déchiffrement.
+    fingerprint = sha256(ref.api_key.encode("utf-8")).hexdigest()
+    auth_row = await config_pool.fetchrow(
+        "SELECT pgp_sym_decrypt(api_key_encrypted, $1::text)::text AS stored "
+        "FROM workspaces WHERE name = $2 AND api_key_fingerprint = $3",
+        api_key_dek, ref.name, fingerprint,
+    )
+    if auth_row is None or not compare_digest(ref.api_key, auth_row["stored"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid_workspace_apikey",
         )
 
     entry = _CacheEntry(
-        workspace_id=row["id"],
-        indexer_used=row["indexer_used"],
+        workspace_id=exists_row["id"],
+        indexer_used=exists_row["indexer_used"],
         inserted_at=time.monotonic(),
     )
     apikey_cache.put(ref.name, ref.api_key, entry)
@@ -148,6 +161,7 @@ async def search(
     config_pool: asyncpg.Pool,
     pool_registry: WorkspacePoolRegistry,
     apikey_cache: ApiKeyCache,
+    api_key_dek: str,
     secret_resolver: _ResolverProtocol,
     default_vault_name: str = "rag",
     provider_factory: Callable[..., EmbeddingProvider] | None = None,
@@ -172,6 +186,7 @@ async def search(
             config_pool=config_pool,
             pool_registry=pool_registry,
             apikey_cache=apikey_cache,
+            api_key_dek=api_key_dek,
             secret_resolver=secret_resolver,
             default_vault_name=default_vault_name,
             provider_factory=factory,
@@ -191,11 +206,12 @@ async def _search_one(
     config_pool: asyncpg.Pool,
     pool_registry: WorkspacePoolRegistry,
     apikey_cache: ApiKeyCache,
+    api_key_dek: str,
     secret_resolver: _ResolverProtocol,
     default_vault_name: str = "rag",
     provider_factory: Callable[..., EmbeddingProvider],
 ) -> _WorkspaceResult:
-    auth = await _authenticate(ref=ref, config_pool=config_pool, apikey_cache=apikey_cache)
+    auth = await _authenticate(ref=ref, config_pool=config_pool, apikey_cache=apikey_cache, api_key_dek=api_key_dek)
     ctx = await _load_workspace_context(config_pool, ref.name)
 
     api_key: str | None = None

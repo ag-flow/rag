@@ -25,6 +25,12 @@ def build_mcp_router() -> APIRouter:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail={"error": "no_default_vault_configured"},
             )
+        dek: str | None = request.app.state.settings.api_key_dek
+        if dek is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": "api_key_dek_unavailable"},
+            )
         hits = await search(
             refs=refs,
             query=payload.query,
@@ -33,6 +39,7 @@ def build_mcp_router() -> APIRouter:
             config_pool=request.app.state.pools.config_pool,
             pool_registry=request.app.state.pools,
             apikey_cache=request.app.state.apikey_cache,
+            api_key_dek=dek,
             secret_resolver=request.app.state.resolver,
             default_vault_name=default_vault,
         )

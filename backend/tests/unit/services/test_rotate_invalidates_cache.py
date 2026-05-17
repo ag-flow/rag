@@ -34,7 +34,7 @@ async def test_rotate_apikey_calls_invalidate_on_cache(monkeypatch) -> None:
     pool.acquire.return_value.__aenter__ = AsyncMock(return_value=conn)
     pool.acquire.return_value.__aexit__ = AsyncMock(return_value=False)
 
-    await rotate_apikey(name="ws_x", config_pool=pool, apikey_cache=cache)
+    await rotate_apikey(name="ws_x", config_pool=pool, apikey_cache=cache, api_key_dek="x" * 32)
 
     assert cache.get("ws_x", "old-key") is None
 
@@ -51,4 +51,4 @@ async def test_rotate_apikey_works_without_cache_kwarg() -> None:
     pool.acquire.return_value.__aexit__ = AsyncMock(return_value=False)
 
     # Ne doit pas lever
-    await rotate_apikey(name="ws_x", config_pool=pool)
+    await rotate_apikey(name="ws_x", config_pool=pool, api_key_dek="x" * 32)

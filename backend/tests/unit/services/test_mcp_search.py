@@ -13,6 +13,8 @@ from rag.auth.workspace_auth import ApiKeyCache, _CacheEntry
 from rag.schemas.mcp import SearchHit
 from rag.services.mcp import McpWorkspaceRef, search
 
+_DEK = "x" * 32
+
 
 class _FakeProvider:
     def __init__(self, vec: list[float]) -> None:
@@ -113,6 +115,7 @@ async def test_search_single_workspace_returns_hits(monkeypatch) -> None:
         config_pool=pool,
         pool_registry=registry,
         apikey_cache=cache,
+        api_key_dek=_DEK,
         secret_resolver=resolver,
         default_vault_name="rag",
         provider_factory=lambda **_kw: provider,  # type: ignore[arg-type]
@@ -157,6 +160,7 @@ async def test_search_skips_vault_when_api_key_ref_is_none(monkeypatch) -> None:
         config_pool=pool,
         pool_registry=registry,
         apikey_cache=cache,
+        api_key_dek=_DEK,
         secret_resolver=resolver,
         default_vault_name="rag",
         provider_factory=lambda **_kw: provider,  # type: ignore[arg-type]
@@ -238,6 +242,7 @@ async def test_search_multi_workspace_concat_in_order(monkeypatch) -> None:
         config_pool=pool,
         pool_registry=registry,
         apikey_cache=cache,
+        api_key_dek=_DEK,
         secret_resolver=_FakeResolver(),
         default_vault_name="rag",
         provider_factory=lambda **_kw: provider,  # type: ignore[arg-type]
@@ -262,27 +267,26 @@ async def test_search_fail_fast_on_workspace_not_found() -> None:
             config_pool=pool,
             pool_registry=registry,
             apikey_cache=cache,
+            api_key_dek=_DEK,
             secret_resolver=_FakeResolver(),
             default_vault_name="rag",
         )
 
 
 @pytest.mark.asyncio
-async def test_search_fail_fast_on_bad_apikey(monkeypatch) -> None:
+async def test_search_fail_fast_on_bad_apikey() -> None:
+    """Clé invalide (fingerprint non trouvé) → 401."""
     cache = ApiKeyCache(max_size=8, ttl_seconds=60)
     pool = MagicMock()
+    # First fetchrow: existence check succeeds
+    # Second fetchrow: fingerprint lookup returns None (key not found)
     pool.fetchrow = AsyncMock(
-        return_value={
-            "id": uuid4(),
-            "api_key_hash": "$2b$12$x",
-            "indexer_used": "openai/m",
-        }
+        side_effect=[
+            {"id": uuid4(), "indexer_used": "openai/m"},
+            None,
+        ]
     )
     registry = MagicMock()
-
-    from rag.services import mcp
-
-    monkeypatch.setattr(mcp, "verify_api_key", lambda _k, _h: False)
 
     with pytest.raises(HTTPException) as exc:
         await search(
@@ -293,6 +297,7 @@ async def test_search_fail_fast_on_bad_apikey(monkeypatch) -> None:
             config_pool=pool,
             pool_registry=registry,
             apikey_cache=cache,
+            api_key_dek=_DEK,
             secret_resolver=_FakeResolver(),
             default_vault_name="rag",
         )
