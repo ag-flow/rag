@@ -6,16 +6,20 @@ Si la table `workspaces` contient au moins une ligne et que
 (impossible de déchiffrer les api_keys).
 
 Si `workspaces` est vide, l'absence de DEK est tolérée.
+
+Note : les tests utilisent `TestClient` dans `asyncio.to_thread` pour ne pas
+bloquer la boucle asyncio. `TestClient` est synchrone + anyio-thread et
+propage correctement les RuntimeError levées avant le yield du lifespan,
+contrairement à `AsyncClient` avec `ASGITransport` dans Starlette 1.x.
 """
 from __future__ import annotations
 
-import os
+import asyncio
 from pathlib import Path
 
 import asyncpg
 import pytest
-from httpx import AsyncClient
-from httpx._transports.asgi import ASGITransport
+from fastapi.testclient import TestClient
 
 from rag.db.migrations import run_migrations
 from tests.integration._workspace_seed import seed_workspace
@@ -41,7 +45,7 @@ async def test_lifespan_fails_when_workspaces_exist_and_dek_absent(
     monkeypatch,
 ) -> None:
     """Si un workspace est présent en DB et que RAG_API_KEY_DEK est absent,
-    le lifespan doit lever RuntimeError au démarrage."""
+    le lifespan doit lever RuntimeError au démarrage (testé via TestClient)."""
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
         await seed_workspace(conn, name="ws_guard_test")
@@ -57,12 +61,17 @@ async def test_lifespan_fails_when_workspaces_exist_and_dek_absent(
 
     app = build_app(migrations_dir=MIGRATIONS_DIR)
 
-    with pytest.raises(RuntimeError, match="RAG_API_KEY_DEK"):
-        async with AsyncClient(
-            transport=ASGITransport(app=app),
-            base_url="http://test",
-        ) as _client:
+    # TestClient propage les RuntimeError levées avant le yield du lifespan.
+    # On l'exécute via asyncio.to_thread pour ne pas bloquer la boucle asyncio
+    # (TestClient est synchrone et utilise anyio en interne).
+    # IMPORTANT : _start doit laisser l'exception se propager (pas de try/except
+    # interne) pour que asyncio.to_thread la re-lève dans le contexte asyncio.
+    def _start() -> None:
+        with TestClient(app):
             pass
+
+    with pytest.raises(RuntimeError, match="RAG_API_KEY_DEK"):
+        await asyncio.to_thread(_start)
 
 
 @pytest.mark.asyncio
@@ -86,10 +95,9 @@ async def test_lifespan_succeeds_when_workspaces_empty_and_dek_absent(
 
     app = build_app(migrations_dir=MIGRATIONS_DIR)
 
-    # Le lifespan ne doit pas lever — on se contente d'une requête health
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        resp = await client.get("/health")
-    assert resp.status_code == 200
+    def _start() -> int:
+        with TestClient(app) as client:
+            return client.get("/health").status_code
+
+    status = await asyncio.to_thread(_start)
+    assert status == 200
