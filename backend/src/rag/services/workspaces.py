@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hashlib import sha256
 from typing import Protocol
 
 import asyncpg
@@ -22,7 +23,7 @@ from rag.db.workspace_schema import (
 from rag.schemas.admin import WorkspaceCreateRequest, WorkspacePatchRequest
 from rag.secrets.refs import build_ref
 from rag.secrets.resolver import VaultLookupFailed
-from rag.services.apikey import generate_api_key, hash_api_key
+from rag.services.apikey import generate_api_key
 from rag.services.models import get_dimension_or_raise
 
 log = structlog.get_logger(__name__)
@@ -66,13 +67,14 @@ async def create_workspace(
     admin_dsn: str,
     resolver: _ResolverProtocol,
     default_vault_name: str = "rag",
+    api_key_dek: str,
 ) -> dict[str, str]:
     """Crée un workspace + sa base pgvector + sa table embeddings.
 
     Étapes (cf. spec 2026-05-15-M2-api-admin-design.md, Flow A) :
       1. Lookup dimension dans model_dimensions
       2. Eager validation de indexer.api_key_ref via Harpocrate
-      3. Génère api_key + hash bcrypt
+      3. Génère api_key + fingerprint SHA-256 + chiffre via pgp_sym_encrypt
       4. INSERT workspaces + indexer_configs (TRANSACTION config_pool)
       5. CREATE DATABASE rag_<name> (admin_dsn, hors transaction)
       6. CREATE EXTENSION + CREATE TABLE embeddings + INDEX ivfflat
@@ -88,9 +90,9 @@ async def create_workspace(
     if request.indexer.api_key_ref is not None:
         await _validate_ref_via_vault(resolver, request.indexer.api_key_ref, default_vault_name)
 
-    # 3. Génération api_key
+    # 3. Génération api_key + fingerprint SHA-256
     api_key = generate_api_key()
-    api_key_hash = hash_api_key(api_key)
+    fingerprint = sha256(api_key.encode("utf-8")).hexdigest()
 
     rag_base = f"rag_{request.name}"
     rag_cnx = derive_workspace_dsn(admin_dsn, rag_base)
@@ -100,12 +102,16 @@ async def create_workspace(
         async with transaction(config_pool) as conn:
             ws_row = await conn.fetchrow(
                 """
-                INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO workspaces
+                    (name, api_key_encrypted, api_key_fingerprint, rag_cnx, rag_base)
+                VALUES
+                    ($1, pgp_sym_encrypt($2::text, $3::text)::bytea, $4, $5, $6)
                 RETURNING id, created_at
                 """,
                 request.name,
-                api_key_hash,
+                api_key,
+                api_key_dek,
+                fingerprint,
                 rag_cnx,
                 rag_base,
             )

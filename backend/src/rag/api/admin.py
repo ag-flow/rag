@@ -68,6 +68,12 @@ def build_admin_router() -> APIRouter:
         payload: WorkspaceCreateRequest,
         request: Request,
     ) -> WorkspaceCreateResponse:
+        dek: str | None = request.app.state.settings.api_key_dek
+        if dek is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="api_key_dek_unavailable",
+            )
         default_vault = await _resolve_default_vault_or_503(request)
         resp = await create_workspace(
             request=payload,
@@ -75,6 +81,7 @@ def build_admin_router() -> APIRouter:
             admin_dsn=_admin_dsn(request),
             resolver=_resolver(request),  # type: ignore[arg-type]
             default_vault_name=default_vault,
+            api_key_dek=dek,
         )
         return WorkspaceCreateResponse.model_validate(resp)
 

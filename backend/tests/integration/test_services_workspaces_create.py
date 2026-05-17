@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterator
+from hashlib import sha256
 from pathlib import Path
 
 import asyncpg
@@ -20,6 +21,8 @@ from rag.secrets.resolver import VaultLookupFailed
 from rag.services.workspaces import create_workspace
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
+
+_TEST_DEK = "x" * 32
 
 
 class _StubResolver:
@@ -88,17 +91,24 @@ async def test_create_workspace_inserts_config_and_creates_db(
         admin_dsn=admin_dsn,
         resolver=resolver,  # type: ignore[arg-type]
         default_vault_name="rag",
+        api_key_dek=_TEST_DEK,
     )
 
     assert resp["name"] == "ws_create_1"
     assert re.fullmatch(r"[A-Za-z0-9_-]{48}", resp["api_key"])
 
-    # workspaces row inséré
+    # workspaces row inséré — vérifier api_key_encrypted + api_key_fingerprint
     row = await session_pool.fetchrow(
-        "SELECT id, name, rag_base FROM workspaces WHERE name=$1", "ws_create_1"
+        "SELECT id, name, rag_base, api_key_fingerprint, "
+        "pgp_sym_decrypt(api_key_encrypted, $1::text)::text AS decrypted "
+        "FROM workspaces WHERE name=$2",
+        _TEST_DEK,
+        "ws_create_1",
     )
     assert row is not None
     assert row["rag_base"] == "rag_ws_create_1"
+    assert row["decrypted"] == resp["api_key"]
+    assert row["api_key_fingerprint"] == sha256(resp["api_key"].encode()).hexdigest()
 
     # indexer_configs row inséré
     ic = await session_pool.fetchrow(
@@ -139,6 +149,7 @@ async def test_create_workspace_duplicate_name_raises(
         admin_dsn=admin_dsn,
         resolver=resolver,  # type: ignore[arg-type]
         default_vault_name="rag",
+        api_key_dek=_TEST_DEK,
     )
 
     with pytest.raises(WorkspaceAlreadyExists):
@@ -147,6 +158,7 @@ async def test_create_workspace_duplicate_name_raises(
             config_pool=session_pool,
             admin_dsn=admin_dsn,
             resolver=resolver,  # type: ignore[arg-type]
+            api_key_dek=_TEST_DEK,
         )
 
 
@@ -167,6 +179,7 @@ async def test_create_workspace_unknown_model_raises(
             config_pool=session_pool,
             admin_dsn=admin_dsn,
             resolver=resolver,  # type: ignore[arg-type]
+            api_key_dek=_TEST_DEK,
         )
 
 
@@ -184,6 +197,7 @@ async def test_create_workspace_ref_not_in_vault_raises(
             config_pool=session_pool,
             admin_dsn=admin_dsn,
             resolver=resolver,  # type: ignore[arg-type]
+            api_key_dek=_TEST_DEK,
         )
     assert exc_info.value.ref == "openai_embedding_key"
 
@@ -202,4 +216,5 @@ async def test_create_workspace_vault_unreachable_raises(
             config_pool=session_pool,
             admin_dsn=admin_dsn,
             resolver=resolver,  # type: ignore[arg-type]
+            api_key_dek=_TEST_DEK,
         )

@@ -93,6 +93,7 @@ def build_app(
         log.info("app.lifespan.start", environment=settings.environment)
 
         app.state.master_key = settings.rag_master_key.get_secret_value()
+        app.state.settings = settings
         app.state.version = version
         app.state.git_sha = git_sha or os.environ.get("GIT_SHA", "unknown")
         app.state.environment = settings.environment

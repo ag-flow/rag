@@ -9,7 +9,6 @@ import asyncpg
 from fastapi import HTTPException, Request, status
 
 from rag.api.errors import WorkspaceNotFound
-from rag.services.apikey import verify_api_key
 
 
 @dataclass
@@ -113,16 +112,10 @@ async def require_workspace_apikey(
     if row is None:
         raise WorkspaceNotFound(name)
 
-    if not verify_api_key(api_key, row["api_key_hash"]):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid_workspace_apikey",
-        )
-
-    new_entry = _CacheEntry(
-        workspace_id=row["id"],
-        indexer_used=row["indexer_used"],
-        inserted_at=time.monotonic(),
+    # TODO(M5e-T7): verify_api_key(bcrypt) supprimé en T4 — auth refactorisée en T7
+    # (lookup par fingerprint + pgp_sym_decrypt + compare_digest).
+    # En attendant : toute tentative d'auth workspace échoue avec 401.
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="invalid_workspace_apikey",
     )
-    cache.put(name, api_key, new_entry)
-    return AuthContext(workspace_id=row["id"], indexer_used=row["indexer_used"])
