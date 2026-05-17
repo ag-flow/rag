@@ -14,6 +14,8 @@ from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
 from rag.services.jobs import reindex_workspace
 from rag.services.workspaces import create_workspace
 
+_TEST_DEK = "x" * 32
+
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 
@@ -53,6 +55,7 @@ async def _create_with_doc(pg_container: str, session_pool: asyncpg.Pool, name: 
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
         default_vault_name="rag",
+        api_key_dek=_TEST_DEK,
     )
     ws_id = await session_pool.fetchval("SELECT id FROM workspaces WHERE name=$1", name)
     await session_pool.execute(

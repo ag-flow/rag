@@ -12,6 +12,8 @@ from rag.db.migrations import run_migrations
 from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
 from rag.services.workspaces import create_workspace, delete_workspace
 
+_TEST_DEK = "x" * 32
+
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 
@@ -55,6 +57,7 @@ async def test_delete_workspace_drops_db_and_config(
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
         default_vault_name="rag",
+        api_key_dek=_TEST_DEK,
     )
 
     await delete_workspace(name="ws_del", config_pool=session_pool, admin_dsn=admin_dsn)
@@ -96,6 +99,7 @@ async def test_delete_workspace_idempotent_retry_after_partial_failure(
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
         default_vault_name="rag",
+        api_key_dek=_TEST_DEK,
     )
 
     admin = await asyncpg.connect(admin_dsn)

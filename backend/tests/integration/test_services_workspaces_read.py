@@ -12,6 +12,8 @@ from rag.db.migrations import run_migrations
 from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
 from rag.services.workspaces import create_workspace, get_workspace, list_workspaces
 
+_TEST_DEK = "x" * 32
+
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 
@@ -67,6 +69,7 @@ async def test_list_workspaces_includes_created(
             admin_dsn=admin_dsn,
             resolver=_StubResolver(),  # type: ignore[arg-type]
             default_vault_name="rag",
+            api_key_dek=_TEST_DEK,
         )
 
     rows = await list_workspaces(session_pool)
@@ -94,6 +97,7 @@ async def test_get_workspace_returns_detail(
         admin_dsn=admin_dsn,
         resolver=_StubResolver(),  # type: ignore[arg-type]
         default_vault_name="rag",
+        api_key_dek=_TEST_DEK,
     )
 
     detail = await get_workspace(session_pool, name="ws_detail")

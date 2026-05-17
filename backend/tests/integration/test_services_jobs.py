@@ -13,6 +13,8 @@ from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
 from rag.services.jobs import create_pending_job, list_jobs
 from rag.services.workspaces import create_workspace
 
+_TEST_DEK = "x" * 32
+
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 
@@ -56,6 +58,7 @@ async def test_create_pending_job_inserts_row(
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
         default_vault_name="rag",
+        api_key_dek=_TEST_DEK,
     )
 
     job = await create_pending_job(
@@ -101,6 +104,7 @@ async def test_list_jobs_ordered_desc(
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
         default_vault_name="rag",
+        api_key_dek=_TEST_DEK,
     )
 
     ws_id = await session_pool.fetchval("SELECT id FROM workspaces WHERE name='ws_jobs_order'")

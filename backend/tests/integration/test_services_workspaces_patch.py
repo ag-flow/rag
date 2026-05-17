@@ -18,6 +18,8 @@ from rag.schemas.admin import (
 from rag.secrets.resolver import VaultLookupFailed
 from rag.services.workspaces import create_workspace, get_workspace, patch_workspace
 
+_TEST_DEK = "x" * 32
+
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 
@@ -71,6 +73,7 @@ async def test_patch_api_key_ref_updates_indexer_config(
         admin_dsn=admin_dsn,
         resolver=resolver,  # type: ignore[arg-type]
         default_vault_name="rag",
+        api_key_dek=_TEST_DEK,
     )
 
     await patch_workspace(
@@ -117,6 +120,7 @@ async def test_patch_workspace_new_ref_not_in_vault_raises(
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=resolver,  # type: ignore[arg-type]
+        api_key_dek=_TEST_DEK,
     )
 
     with pytest.raises(RefNotFoundInVault):

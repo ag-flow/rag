@@ -18,6 +18,8 @@ from rag.secrets.resolver import VaultLookupFailed
 from rag.services.sources import add_source, delete_source, list_sources
 from rag.services.workspaces import create_workspace
 
+_TEST_DEK = "x" * 32
+
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 
@@ -64,6 +66,7 @@ async def _setup_ws(pg_container: str, session_pool: asyncpg.Pool, name: str) ->
         admin_dsn=admin_dsn,
         resolver=resolver,  # type: ignore[arg-type]
         default_vault_name="rag",
+        api_key_dek=_TEST_DEK,
     )
     return resolver
 
