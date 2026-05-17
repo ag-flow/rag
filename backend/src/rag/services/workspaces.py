@@ -253,29 +253,49 @@ async def rotate_apikey(
     *,
     name: str,
     config_pool: asyncpg.Pool,
+    api_key_dek: str,
     apikey_cache: ApiKeyCache | None = None,
+    max_attempts: int = 3,
 ) -> str:
     """Régénère une api_key pour le workspace, retourne la nouvelle en clair.
 
-    Invalide instantanément l'ancienne clé (UPDATE atomique du hash) et,
-    si un cache est fourni, supprime toute entrée en cache pour ce
-    workspace afin que les requêtes suivantes refassent la vérification
-    bcrypt contre le nouveau hash.
-
+    Boucle bornée à max_attempts pour gérer la collision théorique du
+    fingerprint (proba ~2⁻¹²⁸ par paire). Lève RuntimeError au-delà.
     Lève WorkspaceNotFound si le workspace n'existe pas.
+
+    Invalide instantanément l'ancienne clé (UPDATE atomique chiffré) et,
+    si un cache est fourni, supprime toute entrée en cache pour ce workspace
+    afin que les requêtes suivantes refassent la vérification.
     """
     row = await fetch_one(config_pool, "SELECT id FROM workspaces WHERE name=$1", name)
     if row is None:
         raise WorkspaceNotFound(name)
 
-    new_key = generate_api_key()
-    new_hash = hash_api_key(new_key)
-    async with config_pool.acquire() as conn:
-        await conn.execute(
-            "UPDATE workspaces SET api_key_hash=$1, updated_at=now() WHERE id=$2",
-            new_hash,
-            row["id"],
-        )
+    last_err: asyncpg.UniqueViolationError | None = None
+    for _ in range(max_attempts):
+        new_key = generate_api_key()
+        fingerprint = sha256(new_key.encode("utf-8")).hexdigest()
+        try:
+            async with config_pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE workspaces SET "
+                    "api_key_encrypted = pgp_sym_encrypt($1::text, $2::text)::bytea, "
+                    "api_key_fingerprint = $3, "
+                    "updated_at = now() "
+                    "WHERE id = $4",
+                    new_key,
+                    api_key_dek,
+                    fingerprint,
+                    row["id"],
+                )
+            break
+        except asyncpg.UniqueViolationError as e:
+            last_err = e
+            continue
+    else:
+        raise RuntimeError(
+            f"fingerprint collision after {max_attempts} attempts"
+        ) from last_err
 
     if apikey_cache is not None:
         apikey_cache.invalidate(name)

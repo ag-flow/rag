@@ -121,9 +121,16 @@ def build_admin_router() -> APIRouter:
 
     @router.post("/workspaces/{name}/rotate-apikey")
     async def rotate_apikey_endpoint(name: str, request: Request) -> ApiKeyRotateResponse:
+        dek: str | None = request.app.state.settings.api_key_dek
+        if dek is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="api_key_dek_unavailable",
+            )
         new_key = await rotate_apikey(
             name=name,
             config_pool=_config_pool(request),
+            api_key_dek=dek,
             apikey_cache=request.app.state.apikey_cache,
         )
         return ApiKeyRotateResponse(api_key=new_key)
