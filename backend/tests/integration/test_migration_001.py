@@ -29,7 +29,8 @@ async def test_workspaces_columns(session_pool: asyncpg.Pool) -> None:
     expected = {
         "id",
         "name",
-        "api_key_hash",
+        "api_key_encrypted",
+        "api_key_fingerprint",
         "rag_cnx",
         "rag_base",
         "sync_interval_seconds",
@@ -37,6 +38,7 @@ async def test_workspaces_columns(session_pool: asyncpg.Pool) -> None:
         "updated_at",
     }
     assert expected.issubset(cols.keys())
+    assert "api_key_hash" not in cols
     assert cols["sync_interval_seconds"] == "integer"
 
 
@@ -45,13 +47,13 @@ async def test_workspaces_name_unique(session_pool: asyncpg.Pool) -> None:
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base) "
-            "VALUES ('w_unique', 'h1', 'cnx1', 'base1')"
+            "INSERT INTO workspaces (name, api_key_encrypted, api_key_fingerprint, rag_cnx, rag_base) "
+            "VALUES ('w_unique', pgp_sym_encrypt('k', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'::text)::bytea, 'fp_w_unique_1', 'cnx1', 'base1')"
         )
         with pytest.raises(asyncpg.UniqueViolationError):
             await conn.execute(
-                "INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base) "
-                "VALUES ('w_unique', 'h2', 'cnx2', 'base2')"
+                "INSERT INTO workspaces (name, api_key_encrypted, api_key_fingerprint, rag_cnx, rag_base) "
+                "VALUES ('w_unique', pgp_sym_encrypt('k', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'::text)::bytea, 'fp_w_unique_2', 'cnx2', 'base2')"
             )
         await conn.execute("DELETE FROM workspaces WHERE name = 'w_unique'")
 
@@ -63,8 +65,8 @@ async def test_indexer_configs_cascade_on_workspace_delete(
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
         ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base) "
-            "VALUES ('w_cascade', 'h', 'c', 'b') RETURNING id"
+            "INSERT INTO workspaces (name, api_key_encrypted, api_key_fingerprint, rag_cnx, rag_base) "
+            "VALUES ('w_cascade', pgp_sym_encrypt('k', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'::text)::bytea, 'fp_w_cascade', 'c', 'b') RETURNING id"
         )
         await conn.execute(
             "INSERT INTO indexer_configs (workspace_id, provider, model, dimension) "
@@ -90,8 +92,8 @@ async def test_indexer_configs_unique_per_workspace(
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
         ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base) "
-            "VALUES ('w_unique_idx', 'h', 'c', 'b') RETURNING id"
+            "INSERT INTO workspaces (name, api_key_encrypted, api_key_fingerprint, rag_cnx, rag_base) "
+            "VALUES ('w_unique_idx', pgp_sym_encrypt('k', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'::text)::bytea, 'fp_w_unique_idx', 'c', 'b') RETURNING id"
         )
         await conn.execute(
             "INSERT INTO indexer_configs (workspace_id, provider, model, dimension) "

@@ -16,6 +16,7 @@ from rag.indexer.providers.protocol import (
     EmbeddingProvider,
 )
 from rag.indexer.real import RealIndexer
+from tests.integration._workspace_seed import seed_workspace
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
@@ -90,12 +91,11 @@ async def real_indexer_setup(
 
     # Crée le workspace en config DB
     async with session_pool.acquire() as conn:
-        ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base) "
-            "VALUES ($1, 'h', $2, $3) RETURNING id",
-            "ws_real_a",
-            ws_dsn,
-            ws_dbname,
+        ws_id = await seed_workspace(
+            conn,
+            name="ws_real_a",
+            rag_cnx=ws_dsn,
+            rag_base=ws_dbname,
         )
         await conn.execute(
             "INSERT INTO indexer_configs (workspace_id, provider, model, api_key_ref, dimension) "

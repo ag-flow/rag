@@ -8,6 +8,7 @@ import pytest
 
 from rag.db.migrations import run_migrations
 from rag.sync.scheduler import schedule_due_sources
+from tests.integration._workspace_seed import seed_workspace
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 DEFAULT_INTERVAL = 300
@@ -15,11 +16,7 @@ DEFAULT_INTERVAL = 300
 
 async def _make_workspace(pool: asyncpg.Pool, name: str) -> str:
     async with pool.acquire() as conn:
-        return await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base) "
-            "VALUES ($1, 'h', 'c', 'b') RETURNING id",
-            name,
-        )
+        return await seed_workspace(conn, name=name, rag_cnx="c", rag_base="b")
 
 
 async def _make_source(

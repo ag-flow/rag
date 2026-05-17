@@ -8,6 +8,7 @@ import pytest
 
 from rag.db.migrations import run_migrations
 from rag.indexer.noop import NoOpIndexer
+from tests.integration._workspace_seed import seed_workspace
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
@@ -18,10 +19,7 @@ async def test_noop_index_file_inserts_indexed_documents_row(
 ) -> None:
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
-        ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base) "
-            "VALUES ('ws_noop_a', 'h', 'c', 'b') RETURNING id"
-        )
+        ws_id = await seed_workspace(conn, name="ws_noop_a", rag_cnx="c", rag_base="b")
 
     indexer = NoOpIndexer(session_pool)
     chunks = await indexer.index_file(
@@ -50,10 +48,7 @@ async def test_noop_index_file_updates_on_conflict(
 ) -> None:
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
-        ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base) "
-            "VALUES ('ws_noop_b', 'h', 'c', 'b') RETURNING id"
-        )
+        ws_id = await seed_workspace(conn, name="ws_noop_b", rag_cnx="c", rag_base="b")
 
     indexer = NoOpIndexer(session_pool)
     await indexer.index_file(
@@ -83,10 +78,7 @@ async def test_noop_index_file_updates_on_conflict(
 async def test_noop_delete_file_removes_row(session_pool: asyncpg.Pool) -> None:
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
-        ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base) "
-            "VALUES ('ws_noop_c', 'h', 'c', 'b') RETURNING id"
-        )
+        ws_id = await seed_workspace(conn, name="ws_noop_c", rag_cnx="c", rag_base="b")
 
     indexer = NoOpIndexer(session_pool)
     await indexer.index_file(

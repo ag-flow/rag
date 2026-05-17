@@ -39,8 +39,8 @@ async def test_workspace_sources_default_type_git(session_pool: asyncpg.Pool) ->
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
         ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base) "
-            "VALUES ('w_mig002', 'h', 'c', 'b') RETURNING id"
+            "INSERT INTO workspaces (name, api_key_encrypted, api_key_fingerprint, rag_cnx, rag_base) "
+            "VALUES ('w_mig002', pgp_sym_encrypt('k', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'::text)::bytea, 'fp_w_mig002', 'c', 'b') RETURNING id"
         )
         src_id = await conn.fetchval(
             "INSERT INTO workspace_sources (workspace_id, config) "
@@ -69,8 +69,8 @@ async def test_workspace_sources_cascade_on_workspace_delete(
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
         ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base) "
-            "VALUES ('w_mig002_casc', 'h', 'c', 'b') RETURNING id"
+            "INSERT INTO workspaces (name, api_key_encrypted, api_key_fingerprint, rag_cnx, rag_base) "
+            "VALUES ('w_mig002_casc', pgp_sym_encrypt('k', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'::text)::bytea, 'fp_w_mig002_casc', 'c', 'b') RETURNING id"
         )
         await conn.execute(
             "INSERT INTO workspace_sources (workspace_id, config) VALUES ($1, '{}'::jsonb)",

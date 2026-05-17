@@ -7,6 +7,7 @@ import pytest
 
 from rag.db.migrations import run_migrations
 from rag.sync.recovery import reset_stale_running_jobs
+from tests.integration._workspace_seed import seed_workspace
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
@@ -26,10 +27,7 @@ async def _make_running_job(pool: asyncpg.Pool, ws_id, started_at_offset_sec: in
 async def test_reset_marks_running_as_error(session_pool: asyncpg.Pool) -> None:
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
-        ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base) "
-            "VALUES ('ws_rec_a', 'h', 'c', 'b') RETURNING id"
-        )
+        ws_id = await seed_workspace(conn, name="ws_rec_a", rag_cnx="c", rag_base="b")
     job_id = await _make_running_job(session_pool, ws_id, started_at_offset_sec=300)
 
     count = await reset_stale_running_jobs(session_pool)
@@ -53,10 +51,7 @@ async def test_reset_does_not_touch_pending_or_done(
 ) -> None:
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
-        ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base) "
-            "VALUES ('ws_rec_b', 'h', 'c', 'b') RETURNING id"
-        )
+        ws_id = await seed_workspace(conn, name="ws_rec_b", rag_cnx="c", rag_base="b")
         pending_id = await conn.fetchval(
             "INSERT INTO index_jobs (workspace_id, triggered_by, status) "
             "VALUES ($1, 'manual', 'pending') RETURNING id",

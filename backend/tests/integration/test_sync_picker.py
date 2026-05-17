@@ -8,17 +8,14 @@ import pytest
 
 from rag.db.migrations import run_migrations
 from rag.sync.executor import pick_next_pending_job
+from tests.integration._workspace_seed import seed_workspace
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 
 async def _setup_ws_src_indexer(pool: asyncpg.Pool, name: str) -> tuple[str, str]:
     async with pool.acquire() as conn:
-        ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base) "
-            "VALUES ($1, 'h', 'c', 'b') RETURNING id",
-            name,
-        )
+        ws_id = await seed_workspace(conn, name=name, rag_cnx="c", rag_base="b")
         await conn.execute(
             "INSERT INTO indexer_configs (workspace_id, provider, model, dimension) "
             "VALUES ($1, 'openai', 'text-embedding-3-small', 1536)",

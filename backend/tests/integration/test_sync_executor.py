@@ -12,6 +12,7 @@ from rag.indexer.noop import NoOpIndexer
 from rag.sync.executor import execute_next_pending_job
 from rag.sync.repo_storage import RepoStorage
 from tests.integration._git_fixture import add_commit, make_bare_repo_with_commits
+from tests.integration._workspace_seed import seed_workspace
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
@@ -38,11 +39,7 @@ async def _make_workspace_with_indexer(
     name: str,
 ) -> str:
     async with pool.acquire() as conn:
-        ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base) "
-            "VALUES ($1, 'h', 'c', 'b') RETURNING id",
-            name,
-        )
+        ws_id = await seed_workspace(conn, name=name, rag_cnx="c", rag_base="b")
         await conn.execute(
             "INSERT INTO indexer_configs (workspace_id, provider, model, dimension) "
             "VALUES ($1, 'openai', 'text-embedding-3-small', 1536)",

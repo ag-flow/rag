@@ -12,6 +12,7 @@ from rag.indexer.noop import NoOpIndexer
 from rag.sync.repo_storage import RepoStorage
 from rag.sync.worker import SyncWorker
 from tests.integration._git_fixture import make_bare_repo_with_commits
+from tests.integration._workspace_seed import seed_workspace
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
@@ -36,10 +37,7 @@ async def test_worker_processes_pending_job_within_one_cycle(
 
     bare = make_bare_repo_with_commits(tmp_path, {"a.md": "v1"})
     async with session_pool.acquire() as conn:
-        ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base) "
-            "VALUES ('ws_worker_a', 'h', 'c', 'b') RETURNING id"
-        )
+        ws_id = await seed_workspace(conn, name="ws_worker_a", rag_cnx="c", rag_base="b")
         await conn.execute(
             "INSERT INTO indexer_configs (workspace_id, provider, model, dimension) "
             "VALUES ($1, 'openai', 'text-embedding-3-small', 1536)",
@@ -89,10 +87,7 @@ async def test_worker_schedules_due_sources(
 
     bare = make_bare_repo_with_commits(tmp_path, {"a.md": "v1"})
     async with session_pool.acquire() as conn:
-        ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base) "
-            "VALUES ('ws_worker_b', 'h', 'c', 'b') RETURNING id"
-        )
+        ws_id = await seed_workspace(conn, name="ws_worker_b", rag_cnx="c", rag_base="b")
         await conn.execute(
             "INSERT INTO indexer_configs (workspace_id, provider, model, dimension) "
             "VALUES ($1, 'openai', 'text-embedding-3-small', 1536)",

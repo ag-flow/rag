@@ -13,6 +13,7 @@ from rag.services.models import (
     get_dimension_or_raise,
     list_models,
 )
+from tests.integration._workspace_seed import seed_workspace
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
@@ -56,10 +57,7 @@ async def test_delete_model_removes_row(session_pool: asyncpg.Pool) -> None:
 async def test_delete_model_raises_when_in_use(session_pool: asyncpg.Pool) -> None:
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
-        ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_hash, rag_cnx, rag_base) "
-            "VALUES ('ws_uses_voyage', 'h', 'c', 'b') RETURNING id"
-        )
+        ws_id = await seed_workspace(conn, name="ws_uses_voyage", rag_cnx="postgresql://test/c", rag_base="b")
         await conn.execute(
             "INSERT INTO indexer_configs (workspace_id, provider, model, dimension) "
             "VALUES ($1, 'voyage', 'voyage-3', 1024)",
