@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
-  LayoutGrid, GitBranch, Clock, Database, Send, Search, Settings,
+  LayoutGrid, GitBranch, Clock, Database, Send, Search, Settings, KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -89,6 +89,7 @@ export function Sidebar() {
           icon={<Settings />}
           label={t("items.harpocrate_vaults")}
         />
+        <NavItem to="/settings/oidc-config" icon={<KeyRound />} label={t("items.oidc_config")} />
       </nav>
     </aside>
   );

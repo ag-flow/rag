@@ -11,6 +11,7 @@
     "models": "Modèles",
     "push": "Push activity",
     "mcp": "Recherche MCP",
-    "harpocrate_vaults": "Coffres Harpocrate"
+    "harpocrate_vaults": "Coffres Harpocrate",
+    "oidc_config": "Config OIDC"
   }
 }
