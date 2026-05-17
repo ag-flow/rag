@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import i18n from "@/lib/i18n";
-import { WorkspaceCreateDialog } from "@/pages/WorkspaceCreateDialog";
+import { CreateWorkspaceDialog as WorkspaceCreateDialog } from "@/pages/workspace/CreateWorkspaceDialog";
 import * as apiModule from "@/lib/api";
 
 function Wrapper({ children }: { children: ReactNode }) {

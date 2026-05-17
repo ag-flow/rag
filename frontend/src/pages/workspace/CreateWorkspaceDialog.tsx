@@ -42,9 +42,10 @@ const MODELS_BY_PROVIDER: Record<string, string[]> = {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCreated?: (ws: { name: string }) => void;
 }
 
-export function WorkspaceCreateDialog({ open, onOpenChange }: Props) {
+export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) {
   const { t } = useTranslation("workspaces");
   const { toast } = useToast();
   const createMutation = useCreateWorkspace();
@@ -78,6 +79,7 @@ export function WorkspaceCreateDialog({ open, onOpenChange }: Props) {
       toast({ title: t("toasts.created", { name: resp.name }) });
       onOpenChange(false);
       form.reset();
+      onCreated?.({ name: resp.name });
     } catch {
       toast({
         title: t("common:errors.generic"),
