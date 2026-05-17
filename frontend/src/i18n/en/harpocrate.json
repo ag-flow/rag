@@ -59,6 +59,25 @@
     "retry": "Retry",
     "empty": "No secrets found."
   },
+  "info": {
+    "wallet_section": "Wallet",
+    "wallet_name": "Name",
+    "wallet_id": "Wallet ID",
+    "wallet_name_unset": "—",
+    "apikey_section": "API key (token in use)",
+    "apikey_id": "api_key_id",
+    "permissions": "Permissions",
+    "expires_at": "Expires on",
+    "expires_never": "does not expire",
+    "expires_in_months_one": "+ {{count}} month",
+    "expires_in_months_other": "+ {{count}} months",
+    "expires_soon": "⚠ expires soon",
+    "expired": "⚠ expired",
+    "footer_note": "Data is refreshed every time the tab is opened (no backend cache). If the key is revoked on Harpocrate, this page will return an auth error.",
+    "loading_error_title": "Cannot reach Harpocrate",
+    "loading_error_body": "The backend could not fetch wallet metadata. Check network connectivity and api_key.",
+    "retry": "Retry"
+  },
   "create_dialog": {
     "title": "Create a new Harpocrate vault",
     "subtitle": "Connect the backend to a Harpocrate server with an existing api_key.",

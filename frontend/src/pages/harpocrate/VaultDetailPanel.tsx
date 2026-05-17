@@ -5,6 +5,7 @@ import { useVault } from "@/hooks/useHarpocrateVaults";
 import { VaultHeader } from "@/pages/harpocrate/VaultHeader";
 import { VaultDetailTab } from "@/pages/harpocrate/VaultDetailTab";
 import { VaultSecretsTab } from "@/pages/harpocrate/VaultSecretsTab";
+import { VaultWalletInfoTab } from "@/pages/harpocrate/VaultWalletInfoTab";
 
 interface VaultDetailPanelProps {
   vaultId: string;
@@ -56,9 +57,7 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
           </TabsContent>
 
           <TabsContent value="info">
-            <div className="text-sm text-slate-400 italic py-6">
-              Onglet Info wallet — T9 à venir.
-            </div>
+            <VaultWalletInfoTab vaultId={vault.id} />
           </TabsContent>
         </Tabs>
       </div>

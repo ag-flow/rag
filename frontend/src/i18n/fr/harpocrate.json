@@ -59,6 +59,25 @@
     "retry": "Réessayer",
     "empty": "Aucun secret trouvé."
   },
+  "info": {
+    "wallet_section": "Wallet",
+    "wallet_name": "Nom",
+    "wallet_id": "Wallet ID",
+    "wallet_name_unset": "—",
+    "apikey_section": "API key (token utilisé)",
+    "apikey_id": "api_key_id",
+    "permissions": "Permissions",
+    "expires_at": "Expire le",
+    "expires_never": "n'expire pas",
+    "expires_in_months_one": "+ {{count}} mois",
+    "expires_in_months_other": "+ {{count}} mois",
+    "expires_soon": "⚠ expire bientôt",
+    "expired": "⚠ expirée",
+    "footer_note": "Données rafraîchies à chaque ouverture de l'onglet (pas de cache côté backend). Si la clé est révoquée côté Harpocrate, cette page renverra une erreur d'auth.",
+    "loading_error_title": "Impossible de joindre Harpocrate",
+    "loading_error_body": "Le backend n'a pas pu récupérer les métadonnées du wallet. Vérifie la connectivité réseau et l'api_key.",
+    "retry": "Réessayer"
+  },
   "create_dialog": {
     "title": "Créer un nouveau coffre Harpocrate",
     "subtitle": "Connecte le backend à un serveur Harpocrate via une api_key existante.",
