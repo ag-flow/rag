@@ -6,6 +6,7 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { VaultsList } from "@/pages/harpocrate/VaultsList";
 import { VaultsEmptyState } from "@/pages/harpocrate/VaultsEmptyState";
 import { VaultDetailPanel } from "@/pages/harpocrate/VaultDetailPanel";
+import { CreateVaultDialog } from "@/pages/harpocrate/CreateVaultDialog";
 
 export function HarpocrateVaultsPage() {
   const { t } = useTranslation("harpocrate");
@@ -29,6 +30,10 @@ export function HarpocrateVaultsPage() {
     setSearchParams({ vault: id }, { replace: true });
   };
 
+  const handleCreated = (vault: { id: string }) => {
+    setSearchParams({ vault: vault.id }, { replace: true });
+  };
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -42,32 +47,42 @@ export function HarpocrateVaultsPage() {
   // État vide : aucun coffre → on remplit tout l'écran avec l'empty state.
   if (vaults.length === 0) {
     return (
-      <div className="flex h-full">
-        <VaultsEmptyState onCreate={() => setCreateOpen(true)} />
-        {/* T7 : <CreateVaultDialog open={createOpen} onOpenChange={setCreateOpen} /> */}
-        {createOpen ? null : null}
-      </div>
+      <>
+        <div className="flex h-full">
+          <VaultsEmptyState onCreate={() => setCreateOpen(true)} />
+        </div>
+        <CreateVaultDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          onCreated={handleCreated}
+        />
+      </>
     );
   }
 
   return (
-    <div className="flex h-full bg-slate-50">
-      <VaultsList
-        selectedId={selectedId}
-        onSelect={handleSelect}
-        onCreate={() => setCreateOpen(true)}
+    <>
+      <div className="flex h-full bg-slate-50">
+        <VaultsList
+          selectedId={selectedId}
+          onSelect={handleSelect}
+          onCreate={() => setCreateOpen(true)}
+        />
+        <main className="flex-1 bg-white">
+          {selectedId ? (
+            <VaultDetailPanel vaultId={selectedId} />
+          ) : (
+            <div className="flex h-full items-center justify-center text-slate-400 italic text-sm">
+              {t("page.no_selection")}
+            </div>
+          )}
+        </main>
+      </div>
+      <CreateVaultDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={handleCreated}
       />
-      <main className="flex-1 bg-white">
-        {selectedId ? (
-          <VaultDetailPanel vaultId={selectedId} />
-        ) : (
-          <div className="flex h-full items-center justify-center text-slate-400 italic text-sm">
-            {t("page.no_selection")}
-          </div>
-        )}
-      </main>
-      {/* T7 : <CreateVaultDialog open={createOpen} onOpenChange={setCreateOpen} /> */}
-      {createOpen ? null : null}
-    </div>
+    </>
   );
 }

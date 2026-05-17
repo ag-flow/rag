@@ -37,5 +37,29 @@
     "cancel": "Cancel",
     "saved_toast": "Vault updated",
     "save_error_toast": "Update failed"
+  },
+  "create_dialog": {
+    "title": "Create a new Harpocrate vault",
+    "subtitle": "Connect the backend to a Harpocrate server with an existing api_key.",
+    "name_label": "Name (slug, immutable)",
+    "name_placeholder": "rag, prod-eu, staging…",
+    "name_help": "^[a-z][a-z0-9_-]{2,63}$ — used in refs ${vault://<name>:path}",
+    "name_taken": "This name is already in use.",
+    "label_label": "Label (display)",
+    "label_placeholder": "RAG production vault",
+    "base_url_label": "Base URL",
+    "base_url_placeholder": "https://vault.yoops.org",
+    "api_key_id_label": "api_key_id",
+    "api_key_id_placeholder": "k-001",
+    "api_key_label": "api_key (token)",
+    "api_key_placeholder": "hrpv_1_...",
+    "set_default_label": "Set as default vault",
+    "submit": "Create vault",
+    "cancel": "Cancel",
+    "created_toast": "Vault \"{{name}}\" created",
+    "generic_error": "Failed to create vault.",
+    "dek_missing_title": "HARPOCRATE_DEK missing on backend",
+    "dek_missing_body": "The backend cannot encrypt the new key: the HARPOCRATE_DEK environment variable is not set. Add it to the backend .env (min 32 characters) and restart the stack before creating a vault.",
+    "dek_missing_close": "Close"
   }
 }

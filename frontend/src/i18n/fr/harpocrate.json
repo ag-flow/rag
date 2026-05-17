@@ -37,5 +37,29 @@
     "cancel": "Annuler",
     "saved_toast": "Coffre mis à jour",
     "save_error_toast": "Erreur lors de la mise à jour"
+  },
+  "create_dialog": {
+    "title": "Créer un nouveau coffre Harpocrate",
+    "subtitle": "Connecte le backend à un serveur Harpocrate via une api_key existante.",
+    "name_label": "Nom (slug, immuable)",
+    "name_placeholder": "rag, prod-eu, staging…",
+    "name_help": "^[a-z][a-z0-9_-]{2,63}$ — utilisé dans les refs ${vault://<nom>:path}",
+    "name_taken": "Ce nom est déjà utilisé.",
+    "label_label": "Libellé (affichage)",
+    "label_placeholder": "Coffre RAG production",
+    "base_url_label": "Base URL",
+    "base_url_placeholder": "https://vault.yoops.org",
+    "api_key_id_label": "api_key_id",
+    "api_key_id_placeholder": "k-001",
+    "api_key_label": "api_key (token)",
+    "api_key_placeholder": "hrpv_1_...",
+    "set_default_label": "Désigner comme coffre par défaut",
+    "submit": "Créer le coffre",
+    "cancel": "Annuler",
+    "created_toast": "Coffre « {{name}} » créé",
+    "generic_error": "Erreur lors de la création du coffre.",
+    "dek_missing_title": "HARPOCRATE_DEK manquant côté backend",
+    "dek_missing_body": "Le backend ne peut pas chiffrer la nouvelle clé : la variable d'environnement HARPOCRATE_DEK n'est pas posée. Ajoute-la dans le .env du backend (min 32 caractères) puis relance la stack avant de créer un coffre.",
+    "dek_missing_close": "Fermer"
   }
 }
