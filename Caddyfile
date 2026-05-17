@@ -1,4 +1,4 @@
-# Caddyfile dev — reverse proxy HTTP minimal pour LXC 303.
+# Caddyfile dev — reverse proxy HTTP minimal pour env de dev (LXC ou local).
 # /api/*  → backend:8000 (FastAPI)
 # /auth/* → backend:8000 (OIDC flow M5a)
 # /me     → backend:8000 (OIDC)

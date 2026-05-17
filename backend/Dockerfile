@@ -29,7 +29,7 @@ COPY pyproject.toml uv.lock /app/
 # Note : `--frozen` est volontairement absent tant que `uv.lock` n'a pas été
 # regénéré sur un hôte Linux/WSL avec le wheel Harpocrate présent. uv résout
 # les deps à partir de pyproject.toml au build. À ré-activer quand un lock
-# autoritaire sera commité (M2 ou plus tard, après bootstrap LXC 303).
+# autoritaire sera commité (M2 ou plus tard, après bootstrap LXC initial).
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --no-dev --no-install-project
 

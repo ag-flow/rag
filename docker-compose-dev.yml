@@ -71,7 +71,7 @@ services:
     depends_on: [backend, frontend]
     networks: [rag]
 
-  # http://192.168.10.184:8081/
+  # http://<host>:8081/  — exposé sur l'IP de l'hôte Docker
   pgweb:
     image: sosedoff/pgweb:latest
     container_name: rag-pgweb

@@ -7,7 +7,7 @@ IHM web pour ag-flow.rag (M5b — page Workspaces).
 ```bash
 cd frontend
 npm install
-npm run dev    # http://localhost:5173/ui (proxy /api+/auth+/me → backend LXC 303)
+npm run dev    # http://localhost:5173/ui (proxy /api+/auth+/me → VITE_BACKEND_URL, défaut 127.0.0.1:8000)
 ```
 
 Env var optionnelle :

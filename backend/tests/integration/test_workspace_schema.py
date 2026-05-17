@@ -28,17 +28,17 @@ async def ephemeral_ws_name(pg_container: str) -> AsyncIterator[str]:
 
 
 def test_derive_workspace_dsn_replaces_dbname() -> None:
-    admin_dsn = "postgresql://rag:pwd@192.168.10.184:5432/postgres"
+    admin_dsn = "postgresql://rag:pwd@db.example:5432/postgres"
     assert (
         derive_workspace_dsn(admin_dsn, "rag_harpocrate")
-        == "postgresql://rag:pwd@192.168.10.184:5432/rag_harpocrate"
+        == "postgresql://rag:pwd@db.example:5432/rag_harpocrate"
     )
 
 
 def test_derive_workspace_dsn_preserves_query_string() -> None:
-    admin_dsn = "postgresql://rag:pwd@192.168.10.184:5432/postgres?sslmode=require"
+    admin_dsn = "postgresql://rag:pwd@db.example:5432/postgres?sslmode=require"
     out = derive_workspace_dsn(admin_dsn, "rag_x")
-    assert out == "postgresql://rag:pwd@192.168.10.184:5432/rag_x?sslmode=require"
+    assert out == "postgresql://rag:pwd@db.example:5432/rag_x?sslmode=require"
 
 
 @pytest.mark.asyncio
