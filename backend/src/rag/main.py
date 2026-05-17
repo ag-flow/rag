@@ -109,6 +109,16 @@ def build_app(
         target_dir = migrations_dir or _default_migrations_dir()
         await run_migrations(registry.config_pool, target_dir)
 
+        # M5e — guard : si des workspaces existent en BDD, RAG_API_KEY_DEK doit être défini
+        # (sinon impossible de déchiffrer les api_keys, le service tournerait en mode dégradé silencieux).
+        async with registry.config_pool.acquire() as conn:
+            workspaces_count = await conn.fetchval("SELECT COUNT(*) FROM workspaces")
+        if workspaces_count > 0 and settings.api_key_dek is None:
+            raise RuntimeError(
+                "RAG_API_KEY_DEK manquant alors que la table workspaces contient "
+                f"{workspaces_count} entrée(s)"
+            )
+
         # Le service Harpocrate est créé ici (et non dans la factory) pour que
         # les tests qui injectent un `resolver_factory` stub bénéficient quand
         # même du service + du seed env (rétrocompat).
