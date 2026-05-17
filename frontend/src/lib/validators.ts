@@ -54,3 +54,20 @@ export interface MeResponse {
   name: string | null;
   roles: string[];
 }
+
+export const vaultUpdateSchema = z.object({
+  label: z.string().min(1, "Libellé requis").max(128),
+  base_url: z
+    .string()
+    .min(8)
+    .max(512)
+    .regex(/^https?:\/\//, "Doit commencer par http:// ou https://"),
+  probe_path: z
+    .string()
+    .max(512)
+    .regex(/^[a-zA-Z0-9_/-]*$/, "Caractères autorisés : a-zA-Z0-9_/-")
+    .optional()
+    .default(""),
+});
+
+export type VaultUpdateForm = z.infer<typeof vaultUpdateSchema>;

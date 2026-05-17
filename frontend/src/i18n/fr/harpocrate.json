@@ -22,5 +22,20 @@
     "detail": "Détail",
     "secrets": "Secrets",
     "info": "Info wallet"
+  },
+  "detail": {
+    "name_label": "Nom (immuable)",
+    "label_label": "Libellé",
+    "base_url_label": "Base URL",
+    "api_key_id_label": "api_key_id",
+    "probe_path_label": "probe_path (optionnel)",
+    "probe_path_placeholder": "laissé vide → whoami()",
+    "replace_key": "🔁 Remplacer la clé",
+    "reveal_key": "👁 Reveal",
+    "retire_vault": "Retirer ce coffre",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "saved_toast": "Coffre mis à jour",
+    "save_error_toast": "Erreur lors de la mise à jour"
   }
 }

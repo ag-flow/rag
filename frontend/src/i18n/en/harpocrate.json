@@ -22,5 +22,20 @@
     "detail": "Detail",
     "secrets": "Secrets",
     "info": "Wallet info"
+  },
+  "detail": {
+    "name_label": "Name (immutable)",
+    "label_label": "Label",
+    "base_url_label": "Base URL",
+    "api_key_id_label": "api_key_id",
+    "probe_path_label": "probe_path (optional)",
+    "probe_path_placeholder": "leave empty → whoami()",
+    "replace_key": "🔁 Replace key",
+    "reveal_key": "👁 Reveal",
+    "retire_vault": "Retire this vault",
+    "save": "Save",
+    "cancel": "Cancel",
+    "saved_toast": "Vault updated",
+    "save_error_toast": "Update failed"
   }
 }

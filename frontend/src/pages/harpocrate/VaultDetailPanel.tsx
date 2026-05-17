@@ -3,6 +3,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useVault } from "@/hooks/useHarpocrateVaults";
 import { VaultHeader } from "@/pages/harpocrate/VaultHeader";
+import { VaultDetailTab } from "@/pages/harpocrate/VaultDetailTab";
 
 interface VaultDetailPanelProps {
   vaultId: string;
@@ -41,9 +42,12 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
           </TabsList>
 
           <TabsContent value="detail">
-            <div className="text-sm text-slate-400 italic py-6">
-              Onglet Détail — T6 à venir.
-            </div>
+            <VaultDetailTab
+              vault={vault}
+              onReplaceApiKey={() => alert("T10 : ReplaceApiKeyDialog à venir")}
+              onReveal={() => alert("T10 : RevealApiKeyDialog à venir")}
+              onRetire={() => alert("T10 : RetireVaultDialog à venir")}
+            />
           </TabsContent>
 
           <TabsContent value="secrets">
