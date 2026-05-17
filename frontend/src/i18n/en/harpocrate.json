@@ -1,6 +1,15 @@
 {
   "page": {
     "title": "Harpocrate vaults",
-    "subtitle": "Configure the vaults used by the backend to resolve external secrets."
+    "subtitle": "Configure the vaults used by the backend to resolve external secrets.",
+    "no_selection": "Select a vault on the left to view its details."
+  },
+  "list": {
+    "header": "Vaults",
+    "new": "+ New",
+    "default_marker": "default",
+    "empty_title": "No Harpocrate vault",
+    "empty_subtitle": "External model api keys (OpenAI, Voyage, Anthropic…) live in a Harpocrate vault. Create your first vault so the backend can resolve secrets used by your workspaces.",
+    "empty_cta": "+ Create my first vault"
   }
 }

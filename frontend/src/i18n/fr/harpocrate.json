@@ -1,6 +1,15 @@
 {
   "page": {
     "title": "Coffres Harpocrate",
-    "subtitle": "Configurer les coffres-forts utilisés par le backend pour résoudre les secrets externes."
+    "subtitle": "Configurer les coffres-forts utilisés par le backend pour résoudre les secrets externes.",
+    "no_selection": "Sélectionne un coffre à gauche pour voir ses détails."
+  },
+  "list": {
+    "header": "Coffres",
+    "new": "+ Nouveau",
+    "default_marker": "default",
+    "empty_title": "Aucun coffre Harpocrate",
+    "empty_subtitle": "Les api keys des modèles externes (OpenAI, Voyage, Anthropic…) sont stockées dans un coffre-fort Harpocrate. Créez un premier coffre pour permettre au backend de résoudre les secrets utilisés par vos workspaces.",
+    "empty_cta": "+ Créer mon premier coffre"
   }
 }
