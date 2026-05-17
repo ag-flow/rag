@@ -5,6 +5,7 @@ import { useVaults } from "@/hooks/useHarpocrateVaults";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { VaultsList } from "@/pages/harpocrate/VaultsList";
 import { VaultsEmptyState } from "@/pages/harpocrate/VaultsEmptyState";
+import { VaultDetailPanel } from "@/pages/harpocrate/VaultDetailPanel";
 
 export function HarpocrateVaultsPage() {
   const { t } = useTranslation("harpocrate");
@@ -58,10 +59,7 @@ export function HarpocrateVaultsPage() {
       />
       <main className="flex-1 bg-white">
         {selectedId ? (
-          // T5 : <VaultDetailPanel vaultId={selectedId} />
-          <div className="p-6 text-slate-500 text-sm">
-            Détail du coffre <code>{selectedId}</code> — T5+ à venir.
-          </div>
+          <VaultDetailPanel vaultId={selectedId} />
         ) : (
           <div className="flex h-full items-center justify-center text-slate-400 italic text-sm">
             {t("page.no_selection")}

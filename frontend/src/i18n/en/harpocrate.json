@@ -11,5 +11,16 @@
     "empty_title": "No Harpocrate vault",
     "empty_subtitle": "External model api keys (OpenAI, Voyage, Anthropic…) live in a Harpocrate vault. Create your first vault so the backend can resolve secrets used by your workspaces.",
     "empty_cta": "+ Create my first vault"
+  },
+  "header": {
+    "badge_default": "Default",
+    "badge_healthy": "● healthy",
+    "badge_auth_ko": "● auth ko",
+    "test": "Test"
+  },
+  "tabs": {
+    "detail": "Detail",
+    "secrets": "Secrets",
+    "info": "Wallet info"
   }
 }

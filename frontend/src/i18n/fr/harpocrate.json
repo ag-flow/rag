@@ -11,5 +11,16 @@
     "empty_title": "Aucun coffre Harpocrate",
     "empty_subtitle": "Les api keys des modèles externes (OpenAI, Voyage, Anthropic…) sont stockées dans un coffre-fort Harpocrate. Créez un premier coffre pour permettre au backend de résoudre les secrets utilisés par vos workspaces.",
     "empty_cta": "+ Créer mon premier coffre"
+  },
+  "header": {
+    "badge_default": "default",
+    "badge_healthy": "● healthy",
+    "badge_auth_ko": "● auth ko",
+    "test": "Tester"
+  },
+  "tabs": {
+    "detail": "Détail",
+    "secrets": "Secrets",
+    "info": "Info wallet"
   }
 }
