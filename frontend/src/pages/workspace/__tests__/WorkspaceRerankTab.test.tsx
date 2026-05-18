@@ -80,7 +80,7 @@ describe("WorkspaceRerankTab", () => {
     fireEvent.change(modelInput, { target: { value: "rerank-multilingual-v3.0" } });
     fireEvent.click(screen.getByRole("button", { name: /Enregistrer/i }));
     await waitFor(() => expect(upsertMutate).toHaveBeenCalled());
-    expect(upsertMutate.mock.calls[0][0]).toMatchObject({
+    expect(upsertMutate.mock.calls[0]?.[0]).toMatchObject({
       provider: "cohere",
       model: "rerank-multilingual-v3.0",
       api_key_ref: "cohere_rerank_key",
