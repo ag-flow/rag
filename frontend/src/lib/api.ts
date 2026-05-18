@@ -14,6 +14,16 @@ export function isUnauthorized(err: unknown): boolean {
   return err instanceof ApiError && err.status === 401;
 }
 
+export function isErrorBodyWithDetail(body: unknown, expected: string): boolean {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    "detail" in body &&
+    typeof (body as { detail: unknown }).detail === "string" &&
+    (body as { detail: string }).detail === expected
+  );
+}
+
 async function request<T>(
   url: string,
   init?: RequestInit,
@@ -44,6 +54,13 @@ export const api = {
   post: <T>(url: string, body: unknown): Promise<T> =>
     request<T>(url, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+
+  put: <T>(url: string, body: unknown): Promise<T> =>
+    request<T>(url, {
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
