@@ -13,6 +13,10 @@ async def apply_pending_for_all_workspaces(config_pool: asyncpg.Pool) -> None:
 
     Fail-fast : si une base est inaccessible ou une migration plante, raise. Le
     service refuse alors de démarrer.
+
+    Conséquence opérationnelle : une seule base inaccessible empêche le démarrage
+    complet du service. Décision §6.2 de la spec — préférable à un état incohérent
+    silencieux.
     """
     rows = await config_pool.fetch("SELECT name, rag_cnx FROM workspaces ORDER BY name")
     for row in rows:

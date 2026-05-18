@@ -1,49 +1,12 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncIterator
 
 import asyncpg
 import pytest
-import pytest_asyncio
 
 from rag.db.workspace_migrations import apply_pending_for_all_workspaces
 from rag.db.workspace_schema import derive_workspace_dsn
-
-
-@pytest_asyncio.fixture
-async def legacy_workspace_db(admin_dsn: str) -> AsyncIterator[tuple[str, str]]:
-    """Crée une base workspace 'ancien schema' (embeddings SANS metadata). Yield (dbname, dsn)."""
-    name = f"rag_boot_{uuid.uuid4().hex[:12]}"
-    conn = await asyncpg.connect(admin_dsn)
-    try:
-        await conn.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
-        await conn.execute(f'CREATE DATABASE "{name}"')
-    finally:
-        await conn.close()
-
-    dsn = derive_workspace_dsn(admin_dsn, name)
-    conn = await asyncpg.connect(dsn)
-    try:
-        await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        await conn.execute(
-            "CREATE TABLE embeddings ("
-            "id SERIAL PRIMARY KEY, path TEXT NOT NULL, chunk_index INT NOT NULL, "
-            "content TEXT NOT NULL, embedding vector(8) NOT NULL, "
-            "indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
-            "UNIQUE (path, chunk_index))"
-        )
-    finally:
-        await conn.close()
-
-    try:
-        yield name, dsn
-    finally:
-        admin = await asyncpg.connect(admin_dsn)
-        try:
-            await admin.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
-        finally:
-            await admin.close()
 
 
 @pytest.mark.asyncio
