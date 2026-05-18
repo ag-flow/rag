@@ -99,4 +99,62 @@ describe("WorkspaceRerankTab", () => {
     renderWithProviders(<WorkspaceRerankTab workspace={mockWorkspace} enabled={true} />);
     expect(screen.queryByText(/Dernière modification/i)).not.toBeInTheDocument();
   });
+
+  it("désactive base_url quand provider est cohere", () => {
+    mockState({ ...mockConfig, provider: "cohere" });
+    renderWithProviders(<WorkspaceRerankTab workspace={mockWorkspace} enabled={true} />);
+    // Le champ base_url n'est pas applicable -> placeholder "— non applicable —" + disabled
+    const baseUrlInput = screen.getAllByPlaceholderText(/non applicable/i).find(
+      (el) => el.getAttribute("name") === "base_url",
+    ) as HTMLInputElement | undefined;
+    expect(baseUrlInput).toBeDefined();
+    expect(baseUrlInput).toBeDisabled();
+  });
+
+  it("désactive api_key_ref quand provider est ollama", () => {
+    mockState({
+      ...mockConfig,
+      provider: "ollama",
+      api_key_ref: null,
+      base_url: "https://ollama.example.com",
+      model: "bge-reranker-v2",
+    });
+    renderWithProviders(<WorkspaceRerankTab workspace={mockWorkspace} enabled={true} />);
+    const apiKeyInput = screen.getAllByPlaceholderText(/non applicable/i).find(
+      (el) => el.getAttribute("name") === "api_key_ref",
+    ) as HTMLInputElement | undefined;
+    expect(apiKeyInput).toBeDefined();
+    expect(apiKeyInput).toBeDisabled();
+  });
+
+  it("affiche erreur Zod required_for_provider si cohere sans api_key_ref", async () => {
+    mockState(null);
+    renderWithProviders(<WorkspaceRerankTab workspace={mockWorkspace} enabled={true} />);
+    // provider défaut = cohere (EMPTY_RERANK_FORM.provider). On remplit uniquement model.
+    const modelInput = screen.getByPlaceholderText(/rerank-english/i);
+    fireEvent.change(modelInput, { target: { value: "rerank-english-v3.0" } });
+    fireEvent.click(screen.getByRole("button", { name: /Activer/i }));
+    expect(
+      await screen.findByText(/Requis pour ce provider/i),
+    ).toBeInTheDocument();
+  });
+
+  it("affiche erreur Zod required_for_provider si ollama sans base_url", async () => {
+    mockState({
+      ...mockConfig,
+      provider: "ollama",
+      api_key_ref: null,
+      base_url: null,
+      model: "bge-reranker-v2",
+    });
+    renderWithProviders(<WorkspaceRerankTab workspace={mockWorkspace} enabled={true} />);
+    // Form en mode ollama avec base_url=null. On modifie le modèle pour marquer le form dirty,
+    // puis on soumet -> Zod doit déclencher required_for_provider sur base_url.
+    const modelInput = screen.getByDisplayValue("bge-reranker-v2");
+    fireEvent.change(modelInput, { target: { value: "bge-reranker-v2.5" } });
+    fireEvent.click(screen.getByRole("button", { name: /Enregistrer/i }));
+    expect(
+      await screen.findByText(/Requis pour ce provider/i),
+    ).toBeInTheDocument();
+  });
 });

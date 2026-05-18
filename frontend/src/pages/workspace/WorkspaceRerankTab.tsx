@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,57 +14,11 @@ import {
 } from "@/components/ui/select";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useToast } from "@/hooks/useToast";
-import {
-  useRerankConfig,
-  useUpsertRerankConfig,
-} from "@/hooks/useRerank";
+import { useRerankConfig, useUpsertRerankConfig } from "@/hooks/useRerank";
 import { DeleteRerankAlert } from "./DeleteRerankAlert";
 import type { Workspace } from "@/lib/workspaces.types";
 import type { RerankProvider } from "@/lib/rerank.types";
-
-const PROVIDERS: RerankProvider[] = ["cohere", "voyage", "ollama"];
-
-const schema = z
-  .object({
-    provider: z.enum(["cohere", "voyage", "ollama"]),
-    model: z.string().min(1, "required"),
-    api_key_ref: z
-      .string()
-      .regex(/^[a-zA-Z0-9_]+$/, "alphanum_underscore_only")
-      .nullable(),
-    base_url: z.string().url("invalid_url").nullable(),
-    top_k_pre_rerank: z.coerce
-      .number()
-      .int()
-      .min(1, "min")
-      .max(500, "max"),
-  })
-  .superRefine((data, ctx) => {
-    if ((data.provider === "cohere" || data.provider === "voyage") && !data.api_key_ref) {
-      ctx.addIssue({
-        path: ["api_key_ref"],
-        code: z.ZodIssueCode.custom,
-        message: "required_for_provider",
-      });
-    }
-    if (data.provider === "ollama" && !data.base_url) {
-      ctx.addIssue({
-        path: ["base_url"],
-        code: z.ZodIssueCode.custom,
-        message: "required_for_provider",
-      });
-    }
-  });
-
-type FormValues = z.infer<typeof schema>;
-
-const EMPTY: FormValues = {
-  provider: "cohere",
-  model: "",
-  api_key_ref: null,
-  base_url: null,
-  top_k_pre_rerank: 50,
-};
+import { RERANK_PROVIDERS, rerankFormSchema, EMPTY_RERANK_FORM, type RerankFormValues } from "./WorkspaceRerankTab.schema";
 
 function relativeTimeRaw(iso: string): { key: string; count: number } {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -89,9 +42,9 @@ export function WorkspaceRerankTab({ workspace, enabled }: Props) {
   const upsert = useUpsertRerankConfig(workspace.name);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: EMPTY,
+  const form = useForm<RerankFormValues>({
+    resolver: zodResolver(rerankFormSchema),
+    defaultValues: EMPTY_RERANK_FORM,
   });
 
   useEffect(() => {
@@ -105,7 +58,7 @@ export function WorkspaceRerankTab({ workspace, enabled }: Props) {
         top_k_pre_rerank: data.top_k_pre_rerank,
       });
     } else {
-      form.reset(EMPTY);
+      form.reset(EMPTY_RERANK_FORM);
     }
   }, [data, isLoading, form]);
 
@@ -113,7 +66,7 @@ export function WorkspaceRerankTab({ workspace, enabled }: Props) {
   const apiKeyApplicable = provider === "cohere" || provider === "voyage";
   const baseUrlApplicable = provider === "ollama";
 
-  const onSubmit = (values: FormValues) => {
+  const onSubmit = (values: RerankFormValues) => {
     const payload = {
       provider: values.provider,
       model: values.model,
@@ -185,7 +138,7 @@ export function WorkspaceRerankTab({ workspace, enabled }: Props) {
                   <SelectValue placeholder={t("rerank.fields.providerPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {PROVIDERS.map((p) => (
+                  {RERANK_PROVIDERS.map((p) => (
                     <SelectItem key={p} value={p}>
                       {t(`rerank.fields.providers.${p}`)}
                     </SelectItem>
@@ -313,7 +266,7 @@ export function WorkspaceRerankTab({ workspace, enabled }: Props) {
             <Button
               type="button"
               variant="ghost"
-              onClick={() => form.reset(data ?? EMPTY)}
+              onClick={() => form.reset(data ?? EMPTY_RERANK_FORM)}
               disabled={!form.formState.isDirty}
             >
               {t("rerank.actions.cancel")}
