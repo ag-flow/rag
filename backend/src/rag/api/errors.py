@@ -104,6 +104,34 @@ class IndexerChangeRequiresReindex(AdminError):
         }
 
 
+class ChunkingChangeRequiresReindex(AdminError):
+    """409 levé par PUT /chunking-config quand le workspace a déjà des
+    documents indexés et que ``confirm=false`` (cf. design M9 §5.2).
+
+    Symétrique de :class:`IndexerChangeRequiresReindex` (errors.py:85). Le
+    payload utilise les libellés ``current``/``new`` (et non
+    ``current``/``requested``) car le flux chunking est déclenché via
+    ``PUT chunking-config?confirm=true`` et non via ``POST /reindex``.
+    """
+
+    http_status = 409
+
+    def __init__(self, *, workspace: str, current: str, new: str) -> None:
+        super().__init__(workspace)
+        self.workspace = workspace
+        self.current = current
+        self.new = new
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "error": "chunking_change_requires_reindex",
+            "workspace": self.workspace,
+            "current": self.current,
+            "new": self.new,
+            "action": f"PUT /workspaces/{self.workspace}/chunking-config?confirm=true",
+        }
+
+
 class SourceNotFound(AdminError):
     http_status = 404
 

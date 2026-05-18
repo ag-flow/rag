@@ -166,3 +166,146 @@ async def test_upsert_extras_round_trip_with_content(
     )
     cfg = await get_chunking_config(workspace_id, migrated)
     assert cfg["extras"] == {"foo": "bar", "n": 42}
+
+
+# --- apply_chunking_change (M9-T7) ---------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_apply_chunking_change_no_change_returns_no_change(
+    migrated: asyncpg.Pool,
+    workspace_id: UUID,
+) -> None:
+    """Payload identique à la config courante → 'no_change' (caller 204)."""
+    from rag.schemas.admin import ChunkingConfigSpec
+    from rag.services.jobs import apply_chunking_change
+
+    spec = ChunkingConfigSpec(
+        strategy="paragraph",
+        max_chars=2000,
+        min_chars=200,
+        overlap_chars=200,
+        extras={},
+    )
+    result = await apply_chunking_change(
+        name="ws_chunking_svc",
+        payload=spec,
+        confirm=False,
+        config_pool=migrated,
+    )
+    assert result == "no_change"
+
+
+@pytest.mark.asyncio
+async def test_apply_chunking_change_no_docs_updates(
+    migrated: asyncpg.Pool,
+    workspace_id: UUID,
+) -> None:
+    """Changement réel + 0 docs indexés → upsert sans reindex ('updated', cfg)."""
+    from rag.schemas.admin import ChunkingConfigSpec
+    from rag.services.jobs import apply_chunking_change
+
+    spec = ChunkingConfigSpec(
+        strategy="paragraph",
+        max_chars=1500,
+        min_chars=100,
+        overlap_chars=150,
+        extras={},
+    )
+    result = await apply_chunking_change(
+        name="ws_chunking_svc",
+        payload=spec,
+        confirm=False,
+        config_pool=migrated,
+    )
+    assert isinstance(result, tuple)
+    tag, new_cfg = result
+    assert tag == "updated"
+    assert new_cfg["max_chars"] == 1500
+    assert new_cfg["min_chars"] == 100
+    assert new_cfg["overlap_chars"] == 150
+
+
+@pytest.mark.asyncio
+async def test_apply_chunking_change_with_docs_raises_without_confirm(
+    migrated: asyncpg.Pool,
+    workspace_id: UUID,
+) -> None:
+    """Changement réel + docs présents + !confirm → ChunkingChangeRequiresReindex."""
+    from rag.api.errors import ChunkingChangeRequiresReindex
+    from rag.schemas.admin import ChunkingConfigSpec
+    from rag.services.jobs import apply_chunking_change
+
+    await migrated.execute(
+        "INSERT INTO indexed_documents (workspace_id, path, content_hash, indexer_used) "
+        "VALUES ($1, $2, $3, $4)",
+        workspace_id,
+        "a.md",
+        "sha256:0",
+        "ollama/x",
+    )
+
+    spec = ChunkingConfigSpec(
+        strategy="paragraph",
+        max_chars=1500,
+        min_chars=100,
+        overlap_chars=150,
+        extras={},
+    )
+    with pytest.raises(ChunkingChangeRequiresReindex) as excinfo:
+        await apply_chunking_change(
+            name="ws_chunking_svc",
+            payload=spec,
+            confirm=False,
+            config_pool=migrated,
+        )
+    # Le payload est bien renseigné (current + new humainement lisibles).
+    assert "max=2000" in excinfo.value.current
+    assert "max=1500" in excinfo.value.new
+
+
+@pytest.mark.asyncio
+async def test_apply_chunking_change_with_docs_and_confirm_triggers_reindex(
+    migrated: asyncpg.Pool,
+    workspace_id: UUID,
+) -> None:
+    """Changement réel + docs présents + confirm=True → upsert + job pending."""
+    from rag.schemas.admin import ChunkingConfigSpec
+    from rag.services.jobs import apply_chunking_change
+
+    await migrated.execute(
+        "INSERT INTO indexed_documents (workspace_id, path, content_hash, indexer_used) "
+        "VALUES ($1, $2, $3, $4)",
+        workspace_id,
+        "b.md",
+        "sha256:0",
+        "ollama/x",
+    )
+
+    spec = ChunkingConfigSpec(
+        strategy="paragraph",
+        max_chars=1500,
+        min_chars=100,
+        overlap_chars=150,
+        extras={},
+    )
+    result = await apply_chunking_change(
+        name="ws_chunking_svc",
+        payload=spec,
+        confirm=True,
+        config_pool=migrated,
+    )
+    assert isinstance(result, tuple)
+    tag, job_row = result
+    assert tag == "reindex_triggered"
+    assert job_row["triggered_by"] == "reindex_chunking_change"
+    assert job_row["status"] == "pending"
+
+    # La nouvelle config est bien persistée (transaction atomique upsert+job).
+    new_cfg = await migrated.fetchrow(
+        "SELECT max_chars, min_chars, overlap_chars FROM chunking_configs WHERE workspace_id = $1",
+        workspace_id,
+    )
+    assert new_cfg["max_chars"] == 1500
+    assert new_cfg["min_chars"] == 100
+    assert new_cfg["overlap_chars"] == 150

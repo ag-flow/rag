@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, Protocol
+import json
+from typing import Any, Literal, Protocol
 
 import asyncpg
 import structlog
 
 from rag.api.errors import (
+    ChunkingChangeRequiresReindex,
     IndexerChangeRequiresReindex,
     RefNotFoundInVault,
     VaultUnreachable,
@@ -16,12 +18,19 @@ from rag.db.workspace_schema import (
     create_embeddings_table,
     derive_workspace_dsn,
 )
-from rag.schemas.admin import IndexerSpec
+from rag.schemas.admin import ChunkingConfigSpec, IndexerSpec
 from rag.secrets.refs import build_ref
 from rag.secrets.resolver import VaultLookupFailed
+from rag.services.chunking_configs import get_chunking_config, upsert_chunking_config
 from rag.services.models import get_dimension_or_raise
 
 log = structlog.get_logger(__name__)
+
+ApplyChunkingResult = (
+    Literal["no_change"]
+    | tuple[Literal["updated"], dict[str, Any]]
+    | tuple[Literal["reindex_triggered"], dict[str, Any]]
+)
 
 
 class _ResolverProtocol(Protocol):
@@ -204,3 +213,141 @@ async def reindex_workspace(
         triggered_by="reindex_indexer_change",
         config_pool=config_pool,
     )
+
+
+def _format_chunking_desc(cfg: dict[str, Any]) -> str:
+    """Représentation humaine d'une chunking_config pour le payload 409."""
+    return (
+        f"{cfg['strategy']} "
+        f"(max={cfg['max_chars']}, min={cfg['min_chars']}, "
+        f"overlap={cfg['overlap_chars']})"
+    )
+
+
+def _payload_matches_current(payload: ChunkingConfigSpec, current: dict[str, Any]) -> bool:
+    """True si les 5 champs comparés du DTO matchent la row existante."""
+    return bool(
+        payload.strategy == current["strategy"]
+        and payload.max_chars == current["max_chars"]
+        and payload.min_chars == current["min_chars"]
+        and payload.overlap_chars == current["overlap_chars"]
+        and payload.extras == current["extras"]
+    )
+
+
+async def apply_chunking_change(
+    *,
+    name: str,
+    payload: ChunkingConfigSpec,
+    confirm: bool,
+    config_pool: asyncpg.Pool,
+) -> ApplyChunkingResult:
+    """Applique un changement de chunking_config sur un workspace (M9 §4.6/§5.2).
+
+    - Si ``payload`` est identique à la config actuelle → ``"no_change"``
+      (caller renvoie 204).
+    - Sinon, compte ``indexed_documents`` du workspace :
+        * 0 doc → upsert immédiat + ``("updated", new_cfg)`` (caller 200).
+        * >0 doc + ``confirm=False`` → lève
+          :class:`ChunkingChangeRequiresReindex` (caller 409).
+        * >0 doc + ``confirm=True`` → upsert + ``create_pending_job`` en une
+          transaction unique + ``("reindex_triggered", job_row)`` (caller 202).
+
+    Lève :class:`WorkspaceNotFound` si le workspace n'existe pas.
+
+    Note implémentation : la branche reindex utilise un INSERT inline plutôt que
+    de ré-appeler :func:`upsert_chunking_config`, parce que le service prend un
+    *pool* (pas une connexion). Pour garder l'upsert + l'INSERT du job dans la
+    *même* transaction (atomicité requise par le contrat), on duplique le SQL
+    de l'upsert. La duplication reste alignée avec
+    ``upsert_chunking_config`` — toute évolution du schéma doit être propagée
+    aux deux endroits.
+    """
+    ws_row = await fetch_one(
+        config_pool,
+        "SELECT id FROM workspaces WHERE name = $1",
+        name,
+    )
+    if ws_row is None:
+        raise WorkspaceNotFound(name)
+    workspace_id = ws_row["id"]
+
+    current = await get_chunking_config(workspace_id, config_pool)
+    if _payload_matches_current(payload, current):
+        return "no_change"
+
+    docs = await config_pool.fetchval(
+        "SELECT COUNT(*) FROM indexed_documents WHERE workspace_id = $1",
+        workspace_id,
+    )
+    docs_count = int(docs or 0)
+
+    if docs_count == 0:
+        # Pas de docs indexés : upsert sans reindex.
+        new_cfg = await upsert_chunking_config(
+            workspace_id=workspace_id,
+            spec=payload,
+            config_pool=config_pool,
+        )
+        log.info(
+            "chunking.change_applied",
+            workspace=name,
+            mode="no_reindex",
+        )
+        return ("updated", new_cfg)
+
+    if not confirm:
+        new_desc_dict: dict[str, Any] = {
+            "strategy": payload.strategy,
+            "max_chars": payload.max_chars,
+            "min_chars": payload.min_chars,
+            "overlap_chars": payload.overlap_chars,
+        }
+        raise ChunkingChangeRequiresReindex(
+            workspace=name,
+            current=_format_chunking_desc(current),
+            new=_format_chunking_desc(new_desc_dict),
+        )
+
+    # docs > 0 et confirm=True : upsert + INSERT du job en une transaction.
+    async with config_pool.acquire() as conn, conn.transaction():
+        await conn.execute(
+            """
+            INSERT INTO chunking_configs
+                (workspace_id, strategy, max_chars, min_chars, overlap_chars, extras)
+            VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+            ON CONFLICT (workspace_id) DO UPDATE
+                SET strategy      = EXCLUDED.strategy,
+                    max_chars     = EXCLUDED.max_chars,
+                    min_chars     = EXCLUDED.min_chars,
+                    overlap_chars = EXCLUDED.overlap_chars,
+                    extras        = EXCLUDED.extras,
+                    updated_at    = now()
+            """,
+            workspace_id,
+            payload.strategy,
+            payload.max_chars,
+            payload.min_chars,
+            payload.overlap_chars,
+            json.dumps(payload.extras),
+        )
+        job_row = await conn.fetchrow(
+            """
+            INSERT INTO index_jobs (workspace_id, triggered_by, status)
+            VALUES ($1, 'reindex_chunking_change', 'pending')
+            RETURNING id, triggered_by, status, files_changed, files_skipped,
+                      error_message, started_at, finished_at, duration_ms
+            """,
+            workspace_id,
+        )
+
+    if job_row is None:
+        raise RuntimeError("apply_chunking_change: INSERT did not RETURN")
+
+    log.info(
+        "chunking.change_applied",
+        workspace=name,
+        mode="reindex_triggered",
+        job_id=str(job_row["id"]),
+    )
+    return ("reindex_triggered", _job_to_dict(job_row))
