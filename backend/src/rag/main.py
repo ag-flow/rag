@@ -21,6 +21,7 @@ from rag.auth.workspace_auth import ApiKeyCache
 from rag.config import Settings
 from rag.db.migrations import run_migrations
 from rag.db.pool import WorkspacePoolRegistry
+from rag.db.workspace_migrations import apply_pending_for_all_workspaces
 from rag.logging_setup import setup_logging
 from rag.secrets.bootstrap import seed_vaults_from_env_if_empty
 from rag.secrets.client_provider import HarpocrateClientProvider
@@ -118,6 +119,13 @@ def build_app(
                 "RAG_API_KEY_DEK manquant alors que la table workspaces contient "
                 f"{workspaces_count} entrée(s)"
             )
+
+        # M9-T9 : boot scan — applique les migrations workspace manquantes sur
+        # toutes les bases référencées dans la table `workspaces`. Fail-fast :
+        # si une base est inaccessible ou si une migration plante, le lifespan
+        # remonte l'exception et le service refuse de démarrer. Les logs
+        # indiquent quel workspace a échoué (cf. apply_pending_for_all_workspaces).
+        await apply_pending_for_all_workspaces(registry.config_pool)
 
         # Le service Harpocrate est créé ici (et non dans la factory) pour que
         # les tests qui injectent un `resolver_factory` stub bénéficient quand
