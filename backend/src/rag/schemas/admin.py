@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
@@ -194,13 +193,11 @@ class ChunkingConfigSpec(BaseModel):
 class ChunkingConfigResponse(BaseModel):
     """Réponse GET /workspaces/{name}/chunking-config."""
 
-    model_config = ConfigDict(extra="forbid")
-
     workspace_id: UUID
     strategy: str
     max_chars: int
     min_chars: int
     overlap_chars: int
     extras: dict[str, Any]
-    created_at: datetime
-    updated_at: datetime
+    created_at: str
+    updated_at: str
