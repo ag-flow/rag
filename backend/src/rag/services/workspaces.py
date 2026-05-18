@@ -14,6 +14,7 @@ from rag.api.errors import (
 )
 from rag.auth.workspace_auth import ApiKeyCache
 from rag.db.helpers import fetch_all, fetch_one, transaction
+from rag.db.workspace_migrations import apply_pending
 from rag.db.workspace_schema import (
     create_embeddings_table,
     create_workspace_database,
@@ -130,6 +131,14 @@ async def create_workspace(
                 request.indexer.base_url,
                 dimension,
             )
+            await conn.execute(
+                """
+                INSERT INTO chunking_configs
+                    (workspace_id, strategy, max_chars, min_chars, overlap_chars, extras)
+                VALUES ($1, 'paragraph', 2000, 200, 200, '{}'::jsonb)
+                """,
+                ws_row["id"],
+            )
     except asyncpg.UniqueViolationError as e:
         raise WorkspaceAlreadyExists(request.name) from e
 
@@ -137,6 +146,9 @@ async def create_workspace(
     try:
         await create_workspace_database(admin_dsn, rag_base)
         await create_embeddings_table(rag_cnx, dimension=dimension)
+        # 6bis. Initialise workspace_schema_migrations + applique 001 (idempotent
+        # sur la table fraîchement créée par create_embeddings_table).
+        await apply_pending(rag_cnx)
     except Exception:
         log.exception(
             "workspace.create.ddl_failed_rolling_back",
@@ -293,9 +305,7 @@ async def rotate_apikey(
             last_err = e
             continue
     else:
-        raise RuntimeError(
-            f"fingerprint collision after {max_attempts} attempts"
-        ) from last_err
+        raise RuntimeError(f"fingerprint collision after {max_attempts} attempts") from last_err
 
     if apikey_cache is not None:
         apikey_cache.invalidate(name)

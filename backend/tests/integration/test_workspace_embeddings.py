@@ -13,6 +13,7 @@ from rag.db.workspace_embeddings import (
     delete_path,
     upsert_chunks,
 )
+from rag.indexer.chunking import Chunk
 
 
 @pytest_asyncio.fixture
@@ -44,6 +45,7 @@ async def ws_pool_with_embeddings(
                 chunk_index  INT  NOT NULL,
                 content      TEXT NOT NULL,
                 embedding    vector(4) NOT NULL,
+                metadata     JSONB NOT NULL DEFAULT '{}'::jsonb,
                 indexed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
                 UNIQUE (path, chunk_index)
             )
@@ -79,7 +81,7 @@ async def test_upsert_chunks_inserts_n_rows(
     count = await upsert_chunks(
         ws_pool_with_embeddings,
         path="docs/a.md",
-        chunks=["chunk 1", "chunk 2", "chunk 3"],
+        chunks=[Chunk(content="chunk 1"), Chunk(content="chunk 2"), Chunk(content="chunk 3")],
         embeddings=[[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]],
     )
     assert count == 3
@@ -98,14 +100,14 @@ async def test_upsert_chunks_replaces_existing_for_same_path(
     await upsert_chunks(
         ws_pool_with_embeddings,
         path="a.md",
-        chunks=["v1-c0", "v1-c1", "v1-c2"],
+        chunks=[Chunk(content="v1-c0"), Chunk(content="v1-c1"), Chunk(content="v1-c2")],
         embeddings=[[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]],
     )
     # Upsert v2 avec MOINS de chunks
     await upsert_chunks(
         ws_pool_with_embeddings,
         path="a.md",
-        chunks=["v2-c0", "v2-c1"],
+        chunks=[Chunk(content="v2-c0"), Chunk(content="v2-c1")],
         embeddings=[[0, 1, 0, 0], [0, 0, 1, 0]],
     )
     rows = await ws_pool_with_embeddings.fetch(
@@ -122,20 +124,20 @@ async def test_upsert_chunks_other_paths_untouched(
     await upsert_chunks(
         ws_pool_with_embeddings,
         path="a.md",
-        chunks=["a-c0"],
+        chunks=[Chunk(content="a-c0")],
         embeddings=[[1, 0, 0, 0]],
     )
     await upsert_chunks(
         ws_pool_with_embeddings,
         path="b.md",
-        chunks=["b-c0"],
+        chunks=[Chunk(content="b-c0")],
         embeddings=[[0, 1, 0, 0]],
     )
     # Upsert sur a.md ne doit pas toucher b.md
     await upsert_chunks(
         ws_pool_with_embeddings,
         path="a.md",
-        chunks=["a-c0-new"],
+        chunks=[Chunk(content="a-c0-new")],
         embeddings=[[0, 0, 1, 0]],
     )
     b_content = await ws_pool_with_embeddings.fetchval(
@@ -152,7 +154,7 @@ async def test_upsert_chunks_mismatched_lengths_raises(
         await upsert_chunks(
             ws_pool_with_embeddings,
             path="a.md",
-            chunks=["c0", "c1"],
+            chunks=[Chunk(content="c0"), Chunk(content="c1")],
             embeddings=[[1, 0, 0, 0]],
         )
 
@@ -164,7 +166,7 @@ async def test_delete_chunks_for_path_removes_all_chunks(
     await upsert_chunks(
         ws_pool_with_embeddings,
         path="a.md",
-        chunks=["c0", "c1"],
+        chunks=[Chunk(content="c0"), Chunk(content="c1")],
         embeddings=[[1, 0, 0, 0], [0, 1, 0, 0]],
     )
     deleted = await delete_chunks_for_path(ws_pool_with_embeddings, "a.md")
@@ -190,7 +192,7 @@ async def test_upsert_chunks_empty_list_deletes_existing_and_returns_zero(
     await upsert_chunks(
         ws_pool_with_embeddings,
         path="a.md",
-        chunks=["c0", "c1"],
+        chunks=[Chunk(content="c0"), Chunk(content="c1")],
         embeddings=[[1, 0, 0, 0], [0, 1, 0, 0]],
     )
     # Upsert avec chunks=[] doit supprimer et retourner 0
@@ -213,7 +215,7 @@ async def test_delete_path_alias_works(
     await upsert_chunks(
         ws_pool_with_embeddings,
         path="a.md",
-        chunks=["c"],
+        chunks=[Chunk(content="c")],
         embeddings=[[1, 0, 0, 0]],
     )
     await delete_path(ws_pool_with_embeddings, "a.md")

@@ -81,6 +81,7 @@ async def real_indexer_setup(
                 chunk_index INT NOT NULL,
                 content TEXT NOT NULL,
                 embedding vector(4) NOT NULL,
+                metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
                 indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                 UNIQUE (path, chunk_index)
             )
@@ -100,6 +101,14 @@ async def real_indexer_setup(
         await conn.execute(
             "INSERT INTO indexer_configs (workspace_id, provider, model, api_key_ref, dimension) "
             "VALUES ($1, 'openai', 'text-embedding-3-small', 'openai_key', 4)",
+            ws_id,
+        )
+        # M9 : chunking_configs est requis pour RealIndexer (JOIN dans
+        # _load_workspace_context). On utilise les défauts du plan.
+        await conn.execute(
+            "INSERT INTO chunking_configs "
+            "(workspace_id, strategy, max_chars, min_chars, overlap_chars, extras) "
+            "VALUES ($1, 'paragraph', 2000, 200, 200, '{}'::jsonb)",
             ws_id,
         )
 

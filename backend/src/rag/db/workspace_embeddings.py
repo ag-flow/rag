@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import json
+
 import asyncpg
 import structlog
 from pgvector.asyncpg import register_vector
+
+from rag.indexer.chunking import Chunk
 
 log = structlog.get_logger(__name__)
 
@@ -11,13 +15,13 @@ async def upsert_chunks(
     workspace_pool: asyncpg.Pool,
     *,
     path: str,
-    chunks: list[str],
+    chunks: list[Chunk],
     embeddings: list[list[float]],
 ) -> int:
     """Remplace tous les chunks d'un path par une nouvelle liste.
 
-    Strategie : DELETE FROM embeddings WHERE path=$1 puis INSERT batch,
-    dans une transaction unique pour l'atomicite.
+    Strategie : DELETE FROM embeddings WHERE path=$1 puis INSERT batch (content
+    + embedding + metadata jsonb), dans une transaction unique pour l'atomicite.
 
     Pre-condition : `len(chunks) == len(embeddings)` - sinon ValueError.
     Retourne le nombre de chunks inseres.
@@ -40,12 +44,14 @@ async def upsert_chunks(
             path,
         )
         records = [
-            (path, idx, content, embedding)
-            for idx, (content, embedding) in enumerate(zip(chunks, embeddings, strict=True))
+            (path, idx, chunk.content, embedding, json.dumps(dict(chunk.metadata)))
+            for idx, (chunk, embedding) in enumerate(
+                zip(chunks, embeddings, strict=True),
+            )
         ]
         await conn.executemany(
-            "INSERT INTO embeddings (path, chunk_index, content, embedding) "
-            "VALUES ($1, $2, $3, $4)",
+            "INSERT INTO embeddings (path, chunk_index, content, embedding, metadata) "
+            "VALUES ($1, $2, $3, $4, $5::jsonb)",
             records,
         )
 

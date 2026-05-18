@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from typing import Any, Protocol
 from uuid import UUID
@@ -9,7 +10,7 @@ import structlog
 
 from rag.db.pool import WorkspacePoolRegistry
 from rag.db.workspace_embeddings import delete_path, upsert_chunks
-from rag.indexer.chunking import chunk_text
+from rag.indexer.chunking import Chunk, make_chunker
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
 from rag.secrets.refs import build_ref
@@ -42,11 +43,14 @@ class RealIndexer:
     """Implementation effective de `IndexerProtocol` (M4a).
 
     Pipeline `index_file` :
-      1. Charge le contexte workspace (provider, model, api_key_ref, base_url, rag_cnx).
-      2. Chunke le contenu (`chunking.chunk_text`).
+      1. Charge le contexte workspace (provider, model, api_key_ref, base_url,
+         rag_cnx, + chunking_config).
+      2. Chunke le contenu via le chunker construit par `make_chunker` selon la
+         `chunking_config` du workspace.
       3. Resout l'API key via SecretResolver (lazy, juste avant l'embed).
-      4. Embed les chunks via le provider configure.
-      5. Upsert pgvector dans `rag_<workspace>.embeddings` (transaction).
+      4. Embed les contenus des chunks via le provider configure.
+      5. Upsert pgvector dans `rag_<workspace>.embeddings` (content + embedding
+         + metadata, transaction).
       6. UPDATE `indexed_documents` (config_pool) - hash, indexer_used.
 
     `delete_file` :
@@ -81,7 +85,14 @@ class RealIndexer:
     ) -> int:
         ctx = await self._load_workspace_context(workspace_id)
 
-        chunks = chunk_text(content)
+        chunker = make_chunker(
+            strategy=ctx["chunking_strategy"],
+            max_chars=ctx["chunking_max_chars"],
+            min_chars=ctx["chunking_min_chars"],
+            overlap_chars=ctx["chunking_overlap_chars"],
+            extras=ctx["chunking_extras"],
+        )
+        chunks: list[Chunk] = chunker.chunk(content)
         if not chunks:
             log.info("real_indexer.empty_content_skipped", path=path)
             return 0
@@ -106,7 +117,7 @@ class RealIndexer:
             api_key=api_key,
             base_url=ctx["base_url"],
         )
-        embeddings = await provider.embed_texts(chunks)
+        embeddings = await provider.embed_texts([c.content for c in chunks])
 
         ws_pool = await self._pool_registry.get_workspace_pool(
             ctx["workspace_name"],
@@ -175,13 +186,23 @@ class RealIndexer:
                 ic.provider AS provider,
                 ic.model AS model,
                 ic.api_key_ref AS api_key_ref,
-                ic.base_url AS base_url
+                ic.base_url AS base_url,
+                cc.strategy AS chunking_strategy,
+                cc.max_chars AS chunking_max_chars,
+                cc.min_chars AS chunking_min_chars,
+                cc.overlap_chars AS chunking_overlap_chars,
+                cc.extras AS chunking_extras
             FROM workspaces w
             JOIN indexer_configs ic ON ic.workspace_id = w.id
+            JOIN chunking_configs cc ON cc.workspace_id = w.id
             WHERE w.id = $1
             """,
             workspace_id,
         )
         if row is None:
-            raise RuntimeError(f"Workspace {workspace_id} or its indexer_config not found")
-        return dict(row)
+            raise RuntimeError(f"Workspace {workspace_id} or its indexer/chunking config not found")
+        ctx = dict(row)
+        # extras peut revenir en str selon codec asyncpg
+        if isinstance(ctx["chunking_extras"], str):
+            ctx["chunking_extras"] = json.loads(ctx["chunking_extras"])
+        return ctx
