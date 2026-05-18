@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { isErrorBodyWithDetail } from "@/lib/api";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { api, isErrorBodyWithDetail } from "@/lib/api";
 
 describe("isErrorBodyWithDetail", () => {
   it("retourne true si body.detail === expected", () => {
@@ -24,5 +24,32 @@ describe("isErrorBodyWithDetail", () => {
 
   it("retourne false si body.detail n'est pas une string", () => {
     expect(isErrorBodyWithDetail({ detail: 42 }, "rerank_not_configured")).toBe(false);
+  });
+});
+
+describe("api.put", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ ok: true }),
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("appelle fetch avec method PUT et Content-Type JSON", async () => {
+    const result = await api.put("/x", { a: 1 });
+    expect(fetch).toHaveBeenCalledWith("/x", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ a: 1 }),
+      credentials: "include",
+    });
+    expect(result).toEqual({ ok: true });
   });
 });

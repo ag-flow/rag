@@ -15,13 +15,11 @@ export function isUnauthorized(err: unknown): boolean {
 }
 
 export function isErrorBodyWithDetail(body: unknown, expected: string): boolean {
-  return (
-    typeof body === "object" &&
-    body !== null &&
-    "detail" in body &&
-    typeof (body as { detail: unknown }).detail === "string" &&
-    (body as { detail: string }).detail === expected
-  );
+  if (typeof body !== "object" || body === null || !("detail" in body)) {
+    return false;
+  }
+  const detail = (body as Record<string, unknown>).detail;
+  return typeof detail === "string" && detail === expected;
 }
 
 async function request<T>(
