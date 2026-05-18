@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from rag.api.errors import (
+    ChunkingChangeRequiresReindex,
     IndexerChangeRequiresReindex,
     ModelInUse,
     ModelNotSupported,
@@ -91,6 +92,26 @@ def test_indexer_change_requires_reindex_maps_409() -> None:
     assert body["error"] == "indexer_change_requires_reindex"
     assert body["documents_count"] == 61
     assert body["action"] == "POST /workspaces/ws/reindex?confirm=true"
+
+
+def test_chunking_change_requires_reindex_maps_409() -> None:
+    client = TestClient(
+        _make_app_raising(
+            ChunkingChangeRequiresReindex(
+                workspace="ws",
+                current="paragraph (max=2000, min=200, overlap=200)",
+                new="paragraph (max=1500, min=100, overlap=150)",
+            )
+        )
+    )
+    r = client.get("/boom")
+    assert r.status_code == 409
+    body = r.json()
+    assert body["error"] == "chunking_change_requires_reindex"
+    assert body["workspace"] == "ws"
+    assert body["current"] == "paragraph (max=2000, min=200, overlap=200)"
+    assert body["new"] == "paragraph (max=1500, min=100, overlap=150)"
+    assert body["action"] == "PUT /workspaces/ws/chunking-config?confirm=true"
 
 
 def test_source_not_found_maps_404() -> None:
