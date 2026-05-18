@@ -21,7 +21,8 @@
     "detail": "Détail",
     "sources": "Sources git ({{count}})",
     "jobs": "Jobs",
-    "model": "Modèle"
+    "model": "Modèle",
+    "rerank": "Rerank"
   },
   "detail": {
     "stats": {
@@ -95,6 +96,64 @@
     "base_url": "base_url",
     "api_key_ref": "api_key_ref",
     "immutableNote": "Le modèle est immutable. Changer provider ou model invaliderait toutes les dimensions vecteurs et nécessiterait une réindexation complète, non supportée dans cette version."
+  },
+  "rerank": {
+    "title": "Reranking",
+    "titleOptional": "Reranking (optionnel)",
+    "badge": {
+      "active": "actif"
+    },
+    "description": {
+      "configured": "Activé pour ce workspace. Les hits pgvector sont retriés par le modèle sélectionné avant retour MCP.",
+      "empty": "Ajoute une seconde passe de tri sur les hits pgvector. Si désactivé, le tri par similarité cosinus seul est utilisé."
+    },
+    "fields": {
+      "provider": "Provider",
+      "providerPlaceholder": "Sélectionner…",
+      "providers": {
+        "cohere": "Cohere",
+        "voyage": "Voyage AI",
+        "ollama": "Ollama"
+      },
+      "model": "Modèle",
+      "modelPlaceholder": "ex. rerank-english-v3.0",
+      "baseUrl": "Base URL (Ollama)",
+      "baseUrlPlaceholder": "https://ollama.example.com",
+      "baseUrlNotApplicable": "— non applicable —",
+      "apiKeyRef": "Référence clé API Harpocrate",
+      "apiKeyRefPlaceholder": "cohere_rerank_key",
+      "apiKeyRefNotApplicable": "— non applicable —",
+      "topK": "top_k pré-rerank",
+      "topKHelp": "(1-500)"
+    },
+    "errors": {
+      "required": "Champ requis.",
+      "required_for_provider": "Requis pour ce provider.",
+      "alphanum_underscore_only": "Caractères autorisés : a-z, A-Z, 0-9, underscore.",
+      "invalid_url": "URL invalide.",
+      "min": "Doit être ≥ 1.",
+      "max": "Doit être ≤ 500."
+    },
+    "warning": "Si le provider tombe, la recherche échoue (pas de fallback silencieux). Cohérent avec la philosophie fail-fast.",
+    "lastModified": "Dernière modification : {{when}}",
+    "actions": {
+      "save": "Enregistrer",
+      "activate": "Activer",
+      "cancel": "Annuler",
+      "delete": "Supprimer la config"
+    },
+    "save": {
+      "success": "Configuration enregistrée.",
+      "error": "Échec de l'enregistrement."
+    },
+    "delete": {
+      "title": "Désactiver le reranking ?",
+      "warning": "La configuration rerank de ce workspace sera supprimée. Les prochaines recherches utiliseront uniquement la similarité cosinus pgvector.",
+      "reversibleNote": "Cette action est réversible (recréer la config).",
+      "confirm": "Désactiver",
+      "success": "Configuration supprimée.",
+      "error": "Échec de la suppression."
+    }
   },
   "dialog": {
     "cancel": "Annuler",
