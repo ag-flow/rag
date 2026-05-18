@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import asyncpg
@@ -8,6 +9,25 @@ import pytest
 from rag.db.migrations import run_migrations
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
+
+
+@pytest.fixture
+def admin_dsn() -> str:
+    """DSN admin pour créer/supprimer des bases workspace de test.
+
+    Utilise les mêmes env vars que la fixture session_pool. Skip explicite si
+    TEST_POSTGRES_PASSWORD est absent.
+    """
+    host = os.environ.get("TEST_POSTGRES_HOST", "127.0.0.1")
+    port = os.environ.get("TEST_POSTGRES_PORT", "5432")
+    user = os.environ.get("TEST_POSTGRES_USER", "rag")
+    pwd = os.environ.get("TEST_POSTGRES_PASSWORD")
+    if not pwd:
+        pytest.skip(
+            "TEST_POSTGRES_PASSWORD non défini — tests workspace skip.",
+            allow_module_level=False,
+        )
+    return f"postgresql://{user}:{pwd}@{host}:{port}/postgres"
 
 
 @pytest.fixture

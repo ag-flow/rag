@@ -89,6 +89,7 @@ async def create_embeddings_table(workspace_dsn: str, *, dimension: int) -> None
                 chunk_index  INT  NOT NULL,
                 content      TEXT NOT NULL,
                 embedding    vector({dimension}) NOT NULL,
+                metadata     JSONB NOT NULL DEFAULT '{{}}'::jsonb,
                 indexed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
                 UNIQUE (path, chunk_index)
             )
