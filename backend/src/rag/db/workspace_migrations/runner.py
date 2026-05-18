@@ -14,10 +14,18 @@ _FILENAME_RE = re.compile(r"^(\d{3})_[a-z0-9_]+\.sql$")
 
 
 def _list_versions() -> list[tuple[int, Path]]:
-    """Retourne [(version, path)] triés par version croissante (I/O bloquante)."""
+    """Retourne [(version, path)] triés par version croissante (I/O bloquante).
+
+    On ne valide la convention de nom (`NNN_description.sql`) que sur les
+    fichiers d'extension `.sql` — les fichiers annexes (`.bak`, `.swp`, etc.)
+    sont silencieusement ignorés (alignement avec le sibling
+    `rag/db/migrations._list_sql_files`). En revanche, un `.sql` qui ne
+    matche pas la convention reste une erreur dure (fail-loud sur migration
+    mal nommée).
+    """
     out: list[tuple[int, Path]] = []
     for p in sorted(VERSIONS_DIR.iterdir()):
-        if not p.is_file():
+        if not p.is_file() or p.suffix != ".sql":
             continue
         m = _FILENAME_RE.match(p.name)
         if not m:
@@ -66,7 +74,7 @@ async def apply_pending(workspace_dsn: str) -> int:
                     "INSERT INTO workspace_schema_migrations (version) VALUES ($1)",
                     version,
                 )
-            log.info("workspace_migration.applied", version=version, file=path.name)
+            log.info("workspace_migrations.apply", version=version, file=path.name)
             applied_count += 1
 
         return applied_count
