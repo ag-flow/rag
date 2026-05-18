@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 
 from rag.auth.bearer import require_master_key_or_oidc_role
 from rag.schemas.admin import (
     ApiKeyRotateResponse,
+    ChunkingConfigResponse,
+    ChunkingConfigSpec,
     JobResponse,
     ModelEntry,
     ReindexRequest,
@@ -346,5 +349,98 @@ def build_admin_router() -> APIRouter:
         from rag.services.rerank_configs import delete_rerank_config
         await delete_rerank_config(ws_row["id"], _config_pool(request))
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    # ─── Chunking config ────────────────────────────────────────────────────
+
+    @router.get("/workspaces/{name}/chunking-config")
+    async def get_chunking_config_endpoint(
+        name: str, request: Request
+    ) -> ChunkingConfigResponse:
+        """Retourne la chunking_config du workspace (cf. design M9 §5.2).
+
+        Hydratée par défaut à la création du workspace (T6), donc présente dès
+        le 201 POST /workspaces. 404 si workspace inconnu.
+        """
+        from rag.services.chunking_configs import get_chunking_config
+
+        config_pool = _config_pool(request)
+        ws_row = await config_pool.fetchrow(
+            "SELECT id FROM workspaces WHERE name = $1", name
+        )
+        if ws_row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="workspace_not_found",
+            )
+        cfg = await get_chunking_config(ws_row["id"], config_pool)
+        return ChunkingConfigResponse(
+            workspace_id=cfg["workspace_id"],
+            strategy=cfg["strategy"],
+            max_chars=cfg["max_chars"],
+            min_chars=cfg["min_chars"],
+            overlap_chars=cfg["overlap_chars"],
+            extras=cfg["extras"],
+            created_at=cfg["created_at"].isoformat(),
+            updated_at=cfg["updated_at"].isoformat(),
+        )
+
+    @router.put("/workspaces/{name}/chunking-config")
+    async def put_chunking_config_endpoint(
+        name: str,
+        payload: ChunkingConfigSpec,
+        request: Request,
+        confirm: bool = False,
+    ) -> Response:
+        """Upsert la chunking_config (cf. design M9 §5.2).
+
+        - 204 si payload identique à la config courante.
+        - 200 + ChunkingConfigResponse si changement sans documents indexés.
+        - 409 ``chunking_change_requires_reindex`` si changement + docs > 0
+          sans ``confirm=true`` (raised par ``apply_chunking_change``, mappé
+          par ``register_error_handlers``).
+        - 202 + JobResponse si changement + docs > 0 + ``confirm=true``.
+        - 404 si workspace inconnu.
+        - 422 si payload Pydantic invalide (validation DTO).
+        """
+        from rag.services.jobs import apply_chunking_change
+
+        config_pool = _config_pool(request)
+        ws_row = await config_pool.fetchrow(
+            "SELECT id FROM workspaces WHERE name = $1", name
+        )
+        if ws_row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="workspace_not_found",
+            )
+
+        result = await apply_chunking_change(
+            name=name, payload=payload, confirm=confirm, config_pool=config_pool
+        )
+
+        if result == "no_change":
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+        tag, body = result
+        if tag == "updated":
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content=ChunkingConfigResponse(
+                    workspace_id=body["workspace_id"],
+                    strategy=body["strategy"],
+                    max_chars=body["max_chars"],
+                    min_chars=body["min_chars"],
+                    overlap_chars=body["overlap_chars"],
+                    extras=body["extras"],
+                    created_at=body["created_at"].isoformat(),
+                    updated_at=body["updated_at"].isoformat(),
+                ).model_dump(mode="json"),
+            )
+        # tag == "reindex_triggered" — body est un dict aligné JobResponse,
+        # déjà ISO-formaté par jobs._job_to_dict.
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content=JobResponse(**body).model_dump(mode="json"),
+        )
 
     return router
