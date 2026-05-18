@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 # Regex strictement aligné design 2026-05-15 :
 # - commence par une lettre minuscule
@@ -153,3 +154,53 @@ class RerankConfigResponse(BaseModel):
     top_k_pre_rerank: int
     created_at: str
     updated_at: str
+
+
+class ChunkingConfigSpec(BaseModel):
+    """Payload PUT /workspaces/{name}/chunking-config."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    strategy: Literal["paragraph"]
+    max_chars: int = Field(gt=0)
+    min_chars: int = Field(ge=0)
+    overlap_chars: int = Field(ge=0)
+    extras: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("min_chars")
+    @classmethod
+    def _min_lt_max(cls, v: int, info: ValidationInfo) -> int:
+        max_chars = info.data.get("max_chars")
+        if max_chars is not None and v >= max_chars:
+            raise ValueError("min_chars must be < max_chars")
+        return v
+
+    @field_validator("overlap_chars")
+    @classmethod
+    def _overlap_lt_max(cls, v: int, info: ValidationInfo) -> int:
+        max_chars = info.data.get("max_chars")
+        if max_chars is not None and v >= max_chars:
+            raise ValueError("overlap_chars must be < max_chars")
+        return v
+
+    @field_validator("extras")
+    @classmethod
+    def _extras_empty_for_paragraph(cls, v: dict[str, Any], info: ValidationInfo) -> dict[str, Any]:
+        if info.data.get("strategy") == "paragraph" and v:
+            raise ValueError("extras must be empty for strategy 'paragraph'")
+        return v
+
+
+class ChunkingConfigResponse(BaseModel):
+    """Réponse GET /workspaces/{name}/chunking-config."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    workspace_id: UUID
+    strategy: str
+    max_chars: int
+    min_chars: int
+    overlap_chars: int
+    extras: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
