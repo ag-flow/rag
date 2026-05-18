@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import asyncpg
@@ -125,33 +126,97 @@ async def test_chunking_configs_check_overlap_lt_max(
 
 
 @pytest.mark.asyncio
-async def test_chunking_configs_populates_existing_workspaces(
+async def test_chunking_configs_extras_default_empty_dict(
     session_pool: asyncpg.Pool,
 ) -> None:
-    """La migration crée une row par défaut pour chaque workspace existant."""
+    """L'INSERT sans colonne `extras` doit produire `extras = {}` (default SQL)."""
     await _reset(session_pool)
     await run_migrations(session_pool, MIGRATIONS_DIR)
 
-    sql = (MIGRATIONS_DIR / "012_chunking_configs.sql").read_text(encoding="utf-8")
-    insert_sql = sql[sql.index("INSERT INTO") :]
+    async with session_pool.acquire() as conn:
+        ws_id = await seed_workspace(conn, name="ws_extras_default")
+        await conn.execute("DELETE FROM chunking_configs WHERE workspace_id = $1", ws_id)
+        await conn.execute(
+            "INSERT INTO chunking_configs "
+            "(workspace_id, strategy, max_chars, min_chars, overlap_chars) "
+            "VALUES ($1, 'paragraph', 2000, 200, 200)",
+            ws_id,
+        )
+        extras = await conn.fetchval(
+            "SELECT extras FROM chunking_configs WHERE workspace_id = $1",
+            ws_id,
+        )
+    # asyncpg renvoie JSONB en str ; on parse pour comparer au dict {}.
+    assert json.loads(extras) == {}
+
+
+@pytest.mark.asyncio
+async def test_chunking_configs_extras_not_null(session_pool: asyncpg.Pool) -> None:
+    """`extras = NULL` doit être rejeté par la contrainte NOT NULL."""
+    await _reset(session_pool)
+    await run_migrations(session_pool, MIGRATIONS_DIR)
 
     async with session_pool.acquire() as conn:
+        ws_id = await seed_workspace(conn, name="ws_extras_not_null")
+        await conn.execute("DELETE FROM chunking_configs WHERE workspace_id = $1", ws_id)
+        with pytest.raises(asyncpg.NotNullViolationError):
+            await conn.execute(
+                "INSERT INTO chunking_configs "
+                "(workspace_id, strategy, max_chars, min_chars, overlap_chars, extras) "
+                "VALUES ($1, 'paragraph', 2000, 200, 200, NULL)",
+                ws_id,
+            )
+
+
+@pytest.mark.asyncio
+async def test_chunking_configs_populates_existing_workspaces(
+    session_pool: asyncpg.Pool,
+) -> None:
+    """La migration 012 doit créer une row par défaut pour chaque workspace
+    existant AVANT son application (vrai test du backfill).
+
+    Stratégie : appliquer toutes les migrations, puis "rembobiner" la 012
+    (DROP de la table + suppression de l'entrée schema_migrations). On seed
+    alors les workspaces — ils existent comme si la 012 n'avait jamais tourné.
+    On relance `run_migrations` qui ne réapplique que la 012 ; le backfill
+    doit alors créer une row par workspace pré-existant.
+    """
+    await _reset(session_pool)
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+
+    # Rewind : on ramène la base à l'état "post-011" (pas de table
+    # chunking_configs, pas d'entrée schema_migrations pour la 012).
+    async with session_pool.acquire() as conn:
+        await conn.execute("DROP TABLE chunking_configs")
+        await conn.execute("DELETE FROM schema_migrations WHERE version = '012_chunking_configs'")
+
+        # Seed deux workspaces "pré-existants" (avant que la 012 ne soit appliquée).
         ws_a = await seed_workspace(conn, name="ws_pop_a", api_key="pop-a-key")
         ws_b = await seed_workspace(conn, name="ws_pop_b", api_key="pop-b-key")
-        await conn.execute("DELETE FROM chunking_configs")
-        await conn.execute(insert_sql)
 
+        # Pré-condition : la table chunking_configs n'existe pas encore.
+        exists = await conn.fetchval(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
+            "WHERE table_name = 'chunking_configs')"
+        )
+        assert exists is False, "chunking_configs ne devrait pas exister avant la 012"
+
+    # Applique la 012 (seule migration encore en attente).
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+
+    async with session_pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT workspace_id, strategy, max_chars, min_chars, overlap_chars "
+            "SELECT workspace_id, strategy, max_chars, min_chars, overlap_chars, extras "
             "FROM chunking_configs WHERE workspace_id IN ($1, $2) "
             "ORDER BY workspace_id",
             ws_a,
             ws_b,
         )
 
-    assert len(rows) == 2
+    assert len(rows) == 2, "le backfill doit créer exactement 1 row par workspace pré-existant"
     for r in rows:
         assert r["strategy"] == "paragraph"
         assert r["max_chars"] == 2000
         assert r["min_chars"] == 200
         assert r["overlap_chars"] == 200
+        assert json.loads(r["extras"]) == {}
