@@ -31,7 +31,11 @@ Le modèle de données est conçu pour être extensible. Les sources futures s'a
 
 ### Amélioration du chunking
 
-V1 utilise un chunking naïf par taille fixe. Extensions envisagées :
+✅ Infrastructure livrée en M9 — cf. `docs/superpowers/specs/2026-05-18-M9-backend-chunking-infrastructure-design.md`.
+
+Pattern factory + registry par stratégie, config par workspace (table `chunking_configs`), champ `embeddings.metadata jsonb` prêt, runner de migrations workspace au boot. Une seule stratégie disponible : `paragraph` (algo historique). Frontend dédié différé en M9b.
+
+Stratégies futures (jalons distincts) :
 - Chunking sémantique (respect des sections Markdown)
 - Chunking par blocs de code
 - Métadonnées de chunk enrichies (titre de section parent, type de contenu)
