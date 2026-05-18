@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -68,14 +67,14 @@ const EMPTY: FormValues = {
   top_k_pre_rerank: 50,
 };
 
-function relativeTime(iso: string, t: TFunction<"workspace">): string {
+function relativeTimeRaw(iso: string): { key: string; count: number } {
   const diffMs = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diffMs / 60_000);
-  if (m < 1) return t("time.justNow");
-  if (m < 60) return t("time.minutesAgo", { count: m });
+  if (m < 1) return { key: "time.justNow", count: 0 };
+  if (m < 60) return { key: "time.minutesAgo", count: m };
   const h = Math.floor(m / 60);
-  if (h < 24) return t("time.hoursAgo", { count: h });
-  return t("time.daysAgo", { count: Math.floor(h / 24) });
+  if (h < 24) return { key: "time.hoursAgo", count: h };
+  return { key: "time.daysAgo", count: Math.floor(h / 24) };
 }
 
 interface Props {
@@ -286,7 +285,14 @@ export function WorkspaceRerankTab({ workspace, enabled }: Props) {
 
         {configured && data && (
           <p className="text-xs text-slate-500">
-            {t("rerank.lastModified", { when: relativeTime(data.updated_at, t) })}
+            {(() => {
+              const rt = relativeTimeRaw(data.updated_at);
+              const when =
+                rt.key === "time.justNow"
+                  ? t("time.justNow")
+                  : t(rt.key, { count: rt.count });
+              return t("rerank.lastModified", { when });
+            })()}
           </p>
         )}
 
