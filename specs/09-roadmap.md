@@ -49,7 +49,7 @@ Config par workspace (table `rerank_configs`), 3 providers :
 
 Fail-fast si le provider tombe (cohérent avec `mcp.py`).
 
-Frontend (onglet "Rerank" dans WorkspaceDetailPanel) → jalon M8b à venir.
+Frontend livré en M8b (onglet "Rerank" dans `WorkspaceDetailPanel`) — cf. `docs/superpowers/specs/2026-05-18-M8b-frontend-rerank-design.md`.
 
 ---
 
