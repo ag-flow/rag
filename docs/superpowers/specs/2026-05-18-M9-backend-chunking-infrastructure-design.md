@@ -188,15 +188,18 @@ def make_chunker(
 
 ### 4.2 Service `services/chunking_configs.py`
 
-CRUD asyncpg pur, miroir de `services/rerank_configs.py`.
+CRUD asyncpg pur, miroir de `services/rerank_configs.py`. Le retour est un `dict[str, Any]` (convention projet, pas de TypedDict dédié).
 
 ```python
 async def get_chunking_config(
-    pool: asyncpg.Pool, *, workspace_id: UUID,
-) -> ChunkingConfigRow: ...
+    workspace_id: UUID,
+    config_pool: asyncpg.Pool,
+) -> dict[str, Any]:
+    """Retourne la config chunking du workspace (toujours présente).
+    Raise ChunkingConfigNotFound si workspace inconnu — la row est invariante."""
 
 async def upsert_chunking_config(
-    pool: asyncpg.Pool,
+    config_pool: asyncpg.Pool,
     *,
     workspace_id: UUID,
     strategy: str,
@@ -204,7 +207,8 @@ async def upsert_chunking_config(
     min_chars: int,
     overlap_chars: int,
     extras: dict[str, Any],
-) -> ChunkingConfigRow: ...
+) -> dict[str, Any]:
+    """INSERT ... ON CONFLICT (workspace_id) DO UPDATE. Met updated_at=now()."""
 ```
 
 Pas de `delete` : la row est obligatoire et liée au cycle de vie workspace via FK cascade.
@@ -251,7 +255,7 @@ async def upsert_chunks(
 ) -> int:
     ...
     records = [
-        (path, idx, chunk.content, embedding, chunk.metadata)
+        (path, idx, chunk.content, embedding, json.dumps(chunk.metadata))
         for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=True))
     ]
     await conn.executemany(
@@ -261,17 +265,36 @@ async def upsert_chunks(
     )
 ```
 
+Note : `json.dumps(...)` + cast SQL `$5::jsonb` est le pattern projet (cf. `services/sources.py:81-86`). asyncpg ne convertit pas `dict` → jsonb automatiquement.
+
 Casse légère acceptable : un seul appelant interne (`RealIndexer`).
 
 ### 4.6 Reindex flow : `services/jobs.py`
 
-Nouvelle fonction `apply_chunking_change(*, name, payload, confirm, config_pool, ...)` :
-1. Charge la config actuelle.
-2. Si payload identique à la config actuelle → return `None` (le caller renverra 204).
-3. Sinon, compte les `indexed_documents` du workspace :
-   - `docs == 0` → `upsert_chunking_config(...)` + return `("updated", new_config)` (le caller renverra 200).
-   - `docs > 0 and not confirm` → `raise ChunkingChangeRequiresReindex(...)`.
-   - `docs > 0 and confirm` → en **une transaction** : `upsert_chunking_config(...)` + `create_pending_job(triggered_by='reindex_chunking_change')`. Return `("reindex_triggered", job_row)` (le caller renverra 202).
+Nouvelle fonction `apply_chunking_change(*, name, payload, confirm, config_pool, ...)`.
+
+**Définition de « changement réel »** : au moins un des cinq champs `{strategy, max_chars, min_chars, overlap_chars, extras}` du payload diffère de la config actuelle. La comparaison de `extras` est faite sur le dict normalisé (égalité Python `dict` standard).
+
+Le retour est un type discriminé qui informe le caller du code HTTP à renvoyer :
+
+```python
+ApplyChunkingResult = (
+    Literal["no_change"]                       # → 204
+    | tuple[Literal["updated"], dict]          # → 200 + config
+    | tuple[Literal["reindex_triggered"], dict]  # → 202 + JobResponse
+)
+```
+
+Algorithme :
+1. Charge la config actuelle via `get_chunking_config`.
+2. Si payload identique → return `"no_change"`.
+3. Sinon, compte `SELECT COUNT(*) FROM indexed_documents WHERE workspace_id=$1` :
+   - `docs == 0` → `upsert_chunking_config(...)` + return `("updated", new_config)`.
+   - `docs > 0 and not confirm` → `raise ChunkingChangeRequiresReindex(workspace, current_desc, new_desc)`.
+   - `docs > 0 and confirm` → **une transaction unique** :
+     - `upsert_chunking_config(...)`
+     - `create_pending_job(triggered_by='reindex_chunking_change')`
+     - return `("reindex_triggered", job_row)`.
 
 ---
 
@@ -314,6 +337,8 @@ Validation Pydantic (DTO `ChunkingConfigUpdate`) :
 - `strategy: Literal["paragraph"]` (élargi aux jalons suivants)
 - `max_chars > 0`, `min_chars >= 0 < max_chars`, `overlap_chars >= 0 < max_chars`
 - `extras == {}` quand `strategy == "paragraph"` (futurs chunkers définiront leurs propres schémas via discriminated union)
+
+**Définition de « payload identique » / « changement réel »** : voir §4.6 — comparaison sur les cinq champs `{strategy, max_chars, min_chars, overlap_chars, extras}`.
 
 Comportements :
 
