@@ -71,8 +71,10 @@ async def test_real_indexer_respects_chunking_config_max_chars(
             ws["id"],
         )
 
-        # Recrée embeddings avec dim=8 pour matcher le stub provider.
-        # (create_workspace crée la table avec dim=1024 pour mxbai-embed-large.)
+        # Workaround test : recrée embeddings avec dim=8 pour matcher le stub.
+        # create_workspace l'a créée avec dim=1024 (mxbai-embed-large) ; le stub
+        # renvoie des vecteurs 8-dim pour rester lisible. Pas de chemin de prod ici —
+        # on shortcut volontairement la cohérence dim modèle ↔ table.
         conn = await asyncpg.connect(ws_dsn)
         try:
             await conn.execute("DROP TABLE IF EXISTS embeddings CASCADE")

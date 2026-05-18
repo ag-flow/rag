@@ -152,6 +152,7 @@ class RealIndexer:
             workspace_id=str(workspace_id),
             path=path,
             chunks=len(chunks),
+            chunking_strategy=ctx["chunking_strategy"],
         )
         return len(chunks)
 
