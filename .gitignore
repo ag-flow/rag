@@ -155,6 +155,11 @@ env/
 venv/
 ENV/
 env.bak/
+
+# Fichier de config + secrets pour run-test.sh : gitignored car contient le
+# token Harpocrate dev partagé hors-ligne. Le template public est versionné
+# sous `scripts/.env.test.rag.example`.
+scripts/.env.test.rag
 venv.bak/
 
 # Spyder project settings
