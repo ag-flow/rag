@@ -14,6 +14,14 @@ def make_chunker(
     overlap_chars: int,
     extras: dict[str, Any],
 ) -> ChunkerProtocol:
+    """Construit un chunker selon la stratégie configurée.
+
+    `extras` est un dict opaque réservé aux stratégies qui en ont besoin ;
+    doit être vide pour 'paragraph'.
+
+    Lève `ValueError` si la stratégie est inconnue ou si les extras sont
+    invalides pour la stratégie choisie.
+    """
     if strategy == "paragraph":
         if extras:
             raise ValueError(f"paragraph strategy does not accept extras (got {extras!r})")

@@ -21,6 +21,20 @@ class ParagraphChunker:
         self._overlap_chars = overlap_chars
 
     def chunk(self, content: str) -> list[Chunk]:
+        """Découpe `content` en chunks paragraphe.
+
+        Algorithme en 4 étapes :
+        1. Split sur double-newline (fallback single-newline si un paragraphe
+           unique dépasse `max_chars`).
+        2. Coalesce des paragraphes courts (< `min_chars`) tant que la somme
+           reste sous `max_chars`.
+        3. Split des paragraphes trop gros sur frontière naturelle (". ", "\\n", " ").
+        4. Préfixe chaque chunk (sauf le premier) par les `overlap_chars` derniers
+           caractères du chunk précédent.
+
+        Retourne `[]` si `content` est vide ou whitespace-only.
+        Lève `ValueError` si `overlap_chars >= max_chars` (configuration invalide).
+        """
         if self._overlap_chars >= self._max_chars:
             raise ValueError(
                 f"overlap_chars ({self._overlap_chars}) must be < max_chars ({self._max_chars})"
