@@ -8,6 +8,7 @@ import { WorkspaceDetailTab } from "./WorkspaceDetailTab";
 import { WorkspaceSourcesTab } from "./WorkspaceSourcesTab";
 import { WorkspaceJobsTab } from "./WorkspaceJobsTab";
 import { WorkspaceModelTab } from "./WorkspaceModelTab";
+import { WorkspaceRerankTab } from "./WorkspaceRerankTab";
 import { RevealApiKeyDialog } from "./RevealApiKeyDialog";
 import { RotateApiKeyDialog } from "./RotateApiKeyDialog";
 import { ReindexConfirmDialog } from "./ReindexConfirmDialog";
@@ -50,6 +51,7 @@ export function WorkspaceDetailPanel({ name }: Props) {
           </TabsTrigger>
           <TabsTrigger value="jobs">{t("tabs.jobs")}</TabsTrigger>
           <TabsTrigger value="model">{t("tabs.model")}</TabsTrigger>
+          <TabsTrigger value="rerank">{t("tabs.rerank")}</TabsTrigger>
         </TabsList>
         <TabsContent value="detail" className="pt-4">
           <WorkspaceDetailTab
@@ -66,6 +68,9 @@ export function WorkspaceDetailPanel({ name }: Props) {
         </TabsContent>
         <TabsContent value="model" className="pt-4">
           <WorkspaceModelTab workspace={ws} />
+        </TabsContent>
+        <TabsContent value="rerank" className="pt-4">
+          <WorkspaceRerankTab workspace={ws} enabled={activeTab === "rerank"} />
         </TabsContent>
       </Tabs>
       <RevealApiKeyDialog
