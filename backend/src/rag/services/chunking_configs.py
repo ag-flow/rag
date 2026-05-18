@@ -7,21 +7,27 @@ from uuid import UUID
 import asyncpg
 import structlog
 
+from rag.api.errors import ChunkingConfigNotFound
+from rag.schemas.admin import ChunkingConfigSpec
+
+__all__ = [
+    "ChunkingConfigNotFound",
+    "get_chunking_config",
+    "upsert_chunking_config",
+]
+
 log = structlog.get_logger(__name__)
 
 
-class ChunkingConfigNotFound(LookupError):  # noqa: N818 — nom métier (cf. WorkspaceNotFound, SourceNotFound)
-    """Le workspace n'a pas de chunking_config (état incohérent — devrait toujours exister)."""
-
-    def __init__(self, workspace_id: UUID | str) -> None:
-        super().__init__(f"chunking_config not found for workspace {workspace_id}")
-        self.workspace_id = workspace_id
-
-
 def _normalize_extras(row: dict[str, Any]) -> dict[str, Any]:
-    """asyncpg renvoie jsonb en str par défaut — parse si nécessaire."""
-    if isinstance(row.get("extras"), str):
-        row["extras"] = json.loads(row["extras"])
+    """asyncpg renvoie jsonb en str par défaut — parse si nécessaire.
+
+    Pure : ne mute pas `row`, retourne soit `row` inchangée soit une copie
+    avec `extras` parsé.
+    """
+    extras = row.get("extras")
+    if isinstance(extras, str):
+        return {**row, "extras": json.loads(extras)}
     return row
 
 
@@ -45,16 +51,16 @@ async def get_chunking_config(
 
 
 async def upsert_chunking_config(
-    config_pool: asyncpg.Pool,
     *,
     workspace_id: UUID | str,
-    strategy: str,
-    max_chars: int,
-    min_chars: int,
-    overlap_chars: int,
-    extras: dict[str, Any],
+    spec: ChunkingConfigSpec,
+    config_pool: asyncpg.Pool,
 ) -> dict[str, Any]:
-    """INSERT ... ON CONFLICT DO UPDATE. Set updated_at=now(). Retourne la row."""
+    """INSERT ... ON CONFLICT DO UPDATE. Set updated_at=now(). Retourne la row.
+
+    La validation métier (min<max, overlap<max, extras non vide interdit pour
+    strategy='paragraph') est portée par `ChunkingConfigSpec`.
+    """
     row = await config_pool.fetchrow(
         """
         INSERT INTO chunking_configs
@@ -71,17 +77,17 @@ async def upsert_chunking_config(
                   extras, created_at, updated_at
         """,
         workspace_id,
-        strategy,
-        max_chars,
-        min_chars,
-        overlap_chars,
-        json.dumps(extras),
+        spec.strategy,
+        spec.max_chars,
+        spec.min_chars,
+        spec.overlap_chars,
+        json.dumps(spec.extras),
     )
     if row is None:
         raise RuntimeError("upsert_chunking_config: INSERT did not RETURN")
     log.info(
         "chunking_config.upserted",
         workspace_id=str(workspace_id),
-        strategy=strategy,
+        strategy=spec.strategy,
     )
     return _normalize_extras(dict(row))

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-import asyncio
+import json
+from uuid import UUID
 
 import asyncpg
 import pytest
 
+from rag.api.errors import ChunkingConfigNotFound
+from rag.schemas.admin import ChunkingConfigSpec
 from rag.services.chunking_configs import (
-    ChunkingConfigNotFound,
     get_chunking_config,
     upsert_chunking_config,
 )
@@ -14,7 +16,7 @@ from tests.integration._workspace_seed import seed_workspace
 
 
 @pytest.fixture
-async def workspace_id(migrated: asyncpg.Pool) -> str:
+async def workspace_id(migrated: asyncpg.Pool) -> UUID:
     async with migrated.acquire() as conn:
         ws_id = await seed_workspace(conn, name="ws_chunking_svc")
         await conn.execute(
@@ -27,7 +29,7 @@ async def workspace_id(migrated: asyncpg.Pool) -> str:
 
 
 @pytest.mark.asyncio
-async def test_get_returns_row(migrated: asyncpg.Pool, workspace_id: str) -> None:
+async def test_get_returns_row(migrated: asyncpg.Pool, workspace_id: UUID) -> None:
     cfg = await get_chunking_config(workspace_id, migrated)
     assert cfg["strategy"] == "paragraph"
     assert cfg["max_chars"] == 2000
@@ -51,16 +53,19 @@ async def test_get_raises_when_missing(migrated: asyncpg.Pool) -> None:
 @pytest.mark.asyncio
 async def test_upsert_updates_existing(
     migrated: asyncpg.Pool,
-    workspace_id: str,
+    workspace_id: UUID,
 ) -> None:
-    cfg = await upsert_chunking_config(
-        migrated,
-        workspace_id=workspace_id,
+    spec = ChunkingConfigSpec(
         strategy="paragraph",
         max_chars=1500,
         min_chars=100,
         overlap_chars=150,
         extras={},
+    )
+    cfg = await upsert_chunking_config(
+        workspace_id=workspace_id,
+        spec=spec,
+        config_pool=migrated,
     )
     assert cfg["max_chars"] == 1500
     assert cfg["min_chars"] == 100
@@ -75,14 +80,17 @@ async def test_upsert_inserts_when_absent(migrated: asyncpg.Pool) -> None:
             name="ws_upsert_new",
             api_key="upsert-new-key",
         )
-    cfg = await upsert_chunking_config(
-        migrated,
-        workspace_id=ws_id,
+    spec = ChunkingConfigSpec(
         strategy="paragraph",
         max_chars=800,
         min_chars=80,
         overlap_chars=80,
         extras={},
+    )
+    cfg = await upsert_chunking_config(
+        workspace_id=ws_id,
+        spec=spec,
+        config_pool=migrated,
     )
     assert cfg["max_chars"] == 800
 
@@ -90,26 +98,28 @@ async def test_upsert_inserts_when_absent(migrated: asyncpg.Pool) -> None:
 @pytest.mark.asyncio
 async def test_upsert_updates_updated_at(
     migrated: asyncpg.Pool,
-    workspace_id: str,
+    workspace_id: UUID,
 ) -> None:
-    cfg_before = await get_chunking_config(workspace_id, migrated)
-    await asyncio.sleep(0.05)
-    cfg_after = await upsert_chunking_config(
-        migrated,
-        workspace_id=workspace_id,
+    now_before = await migrated.fetchval("SELECT now()")
+    spec = ChunkingConfigSpec(
         strategy="paragraph",
         max_chars=1234,
         min_chars=100,
         overlap_chars=100,
         extras={},
     )
-    assert cfg_after["updated_at"] > cfg_before["updated_at"]
+    cfg_after = await upsert_chunking_config(
+        workspace_id=workspace_id,
+        spec=spec,
+        config_pool=migrated,
+    )
+    assert cfg_after["updated_at"] > now_before
 
 
 @pytest.mark.asyncio
 async def test_fk_cascade_on_workspace_delete(
     migrated: asyncpg.Pool,
-    workspace_id: str,
+    workspace_id: UUID,
 ) -> None:
     async with migrated.acquire() as conn:
         await conn.execute("DELETE FROM workspaces WHERE id = $1", workspace_id)
@@ -123,16 +133,36 @@ async def test_fk_cascade_on_workspace_delete(
 @pytest.mark.asyncio
 async def test_upsert_extras_default_empty_dict(
     migrated: asyncpg.Pool,
-    workspace_id: str,
+    workspace_id: UUID,
 ) -> None:
     """extras=None / {} both roundtrip as {}."""
-    cfg = await upsert_chunking_config(
-        migrated,
-        workspace_id=workspace_id,
+    spec = ChunkingConfigSpec(
         strategy="paragraph",
         max_chars=500,
         min_chars=50,
         overlap_chars=50,
         extras={},
     )
+    cfg = await upsert_chunking_config(
+        workspace_id=workspace_id,
+        spec=spec,
+        config_pool=migrated,
+    )
     assert cfg["extras"] == {}
+
+
+@pytest.mark.asyncio
+async def test_upsert_extras_round_trip_with_content(
+    migrated: asyncpg.Pool,
+    workspace_id: UUID,
+) -> None:
+    """Non-empty extras roundtrip via json.dumps / json.loads."""
+    # Note : bypass du DTO (qui forbid extras non vide pour strategy='paragraph')
+    # via raw update pour préparer une row avec extras populée, puis re-lire via get.
+    await migrated.execute(
+        "UPDATE chunking_configs SET extras = $1::jsonb WHERE workspace_id = $2",
+        json.dumps({"foo": "bar", "n": 42}),
+        workspace_id,
+    )
+    cfg = await get_chunking_config(workspace_id, migrated)
+    assert cfg["extras"] == {"foo": "bar", "n": 42}

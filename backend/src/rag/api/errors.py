@@ -115,6 +115,17 @@ class SourceNotFound(AdminError):
         return {"error": "source_not_found", "id": self.source_id}
 
 
+class ChunkingConfigNotFound(AdminError):
+    http_status = 404
+
+    def __init__(self, workspace_id: object) -> None:
+        super().__init__(str(workspace_id))
+        self.workspace_id = workspace_id
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "chunking_config_not_found", "workspace_id": str(self.workspace_id)}
+
+
 class SourceTypeNotSupported(AdminError):
     http_status = 422
 
