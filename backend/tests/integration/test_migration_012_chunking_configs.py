@@ -74,9 +74,14 @@ async def test_chunking_configs_fk_cascade(session_pool: asyncpg.Pool) -> None:
 
 
 @pytest.mark.asyncio
-async def test_chunking_configs_check_strategy_paragraph_only(
+async def test_chunking_configs_check_strategy_rejects_unknown(
     session_pool: asyncpg.Pool,
 ) -> None:
+    """La CHECK constraint rejette les stratégies non listées.
+
+    Note : 'markdown' a été ajoutée à la liste autorisée par la migration 014
+    (M9c-T1). On teste donc une stratégie volontairement inconnue.
+    """
     await _reset(session_pool)
     await run_migrations(session_pool, MIGRATIONS_DIR)
 
@@ -86,7 +91,7 @@ async def test_chunking_configs_check_strategy_paragraph_only(
             await conn.execute(
                 "INSERT INTO chunking_configs "
                 "(workspace_id, strategy, max_chars, min_chars, overlap_chars) "
-                "VALUES ($1, 'markdown', 2000, 200, 200)",
+                "VALUES ($1, 'unknown_strategy', 2000, 200, 200)",
                 ws_id,
             )
 
