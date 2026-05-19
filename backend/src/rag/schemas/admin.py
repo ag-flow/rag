@@ -155,12 +155,32 @@ class RerankConfigResponse(BaseModel):
     updated_at: str
 
 
+def _validate_markdown_extras(v: dict[str, Any]) -> dict[str, Any]:
+    """Accepte uniquement {heading_levels?: list[int]}. Default si absent."""
+    allowed_keys = {"heading_levels"}
+    extra_keys = set(v.keys()) - allowed_keys
+    if extra_keys:
+        raise ValueError(
+            f"markdown strategy only accepts {allowed_keys}, got unknown keys: {extra_keys}"
+        )
+    levels = v.get("heading_levels", [1, 2])
+    if not isinstance(levels, list) or not levels:
+        raise ValueError("heading_levels must be a non-empty list")
+    if not all(isinstance(x, int) and 1 <= x <= 6 for x in levels):
+        raise ValueError("heading_levels values must be integers in [1, 6]")
+    if levels != sorted(levels):
+        raise ValueError("heading_levels must be sorted ascending")
+    if len(set(levels)) != len(levels):
+        raise ValueError("heading_levels must not contain duplicates")
+    return {"heading_levels": levels}
+
+
 class ChunkingConfigSpec(BaseModel):
     """Payload PUT /workspaces/{name}/chunking-config."""
 
     model_config = ConfigDict(extra="forbid")
 
-    strategy: Literal["paragraph"]
+    strategy: Literal["paragraph", "markdown"]
     max_chars: int = Field(gt=0)
     min_chars: int = Field(ge=0)
     overlap_chars: int = Field(ge=0)
@@ -184,9 +204,14 @@ class ChunkingConfigSpec(BaseModel):
 
     @field_validator("extras")
     @classmethod
-    def _extras_empty_for_paragraph(cls, v: dict[str, Any], info: ValidationInfo) -> dict[str, Any]:
-        if info.data.get("strategy") == "paragraph" and v:
-            raise ValueError("extras must be empty for strategy 'paragraph'")
+    def _validate_extras(cls, v: dict[str, Any], info: ValidationInfo) -> dict[str, Any]:
+        strategy = info.data.get("strategy")
+        if strategy == "paragraph":
+            if v:
+                raise ValueError("extras must be empty for strategy 'paragraph'")
+            return v
+        if strategy == "markdown":
+            return _validate_markdown_extras(v)
         return v
 
 

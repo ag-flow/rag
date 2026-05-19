@@ -53,10 +53,10 @@ def test_overlap_chars_must_be_lt_max_chars() -> None:
         )
 
 
-def test_strategy_must_be_paragraph() -> None:
+def test_strategy_must_be_known_literal() -> None:
     with pytest.raises(ValidationError, match="strategy"):
         ChunkingConfigSpec(
-            strategy="markdown",
+            strategy="unknown",  # type: ignore[arg-type]
             max_chars=2000,
             min_chars=200,
             overlap_chars=200,
@@ -135,3 +135,90 @@ def test_chunking_config_response_instantiates_from_db_row_shape() -> None:
     )
     assert response.strategy == "paragraph"
     assert response.extras == {}
+
+
+def test_markdown_happy_path_default_extras() -> None:
+    """extras={} accepté, normalisé en {heading_levels:[1,2]}."""
+    spec = ChunkingConfigSpec(
+        strategy="markdown",
+        max_chars=2000,
+        min_chars=200,
+        overlap_chars=200,
+        extras={},
+    )
+    assert spec.strategy == "markdown"
+    assert spec.extras == {"heading_levels": [1, 2]}
+
+
+def test_markdown_custom_heading_levels() -> None:
+    spec = ChunkingConfigSpec(
+        strategy="markdown",
+        max_chars=2000,
+        min_chars=200,
+        overlap_chars=200,
+        extras={"heading_levels": [1, 2, 3]},
+    )
+    assert spec.extras == {"heading_levels": [1, 2, 3]}
+
+
+def test_markdown_rejects_unknown_extras_key() -> None:
+    with pytest.raises(ValidationError, match="unknown keys"):
+        ChunkingConfigSpec(
+            strategy="markdown",
+            max_chars=2000,
+            min_chars=200,
+            overlap_chars=200,
+            extras={"foo": "bar"},
+        )
+
+
+def test_markdown_rejects_empty_heading_levels() -> None:
+    with pytest.raises(ValidationError, match="non-empty list"):
+        ChunkingConfigSpec(
+            strategy="markdown",
+            max_chars=2000,
+            min_chars=200,
+            overlap_chars=200,
+            extras={"heading_levels": []},
+        )
+
+
+def test_markdown_rejects_out_of_range_levels() -> None:
+    with pytest.raises(ValidationError, match=r"in \[1, 6\]"):
+        ChunkingConfigSpec(
+            strategy="markdown",
+            max_chars=2000,
+            min_chars=200,
+            overlap_chars=200,
+            extras={"heading_levels": [0]},
+        )
+    with pytest.raises(ValidationError, match=r"in \[1, 6\]"):
+        ChunkingConfigSpec(
+            strategy="markdown",
+            max_chars=2000,
+            min_chars=200,
+            overlap_chars=200,
+            extras={"heading_levels": [7]},
+        )
+
+
+def test_markdown_rejects_unsorted_levels() -> None:
+    with pytest.raises(ValidationError, match="sorted ascending"):
+        ChunkingConfigSpec(
+            strategy="markdown",
+            max_chars=2000,
+            min_chars=200,
+            overlap_chars=200,
+            extras={"heading_levels": [2, 1]},
+        )
+
+
+def test_markdown_rejects_duplicate_levels() -> None:
+    with pytest.raises(ValidationError, match="duplicates"):
+        ChunkingConfigSpec(
+            strategy="markdown",
+            max_chars=2000,
+            min_chars=200,
+            overlap_chars=200,
+            extras={"heading_levels": [1, 1]},
+        )
