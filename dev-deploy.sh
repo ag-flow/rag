@@ -295,21 +295,18 @@ echo "  docker compose -f ${COMPOSE_FILE} logs -f backend"
 echo
 
 # ─── Affichage final : URL d'accès ──────────────────────────────────────────
-# Source de vérité pour APP_URL : RAG_PUBLIC_URL dans .env (URL publique
-# derrière Cloudflare en prod). Fallback : HTTP direct sur l'IP eth0.
-# Tous les endpoints affichés DOIVENT pointer sur l'IP eth0 pour être
-# accessibles depuis le poste de dev (pas de localhost, qui est inutilisable
-# hors du LXC).
+# Pour le smoke (URLs affichées à l'admin local), on utilise TOUJOURS l'IP
+# eth0 — pas RAG_PUBLIC_URL, qui peut contenir une valeur héritée non
+# pertinente en dev (ex: `http://localhost` par défaut dans .env.example,
+# ou une URL Cloudflare configurée pour la prod). Les URLs doivent être
+# copiables tel quel depuis le poste de dev.
 IP="$(detect_eth0_ip)"
 if [ -z "$IP" ]; then
   echo "✗ Impossible de détecter l'IP eth0 — interface absente ou nommée différemment (ens18, enp0s3…)." >&2
   echo "  Le smoke ne peut pas afficher d'URL utilisable. Adapter detect_eth0_ip si besoin." >&2
   exit 1
 fi
-APP_URL="$(read_env_var "${PROJECT_NAME_UPPER}_PUBLIC_URL")"
-if [ -z "$APP_URL" ]; then
-  APP_URL="http://${IP}"
-fi
+APP_URL="http://${IP}"
 
 # ─── Smoke /health : on attend que le backend réponde ─────────────────────
 # Timeout 60s (12 × 5s). Le boot inclut : pool DB + migrations idempotentes
