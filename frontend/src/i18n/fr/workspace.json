@@ -22,7 +22,8 @@
     "sources": "Sources git ({{count}})",
     "jobs": "Jobs",
     "model": "Modèle",
-    "rerank": "Rerank"
+    "rerank": "Rerank",
+    "chunking": "Chunking"
   },
   "detail": {
     "stats": {
@@ -154,6 +155,49 @@
       "success": "Configuration supprimée.",
       "error": "Échec de la suppression."
     }
+  },
+  "chunking": {
+    "title": "Configuration du chunking",
+    "badgeMandatory": "obligatoire",
+    "description": "Stratégie de découpage des documents avant indexation. Modifier ces paramètres nécessite une réindexation complète du workspace.",
+    "warning": "Modifier ces paramètres rend les chunks existants incohérents avec les nouveaux embeddings. Une réindexation complète sera demandée.",
+    "fields": {
+      "strategy": "Stratégie",
+      "strategyHelp": {
+        "paragraph": "Découpage par paragraphes avec coalesce des petits et split des gros."
+      },
+      "strategies": { "paragraph": "Paragraphes (par défaut)" },
+      "maxChars": "Taille max d'un chunk (caractères)",
+      "maxCharsHelp": "doit être ≥ 1",
+      "minChars": "Taille min avant coalesce (caractères)",
+      "minCharsHelp": "doit être < taille max",
+      "overlapChars": "Overlap entre chunks (caractères)",
+      "overlapCharsHelp": "doit être < taille max"
+    },
+    "errors": {
+      "required": "Valeur requise",
+      "min": "Valeur trop petite",
+      "min_lt_max": "Doit être inférieur à la taille max",
+      "overlap_lt_max": "Doit être inférieur à la taille max"
+    },
+    "actions": { "save": "Enregistrer", "cancel": "Annuler" },
+    "save": {
+      "success": "Configuration enregistrée",
+      "noChange": "Aucune modification",
+      "error": "Échec de l'enregistrement"
+    },
+    "reindex": {
+      "triggered": "Réindexation lancée",
+      "dialog": {
+        "title": "Réindexation requise",
+        "intro": "Cette modification nécessite de réindexer l'intégralité du workspace.",
+        "labelCurrent": "Configuration actuelle :",
+        "labelNew": "Nouvelle configuration :",
+        "consequence": "Cette opération va supprimer tous les chunks existants et ré-indexer les documents. Cela peut prendre plusieurs minutes.",
+        "actions": { "cancel": "Annuler", "confirm": "Réindexer maintenant" }
+      }
+    },
+    "lastModified": "Dernière modification : {{when}}"
   },
   "dialog": {
     "cancel": "Annuler",

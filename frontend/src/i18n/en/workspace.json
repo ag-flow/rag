@@ -22,7 +22,8 @@
     "sources": "Git sources ({{count}})",
     "jobs": "Jobs",
     "model": "Model",
-    "rerank": "Rerank"
+    "rerank": "Rerank",
+    "chunking": "Chunking"
   },
   "detail": {
     "stats": {
@@ -154,6 +155,49 @@
       "success": "Configuration removed.",
       "error": "Failed to remove configuration."
     }
+  },
+  "chunking": {
+    "title": "Chunking configuration",
+    "badgeMandatory": "mandatory",
+    "description": "Document chunking strategy applied before indexing. Modifying these parameters requires a full reindexation of the workspace.",
+    "warning": "Modifying these parameters makes existing chunks inconsistent with new embeddings. A full reindexation will be required.",
+    "fields": {
+      "strategy": "Strategy",
+      "strategyHelp": {
+        "paragraph": "Split by paragraphs with coalesce of small ones and split of large ones."
+      },
+      "strategies": { "paragraph": "Paragraphs (default)" },
+      "maxChars": "Max chunk size (characters)",
+      "maxCharsHelp": "must be ≥ 1",
+      "minChars": "Min size before coalesce (characters)",
+      "minCharsHelp": "must be < max size",
+      "overlapChars": "Overlap between chunks (characters)",
+      "overlapCharsHelp": "must be < max size"
+    },
+    "errors": {
+      "required": "Required value",
+      "min": "Value too small",
+      "min_lt_max": "Must be less than max size",
+      "overlap_lt_max": "Must be less than max size"
+    },
+    "actions": { "save": "Save", "cancel": "Cancel" },
+    "save": {
+      "success": "Configuration saved",
+      "noChange": "No changes",
+      "error": "Save failed"
+    },
+    "reindex": {
+      "triggered": "Reindexation started",
+      "dialog": {
+        "title": "Reindexation required",
+        "intro": "This modification requires reindexing the entire workspace.",
+        "labelCurrent": "Current configuration:",
+        "labelNew": "New configuration:",
+        "consequence": "This operation will delete all existing chunks and re-index the documents. This may take several minutes.",
+        "actions": { "cancel": "Cancel", "confirm": "Reindex now" }
+      }
+    },
+    "lastModified": "Last modified: {{when}}"
   },
   "dialog": {
     "cancel": "Cancel",
