@@ -295,27 +295,33 @@ echo "  docker compose -f ${COMPOSE_FILE} logs -f backend"
 echo
 
 # ─── Affichage final : URL d'accès ──────────────────────────────────────────
-# Source de vérité : RAG_PUBLIC_URL dans .env. Fallback HTTP via Caddy:80
-# sur l'IP eth0 si la var est absente (cas d'un .env très ancien).
+# Source de vérité pour APP_URL : RAG_PUBLIC_URL dans .env (URL publique
+# derrière Cloudflare en prod). Fallback : HTTP direct sur l'IP eth0.
+# Tous les endpoints affichés DOIVENT pointer sur l'IP eth0 pour être
+# accessibles depuis le poste de dev (pas de localhost, qui est inutilisable
+# hors du LXC).
+IP="$(detect_eth0_ip)"
+if [ -z "$IP" ]; then
+  echo "✗ Impossible de détecter l'IP eth0 — interface absente ou nommée différemment (ens18, enp0s3…)." >&2
+  echo "  Le smoke ne peut pas afficher d'URL utilisable. Adapter detect_eth0_ip si besoin." >&2
+  exit 1
+fi
 APP_URL="$(read_env_var "${PROJECT_NAME_UPPER}_PUBLIC_URL")"
 if [ -z "$APP_URL" ]; then
-  ETH0_IP_FINAL="$(detect_eth0_ip)"
-  if [ -n "$ETH0_IP_FINAL" ]; then
-    APP_URL="http://${ETH0_IP_FINAL}"
-  else
-    APP_URL="http://localhost"
-  fi
+  APP_URL="http://${IP}"
 fi
 
 # ─── Smoke /health : on attend que le backend réponde ─────────────────────
 # Timeout 60s (12 × 5s). Le boot inclut : pool DB + migrations idempotentes
 # + resolver. En cas d'échec on remonte un exit code non-zero pour que les
 # scripts d'orchestration (ex : CI) puissent déclencher une alerte.
+# Le smoke tape directement le backend sur eth0:8000 (bypass Caddy) pour
+# isoler un éventuel souci de proxy d'un souci backend.
 
 echo "Smoke /health (timeout 60s)..."
 SMOKE_OK=0
 for _ in $(seq 1 12); do
-  if curl -sf -m 3 "http://localhost:8000/health" >/dev/null 2>&1; then
+  if curl -sf -m 3 "http://${IP}:8000/health" >/dev/null 2>&1; then
     SMOKE_OK=1
     break
   fi
@@ -323,9 +329,7 @@ for _ in $(seq 1 12); do
 done
 
 if [ "$SMOKE_OK" = "1" ]; then
-  VERSION_JSON="$(curl -sf -m 3 http://localhost:8000/version 2>/dev/null || echo '{}')"
-  ETH0_IP_SMOKE="$(detect_eth0_ip)"
-  IP="${ETH0_IP_SMOKE:-localhost}"
+  VERSION_JSON="$(curl -sf -m 3 "http://${IP}:8000/version" 2>/dev/null || echo '{}')"
   cat <<EOF
 ═════════════════════════════════════════════════════════════════
   ✓ /health     ${APP_URL}/health → ok
