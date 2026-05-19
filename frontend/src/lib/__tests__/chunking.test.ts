@@ -78,9 +78,15 @@ describe("chunkingApi.upsert", () => {
         action: "PUT /workspaces/ws-1/chunking-config?confirm=true",
       }),
     );
-    await expect(chunkingApi.upsert("ws-1", baseSpec, false)).rejects.toBeInstanceOf(
-      ApiError,
-    );
+    await expect(chunkingApi.upsert("ws-1", baseSpec, false)).rejects.toMatchObject({
+      status: 409,
+      body: {
+        error: "chunking_change_requires_reindex",
+        current: expect.any(String),
+        new: expect.any(String),
+        action: expect.any(String),
+      },
+    });
   });
 
   it("URL inclut ?confirm=true quand confirm=true", async () => {
