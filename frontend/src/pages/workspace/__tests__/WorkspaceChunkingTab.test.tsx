@@ -1,3 +1,4 @@
+import { act } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "./testUtils";
@@ -114,7 +115,9 @@ describe("WorkspaceChunkingTab", () => {
 
     await waitFor(() => expect(upsertMutate).toHaveBeenCalled());
     const callbacks = upsertMutate.mock.calls[0]?.[1];
-    callbacks.onSuccess({ status: "no_change" });
+    await act(async () => {
+      callbacks.onSuccess({ status: "no_change" });
+    });
 
     await waitFor(() =>
       expect(toastMock).toHaveBeenCalledWith(
@@ -134,9 +137,11 @@ describe("WorkspaceChunkingTab", () => {
 
     await waitFor(() => expect(upsertMutate).toHaveBeenCalled());
     const callbacks = upsertMutate.mock.calls[0]?.[1];
-    callbacks.onSuccess({
-      status: "updated",
-      config: { ...mockConfig, max_chars: 1500 },
+    await act(async () => {
+      callbacks.onSuccess({
+        status: "updated",
+        config: { ...mockConfig, max_chars: 1500 },
+      });
     });
 
     await waitFor(() =>
@@ -157,15 +162,17 @@ describe("WorkspaceChunkingTab", () => {
 
     await waitFor(() => expect(upsertMutate).toHaveBeenCalled());
     const callbacks = upsertMutate.mock.calls[0]?.[1];
-    callbacks.onError(
-      new ApiError(409, {
-        error: "chunking_change_requires_reindex",
-        workspace: "my-workspace",
-        current: "paragraph (max=2000, min=200, overlap=200)",
-        new: "paragraph (max=1500, min=200, overlap=200)",
-        action: "PUT /workspaces/my-workspace/chunking-config?confirm=true",
-      }),
-    );
+    await act(async () => {
+      callbacks.onError(
+        new ApiError(409, {
+          error: "chunking_change_requires_reindex",
+          workspace: "my-workspace",
+          current: "paragraph (max=2000, min=200, overlap=200)",
+          new: "paragraph (max=1500, min=200, overlap=200)",
+          action: "PUT /workspaces/my-workspace/chunking-config?confirm=true",
+        }),
+      );
+    });
 
     await waitFor(() =>
       expect(screen.getByText(/Réindexation requise/i)).toBeInTheDocument(),
@@ -188,15 +195,17 @@ describe("WorkspaceChunkingTab", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Enregistrer$/i }));
 
     await waitFor(() => expect(upsertMutate).toHaveBeenCalled());
-    upsertMutate.mock.calls[0]?.[1].onError(
-      new ApiError(409, {
-        error: "chunking_change_requires_reindex",
-        workspace: "my-workspace",
-        current: "paragraph (max=2000, min=200, overlap=200)",
-        new: "paragraph (max=1500, min=200, overlap=200)",
-        action: "PUT /workspaces/my-workspace/chunking-config?confirm=true",
-      }),
-    );
+    await act(async () => {
+      upsertMutate.mock.calls[0]?.[1].onError(
+        new ApiError(409, {
+          error: "chunking_change_requires_reindex",
+          workspace: "my-workspace",
+          current: "paragraph (max=2000, min=200, overlap=200)",
+          new: "paragraph (max=1500, min=200, overlap=200)",
+          action: "PUT /workspaces/my-workspace/chunking-config?confirm=true",
+        }),
+      );
+    });
 
     await waitFor(() => screen.getByText(/Réindexation requise/i));
     fireEvent.click(screen.getByRole("button", { name: /Réindexer maintenant/i }));

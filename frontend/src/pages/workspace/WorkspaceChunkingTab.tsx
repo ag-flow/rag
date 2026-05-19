@@ -60,6 +60,7 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
   });
 
   useEffect(() => {
+    if (isLoading) return;
     if (data) {
       form.reset({
         strategy: data.strategy,
@@ -68,7 +69,7 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
         overlap_chars: data.overlap_chars,
       });
     }
-  }, [data, form]);
+  }, [data, isLoading, form]);
 
   const handleUpsertResult = (result: UpsertChunkingResult) => {
     if (result.status === "no_change") {
