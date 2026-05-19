@@ -98,12 +98,16 @@ describe("OidcConfigPage", () => {
     } as unknown as ReturnType<typeof useOidcConfig>);
     renderPage();
     const inputs = screen.getAllByRole("textbox");
-    fireEvent.change(inputs[0], { target: { value: "https://kc.example.com/realms/test" } });
-    fireEvent.change(inputs[1], { target: { value: "rag" } });
-    fireEvent.change(inputs[2], { target: { value: "kc_rag_secret" } });
+    const [issuerInput, clientIdInput, clientSecretInput] = inputs;
+    if (!issuerInput || !clientIdInput || !clientSecretInput) {
+      throw new Error("Expected 3 textbox inputs on the OIDC form");
+    }
+    fireEvent.change(issuerInput, { target: { value: "https://kc.example.com/realms/test" } });
+    fireEvent.change(clientIdInput, { target: { value: "rag" } });
+    fireEvent.change(clientSecretInput, { target: { value: "kc_rag_secret" } });
     fireEvent.click(screen.getByText(/^Enregistrer$/i));
     await waitFor(() => expect(mutateMock).toHaveBeenCalled());
-    expect(mutateMock.mock.calls[0][0]).toEqual({
+    expect(mutateMock.mock.calls[0]?.[0]).toEqual({
       issuer: "https://kc.example.com/realms/test",
       client_id: "rag",
       client_secret_ref: "kc_rag_secret",
