@@ -324,11 +324,20 @@ done
 
 if [ "$SMOKE_OK" = "1" ]; then
   VERSION_JSON="$(curl -sf -m 3 http://localhost:8000/version 2>/dev/null || echo '{}')"
+  ETH0_IP_SMOKE="$(detect_eth0_ip)"
+  IP="${ETH0_IP_SMOKE:-localhost}"
   cat <<EOF
 ═════════════════════════════════════════════════════════════════
   ✓ /health     ${APP_URL}/health → ok
   ✓ /version    ${VERSION_JSON}
-  → pgweb (DB) :    http://$(detect_eth0_ip):8081/
+
+  Endpoints exposés (cf. docker compose ps) :
+  → IHM (frontend)   : ${APP_URL}/
+  → API admin        : ${APP_URL}/api/admin/  (auth Bearer ${PROJECT_NAME_UPPER}_MASTER_KEY)
+  → API MCP          : ${APP_URL}/mcp         (auth Bearer api_key workspace)
+  → Backend direct   : http://${IP}:8000/     (bypass Caddy, debug)
+  → pgweb (DB UI)    : http://${IP}:8081/
+  → Postgres CLI     : psql postgresql://rag:<POSTGRES_PASSWORD>@${IP}:5432/postgres
 ═════════════════════════════════════════════════════════════════
 EOF
 else
