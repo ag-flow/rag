@@ -33,13 +33,15 @@ Le modèle de données est conçu pour être extensible. Les sources futures s'a
 
 ✅ Infrastructure backend livrée en M9 — cf. `docs/superpowers/specs/2026-05-18-M9-backend-chunking-infrastructure-design.md`.
 ✅ Frontend livré en M9b — onglet `Chunking` dans `WorkspaceDetailPanel`, cf. `docs/superpowers/specs/2026-05-19-M9b-frontend-chunking-design.md`.
+✅ Stratégie sémantique `markdown` livrée en M9c — cf. `docs/superpowers/specs/2026-05-19-M9c-backend-markdown-chunker-design.md`. Configurable via API admin (`PUT /chunking-config` avec `strategy='markdown'` + `extras={heading_levels:[1,2]}`). Frontend différé en M9c-front (l'option n'apparaît pas encore dans le Select de l'IHM).
 
-Pattern factory + registry par stratégie côté backend, config par workspace (table `chunking_configs`), champ `embeddings.metadata jsonb` prêt, runner de migrations workspace au boot. Une seule stratégie disponible : `paragraph` (algo historique).
+Stratégies disponibles : `paragraph` (M4a), `markdown` (M9c).
 
 Stratégies futures (jalons distincts) :
-- Chunking sémantique (respect des sections Markdown)
-- Chunking par blocs de code
-- Métadonnées de chunk enrichies (titre de section parent, type de contenu)
+- M9c-front : exposer `markdown` dans l'IHM workspace
+- Chunking par blocs de code (langage-aware) — jalon M9d ou +
+- Métadonnées enrichies (content_type, language) — quand un usage concret le justifiera
+- Exposition de la metadata via MCP `search()` — quand un client agent en tirera parti
 
 ---
 
