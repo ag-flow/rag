@@ -31,9 +31,10 @@ Le modèle de données est conçu pour être extensible. Les sources futures s'a
 
 ### Amélioration du chunking
 
-✅ Infrastructure livrée en M9 — cf. `docs/superpowers/specs/2026-05-18-M9-backend-chunking-infrastructure-design.md`.
+✅ Infrastructure backend livrée en M9 — cf. `docs/superpowers/specs/2026-05-18-M9-backend-chunking-infrastructure-design.md`.
+✅ Frontend livré en M9b — onglet `Chunking` dans `WorkspaceDetailPanel`, cf. `docs/superpowers/specs/2026-05-19-M9b-frontend-chunking-design.md`.
 
-Pattern factory + registry par stratégie, config par workspace (table `chunking_configs`), champ `embeddings.metadata jsonb` prêt, runner de migrations workspace au boot. Une seule stratégie disponible : `paragraph` (algo historique). Frontend dédié différé en M9b.
+Pattern factory + registry par stratégie côté backend, config par workspace (table `chunking_configs`), champ `embeddings.metadata jsonb` prêt, runner de migrations workspace au boot. Une seule stratégie disponible : `paragraph` (algo historique).
 
 Stratégies futures (jalons distincts) :
 - Chunking sémantique (respect des sections Markdown)
