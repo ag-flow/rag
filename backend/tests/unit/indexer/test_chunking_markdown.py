@@ -192,3 +192,24 @@ def test_setext_heading_supported() -> None:
     result = _default().chunk(content)
     titles = [c.metadata.get("section_title") for c in result]
     assert "Title" in titles
+
+
+def test_preamble_with_duplicated_heading_line_inside_fence() -> None:
+    """Régression : un préambule contenant une ligne textuellement identique
+    au heading déclenchant ne doit PAS être tronqué.
+
+    Reproduit le bug détecté en review M9c-T3 : `_find_preamble_lines` cherchait
+    le 1er match string, donc tombait sur la ligne dans le fence au lieu du
+    vrai heading.
+    """
+    content = "```\n# Section\n```\n\n# Section\n\nReal content."
+    result = _default().chunk(content)
+    # Préambule : doit contenir l'intégralité du fence (```, # Section, ```)
+    preamble = next(
+        (c for c in result if c.metadata["section_title"] is None),
+        None,
+    )
+    assert preamble is not None, "préambule non détecté"
+    assert "```" in preamble.content, "fence ouvrant perdu"
+    assert preamble.content.count("```") >= 2, "fence non préservée"
+    assert "# Section" in preamble.content

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from markdown_it import MarkdownIt
@@ -8,12 +8,6 @@ from markdown_it.token import Token
 
 from rag.indexer.chunking.paragraph import ParagraphChunker
 from rag.indexer.chunking.protocol import Chunk
-
-_NEUTRAL_METADATA: dict[str, Any] = {
-    "section_title": None,
-    "section_path": [],
-    "heading_level": 0,
-}
 
 
 @dataclass
@@ -24,7 +18,6 @@ class _Section:
     path: list[str]
     level: int
     content: str
-    fence_ranges: list[tuple[int, int]] = field(default_factory=list)
 
 
 class MarkdownChunker:
@@ -75,7 +68,21 @@ class MarkdownChunker:
 
     @staticmethod
     def _enrich_with_neutral_metadata(chunks: list[Chunk]) -> list[Chunk]:
-        return [Chunk(content=c.content, metadata=_NEUTRAL_METADATA) for c in chunks]
+        """Pour le cas no-heading : ré-emballe chaque Chunk avec la valeur
+        neutre de metadata. Le dict est reconstruit à chaque chunk pour éviter
+        le partage par référence (Chunk est frozen mais metadata=Mapping reste
+        techniquement mutable au runtime)."""
+        return [
+            Chunk(
+                content=c.content,
+                metadata={
+                    "section_title": None,
+                    "section_path": [],
+                    "heading_level": 0,
+                },
+            )
+            for c in chunks
+        ]
 
     def _split_into_sections(self, content: str) -> list[_Section]:
         tokens = self._md.parse(content)
@@ -84,10 +91,10 @@ class MarkdownChunker:
         breadcrumb: list[tuple[int, str]] = []
         current_start_line: int | None = None
         current_meta: tuple[str | None, list[str], int] | None = None
-        fences: list[tuple[int, int]] = []
+        first_section_start_line: int | None = None
 
         def flush_section(end_line: int) -> None:
-            nonlocal current_start_line, current_meta, fences
+            nonlocal current_start_line, current_meta
             if current_start_line is None or current_meta is None:
                 return
             section_text = "\n".join(lines[current_start_line:end_line])
@@ -98,10 +105,8 @@ class MarkdownChunker:
                     path=path,
                     level=level,
                     content=section_text,
-                    fence_ranges=fences,
                 ),
             )
-            fences = []
 
         for i, tok in enumerate(tokens):
             if tok.type == "heading_open":
@@ -113,18 +118,17 @@ class MarkdownChunker:
 
                 if heading_level in self._heading_levels:
                     start_line = tok.map[0] if tok.map else 0
+                    if first_section_start_line is None:
+                        first_section_start_line = start_line
                     flush_section(start_line)
                     current_start_line = start_line
                     current_meta = (title, [t for _, t in breadcrumb[:-1]], heading_level)
-                    fences = []
-            elif tok.type == "fence" and tok.map and current_meta is not None:
-                fences.append((tok.map[0], tok.map[1]))
 
         if current_start_line is not None:
             flush_section(len(lines))
 
-        if sections:
-            pre_lines = self._find_preamble_lines(lines, sections[0])
+        if sections and first_section_start_line is not None and first_section_start_line > 0:
+            pre_lines = "\n".join(lines[:first_section_start_line])
             if pre_lines.strip():
                 sections.insert(
                     0,
@@ -133,7 +137,6 @@ class MarkdownChunker:
                         path=[],
                         level=0,
                         content=pre_lines,
-                        fence_ranges=[],
                     ),
                 )
 
@@ -145,16 +148,6 @@ class MarkdownChunker:
             inline_tok = tokens[heading_open_index + 1]
             if inline_tok.type == "inline" and inline_tok.content:
                 return inline_tok.content.strip()
-        return ""
-
-    @staticmethod
-    def _find_preamble_lines(lines: list[str], first_section: _Section) -> str:
-        if not first_section.content:
-            return ""
-        first_line = first_section.content.splitlines()[0]
-        for idx, line in enumerate(lines):
-            if line == first_line:
-                return "\n".join(lines[:idx])
         return ""
 
     def _chunk_section(self, section: _Section) -> list[Chunk]:
