@@ -63,6 +63,29 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  /**
+   * PUT bas-niveau retournant la `Response` brute pour permettre la lecture
+   * du status code (200/202/204). Les codes 4xx/5xx remontent comme `ApiError`.
+   */
+  putRaw: async (url: string, body: unknown): Promise<Response> => {
+    const resp = await fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      credentials: "include",
+    });
+    if (!resp.ok) {
+      let parsed: unknown = null;
+      try {
+        parsed = await resp.json();
+      } catch {
+        // pas de body JSON
+      }
+      throw new ApiError(resp.status, parsed);
+    }
+    return resp;
+  },
+
   patch: <T>(url: string, body: unknown): Promise<T> =>
     request<T>(url, {
       method: "PATCH",

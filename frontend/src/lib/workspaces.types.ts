@@ -62,7 +62,13 @@ export type SourceCreateRequest = {
 
 export type Job = {
   id: string;
-  triggered_by: "webhook" | "manual" | "push" | "schedule";
+  triggered_by:
+    | "webhook"
+    | "manual"
+    | "push"
+    | "schedule"
+    | "reindex_indexer_change"
+    | "reindex_chunking_change";
   status: "pending" | "running" | "done" | "error";
   files_changed: number;
   files_skipped: number;
