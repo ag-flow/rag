@@ -11,22 +11,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useWorkspaceSources } from "@/hooks/useWorkspaces";
 import type { Source } from "@/lib/workspaces.types";
+import { formatRelativeTime } from "@/lib/relativeTime";
 import { AddSourceDialog } from "./AddSourceDialog";
 import { DeleteSourceAlert } from "./DeleteSourceAlert";
 
 interface Props {
   name: string;
   enabled: boolean;
-}
-
-function relativeTimeRaw(iso: string | null): { key: string; count: number } | null {
-  if (!iso) return null;
-  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (m < 1) return { key: "time.justNow", count: 0 };
-  if (m < 60) return { key: "time.minutesAgo", count: m };
-  const h = Math.floor(m / 60);
-  if (h < 24) return { key: "time.hoursAgo", count: h };
-  return { key: "time.daysAgo", count: Math.floor(h / 24) };
 }
 
 export function WorkspaceSourcesTab({ name, enabled }: Props) {
@@ -84,13 +75,9 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
                     <span className="text-slate-500">· {source.config.branch}</span>
                     <span className="text-slate-400">
                       ·{" "}
-                      {(() => {
-                        const rel = relativeTimeRaw(source.last_indexed_at);
-                        if (!rel) return t("sources.neverSynced");
-                        return rel.key === "time.justNow"
-                          ? t("time.justNow")
-                          : t(rel.key, { count: rel.count });
-                      })()}
+                      {source.last_indexed_at
+                        ? formatRelativeTime(source.last_indexed_at, t)
+                        : t("sources.neverSynced")}
                     </span>
                   </div>
                   <DropdownMenu>

@@ -5,6 +5,7 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useWorkspaceJobs } from "@/hooks/useWorkspaces";
 import type { Job } from "@/lib/workspaces.types";
+import { formatRelativeTime } from "@/lib/relativeTime";
 
 interface Props {
   name: string;
@@ -17,16 +18,6 @@ const statusVariant: Record<Job["status"], "default" | "secondary" | "destructiv
   running: "secondary",
   error: "destructive",
 };
-
-function relativeTimeRaw(iso: string | null): { key: string; count: number } | null {
-  if (!iso) return null;
-  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (m < 1) return { key: "time.justNow", count: 0 };
-  if (m < 60) return { key: "time.minutesAgo", count: m };
-  const h = Math.floor(m / 60);
-  if (h < 24) return { key: "time.hoursAgo", count: h };
-  return { key: "time.daysAgo", count: Math.floor(h / 24) };
-}
 
 function formatDuration(ms: number | null): string {
   if (ms === null) return "—";
@@ -96,13 +87,7 @@ export function WorkspaceJobsTab({ name, enabled }: Props) {
                   {formatDuration(job.duration_ms)}
                 </span>
                 <span className="text-xs text-slate-500">
-                  {(() => {
-                    const rel = relativeTimeRaw(job.started_at);
-                    if (!rel) return "—";
-                    return rel.key === "time.justNow"
-                      ? t("time.justNow")
-                      : t(rel.key, { count: rel.count });
-                  })()}
+                  {job.started_at ? formatRelativeTime(job.started_at, t) : "—"}
                 </span>
               </button>
               {isOpen && hasError && (

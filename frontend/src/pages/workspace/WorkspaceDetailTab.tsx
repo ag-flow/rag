@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/useToast";
 import { useUpdateApiKeyRef } from "@/hooks/useWorkspaces";
 import type { Workspace } from "@/lib/workspaces.types";
+import { formatRelativeTime } from "@/lib/relativeTime";
 
 const schema = z.object({
   api_key_ref: z
@@ -22,17 +23,6 @@ interface Props {
   workspace: Workspace;
   onReveal: () => void;
   onRotate: () => void;
-}
-
-function relativeTimeRaw(iso: string | null): { key: string; count: number } | null {
-  if (!iso) return null;
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diffMs / 60_000);
-  if (m < 1) return { key: "time.justNow", count: 0 };
-  if (m < 60) return { key: "time.minutesAgo", count: m };
-  const h = Math.floor(m / 60);
-  if (h < 24) return { key: "time.hoursAgo", count: h };
-  return { key: "time.daysAgo", count: Math.floor(h / 24) };
 }
 
 export function WorkspaceDetailTab({ workspace, onReveal, onRotate }: Props) {
@@ -69,15 +59,11 @@ export function WorkspaceDetailTab({ workspace, onReveal, onRotate }: Props) {
           {" · "}
           {t("detail.stats.documents", { count: workspace.documents_count })}
           {" · "}
-          {(() => {
-            const rel = relativeTimeRaw(workspace.last_indexed_at);
-            const when = !rel
-              ? "—"
-              : rel.key === "time.justNow"
-                ? t("time.justNow")
-                : t(rel.key, { count: rel.count });
-            return t("detail.stats.lastIndexed", { when });
-          })()}
+          {t("detail.stats.lastIndexed", {
+            when: workspace.last_indexed_at
+              ? formatRelativeTime(workspace.last_indexed_at, t)
+              : "—",
+          })}
         </div>
       </section>
 
