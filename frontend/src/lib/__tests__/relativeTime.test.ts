@@ -62,6 +62,14 @@ describe("relativeTimeKey", () => {
       count: 1,
     });
   });
+
+  it("renvoie time.justNow pour iso dans le futur (clock skew gere gracieusement)", () => {
+    // iso = NOW + 1 heure → diffMs négatif → Math.floor(neg / 60_000) = -60 → m < 1 → justNow
+    expect(relativeTimeKey(isoAgo(-60 * 60_000))).toEqual({
+      key: "time.justNow",
+      count: 0,
+    });
+  });
 });
 
 describe("formatRelativeTime", () => {
@@ -72,7 +80,9 @@ describe("formatRelativeTime", () => {
   afterEach(() => vi.useRealTimers());
 
   it("appelle t sans options pour justNow", () => {
-    const t = vi.fn((key: string) => `[${key}]`);
+    const t = vi.fn((key: string, opts?: { count: number }) =>
+      opts ? `[${key} ${opts.count}]` : `[${key}]`,
+    );
     const result = formatRelativeTime(isoAgo(0), t);
     expect(t).toHaveBeenCalledWith("time.justNow");
     expect(t).toHaveBeenCalledTimes(1);
