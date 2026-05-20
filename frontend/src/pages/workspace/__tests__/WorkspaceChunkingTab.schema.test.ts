@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   chunkingFormSchema,
   DEFAULT_CHUNKING_FORM,
+  CHUNKING_STRATEGIES,
 } from "@/pages/workspace/WorkspaceChunkingTab.schema";
 
 describe("chunkingFormSchema", () => {
@@ -80,5 +81,35 @@ describe("chunkingFormSchema", () => {
       overlap_chars: 100,
     });
     expect(r.max_chars).toBe(1500);
+  });
+
+  it("accepte strategy='markdown'", () => {
+    expect(() =>
+      chunkingFormSchema.parse({
+        strategy: "markdown",
+        max_chars: 2000,
+        min_chars: 200,
+        overlap_chars: 200,
+      }),
+    ).not.toThrow();
+  });
+
+  it("rejette une strategy inconnue", () => {
+    const r = chunkingFormSchema.safeParse({
+      strategy: "foo",
+      max_chars: 2000,
+      min_chars: 200,
+      overlap_chars: 200,
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues[0]?.path).toContain("strategy");
+    }
+  });
+});
+
+describe("CHUNKING_STRATEGIES", () => {
+  it("expose paragraph puis markdown dans cet ordre", () => {
+    expect(CHUNKING_STRATEGIES).toEqual(["paragraph", "markdown"]);
   });
 });

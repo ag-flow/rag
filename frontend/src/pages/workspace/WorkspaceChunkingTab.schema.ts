@@ -1,11 +1,11 @@
 import { z } from "zod";
 import type { ChunkingStrategy } from "@/lib/chunking.types";
 
-export const CHUNKING_STRATEGIES: ChunkingStrategy[] = ["paragraph"];
+export const CHUNKING_STRATEGIES: ChunkingStrategy[] = ["paragraph", "markdown"];
 
 export const chunkingFormSchema = z
   .object({
-    strategy: z.enum(["paragraph"]),
+    strategy: z.enum(["paragraph", "markdown"]),
     max_chars: z.coerce.number().int().min(1, "min"),
     min_chars: z.coerce.number().int().min(0, "min"),
     overlap_chars: z.coerce.number().int().min(0, "min"),

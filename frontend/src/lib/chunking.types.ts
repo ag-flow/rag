@@ -2,7 +2,7 @@
 // `ChunkingConfig` correspond à ChunkingConfigResponse.
 // `ChunkingSpec` correspond à ChunkingConfigSpec (body PUT).
 
-export type ChunkingStrategy = "paragraph";
+export type ChunkingStrategy = "paragraph" | "markdown";
 
 export type ChunkingConfig = {
   workspace_id: string;
