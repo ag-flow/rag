@@ -61,9 +61,7 @@ export function ReplaceApiKeyDialog({
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>{t("replace_dialog.title")}</DialogTitle>
-          <DialogDescription>
-            {t("replace_dialog.explanation")}
-          </DialogDescription>
+          <DialogDescription>{t("replace_dialog.explanation")}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -101,17 +99,10 @@ export function ReplaceApiKeyDialog({
             />
           </div>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleClose(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => handleClose(false)}>
               {t("replace_dialog.cancel")}
             </Button>
-            <Button
-              type="submit"
-              disabled={mutation.isPending || !newId || newKey.length < 8}
-            >
+            <Button type="submit" disabled={mutation.isPending || !newId || newKey.length < 8}>
               {t("replace_dialog.submit")}
             </Button>
           </DialogFooter>

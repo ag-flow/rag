@@ -61,18 +61,9 @@ export function VaultSecretsTab({ vaultId }: VaultSecretsTabProps) {
   if (isError) {
     return (
       <div className="rounded border border-rose-200 bg-rose-50 p-4">
-        <h4 className="mb-1 font-semibold text-rose-800">
-          {t("secrets.loading_error_title")}
-        </h4>
-        <p className="mb-3 text-sm text-rose-700">
-          {t("secrets.loading_error_body")}
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => refetch()}
-          disabled={isRefetching}
-        >
+        <h4 className="mb-1 font-semibold text-rose-800">{t("secrets.loading_error_title")}</h4>
+        <p className="mb-3 text-sm text-rose-700">{t("secrets.loading_error_body")}</p>
+        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isRefetching}>
           {t("secrets.retry")}
         </Button>
       </div>
@@ -137,9 +128,7 @@ export function VaultSecretsTab({ vaultId }: VaultSecretsTabProps) {
                   <TableCell className="font-mono text-sm">{s.name}</TableCell>
                   <TableCell className="text-sm text-slate-600">
                     {s.description ?? (
-                      <span className="italic text-slate-400">
-                        {t("secrets.no_description")}
-                      </span>
+                      <span className="italic text-slate-400">{t("secrets.no_description")}</span>
                     )}
                   </TableCell>
                   <TableCell>

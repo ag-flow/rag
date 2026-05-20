@@ -179,10 +179,7 @@ export function VaultDetailTab({
             >
               {t("detail.cancel")}
             </Button>
-            <Button
-              type="submit"
-              disabled={!form.formState.isDirty || updateMutation.isPending}
-            >
+            <Button type="submit" disabled={!form.formState.isDirty || updateMutation.isPending}>
               {t("detail.save")}
             </Button>
           </div>

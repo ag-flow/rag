@@ -18,8 +18,7 @@ export const harpocrateVaultsApi = {
 
   get: (id: string) => api.get<VaultSummary>(`${BASE}/${id}`),
 
-  create: (payload: VaultCreateRequest) =>
-    api.post<VaultSummary>(BASE, payload),
+  create: (payload: VaultCreateRequest) => api.post<VaultSummary>(BASE, payload),
 
   update: (id: string, payload: VaultUpdateRequest) =>
     api.patch<VaultSummary>(`${BASE}/${id}`, payload),
@@ -29,22 +28,16 @@ export const harpocrateVaultsApi = {
   replaceApiKey: (id: string, payload: VaultRotateApiKeyRequest) =>
     api.post<VaultSummary>(`${BASE}/${id}/rotate-api-key`, payload),
 
-  setDefault: (id: string) =>
-    api.post<VaultSummary>(`${BASE}/${id}/set-default`, {}),
+  setDefault: (id: string) => api.post<VaultSummary>(`${BASE}/${id}/set-default`, {}),
 
   testConnection: (id: string) =>
     api.post<VaultTestConnectionResult>(`${BASE}/${id}/test-connection`, {}),
 
-  revealApiKey: (id: string) =>
-    api.get<VaultRevealApiKeyResponse>(`${BASE}/${id}/api-key`),
+  revealApiKey: (id: string) => api.get<VaultRevealApiKeyResponse>(`${BASE}/${id}/api-key`),
 
-  getWalletInfo: (id: string) =>
-    api.get<WalletInfoResponse>(`${BASE}/${id}/info`),
+  getWalletInfo: (id: string) => api.get<WalletInfoResponse>(`${BASE}/${id}/info`),
 
-  listTypes: (
-    id: string,
-    params: { q?: string; include_deprecated?: boolean } = {},
-  ) => {
+  listTypes: (id: string, params: { q?: string; include_deprecated?: boolean } = {}) => {
     const qs = new URLSearchParams();
     if (params.q) qs.set("q", params.q);
     if (params.include_deprecated) qs.set("include_deprecated", "true");

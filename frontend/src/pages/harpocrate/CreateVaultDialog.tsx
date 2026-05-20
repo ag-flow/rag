@@ -35,11 +35,7 @@ interface CreateVaultDialogProps {
   onCreated: (vault: VaultSummary) => void;
 }
 
-export function CreateVaultDialog({
-  open,
-  onOpenChange,
-  onCreated,
-}: CreateVaultDialogProps) {
+export function CreateVaultDialog({ open, onOpenChange, onCreated }: CreateVaultDialogProps) {
   const { t } = useTranslation("harpocrate");
   const { toast } = useToast();
   const createMutation = useCreateVault();
@@ -149,10 +145,7 @@ export function CreateVaultDialog({
                     <FormItem>
                       <FormLabel>{t("create_dialog.label_label")}</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          placeholder={t("create_dialog.label_placeholder")}
-                        />
+                        <Input {...field} placeholder={t("create_dialog.label_placeholder")} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -166,10 +159,7 @@ export function CreateVaultDialog({
                     <FormItem>
                       <FormLabel>{t("create_dialog.base_url_label")}</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          placeholder={t("create_dialog.base_url_placeholder")}
-                        />
+                        <Input {...field} placeholder={t("create_dialog.base_url_placeholder")} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -235,11 +225,7 @@ export function CreateVaultDialog({
                 />
 
                 <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleClose(false)}
-                  >
+                  <Button type="button" variant="outline" onClick={() => handleClose(false)}>
                     {t("create_dialog.cancel")}
                   </Button>
                   <Button type="submit" disabled={createMutation.isPending}>

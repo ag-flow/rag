@@ -16,16 +16,12 @@ vi.mock("@/hooks/useToast", () => ({
 
 describe("DeleteRerankAlert", () => {
   it("ne rend rien quand open=false", () => {
-    renderWithProviders(
-      <DeleteRerankAlert name="ws-1" open={false} onOpenChange={() => {}} />,
-    );
+    renderWithProviders(<DeleteRerankAlert name="ws-1" open={false} onOpenChange={() => {}} />);
     expect(screen.queryByText(/Désactiver le reranking/i)).not.toBeInTheDocument();
   });
 
   it("rend le dialog quand open=true", () => {
-    renderWithProviders(
-      <DeleteRerankAlert name="ws-1" open={true} onOpenChange={() => {}} />,
-    );
+    renderWithProviders(<DeleteRerankAlert name="ws-1" open={true} onOpenChange={() => {}} />);
     expect(screen.getByText(/Désactiver le reranking/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Annuler/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Désactiver$/i })).toBeInTheDocument();
@@ -34,9 +30,7 @@ describe("DeleteRerankAlert", () => {
   it("appelle useDeleteRerankConfig.mutate au clic sur Désactiver", async () => {
     deleteMutate.mockClear();
     const onOpenChange = vi.fn();
-    renderWithProviders(
-      <DeleteRerankAlert name="ws-1" open={true} onOpenChange={onOpenChange} />,
-    );
+    renderWithProviders(<DeleteRerankAlert name="ws-1" open={true} onOpenChange={onOpenChange} />);
     fireEvent.click(screen.getByRole("button", { name: /^Désactiver$/i }));
     await waitFor(() => expect(deleteMutate).toHaveBeenCalledOnce());
   });

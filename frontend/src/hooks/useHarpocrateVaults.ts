@@ -120,9 +120,7 @@ export function useTestConnection(id: string) {
 export function useLastTestResult(id: string | null): VaultTestConnectionResult | null {
   const qc = useQueryClient();
   if (!id) return null;
-  return (
-    qc.getQueryData<VaultTestConnectionResult>([...ROOT_KEY, id, "lastTest"]) ?? null
-  );
+  return qc.getQueryData<VaultTestConnectionResult>([...ROOT_KEY, id, "lastTest"]) ?? null;
 }
 
 export function useRevealApiKey(id: string) {

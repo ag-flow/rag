@@ -30,12 +30,8 @@ describe("ChunkingConfirmReindexAlert", () => {
       />,
     );
     expect(screen.getByText(/Réindexation requise/i)).toBeInTheDocument();
-    expect(
-      screen.getByText("paragraph (max=2000, min=200, overlap=200)"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("paragraph (max=1500, min=100, overlap=150)"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("paragraph (max=2000, min=200, overlap=200)")).toBeInTheDocument();
+    expect(screen.getByText("paragraph (max=1500, min=100, overlap=150)")).toBeInTheDocument();
   });
 
   it("appelle onConfirm au clic Réindexer maintenant", () => {
@@ -81,8 +77,6 @@ describe("ChunkingConfirmReindexAlert", () => {
         pending={true}
       />,
     );
-    expect(
-      screen.getByRole("button", { name: /Réindexer maintenant/i }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Réindexer maintenant/i })).toBeDisabled();
   });
 });

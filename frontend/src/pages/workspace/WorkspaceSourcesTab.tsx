@@ -68,10 +68,7 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
           {sources.map((source: Source) => {
             const isOpen = expanded.has(source.id);
             return (
-              <div
-                key={source.id}
-                className="rounded border border-slate-200 bg-white"
-              >
+              <div key={source.id} className="rounded border border-slate-200 bg-white">
                 <button
                   type="button"
                   onClick={() => toggle(source.id)}
@@ -83,12 +80,8 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
                     ) : (
                       <ChevronRight className="h-3.5 w-3.5" />
                     )}
-                    <code className="font-mono text-xs">
-                      {source.config.url}
-                    </code>
-                    <span className="text-slate-500">
-                      · {source.config.branch}
-                    </span>
+                    <code className="font-mono text-xs">{source.config.url}</code>
+                    <span className="text-slate-500">· {source.config.branch}</span>
                     <span className="text-slate-400">
                       ·{" "}
                       {(() => {
@@ -124,8 +117,7 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
                 {isOpen && (
                   <div className="border-t border-slate-100 px-3 py-2 text-xs text-slate-600 space-y-1 bg-slate-50">
                     <div>
-                      {t("sources.fields.auth_ref")}:{" "}
-                      <code>{source.config.auth_ref ?? "—"}</code>
+                      {t("sources.fields.auth_ref")}: <code>{source.config.auth_ref ?? "—"}</code>
                     </div>
                     <div>
                       {t("sources.fields.include")}:{" "}
@@ -144,11 +136,7 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
       )}
 
       <AddSourceDialog name={name} open={addOpen} onOpenChange={setAddOpen} />
-      <DeleteSourceAlert
-        name={name}
-        sourceId={deleteId}
-        onClose={() => setDeleteId(null)}
-      />
+      <DeleteSourceAlert name={name} sourceId={deleteId} onClose={() => setDeleteId(null)} />
     </>
   );
 }

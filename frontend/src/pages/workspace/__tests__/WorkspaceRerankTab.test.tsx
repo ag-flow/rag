@@ -104,9 +104,9 @@ describe("WorkspaceRerankTab", () => {
     mockState({ ...mockConfig, provider: "cohere" });
     renderWithProviders(<WorkspaceRerankTab workspace={mockWorkspace} enabled={true} />);
     // Le champ base_url n'est pas applicable -> placeholder "— non applicable —" + disabled
-    const baseUrlInput = screen.getAllByPlaceholderText(/non applicable/i).find(
-      (el) => el.getAttribute("name") === "base_url",
-    ) as HTMLInputElement | undefined;
+    const baseUrlInput = screen
+      .getAllByPlaceholderText(/non applicable/i)
+      .find((el) => el.getAttribute("name") === "base_url") as HTMLInputElement | undefined;
     expect(baseUrlInput).toBeDefined();
     expect(baseUrlInput).toBeDisabled();
   });
@@ -120,9 +120,9 @@ describe("WorkspaceRerankTab", () => {
       model: "bge-reranker-v2",
     });
     renderWithProviders(<WorkspaceRerankTab workspace={mockWorkspace} enabled={true} />);
-    const apiKeyInput = screen.getAllByPlaceholderText(/non applicable/i).find(
-      (el) => el.getAttribute("name") === "api_key_ref",
-    ) as HTMLInputElement | undefined;
+    const apiKeyInput = screen
+      .getAllByPlaceholderText(/non applicable/i)
+      .find((el) => el.getAttribute("name") === "api_key_ref") as HTMLInputElement | undefined;
     expect(apiKeyInput).toBeDefined();
     expect(apiKeyInput).toBeDisabled();
   });
@@ -134,9 +134,7 @@ describe("WorkspaceRerankTab", () => {
     const modelInput = screen.getByPlaceholderText(/rerank-english/i);
     fireEvent.change(modelInput, { target: { value: "rerank-english-v3.0" } });
     fireEvent.click(screen.getByRole("button", { name: /Activer/i }));
-    expect(
-      await screen.findByText(/Requis pour ce provider/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Requis pour ce provider/i)).toBeInTheDocument();
   });
 
   it("affiche erreur Zod required_for_provider si ollama sans base_url", async () => {
@@ -153,8 +151,6 @@ describe("WorkspaceRerankTab", () => {
     const modelInput = screen.getByDisplayValue("bge-reranker-v2");
     fireEvent.change(modelInput, { target: { value: "bge-reranker-v2.5" } });
     fireEvent.click(screen.getByRole("button", { name: /Enregistrer/i }));
-    expect(
-      await screen.findByText(/Requis pour ce provider/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Requis pour ce provider/i)).toBeInTheDocument();
   });
 });

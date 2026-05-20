@@ -18,7 +18,12 @@ import { useRerankConfig, useUpsertRerankConfig } from "@/hooks/useRerank";
 import { DeleteRerankAlert } from "./DeleteRerankAlert";
 import type { Workspace } from "@/lib/workspaces.types";
 import type { RerankProvider } from "@/lib/rerank.types";
-import { RERANK_PROVIDERS, rerankFormSchema, EMPTY_RERANK_FORM, type RerankFormValues } from "./WorkspaceRerankTab.schema";
+import {
+  RERANK_PROVIDERS,
+  rerankFormSchema,
+  EMPTY_RERANK_FORM,
+  type RerankFormValues,
+} from "./WorkspaceRerankTab.schema";
 
 function relativeTimeRaw(iso: string): { key: string; count: number } {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -85,8 +90,7 @@ export function WorkspaceRerankTab({ workspace, enabled }: Props) {
           top_k_pre_rerank: saved.top_k_pre_rerank,
         });
       },
-      onError: () =>
-        toast({ title: t("rerank.save.error"), variant: "destructive" }),
+      onError: () => toast({ title: t("rerank.save.error"), variant: "destructive" }),
     });
   };
 
@@ -151,9 +155,7 @@ export function WorkspaceRerankTab({ workspace, enabled }: Props) {
 
         {/* Modèle */}
         <div>
-          <label className="text-sm font-medium text-slate-700">
-            {t("rerank.fields.model")}
-          </label>
+          <label className="text-sm font-medium text-slate-700">{t("rerank.fields.model")}</label>
           <Input
             {...form.register("model")}
             placeholder={t("rerank.fields.modelPlaceholder")}
@@ -168,9 +170,7 @@ export function WorkspaceRerankTab({ workspace, enabled }: Props) {
 
         {/* Base URL */}
         <div>
-          <label className="text-sm font-medium text-slate-700">
-            {t("rerank.fields.baseUrl")}
-          </label>
+          <label className="text-sm font-medium text-slate-700">{t("rerank.fields.baseUrl")}</label>
           <Input
             {...form.register("base_url", {
               setValueAs: (v) => (v === "" ? null : v),
@@ -218,9 +218,7 @@ export function WorkspaceRerankTab({ workspace, enabled }: Props) {
         <div>
           <label className="text-sm font-medium text-slate-700">
             {t("rerank.fields.topK")}{" "}
-            <span className="text-slate-500 font-normal">
-              {t("rerank.fields.topKHelp")}
-            </span>
+            <span className="text-slate-500 font-normal">{t("rerank.fields.topKHelp")}</span>
           </label>
           <Input
             type="number"
@@ -241,9 +239,7 @@ export function WorkspaceRerankTab({ workspace, enabled }: Props) {
             {(() => {
               const rt = relativeTimeRaw(data.updated_at);
               const when =
-                rt.key === "time.justNow"
-                  ? t("time.justNow")
-                  : t(rt.key, { count: rt.count });
+                rt.key === "time.justNow" ? t("time.justNow") : t(rt.key, { count: rt.count });
               return t("rerank.lastModified", { when });
             })()}
           </p>
@@ -271,10 +267,7 @@ export function WorkspaceRerankTab({ workspace, enabled }: Props) {
             >
               {t("rerank.actions.cancel")}
             </Button>
-            <Button
-              type="submit"
-              disabled={!form.formState.isDirty || upsert.isPending}
-            >
+            <Button type="submit" disabled={!form.formState.isDirty || upsert.isPending}>
               {configured ? t("rerank.actions.save") : t("rerank.actions.activate")}
             </Button>
           </div>
@@ -286,11 +279,7 @@ export function WorkspaceRerankTab({ workspace, enabled }: Props) {
         <p className="text-amber-900">{t("rerank.warning")}</p>
       </div>
 
-      <DeleteRerankAlert
-        name={workspace.name}
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-      />
+      <DeleteRerankAlert name={workspace.name} open={deleteOpen} onOpenChange={setDeleteOpen} />
     </div>
   );
 }

@@ -73,9 +73,7 @@ export function RetireVaultDialog({
         <DialogHeader>
           <div className="flex items-center gap-2.5">
             <AlertTriangle className="h-5 w-5 text-rose-600" />
-            <DialogTitle className="text-rose-700">
-              {t("retire_dialog.title")}
-            </DialogTitle>
+            <DialogTitle className="text-rose-700">{t("retire_dialog.title")}</DialogTitle>
           </div>
         </DialogHeader>
         <p className="text-sm text-slate-700 leading-relaxed">
@@ -105,18 +103,10 @@ export function RetireVaultDialog({
             />
           </div>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t("retire_dialog.cancel")}
             </Button>
-            <Button
-              type="submit"
-              variant="destructive"
-              disabled={!matches || mutation.isPending}
-            >
+            <Button type="submit" variant="destructive" disabled={!matches || mutation.isPending}>
               {t("retire_dialog.submit")}
             </Button>
           </DialogFooter>

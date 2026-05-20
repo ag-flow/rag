@@ -39,8 +39,7 @@ export function RotateApiKeyDialog({ name, open, onOpenChange }: Props) {
         setNewKey(data.api_key);
         toast({ title: t("dialog.rotate.success") });
       },
-      onError: () =>
-        toast({ title: t("dialog.rotate.error"), variant: "destructive" }),
+      onError: () => toast({ title: t("dialog.rotate.error"), variant: "destructive" }),
     });
   };
 

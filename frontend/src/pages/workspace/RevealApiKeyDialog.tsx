@@ -39,8 +39,7 @@ export function RevealApiKeyDialog({ name, open, onOpenChange }: Props) {
   const handleConfirm = () => {
     reveal.mutate(undefined, {
       onSuccess: (data) => setRevealed(data.api_key),
-      onError: () =>
-        toast({ title: t("dialog.reveal.error"), variant: "destructive" }),
+      onError: () => toast({ title: t("dialog.reveal.error"), variant: "destructive" }),
     });
   };
 

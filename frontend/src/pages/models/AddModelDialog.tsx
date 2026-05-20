@@ -33,9 +33,7 @@ const schema = z
     dimension: z.coerce.number().int().positive("dimension_positive"),
   })
   .refine(
-    (v) =>
-      v.providerSelect !== "autre" ||
-      (v.providerOther && v.providerOther.trim().length > 0),
+    (v) => v.providerSelect !== "autre" || (v.providerOther && v.providerOther.trim().length > 0),
     { message: "provider_other_required", path: ["providerOther"] },
   );
 
@@ -68,9 +66,7 @@ export function AddModelDialog({ open, onOpenChange }: Props) {
 
   const onSubmit = (v: FormValues) => {
     const provider =
-      v.providerSelect === "autre"
-        ? (v.providerOther ?? "").trim()
-        : v.providerSelect;
+      v.providerSelect === "autre" ? (v.providerOther ?? "").trim() : v.providerSelect;
     create.mutate(
       { provider, model: v.model, dimension: v.dimension },
       {
@@ -97,16 +93,11 @@ export function AddModelDialog({ open, onOpenChange }: Props) {
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
           <div>
-            <label className="text-xs font-medium text-slate-700">
-              {t("dialog.add.provider")}
-            </label>
+            <label className="text-xs font-medium text-slate-700">{t("dialog.add.provider")}</label>
             <Select
               value={providerSelect}
               onValueChange={(v) =>
-                form.setValue(
-                  "providerSelect",
-                  v as (typeof PROVIDERS)[number],
-                )
+                form.setValue("providerSelect", v as (typeof PROVIDERS)[number])
               }
             >
               <SelectTrigger>
@@ -126,32 +117,20 @@ export function AddModelDialog({ open, onOpenChange }: Props) {
               <label className="text-xs font-medium text-slate-700">
                 {t("dialog.add.providerOtherLabel")}
               </label>
-              <Input
-                {...form.register("providerOther")}
-                placeholder="mistral"
-              />
+              <Input {...form.register("providerOther")} placeholder="mistral" />
               {form.formState.errors.providerOther && (
                 <p className="text-xs text-red-600 mt-1">
-                  {t(
-                    `dialog.add.errors.${form.formState.errors.providerOther.message}`,
-                  )}
+                  {t(`dialog.add.errors.${form.formState.errors.providerOther.message}`)}
                 </p>
               )}
             </div>
           )}
           <div>
-            <label className="text-xs font-medium text-slate-700">
-              {t("dialog.add.model")}
-            </label>
-            <Input
-              {...form.register("model")}
-              placeholder="text-embedding-3-small"
-            />
+            <label className="text-xs font-medium text-slate-700">{t("dialog.add.model")}</label>
+            <Input {...form.register("model")} placeholder="text-embedding-3-small" />
             {form.formState.errors.model && (
               <p className="text-xs text-red-600 mt-1">
-                {t(
-                  `dialog.add.errors.${form.formState.errors.model.message}`,
-                )}
+                {t(`dialog.add.errors.${form.formState.errors.model.message}`)}
               </p>
             )}
           </div>
@@ -162,18 +141,12 @@ export function AddModelDialog({ open, onOpenChange }: Props) {
             <Input type="number" {...form.register("dimension")} min={1} />
             {form.formState.errors.dimension && (
               <p className="text-xs text-red-600 mt-1">
-                {t(
-                  `dialog.add.errors.${form.formState.errors.dimension.message}`,
-                )}
+                {t(`dialog.add.errors.${form.formState.errors.dimension.message}`)}
               </p>
             )}
           </div>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               {t("dialog.cancel")}
             </Button>
             <Button type="submit" disabled={create.isPending}>

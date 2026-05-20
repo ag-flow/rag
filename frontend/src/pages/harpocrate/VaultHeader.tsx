@@ -61,10 +61,7 @@ export function VaultHeader({ vault, onRetire }: VaultHeaderProps) {
         <div className="flex items-center gap-2.5">
           <h3 className="text-lg font-semibold text-slate-900 m-0">{vault.name}</h3>
           {vault.is_default && (
-            <Badge
-              variant="secondary"
-              className="bg-amber-100 text-amber-800 hover:bg-amber-100"
-            >
+            <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-100">
               {t("header.badge_default")}
             </Badge>
           )}

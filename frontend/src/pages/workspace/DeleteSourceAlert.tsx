@@ -31,8 +31,7 @@ export function DeleteSourceAlert({ name, sourceId, onClose }: Props) {
         toast({ title: t("sources.delete.success") });
         onClose();
       },
-      onError: () =>
-        toast({ title: t("sources.delete.error"), variant: "destructive" }),
+      onError: () => toast({ title: t("sources.delete.error"), variant: "destructive" }),
     });
   };
 
@@ -41,16 +40,11 @@ export function DeleteSourceAlert({ name, sourceId, onClose }: Props) {
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{t("sources.delete.title")}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {t("sources.delete.warning")}
-          </AlertDialogDescription>
+          <AlertDialogDescription>{t("sources.delete.warning")}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{t("dialog.cancel")}</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={handleConfirm}
-            className="bg-red-600 hover:bg-red-700"
-          >
+          <AlertDialogAction onClick={handleConfirm} className="bg-red-600 hover:bg-red-700">
             {t("sources.delete.confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>

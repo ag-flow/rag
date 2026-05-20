@@ -105,10 +105,7 @@ describe("chunkingApi.upsert", () => {
       .spyOn(api, "putRaw")
       .mockResolvedValue(new Response(null, { status: 204 }));
     await chunkingApi.upsert("ws-1", baseSpec, false);
-    expect(putRawSpy).toHaveBeenCalledWith(
-      "/api/admin/workspaces/ws-1/chunking-config",
-      baseSpec,
-    );
+    expect(putRawSpy).toHaveBeenCalledWith("/api/admin/workspaces/ws-1/chunking-config", baseSpec);
   });
 });
 
@@ -126,9 +123,7 @@ describe("isChunkingChangeRequiresReindex", () => {
   });
 
   it("renvoie false sur autre erreur", () => {
-    expect(
-      isChunkingChangeRequiresReindex({ error: "workspace_not_found" }),
-    ).toBe(false);
+    expect(isChunkingChangeRequiresReindex({ error: "workspace_not_found" })).toBe(false);
   });
 
   it("renvoie false sur null/non-objet", () => {

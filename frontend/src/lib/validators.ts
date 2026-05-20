@@ -14,13 +14,10 @@ export const workspaceCreateSchema = z
       base_url: z.string().url().optional(),
     }),
   })
-  .refine(
-    (data) => data.indexer.provider === "ollama" || !!data.indexer.api_key_ref,
-    {
-      message: "api_key_ref_required",
-      path: ["indexer", "api_key_ref"],
-    },
-  );
+  .refine((data) => data.indexer.provider === "ollama" || !!data.indexer.api_key_ref, {
+    message: "api_key_ref_required",
+    path: ["indexer", "api_key_ref"],
+  });
 
 export interface MeResponse {
   sub: string;

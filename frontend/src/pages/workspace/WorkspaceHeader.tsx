@@ -28,13 +28,7 @@ function relativeTimeRaw(iso: string): { key: string; count: number } {
   return { key: "time.daysAgo", count: Math.floor(hours / 24) };
 }
 
-export function WorkspaceHeader({
-  workspace,
-  onReindex,
-  onReveal,
-  onRotate,
-  onDelete,
-}: Props) {
+export function WorkspaceHeader({ workspace, onReindex, onReveal, onRotate, onDelete }: Props) {
   const { t } = useTranslation("workspace");
   return (
     <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-white sticky top-0 z-10">
@@ -44,9 +38,7 @@ export function WorkspaceHeader({
           {(() => {
             const rel = relativeTimeRaw(workspace.created_at);
             const when =
-              rel.key === "time.justNow"
-                ? t("time.justNow")
-                : t(rel.key, { count: rel.count });
+              rel.key === "time.justNow" ? t("time.justNow") : t(rel.key, { count: rel.count });
             return t("header.created", { when });
           })()}
         </p>
@@ -62,12 +54,8 @@ export function WorkspaceHeader({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={onReveal}>
-              {t("header.menu.reveal")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onRotate}>
-              {t("header.menu.rotate")}
-            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onReveal}>{t("header.menu.reveal")}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={onRotate}>{t("header.menu.rotate")}</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={onDelete} className="text-red-600">
               {t("header.menu.delete")}

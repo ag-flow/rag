@@ -25,7 +25,9 @@ export function WorkspacesList({ selectedName, onSelect, onCreate }: WorkspacesL
       </div>
       <div className="py-2">
         {isLoading ? (
-          <div className="px-4 py-6 flex justify-center"><LoadingSpinner /></div>
+          <div className="px-4 py-6 flex justify-center">
+            <LoadingSpinner />
+          </div>
         ) : (
           (data ?? []).map((ws: Workspace) => (
             <button

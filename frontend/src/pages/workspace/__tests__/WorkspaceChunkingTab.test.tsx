@@ -63,17 +63,13 @@ describe("WorkspaceChunkingTab", () => {
 
   it("affiche LoadingSpinner pendant le fetch", () => {
     mockState(undefined, true);
-    renderWithProviders(
-      <WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
     expect(screen.queryByText(/Configuration du chunking/i)).not.toBeInTheDocument();
   });
 
   it("rend le form pré-rempli avec la config actuelle", () => {
     mockState(mockConfig);
-    renderWithProviders(
-      <WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
     expect(screen.getByText(/Configuration du chunking/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue("2000")).toBeInTheDocument();
     expect(screen.getAllByDisplayValue("200")).toHaveLength(2); // min + overlap
@@ -81,17 +77,13 @@ describe("WorkspaceChunkingTab", () => {
 
   it("bouton Enregistrer disabled tant que form clean", () => {
     mockState(mockConfig);
-    renderWithProviders(
-      <WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
     expect(screen.getByRole("button", { name: /^Enregistrer$/i })).toBeDisabled();
   });
 
   it("submit déclenche upsert avec confirm=false", async () => {
     mockState(mockConfig);
-    renderWithProviders(
-      <WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
     const maxInput = screen.getByDisplayValue("2000") as HTMLInputElement;
     fireEvent.change(maxInput, { target: { value: "1500" } });
 
@@ -107,9 +99,7 @@ describe("WorkspaceChunkingTab", () => {
 
   it("toast noChange sur status no_change", async () => {
     mockState(mockConfig);
-    renderWithProviders(
-      <WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
     const maxInput = screen.getByDisplayValue("2000") as HTMLInputElement;
     fireEvent.change(maxInput, { target: { value: "1500" } });
     fireEvent.click(screen.getByRole("button", { name: /^Enregistrer$/i }));
@@ -129,9 +119,7 @@ describe("WorkspaceChunkingTab", () => {
 
   it("toast success sur status updated", async () => {
     mockState(mockConfig);
-    renderWithProviders(
-      <WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
     const maxInput = screen.getByDisplayValue("2000") as HTMLInputElement;
     fireEvent.change(maxInput, { target: { value: "1500" } });
     fireEvent.click(screen.getByRole("button", { name: /^Enregistrer$/i }));
@@ -154,9 +142,7 @@ describe("WorkspaceChunkingTab", () => {
 
   it("ouvre le dialog 409 avec current/new sur ApiError(409)", async () => {
     mockState(mockConfig);
-    renderWithProviders(
-      <WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
     const maxInput = screen.getByDisplayValue("2000") as HTMLInputElement;
     fireEvent.change(maxInput, { target: { value: "1500" } });
     fireEvent.click(screen.getByRole("button", { name: /^Enregistrer$/i }));
@@ -175,22 +161,14 @@ describe("WorkspaceChunkingTab", () => {
       );
     });
 
-    await waitFor(() =>
-      expect(screen.getByText(/Réindexation requise/i)).toBeInTheDocument(),
-    );
-    expect(
-      screen.getByText("paragraph (max=2000, min=200, overlap=200)"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("paragraph (max=1500, min=200, overlap=200)"),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Réindexation requise/i)).toBeInTheDocument());
+    expect(screen.getByText("paragraph (max=2000, min=200, overlap=200)")).toBeInTheDocument();
+    expect(screen.getByText("paragraph (max=1500, min=200, overlap=200)")).toBeInTheDocument();
   });
 
   it("clic Réindexer maintenant déclenche 2ᵉ upsert avec confirm=true", async () => {
     mockState(mockConfig);
-    renderWithProviders(
-      <WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
     const maxInput = screen.getByDisplayValue("2000") as HTMLInputElement;
     fireEvent.change(maxInput, { target: { value: "1500" } });
     fireEvent.click(screen.getByRole("button", { name: /^Enregistrer$/i }));
@@ -219,37 +197,25 @@ describe("WorkspaceChunkingTab", () => {
   it("le Select stratégie propose paragraph ET markdown", async () => {
     const user = userEvent.setup();
     mockState(mockConfig);
-    renderWithProviders(
-      <WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
     await user.click(screen.getByRole("combobox"));
-    expect(
-      screen.getByRole("option", { name: /Paragraphes \(par défaut\)/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("option", { name: /^Markdown$/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Paragraphes \(par défaut\)/i })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /^Markdown$/i })).toBeInTheDocument();
   });
 
   it("le helper text change quand on sélectionne markdown", async () => {
     const user = userEvent.setup();
     mockState(mockConfig);
-    renderWithProviders(
-      <WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
     await user.click(screen.getByRole("combobox"));
     await user.click(screen.getByRole("option", { name: /^Markdown$/i }));
-    expect(
-      screen.getByText(/Respecte la structure d'un document Markdown/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Respecte la structure d'un document Markdown/i)).toBeInTheDocument();
   });
 
   it("submit envoie extras:{} après changement de strategy paragraph → markdown", async () => {
     const user = userEvent.setup();
     mockState(mockConfig); // strategy: 'paragraph', extras: {}
-    renderWithProviders(
-      <WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
     await user.click(screen.getByRole("combobox"));
     await user.click(screen.getByRole("option", { name: /^Markdown$/i }));
     await user.click(screen.getByRole("button", { name: /^Enregistrer$/i }));
@@ -268,9 +234,7 @@ describe("WorkspaceChunkingTab", () => {
       extras: { heading_levels: [1, 3] },
     };
     mockState(adminConfig);
-    renderWithProviders(
-      <WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
     const maxInput = screen.getByDisplayValue("2000") as HTMLInputElement;
     fireEvent.change(maxInput, { target: { value: "1500" } });
     await user.click(screen.getByRole("button", { name: /^Enregistrer$/i }));
@@ -283,9 +247,7 @@ describe("WorkspaceChunkingTab", () => {
 
   it("erreur Zod min ≥ max → message d'erreur, pas de submit", async () => {
     mockState(mockConfig);
-    renderWithProviders(
-      <WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
     const inputs = screen.getAllByDisplayValue("200");
     const minInput = inputs[0];
     if (!minInput) throw new Error("min_chars input introuvable");
@@ -294,9 +256,7 @@ describe("WorkspaceChunkingTab", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Enregistrer$/i }));
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/Doit être inférieur à la taille max/i),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Doit être inférieur à la taille max/i)).toBeInTheDocument();
     });
     expect(upsertMutate).not.toHaveBeenCalled();
   });

@@ -25,9 +25,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
 
   if (!data) {
     return (
-      <div className="p-6 text-center text-destructive">
-        Authentication failed. Please refresh.
-      </div>
+      <div className="p-6 text-center text-destructive">Authentication failed. Please refresh.</div>
     );
   }
 

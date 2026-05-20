@@ -39,8 +39,7 @@ export function DeleteWorkspaceAlert({ name, open, onOpenChange }: Props) {
         onOpenChange(false);
         navigate("/workspaces", { replace: true });
       },
-      onError: () =>
-        toast({ title: t("dialog.delete.error"), variant: "destructive" }),
+      onError: () => toast({ title: t("dialog.delete.error"), variant: "destructive" }),
     });
   };
 
@@ -49,9 +48,7 @@ export function DeleteWorkspaceAlert({ name, open, onOpenChange }: Props) {
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{t("dialog.delete.title")}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {t("dialog.delete.warning")}
-          </AlertDialogDescription>
+          <AlertDialogDescription>{t("dialog.delete.warning")}</AlertDialogDescription>
         </AlertDialogHeader>
         <div>
           <label className="text-xs font-medium text-slate-700">

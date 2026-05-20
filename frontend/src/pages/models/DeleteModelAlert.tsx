@@ -31,8 +31,7 @@ export function DeleteModelAlert({ entry, onClose }: Props) {
         toast({ title: t("dialog.delete.success") });
         onClose();
       },
-      onError: () =>
-        toast({ title: t("dialog.delete.error"), variant: "destructive" }),
+      onError: () => toast({ title: t("dialog.delete.error"), variant: "destructive" }),
     });
   };
 

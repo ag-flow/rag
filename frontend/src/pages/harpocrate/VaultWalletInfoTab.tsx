@@ -14,26 +14,14 @@ interface VaultWalletInfoTabProps {
 
 export function VaultWalletInfoTab({ vaultId }: VaultWalletInfoTabProps) {
   const { t } = useTranslation("harpocrate");
-  const { data, isLoading, isError, refetch, isRefetching } = useVaultWalletInfo(
-    vaultId,
-    true,
-  );
+  const { data, isLoading, isError, refetch, isRefetching } = useVaultWalletInfo(vaultId, true);
 
   if (isError) {
     return (
       <div className="rounded border border-rose-200 bg-rose-50 p-4">
-        <h4 className="mb-1 font-semibold text-rose-800">
-          {t("info.loading_error_title")}
-        </h4>
-        <p className="mb-3 text-sm text-rose-700">
-          {t("info.loading_error_body")}
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => refetch()}
-          disabled={isRefetching}
-        >
+        <h4 className="mb-1 font-semibold text-rose-800">{t("info.loading_error_title")}</h4>
+        <p className="mb-3 text-sm text-rose-700">{t("info.loading_error_body")}</p>
+        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isRefetching}>
           {t("info.retry")}
         </Button>
       </div>
@@ -111,9 +99,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-600">
         {title}
       </h4>
-      <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-3">
-        {children}
-      </div>
+      <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-3">{children}</div>
     </div>
   );
 }
@@ -144,10 +130,7 @@ function ExpiresCell({ expiresAt }: { expiresAt: string | null }) {
     return (
       <div className="flex items-center gap-2">
         <span className="text-slate-900">{formattedDate}</span>
-        <Badge
-          variant="secondary"
-          className="bg-rose-100 text-rose-800 hover:bg-rose-100"
-        >
+        <Badge variant="secondary" className="bg-rose-100 text-rose-800 hover:bg-rose-100">
           {t("info.expired")}
         </Badge>
       </div>
@@ -158,10 +141,7 @@ function ExpiresCell({ expiresAt }: { expiresAt: string | null }) {
     return (
       <div className="flex items-center gap-2">
         <span className="text-slate-900">{formattedDate}</span>
-        <Badge
-          variant="secondary"
-          className="bg-orange-100 text-orange-800 hover:bg-orange-100"
-        >
+        <Badge variant="secondary" className="bg-orange-100 text-orange-800 hover:bg-orange-100">
           {t("info.expires_soon")}
         </Badge>
       </div>
@@ -172,10 +152,7 @@ function ExpiresCell({ expiresAt }: { expiresAt: string | null }) {
   return (
     <div className="flex items-center gap-2">
       <span className="text-slate-900">{formattedDate}</span>
-      <Badge
-        variant="secondary"
-        className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
-      >
+      <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
         {t("info.expires_in_months", { count: months })}
       </Badge>
     </div>

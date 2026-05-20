@@ -28,8 +28,7 @@ export function ReindexConfirmDialog({ name, open, onOpenChange }: Props) {
         toast({ title: t("dialog.reindex.success") });
         onOpenChange(false);
       },
-      onError: () =>
-        toast({ title: t("dialog.reindex.error"), variant: "destructive" }),
+      onError: () => toast({ title: t("dialog.reindex.error"), variant: "destructive" }),
     });
   };
 

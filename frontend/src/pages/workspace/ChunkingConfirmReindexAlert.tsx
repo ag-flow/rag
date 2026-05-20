@@ -33,29 +33,21 @@ export function ChunkingConfirmReindexAlert({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>
-            {t("chunking.reindex.dialog.title")}
-          </AlertDialogTitle>
+          <AlertDialogTitle>{t("chunking.reindex.dialog.title")}</AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-2 text-sm">
               <p>{t("chunking.reindex.dialog.intro")}</p>
               <p>
-                <span className="font-medium">
-                  {t("chunking.reindex.dialog.labelCurrent")}
-                </span>
+                <span className="font-medium">{t("chunking.reindex.dialog.labelCurrent")}</span>
                 <br />
                 <span className="font-mono text-slate-700">{current}</span>
               </p>
               <p>
-                <span className="font-medium">
-                  {t("chunking.reindex.dialog.labelNew")}
-                </span>
+                <span className="font-medium">{t("chunking.reindex.dialog.labelNew")}</span>
                 <br />
                 <span className="font-mono text-slate-700">{next}</span>
               </p>
-              <p className="text-slate-500">
-                {t("chunking.reindex.dialog.consequence")}
-              </p>
+              <p className="text-slate-500">{t("chunking.reindex.dialog.consequence")}</p>
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>

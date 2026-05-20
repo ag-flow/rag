@@ -69,8 +69,7 @@ export function AddSourceDialog({ name, open, onOpenChange }: Props) {
           form.reset();
           onOpenChange(false);
         },
-        onError: () =>
-          toast({ title: t("sources.add.error"), variant: "destructive" }),
+        onError: () => toast({ title: t("sources.add.error"), variant: "destructive" }),
       },
     );
   };
@@ -83,18 +82,11 @@ export function AddSourceDialog({ name, open, onOpenChange }: Props) {
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
           <div>
-            <label className="text-xs font-medium text-slate-700">
-              {t("sources.fields.url")}
-            </label>
-            <Input
-              {...form.register("url")}
-              placeholder="https://github.com/..."
-            />
+            <label className="text-xs font-medium text-slate-700">{t("sources.fields.url")}</label>
+            <Input {...form.register("url")} placeholder="https://github.com/..." />
             {form.formState.errors.url && (
               <p className="text-xs text-red-600">
-                {t(
-                  `sources.add.errors.${form.formState.errors.url.message ?? "invalid"}`,
-                )}
+                {t(`sources.add.errors.${form.formState.errors.url.message ?? "invalid"}`)}
               </p>
             )}
           </div>
@@ -113,30 +105,18 @@ export function AddSourceDialog({ name, open, onOpenChange }: Props) {
           </div>
           <div>
             <label className="text-xs font-medium text-slate-700">
-              {t("sources.fields.include")}{" "}
-              <span className="text-slate-400">(csv)</span>
+              {t("sources.fields.include")} <span className="text-slate-400">(csv)</span>
             </label>
-            <Input
-              {...form.register("include")}
-              placeholder="**/*.md, docs/**"
-            />
+            <Input {...form.register("include")} placeholder="**/*.md, docs/**" />
           </div>
           <div>
             <label className="text-xs font-medium text-slate-700">
-              {t("sources.fields.exclude")}{" "}
-              <span className="text-slate-400">(csv)</span>
+              {t("sources.fields.exclude")} <span className="text-slate-400">(csv)</span>
             </label>
-            <Input
-              {...form.register("exclude")}
-              placeholder="**/node_modules/**"
-            />
+            <Input {...form.register("exclude")} placeholder="**/node_modules/**" />
           </div>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               {t("dialog.cancel")}
             </Button>
             <Button type="submit" disabled={add.isPending}>

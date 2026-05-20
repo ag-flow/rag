@@ -78,11 +78,7 @@ export function HarpocrateVaultsPage() {
           )}
         </main>
       </div>
-      <CreateVaultDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        onCreated={handleCreated}
-      />
+      <CreateVaultDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreated} />
     </>
   );
 }

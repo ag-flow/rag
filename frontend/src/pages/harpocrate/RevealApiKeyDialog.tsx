@@ -21,18 +21,12 @@ interface RevealApiKeyDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export function RevealApiKeyDialog({
-  vaultId,
-  open,
-  onOpenChange,
-}: RevealApiKeyDialogProps) {
+export function RevealApiKeyDialog({ vaultId, open, onOpenChange }: RevealApiKeyDialogProps) {
   const { t } = useTranslation("harpocrate");
   const { toast } = useToast();
   const mutation = useRevealApiKey(vaultId);
 
-  const [revealed, setRevealed] = useState<{ id: string; key: string } | null>(
-    null,
-  );
+  const [revealed, setRevealed] = useState<{ id: string; key: string } | null>(null);
   const [visible, setVisible] = useState(false);
 
   // Reset complet à la fermeture : aucune valeur ne doit persister en mémoire.
@@ -108,11 +102,7 @@ export function RevealApiKeyDialog({
                 <Label className="text-xs uppercase tracking-wider text-slate-600">
                   {t("reveal_dialog.revealed_id_label")}
                 </Label>
-                <Input
-                  value={revealed.id}
-                  readOnly
-                  className="mt-1 font-mono bg-slate-50"
-                />
+                <Input value={revealed.id} readOnly className="mt-1 font-mono bg-slate-50" />
               </div>
               <div>
                 <Label className="text-xs uppercase tracking-wider text-slate-600">
@@ -130,17 +120,9 @@ export function RevealApiKeyDialog({
                     variant="outline"
                     size="icon"
                     onClick={() => setVisible((v) => !v)}
-                    aria-label={
-                      visible
-                        ? t("reveal_dialog.hide")
-                        : t("reveal_dialog.show")
-                    }
+                    aria-label={visible ? t("reveal_dialog.hide") : t("reveal_dialog.show")}
                   >
-                    {visible ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
+                    {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                   <Button
                     type="button"

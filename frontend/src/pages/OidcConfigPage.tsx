@@ -73,9 +73,7 @@ export function OidcConfigPage() {
         className="mt-6 space-y-4 rounded-md border bg-white p-6"
       >
         <div>
-          <label className="text-sm font-medium text-slate-700">
-            {t("fields.issuer")}
-          </label>
+          <label className="text-sm font-medium text-slate-700">{t("fields.issuer")}</label>
           <Input
             {...form.register("issuer")}
             placeholder="https://keycloak.example.com/realms/yoops"
@@ -89,14 +87,8 @@ export function OidcConfigPage() {
         </div>
 
         <div>
-          <label className="text-sm font-medium text-slate-700">
-            {t("fields.client_id")}
-          </label>
-          <Input
-            {...form.register("client_id")}
-            placeholder="rag"
-            className="mt-1"
-          />
+          <label className="text-sm font-medium text-slate-700">{t("fields.client_id")}</label>
+          <Input {...form.register("client_id")} placeholder="rag" className="mt-1" />
           {form.formState.errors.client_id && (
             <p className="mt-1 text-xs text-red-600">
               {t(`errors.${form.formState.errors.client_id.message}`)}
@@ -129,10 +121,7 @@ export function OidcConfigPage() {
           >
             {t("actions.cancel")}
           </Button>
-          <Button
-            type="submit"
-            disabled={!form.formState.isDirty || upsert.isPending}
-          >
+          <Button type="submit" disabled={!form.formState.isDirty || upsert.isPending}>
             {t("actions.save")}
           </Button>
         </div>

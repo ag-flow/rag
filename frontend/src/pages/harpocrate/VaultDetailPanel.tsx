@@ -44,20 +44,13 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
   }
 
   if (isError || !vault) {
-    return (
-      <div className="p-6 text-sm text-rose-600">
-        {t("detail.load_error")}
-      </div>
-    );
+    return <div className="p-6 text-sm text-rose-600">{t("detail.load_error")}</div>;
   }
 
   return (
     <div className="px-7 py-5">
       <div className="max-w-[760px]">
-        <VaultHeader
-          vault={vault}
-          onRetire={() => setDialogOpen("retire")}
-        />
+        <VaultHeader vault={vault} onRetire={() => setDialogOpen("retire")} />
 
         <Tabs defaultValue="detail" className="mt-4">
           <TabsList>

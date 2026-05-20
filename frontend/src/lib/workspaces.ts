@@ -17,8 +17,7 @@ export const workspacesApi = {
 
   get: (name: string) => api.get<Workspace>(`${BASE}/${name}`),
 
-  create: (payload: WorkspaceCreate) =>
-    api.post<WorkspaceCreateResponse>(BASE, payload),
+  create: (payload: WorkspaceCreate) => api.post<WorkspaceCreateResponse>(BASE, payload),
 
   patch: (name: string, payload: WorkspacePatchRequest) =>
     api.patch<Workspace>(`${BASE}/${name}`, payload),
@@ -28,11 +27,9 @@ export const workspacesApi = {
   rotateApiKey: (name: string) =>
     api.post<ApiKeyRotateResponse>(`${BASE}/${name}/rotate-apikey`, {}),
 
-  revealApiKey: (name: string) =>
-    api.get<ApiKeyRotateResponse>(`${BASE}/${name}/apikey`),
+  revealApiKey: (name: string) => api.get<ApiKeyRotateResponse>(`${BASE}/${name}/apikey`),
 
-  reindex: (name: string) =>
-    api.post<void>(`${BASE}/${name}/reindex?confirm=true`, {}),
+  reindex: (name: string) => api.post<void>(`${BASE}/${name}/reindex?confirm=true`, {}),
 
   listSources: (name: string) => api.get<Source[]>(`${BASE}/${name}/sources`),
 

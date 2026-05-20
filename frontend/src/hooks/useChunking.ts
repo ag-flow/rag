@@ -25,8 +25,7 @@ type UpsertVars = { payload: ChunkingSpec; confirm: boolean };
 export function useUpsertChunkingConfig(name: string) {
   const qc = useQueryClient();
   return useMutation<UpsertChunkingResult, Error, UpsertVars>({
-    mutationFn: ({ payload, confirm }) =>
-      chunkingApi.upsert(name, payload, confirm),
+    mutationFn: ({ payload, confirm }) => chunkingApi.upsert(name, payload, confirm),
     onSuccess: (result) => {
       if (result.status !== "no_change") {
         void qc.invalidateQueries({

@@ -3,11 +3,15 @@ import { api, isErrorBodyWithDetail } from "@/lib/api";
 
 describe("isErrorBodyWithDetail", () => {
   it("retourne true si body.detail === expected", () => {
-    expect(isErrorBodyWithDetail({ detail: "rerank_not_configured" }, "rerank_not_configured")).toBe(true);
+    expect(
+      isErrorBodyWithDetail({ detail: "rerank_not_configured" }, "rerank_not_configured"),
+    ).toBe(true);
   });
 
   it("retourne false si body.detail !== expected", () => {
-    expect(isErrorBodyWithDetail({ detail: "workspace_not_found" }, "rerank_not_configured")).toBe(false);
+    expect(isErrorBodyWithDetail({ detail: "workspace_not_found" }, "rerank_not_configured")).toBe(
+      false,
+    );
   });
 
   it("retourne false si body n'a pas de champ detail", () => {

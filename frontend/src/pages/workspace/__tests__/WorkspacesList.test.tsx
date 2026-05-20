@@ -18,7 +18,12 @@ vi.mock("@/hooks/useWorkspaces", () => ({
       {
         id: "2",
         name: "ws-b",
-        indexer: { provider: "openai", model: "text-embedding-3-small", api_key_ref: "key_ref", base_url: null },
+        indexer: {
+          provider: "openai",
+          model: "text-embedding-3-small",
+          api_key_ref: "key_ref",
+          base_url: null,
+        },
         sources_count: 2,
         documents_count: 10,
         last_indexed_at: null,

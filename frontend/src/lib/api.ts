@@ -22,10 +22,7 @@ export function isErrorBodyWithDetail(body: unknown, expected: string): boolean 
   return typeof detail === "string" && detail === expected;
 }
 
-async function request<T>(
-  url: string,
-  init?: RequestInit,
-): Promise<T> {
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const resp = await fetch(url, {
     ...init,
     credentials: "include",
@@ -46,8 +43,7 @@ async function request<T>(
 }
 
 export const api = {
-  get: <T>(url: string): Promise<T> =>
-    request<T>(url, { method: "GET" }),
+  get: <T>(url: string): Promise<T> => request<T>(url, { method: "GET" }),
 
   post: <T>(url: string, body: unknown): Promise<T> =>
     request<T>(url, {
@@ -93,6 +89,5 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
-  delete: <T>(url: string): Promise<T> =>
-    request<T>(url, { method: "DELETE" }),
+  delete: <T>(url: string): Promise<T> => request<T>(url, { method: "DELETE" }),
 };

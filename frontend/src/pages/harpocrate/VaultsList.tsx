@@ -64,20 +64,10 @@ function VaultsListItem({ vault, active, onSelect }: VaultsListItemProps) {
       )}
     >
       <div className="flex items-center justify-between">
-        <span
-          className={cn(
-            "font-medium truncate",
-            active ? "text-slate-900" : "text-slate-700",
-          )}
-        >
+        <span className={cn("font-medium truncate", active ? "text-slate-900" : "text-slate-700")}>
           {vault.name}
         </span>
-        <span
-          className={cn(
-            "text-[10px] ml-2",
-            active ? "text-emerald-600" : "text-slate-300",
-          )}
-        >
+        <span className={cn("text-[10px] ml-2", active ? "text-emerald-600" : "text-slate-300")}>
           ●
         </span>
       </div>

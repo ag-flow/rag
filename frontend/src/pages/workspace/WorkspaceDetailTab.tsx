@@ -52,8 +52,7 @@ export function WorkspaceDetailTab({ workspace, onReveal, onRotate }: Props) {
           toast({ title: t("detail.save.success") });
           form.reset({ api_key_ref: values.api_key_ref });
         },
-        onError: () =>
-          toast({ title: t("detail.save.error"), variant: "destructive" }),
+        onError: () => toast({ title: t("detail.save.error"), variant: "destructive" }),
       },
     );
   };
@@ -104,28 +103,17 @@ export function WorkspaceDetailTab({ workspace, onReveal, onRotate }: Props) {
       <section>
         <h3 className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">
           {t("detail.apiKeyRef.title")}{" "}
-          <span className="text-emerald-600 normal-case">
-            — {t("detail.apiKeyRef.editable")}
-          </span>
+          <span className="text-emerald-600 normal-case">— {t("detail.apiKeyRef.editable")}</span>
         </h3>
         <div className="flex items-center gap-2">
-          <Input
-            {...form.register("api_key_ref")}
-            className="font-mono text-sm flex-1"
-          />
-          <Button
-            type="submit"
-            size="sm"
-            disabled={!form.formState.isDirty || updateRef.isPending}
-          >
+          <Input {...form.register("api_key_ref")} className="font-mono text-sm flex-1" />
+          <Button type="submit" size="sm" disabled={!form.formState.isDirty || updateRef.isPending}>
             {t("detail.apiKeyRef.save")}
           </Button>
         </div>
         {form.formState.errors.api_key_ref && (
           <p className="mt-1 text-xs text-red-600">
-            {t(
-              `detail.apiKeyRef.errors.${form.formState.errors.api_key_ref.message ?? "invalid"}`,
-            )}
+            {t(`detail.apiKeyRef.errors.${form.formState.errors.api_key_ref.message ?? "invalid"}`)}
           </p>
         )}
       </section>
@@ -138,15 +126,11 @@ export function WorkspaceDetailTab({ workspace, onReveal, onRotate }: Props) {
         <div className="text-sm text-slate-700 space-y-1">
           <div>
             {t("detail.ids.name")}:{" "}
-            <code className="bg-slate-100 px-2 py-0.5 rounded text-xs">
-              {workspace.name}
-            </code>
+            <code className="bg-slate-100 px-2 py-0.5 rounded text-xs">{workspace.name}</code>
           </div>
           <div>
             {t("detail.ids.id")}:{" "}
-            <code className="bg-slate-100 px-2 py-0.5 rounded text-xs">
-              {workspace.id}
-            </code>
+            <code className="bg-slate-100 px-2 py-0.5 rounded text-xs">{workspace.id}</code>
           </div>
         </div>
       </section>

@@ -29,8 +29,7 @@ export function DeleteRerankAlert({ name, open, onOpenChange }: Props) {
         toast({ title: t("rerank.delete.success") });
         onOpenChange(false);
       },
-      onError: () =>
-        toast({ title: t("rerank.delete.error"), variant: "destructive" }),
+      onError: () => toast({ title: t("rerank.delete.error"), variant: "destructive" }),
     });
   };
 
@@ -49,10 +48,7 @@ export function DeleteRerankAlert({ name, open, onOpenChange }: Props) {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{t("dialog.cancel")}</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={handleConfirm}
-            className="bg-red-600 hover:bg-red-700"
-          >
+          <AlertDialogAction onClick={handleConfirm} className="bg-red-600 hover:bg-red-700">
             {t("rerank.delete.confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>

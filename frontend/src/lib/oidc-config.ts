@@ -5,6 +5,5 @@ const BASE = "/api/admin/oidc";
 
 export const oidcConfigApi = {
   get: () => api.get<OidcConfig>(BASE),
-  upsert: (payload: OidcConfigCreate) =>
-    api.post<OidcConfig>(BASE, payload),
+  upsert: (payload: OidcConfigCreate) => api.post<OidcConfig>(BASE, payload),
 };

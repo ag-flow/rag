@@ -204,14 +204,10 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
             {...form.register("max_chars", { valueAsNumber: true })}
             className="mt-1 w-32"
           />
-          <p className="mt-1 text-xs text-slate-500">
-            {t("chunking.fields.maxCharsHelp")}
-          </p>
+          <p className="mt-1 text-xs text-slate-500">{t("chunking.fields.maxCharsHelp")}</p>
           {form.formState.errors.max_chars && (
             <p className="mt-1 text-xs text-red-600">
-              {t(
-                `chunking.errors.${form.formState.errors.max_chars.message ?? "required"}`,
-              )}
+              {t(`chunking.errors.${form.formState.errors.max_chars.message ?? "required"}`)}
             </p>
           )}
         </div>
@@ -227,14 +223,10 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
             {...form.register("min_chars", { valueAsNumber: true })}
             className="mt-1 w-32"
           />
-          <p className="mt-1 text-xs text-slate-500">
-            {t("chunking.fields.minCharsHelp")}
-          </p>
+          <p className="mt-1 text-xs text-slate-500">{t("chunking.fields.minCharsHelp")}</p>
           {form.formState.errors.min_chars && (
             <p className="mt-1 text-xs text-red-600">
-              {t(
-                `chunking.errors.${form.formState.errors.min_chars.message ?? "required"}`,
-              )}
+              {t(`chunking.errors.${form.formState.errors.min_chars.message ?? "required"}`)}
             </p>
           )}
         </div>
@@ -250,14 +242,10 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
             {...form.register("overlap_chars", { valueAsNumber: true })}
             className="mt-1 w-32"
           />
-          <p className="mt-1 text-xs text-slate-500">
-            {t("chunking.fields.overlapCharsHelp")}
-          </p>
+          <p className="mt-1 text-xs text-slate-500">{t("chunking.fields.overlapCharsHelp")}</p>
           {form.formState.errors.overlap_chars && (
             <p className="mt-1 text-xs text-red-600">
-              {t(
-                `chunking.errors.${form.formState.errors.overlap_chars.message ?? "required"}`,
-              )}
+              {t(`chunking.errors.${form.formState.errors.overlap_chars.message ?? "required"}`)}
             </p>
           )}
         </div>
@@ -266,9 +254,7 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
           {(() => {
             const rt = relativeTimeRaw(data.updated_at);
             const when =
-              rt.key === "time.justNow"
-                ? t("time.justNow")
-                : t(rt.key, { count: rt.count });
+              rt.key === "time.justNow" ? t("time.justNow") : t(rt.key, { count: rt.count });
             return t("chunking.lastModified", { when });
           })()}
         </p>
@@ -289,10 +275,7 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
           >
             {t("chunking.actions.cancel")}
           </Button>
-          <Button
-            type="submit"
-            disabled={!form.formState.isDirty || upsert.isPending}
-          >
+          <Button type="submit" disabled={!form.formState.isDirty || upsert.isPending}>
             {t("chunking.actions.save")}
           </Button>
         </div>

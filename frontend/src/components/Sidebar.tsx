@@ -3,7 +3,14 @@ import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
-  LayoutGrid, GitBranch, Clock, Database, Send, Search, Settings, KeyRound,
+  LayoutGrid,
+  GitBranch,
+  Clock,
+  Database,
+  Send,
+  Search,
+  Settings,
+  KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
