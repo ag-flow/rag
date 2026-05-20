@@ -1,6 +1,7 @@
 import { act } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "./testUtils";
 import { WorkspaceChunkingTab } from "@/pages/workspace/WorkspaceChunkingTab";
 import type { Workspace } from "@/lib/workspaces.types";
@@ -213,6 +214,70 @@ describe("WorkspaceChunkingTab", () => {
     await waitFor(() => expect(upsertMutate).toHaveBeenCalledTimes(2));
     const secondCall = upsertMutate.mock.calls[1]?.[0];
     expect(secondCall).toMatchObject({ confirm: true });
+  });
+
+  it("le Select stratégie propose paragraph ET markdown", async () => {
+    const user = userEvent.setup();
+    mockState(mockConfig);
+    renderWithProviders(
+      <WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />,
+    );
+    await user.click(screen.getByRole("combobox"));
+    expect(
+      screen.getByRole("option", { name: /Paragraphes \(par défaut\)/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: /^Markdown$/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("le helper text change quand on sélectionne markdown", async () => {
+    const user = userEvent.setup();
+    mockState(mockConfig);
+    renderWithProviders(
+      <WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />,
+    );
+    await user.click(screen.getByRole("combobox"));
+    await user.click(screen.getByRole("option", { name: /^Markdown$/i }));
+    expect(
+      screen.getByText(/Respecte la structure d'un document Markdown/i),
+    ).toBeInTheDocument();
+  });
+
+  it("submit envoie extras:{} après changement de strategy paragraph → markdown", async () => {
+    const user = userEvent.setup();
+    mockState(mockConfig); // strategy: 'paragraph', extras: {}
+    renderWithProviders(
+      <WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />,
+    );
+    await user.click(screen.getByRole("combobox"));
+    await user.click(screen.getByRole("option", { name: /^Markdown$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Enregistrer$/i }));
+
+    await waitFor(() => expect(upsertMutate).toHaveBeenCalled());
+    const callArgs = upsertMutate.mock.calls[0]?.[0];
+    expect(callArgs?.payload?.strategy).toBe("markdown");
+    expect(callArgs?.payload?.extras).toEqual({});
+  });
+
+  it("submit préserve data.extras quand strategy markdown reste markdown", async () => {
+    const adminConfig: ChunkingConfig = {
+      ...mockConfig,
+      strategy: "markdown",
+      extras: { heading_levels: [1, 3] },
+    };
+    mockState(adminConfig);
+    renderWithProviders(
+      <WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />,
+    );
+    const maxInput = screen.getByDisplayValue("2000") as HTMLInputElement;
+    fireEvent.change(maxInput, { target: { value: "1500" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Enregistrer$/i }));
+
+    await waitFor(() => expect(upsertMutate).toHaveBeenCalled());
+    const callArgs = upsertMutate.mock.calls[0]?.[0];
+    expect(callArgs?.payload?.strategy).toBe("markdown");
+    expect(callArgs?.payload?.extras).toEqual({ heading_levels: [1, 3] });
   });
 
   it("erreur Zod min ≥ max → message d'erreur, pas de submit", async () => {

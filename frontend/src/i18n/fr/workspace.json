@@ -164,9 +164,13 @@
     "fields": {
       "strategy": "Stratégie",
       "strategyHelp": {
-        "paragraph": "Découpage par paragraphes avec coalesce des petits et split des gros."
+        "paragraph": "Découpage par paragraphes avec coalesce des petits et split des gros.",
+        "markdown": "Respecte la structure d'un document Markdown : un chunk = une section délimitée par les titres (H1, H2 par défaut). Les blocs de code (```) ne sont jamais coupés."
       },
-      "strategies": { "paragraph": "Paragraphes (par défaut)" },
+      "strategies": {
+        "paragraph": "Paragraphes (par défaut)",
+        "markdown": "Markdown"
+      },
       "maxChars": "Taille max d'un chunk (caractères)",
       "maxCharsHelp": "doit être ≥ 1",
       "minChars": "Taille min avant coalesce (caractères)",

@@ -19,6 +19,7 @@ import { ApiError } from "@/lib/api";
 import { isChunkingChangeRequiresReindex } from "@/lib/chunking";
 import type { UpsertChunkingResult } from "@/lib/chunking";
 import type { ChunkingSpec, ChunkingStrategy } from "@/lib/chunking.types";
+import { computeExtrasPayload } from "@/lib/chunkingExtras";
 import type { Workspace } from "@/lib/workspaces.types";
 import { ChunkingConfirmReindexAlert } from "./ChunkingConfirmReindexAlert";
 import {
@@ -89,7 +90,13 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
   };
 
   const onSubmit = (values: ChunkingFormValues) => {
-    const payload: ChunkingSpec = { ...values, extras: {} };
+    // data is guaranteed non-undefined here: the guard below (isLoading || !data)
+    // prevents the form from rendering, so onSubmit can only be called when data is set.
+    if (!data) return;
+    const payload: ChunkingSpec = {
+      ...values,
+      extras: computeExtrasPayload(values.strategy, data),
+    };
     upsert.mutate(
       { payload, confirm: false },
       {

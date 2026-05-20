@@ -164,9 +164,13 @@
     "fields": {
       "strategy": "Strategy",
       "strategyHelp": {
-        "paragraph": "Split by paragraphs with coalesce of small ones and split of large ones."
+        "paragraph": "Split by paragraphs with coalesce of small ones and split of large ones.",
+        "markdown": "Follows the structure of a Markdown document: one chunk = one section delimited by headings (H1, H2 by default). Code fences (```) are never split."
       },
-      "strategies": { "paragraph": "Paragraphs (default)" },
+      "strategies": {
+        "paragraph": "Paragraphs (default)",
+        "markdown": "Markdown"
+      },
       "maxChars": "Max chunk size (characters)",
       "maxCharsHelp": "must be ≥ 1",
       "minChars": "Min size before coalesce (characters)",
