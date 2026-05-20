@@ -33,12 +33,11 @@ Le modèle de données est conçu pour être extensible. Les sources futures s'a
 
 ✅ Infrastructure backend livrée en M9 — cf. `docs/superpowers/specs/2026-05-18-M9-backend-chunking-infrastructure-design.md`.
 ✅ Frontend livré en M9b — onglet `Chunking` dans `WorkspaceDetailPanel`, cf. `docs/superpowers/specs/2026-05-19-M9b-frontend-chunking-design.md`.
-✅ Stratégie sémantique `markdown` livrée en M9c — cf. `docs/superpowers/specs/2026-05-19-M9c-backend-markdown-chunker-design.md`. Configurable via API admin (`PUT /chunking-config` avec `strategy='markdown'` + `extras={heading_levels:[1,2]}`). Frontend différé en M9c-front (l'option n'apparaît pas encore dans le Select de l'IHM).
+✅ Stratégie sémantique `markdown` livrée en M9c (backend) + M9c-front (IHM) — cf. `docs/superpowers/specs/2026-05-19-M9c-backend-markdown-chunker-design.md` et `docs/superpowers/specs/2026-05-20-M9c-front-markdown-chunking-design.md`. Configurable via le Select Stratégie de l'onglet Chunking du workspace. Par défaut : `heading_levels=[1,2]` ; customisable via API admin (`PUT /chunking-config` avec `extras.heading_levels=[…]`).
 
-Stratégies disponibles : `paragraph` (M4a), `markdown` (M9c).
+Stratégies disponibles : `paragraph` (M4a), `markdown` (M9c + M9c-front).
 
 Stratégies futures (jalons distincts) :
-- M9c-front : exposer `markdown` dans l'IHM workspace
 - Chunking par blocs de code (langage-aware) — jalon M9d ou +
 - Métadonnées enrichies (content_type, language) — quand un usage concret le justifiera
 - Exposition de la metadata via MCP `search()` — quand un client agent en tirera parti
