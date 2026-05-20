@@ -1,12 +1,12 @@
 import type { ChunkingConfig, ChunkingStrategy } from "@/lib/chunking.types";
 
 /**
- * Calcule le payload `extras` a envoyer au PUT /chunking-config.
+ * Calcule le payload `extras` à envoyer au PUT /chunking-config.
  *
- * - Si la strategy change -> renvoie {} (le backend applique son default,
+ * - Si la strategy change → renvoie {} (le backend applique son default,
  *   notamment {heading_levels:[1,2]} pour markdown).
- * - Si la strategy ne change pas -> renvoie current.extras tel quel
- *   (preserve un heading_levels custom pose via API admin).
+ * - Si la strategy ne change pas → renvoie current.extras tel quel
+ *   (préserve un heading_levels custom posé via API admin).
  */
 export function computeExtrasPayload(
   nextStrategy: ChunkingStrategy,

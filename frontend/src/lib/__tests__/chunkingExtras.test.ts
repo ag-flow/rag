@@ -35,7 +35,7 @@ describe("computeExtrasPayload", () => {
     expect(computeExtrasPayload("paragraph", current)).toEqual({});
   });
 
-  it("preserve current.extras quand markdown reste markdown (conf admin custom)", () => {
+  it("préserve current.extras quand markdown reste markdown (conf admin custom)", () => {
     const current = makeConfig({
       strategy: "markdown",
       extras: { heading_levels: [1, 3] },
