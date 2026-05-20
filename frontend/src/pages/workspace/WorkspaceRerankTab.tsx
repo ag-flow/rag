@@ -15,8 +15,8 @@ import {
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useToast } from "@/hooks/useToast";
 import { useRerankConfig, useUpsertRerankConfig } from "@/hooks/useRerank";
-import { DeleteRerankAlert } from "./DeleteRerankAlert";
 import { formatRelativeTime } from "@/lib/relativeTime";
+import { DeleteRerankAlert } from "./DeleteRerankAlert";
 import type { Workspace } from "@/lib/workspaces.types";
 import type { RerankProvider } from "@/lib/rerank.types";
 import {
