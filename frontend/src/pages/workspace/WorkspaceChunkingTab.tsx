@@ -20,6 +20,7 @@ import { isChunkingChangeRequiresReindex } from "@/lib/chunking";
 import type { UpsertChunkingResult } from "@/lib/chunking";
 import type { ChunkingSpec, ChunkingStrategy } from "@/lib/chunking.types";
 import { computeExtrasPayload } from "@/lib/chunkingExtras";
+import { formatRelativeTime } from "@/lib/relativeTime";
 import type { Workspace } from "@/lib/workspaces.types";
 import { ChunkingConfirmReindexAlert } from "./ChunkingConfirmReindexAlert";
 import {
@@ -28,16 +29,6 @@ import {
   DEFAULT_CHUNKING_FORM,
   type ChunkingFormValues,
 } from "./WorkspaceChunkingTab.schema";
-
-function relativeTimeRaw(iso: string): { key: string; count: number } {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diffMs / 60_000);
-  if (m < 1) return { key: "time.justNow", count: 0 };
-  if (m < 60) return { key: "time.minutesAgo", count: m };
-  const h = Math.floor(m / 60);
-  if (h < 24) return { key: "time.hoursAgo", count: h };
-  return { key: "time.daysAgo", count: Math.floor(h / 24) };
-}
 
 interface Props {
   workspace: Workspace;
@@ -251,12 +242,9 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
         </div>
 
         <p className="text-xs text-slate-500">
-          {(() => {
-            const rt = relativeTimeRaw(data.updated_at);
-            const when =
-              rt.key === "time.justNow" ? t("time.justNow") : t(rt.key, { count: rt.count });
-            return t("chunking.lastModified", { when });
-          })()}
+          {t("chunking.lastModified", {
+            when: formatRelativeTime(data.updated_at, t),
+          })}
         </p>
 
         <div className="flex items-center justify-end gap-2 pt-2">

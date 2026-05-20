@@ -1,8 +1,16 @@
 /**
- * Type minimal compatible avec la fonction `t` de react-i18next.
- * Évite la dépendance directe à i18next côté typage du helper.
+ * Type minimal représentant la fonction `t` de react-i18next pour les
+ * usages du helper : traduction sans options et traduction avec `count`.
+ *
+ * Défini en interface callable (pas en `type =`) pour que TypeScript
+ * applique la vérification par overload plutôt que par assignabilité
+ * structurelle stricte — compatible à la fois avec `TFunction<"workspace">`
+ * et avec les mocks Vitest `vi.fn(...)`.
  */
-type TranslateFn = (key: string, options?: { count: number }) => string;
+interface TranslateFn {
+  (key: string): string;
+  (key: string, options: { count: number }): string;
+}
 
 /**
  * Calcule la clé i18n et le compteur pour un timestamp ISO.

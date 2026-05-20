@@ -8,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { formatRelativeTime } from "@/lib/relativeTime";
 import type { Workspace } from "@/lib/workspaces.types";
 
 interface Props {
@@ -18,16 +19,6 @@ interface Props {
   onDelete: () => void;
 }
 
-function relativeTimeRaw(iso: string): { key: string; count: number } {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const minutes = Math.floor(diffMs / 60_000);
-  if (minutes < 1) return { key: "time.justNow", count: 0 };
-  if (minutes < 60) return { key: "time.minutesAgo", count: minutes };
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return { key: "time.hoursAgo", count: hours };
-  return { key: "time.daysAgo", count: Math.floor(hours / 24) };
-}
-
 export function WorkspaceHeader({ workspace, onReindex, onReveal, onRotate, onDelete }: Props) {
   const { t } = useTranslation("workspace");
   return (
@@ -35,12 +26,9 @@ export function WorkspaceHeader({ workspace, onReindex, onReveal, onRotate, onDe
       <div>
         <h2 className="text-xl font-semibold text-slate-900">{workspace.name}</h2>
         <p className="text-xs text-slate-500">
-          {(() => {
-            const rel = relativeTimeRaw(workspace.created_at);
-            const when =
-              rel.key === "time.justNow" ? t("time.justNow") : t(rel.key, { count: rel.count });
-            return t("header.created", { when });
-          })()}
+          {t("header.created", {
+            when: formatRelativeTime(workspace.created_at, t),
+          })}
         </p>
       </div>
       <div className="flex items-center gap-2">
