@@ -90,8 +90,8 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
   };
 
   const onSubmit = (values: ChunkingFormValues) => {
-    // data is guaranteed non-undefined here: the guard below (isLoading || !data)
-    // prevents the form from rendering, so onSubmit can only be called when data is set.
+    // TS strict : data est garanti par le guard JSX (isLoading || !data → LoadingSpinner)
+    // mais le narrowing ne traverse pas la closure. Guard runtime no-op.
     if (!data) return;
     const payload: ChunkingSpec = {
       ...values,

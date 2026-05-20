@@ -252,7 +252,7 @@ describe("WorkspaceChunkingTab", () => {
     );
     await user.click(screen.getByRole("combobox"));
     await user.click(screen.getByRole("option", { name: /^Markdown$/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^Enregistrer$/i }));
+    await user.click(screen.getByRole("button", { name: /^Enregistrer$/i }));
 
     await waitFor(() => expect(upsertMutate).toHaveBeenCalled());
     const callArgs = upsertMutate.mock.calls[0]?.[0];
@@ -261,6 +261,7 @@ describe("WorkspaceChunkingTab", () => {
   });
 
   it("submit préserve data.extras quand strategy markdown reste markdown", async () => {
+    const user = userEvent.setup();
     const adminConfig: ChunkingConfig = {
       ...mockConfig,
       strategy: "markdown",
@@ -272,7 +273,7 @@ describe("WorkspaceChunkingTab", () => {
     );
     const maxInput = screen.getByDisplayValue("2000") as HTMLInputElement;
     fireEvent.change(maxInput, { target: { value: "1500" } });
-    fireEvent.click(screen.getByRole("button", { name: /^Enregistrer$/i }));
+    await user.click(screen.getByRole("button", { name: /^Enregistrer$/i }));
 
     await waitFor(() => expect(upsertMutate).toHaveBeenCalled());
     const callArgs = upsertMutate.mock.calls[0]?.[0];
