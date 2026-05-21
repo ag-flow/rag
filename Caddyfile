@@ -2,6 +2,7 @@
 # /api/*  → backend:8000 (FastAPI)
 # /auth/* → backend:8000 (OIDC flow M5a)
 # /me     → backend:8000 (OIDC)
+# /ws/*   → backend:8000 (WebSocket logs jobs)
 # /ui*    → frontend:80 (Nginx static, M5b)
 # /health → backend:8000 (smoke direct)
 # /version → backend:8000 (smoke direct)
@@ -21,6 +22,9 @@
         reverse_proxy backend:8000
     }
     handle /me {
+        reverse_proxy backend:8000
+    }
+    handle /ws/* {
         reverse_proxy backend:8000
     }
     handle /health {
