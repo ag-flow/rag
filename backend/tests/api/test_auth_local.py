@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import bcrypt
 import pytest
@@ -25,7 +26,29 @@ def _make_hash(password: str = _PASSWORD) -> str:
 # Fixtures
 # ──────────────────────────────────────────────
 
-_MIGRATIONS_DIR = __import__("pathlib").Path(__file__).resolve().parents[2] / "migrations"
+_MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
+
+
+def _make_client(
+    pg_container: str,
+    password_hash: str,
+    username: str = "admin",
+) -> TestClient:
+    """Construit un TestClient avec tous les env-vars communs configurés."""
+    os.environ["DATABASE_URL"] = pg_container
+    os.environ["RAG_POSTGRES_ADMIN_URL"] = pg_container.rsplit("/", 1)[0] + "/postgres"
+    os.environ["RAG_MASTER_KEY"] = "mk_test_e2e_padding_padding_padding_padding"
+    os.environ.setdefault("RAG_PUBLIC_URL", "http://localhost:8000")
+    os.environ.pop("HARPOCRATE_API_TOKEN_RAG", None)
+    os.environ.pop("HARPOCRATE_API_URL_RAG", None)
+    os.environ.setdefault("HARPOCRATE_DEK", "passphrase-of-at-least-32-characters-long")
+    os.environ.setdefault("RAG_API_KEY_DEK", "test-api-key-dek-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+    os.environ.setdefault("ENVIRONMENT", "dev")
+    os.environ["RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH"] = password_hash
+    os.environ["RAG_BOOTSTRAP_ADMIN_USERNAME"] = username
+
+    app = build_app(version="0.2.0", git_sha="testsha", migrations_dir=_MIGRATIONS_DIR)
+    return TestClient(app)
 
 
 @pytest.fixture
@@ -36,40 +59,14 @@ def bootstrap_hash() -> str:
 @pytest.fixture
 def client_with_bootstrap(pg_container: str, bootstrap_hash: str) -> TestClient:
     """TestClient avec bootstrap activé (hash valide posé dans l'env)."""
-    os.environ["DATABASE_URL"] = pg_container
-    os.environ["RAG_POSTGRES_ADMIN_URL"] = pg_container.rsplit("/", 1)[0] + "/postgres"
-    os.environ["RAG_MASTER_KEY"] = "mk_test_e2e_padding_padding_padding_padding"
-    os.environ.setdefault("RAG_PUBLIC_URL", "http://localhost:8000")
-    os.environ.pop("HARPOCRATE_API_TOKEN_RAG", None)
-    os.environ.pop("HARPOCRATE_API_URL_RAG", None)
-    os.environ.setdefault("HARPOCRATE_DEK", "passphrase-of-at-least-32-characters-long")
-    os.environ.setdefault("RAG_API_KEY_DEK", "test-api-key-dek-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-    os.environ.setdefault("ENVIRONMENT", "dev")
-    os.environ["RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH"] = bootstrap_hash
-    os.environ["RAG_BOOTSTRAP_ADMIN_USERNAME"] = _USERNAME
-
-    app = build_app(version="0.2.0", git_sha="testsha", migrations_dir=_MIGRATIONS_DIR)
-    with TestClient(app) as c:
+    with _make_client(pg_container, password_hash=bootstrap_hash) as c:
         yield c
 
 
 @pytest.fixture
 def client_without_bootstrap(pg_container: str) -> TestClient:
     """TestClient avec bootstrap désactivé (hash vide)."""
-    os.environ["DATABASE_URL"] = pg_container
-    os.environ["RAG_POSTGRES_ADMIN_URL"] = pg_container.rsplit("/", 1)[0] + "/postgres"
-    os.environ["RAG_MASTER_KEY"] = "mk_test_e2e_padding_padding_padding_padding"
-    os.environ.setdefault("RAG_PUBLIC_URL", "http://localhost:8000")
-    os.environ.pop("HARPOCRATE_API_TOKEN_RAG", None)
-    os.environ.pop("HARPOCRATE_API_URL_RAG", None)
-    os.environ.setdefault("HARPOCRATE_DEK", "passphrase-of-at-least-32-characters-long")
-    os.environ.setdefault("RAG_API_KEY_DEK", "test-api-key-dek-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-    os.environ.setdefault("ENVIRONMENT", "dev")
-    os.environ["RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH"] = ""
-    os.environ["RAG_BOOTSTRAP_ADMIN_USERNAME"] = _USERNAME
-
-    app = build_app(version="0.2.0", git_sha="testsha", migrations_dir=_MIGRATIONS_DIR)
-    with TestClient(app) as c:
+    with _make_client(pg_container, password_hash="") as c:
         yield c
 
 
@@ -88,7 +85,7 @@ def test_local_login_correct_credentials_returns_200(
     assert resp.status_code == 200
     assert resp.json() == {"ok": True}
     # Cookie de session posé
-    assert "session" in resp.cookies or client_with_bootstrap.cookies.get("session") is not None
+    assert "session" in resp.cookies
 
 
 def test_local_login_wrong_password_returns_401(

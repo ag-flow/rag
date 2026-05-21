@@ -146,6 +146,7 @@ def build_auth_router() -> APIRouter:
     @router.post("/auth/local/logout", status_code=status.HTTP_204_NO_CONTENT)
     async def local_logout(request: Request) -> Response:
         request.session.pop(_LOCAL_SESSION_KEY, None)
+        log.info("auth.local.logout")
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @router.get("/me", response_model=MeResponse)
