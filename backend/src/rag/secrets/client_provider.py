@@ -81,13 +81,15 @@ class HarpocrateClientProvider:
                 api_key = await self._service.reveal_api_key(conn, v.id)
                 if api_key is None:
                     continue
-                clients[v.name] = HarpocrateVaultClient(
+                # Indexé par api_key_id : c'est l'identifiant du coffre dans les refs
+                # ${vault://<api_key_id>:<path>} → SecretResolver appelle get_client(api_key_id)
+                clients[v.api_key_id] = HarpocrateVaultClient(
                     url=v.base_url,
                     token=api_key,
                 )
         self._clients = clients
         self._default_name = next(
-            (v.name for v in vaults if v.is_default),
+            (v.api_key_id for v in vaults if v.is_default),
             None,
         )
         if self._default_name is None:

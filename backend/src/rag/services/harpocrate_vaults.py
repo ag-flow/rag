@@ -49,6 +49,11 @@ _SELECT_BY_NAME = (
     "is_default, created_at, updated_at "
     "FROM harpocrate_vaults WHERE name = $1"
 )
+_SELECT_BY_API_KEY_ID = (
+    "SELECT id, name, label, base_url, api_key_id, probe_path, "
+    "is_default, created_at, updated_at "
+    "FROM harpocrate_vaults WHERE api_key_id = $1"
+)
 _SELECT_DEFAULT = (
     "SELECT id, name, label, base_url, api_key_id, probe_path, "
     "is_default, created_at, updated_at "
@@ -134,6 +139,14 @@ class HarpocrateVaultsService:
         name: str,
     ) -> VaultSummary | None:
         row = await conn.fetchrow(_SELECT_BY_NAME, name)
+        return VaultSummary.model_validate(dict(row)) if row else None
+
+    async def get_by_api_key_id(
+        self,
+        conn: Connection,
+        api_key_id: str,
+    ) -> VaultSummary | None:
+        row = await conn.fetchrow(_SELECT_BY_API_KEY_ID, api_key_id)
         return VaultSummary.model_validate(dict(row)) if row else None
 
     async def get_default(self, conn: Connection) -> VaultSummary | None:

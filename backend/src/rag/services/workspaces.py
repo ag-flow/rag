@@ -111,13 +111,13 @@ async def create_workspace(
                 path=indexer_path,
                 value=request.indexer.api_key,
             )
-        indexer_api_key_ref = build_ref(request.api_key_vault, indexer_path)
+        indexer_api_key_ref = build_ref(vault.api_key_id, indexer_path)
 
     # 4. Génération api_key MCP + fingerprint SHA-256 + ref Harpocrate
     api_key = generate_api_key()
     fingerprint = sha256(api_key.encode("utf-8")).hexdigest()
     ws_path = f"wsapi_{request.name}"
-    api_key_ref = build_ref(request.api_key_vault, ws_path)
+    api_key_ref = build_ref(vault.api_key_id, ws_path)
 
     rag_base = f"rag_{request.name}"
     rag_cnx = derive_workspace_dsn(admin_dsn, rag_base)
@@ -334,7 +334,13 @@ async def rotate_apikey(
         raise WorkspaceNotFound(name)
 
     api_key_ref: str = row["api_key_ref"]
-    vault_name, path = parse_ref(api_key_ref)
+    vault_api_key_id, path = parse_ref(api_key_ref)
+
+    # Retrouve le coffre par api_key_id (identifiant dans la ref) pour write_secret
+    async with config_pool.acquire() as conn:
+        vault = await harpocrate_vaults_service.get_by_api_key_id(conn, vault_api_key_id)
+    if vault is None:
+        raise WorkspaceNotFound(name)
 
     new_api_key = generate_api_key()
     new_fingerprint = sha256(new_api_key.encode("utf-8")).hexdigest()
@@ -343,7 +349,7 @@ async def rotate_apikey(
     async with config_pool.acquire() as conn:
         await harpocrate_vaults_service.write_secret(
             conn,
-            vault_name=vault_name,
+            vault_name=vault.name,
             path=path,
             value=new_api_key,
         )
