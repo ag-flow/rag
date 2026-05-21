@@ -17,6 +17,7 @@ from rag.schemas.admin import (
     RerankSpec,
     SourceCreateRequest,
     SourceResponse,
+    SourceTestResult,
     SourceUpdateRequest,
     WorkspaceCreateRequest,
     WorkspaceCreateResponse,
@@ -228,6 +229,20 @@ def build_admin_router() -> APIRouter:
             config_pool=_config_pool(request),
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @router.post("/workspaces/{name}/sources/{source_id}/test-connection")
+    async def post_test_source_connection(
+        name: str, source_id: str, request: Request
+    ) -> SourceTestResult:
+        from rag.services.sources import test_source_connection
+
+        result = await test_source_connection(
+            workspace_name=name,
+            source_id=source_id,
+            config_pool=_config_pool(request),
+            resolver=request.app.state.resolver,
+        )
+        return SourceTestResult(**result)
 
     # ─── Reindex / Jobs ──────────────────────────────────────────────────────
 

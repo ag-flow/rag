@@ -95,6 +95,13 @@
       "success": "Source updated.",
       "error": "Failed to update source."
     },
+    "test": {
+      "button": "Test connection",
+      "testing": "Testing…",
+      "success": "Connection successful.",
+      "failure": "Failed:",
+      "error": "Test error."
+    },
     "delete": {
       "title": "Delete source",
       "warning": "This removes the source. Already indexed documents remain.",

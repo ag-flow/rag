@@ -11,7 +11,7 @@ import structlog
 
 from rag.indexer.protocol import IndexerProtocol
 from rag.schemas.sync import ChangeSet, JobToProcess
-from rag.secrets.refs import build_ref
+from rag.secrets.refs import build_ref, is_vault_ref
 from rag.secrets.resolver import VaultLookupFailed
 from rag.sync.git_ops import (
     GitCloneError,
@@ -129,6 +129,8 @@ async def _resolve_token(
     auth_ref = config.get("auth_ref")
     if not auth_ref:
         return None
+    if is_vault_ref(auth_ref):
+        return await resolver.resolve_with_retry(auth_ref)
     return await resolver.resolve_with_retry(_to_vault_ref(auth_ref, default_vault_name))
 
 

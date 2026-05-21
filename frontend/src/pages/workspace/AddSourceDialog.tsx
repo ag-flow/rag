@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/useToast";
-import { useAddSource, useUpdateSource } from "@/hooks/useWorkspaces";
+import { useAddSource, useUpdateSource, useTestSourceConnection } from "@/hooks/useWorkspaces";
 import { useVaults } from "@/hooks/useHarpocrateVaults";
 import type { Source } from "@/lib/workspaces.types";
 
@@ -64,8 +64,12 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
   const { toast } = useToast();
   const add = useAddSource(name);
   const update = useUpdateSource(name);
+  const testConnection = useTestSourceConnection(name);
   const isEdit = source !== undefined;
   const { data: vaults } = useVaults();
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string | null } | null>(
+    null,
+  );
 
   const createForm = useForm<CreateValues>({
     resolver: zodResolver(createSchema),
@@ -93,6 +97,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
 
   useEffect(() => {
     if (!open) return;
+    setTestResult(null);
     const firstVault = vaults?.[0];
     if (isEdit && source) {
       editForm.reset({
@@ -214,9 +219,38 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
             <BranchField register={register} t={t} />
             <AuthValueField register={register} control={control} t={t} />
             <IncludeExcludeFields register={register} t={t} />
-            <DialogFooter>
+            {testResult !== null && (
+              <p
+                className={`text-xs px-2 py-1 rounded ${
+                  testResult.success
+                    ? "bg-green-50 text-green-700"
+                    : "bg-red-50 text-red-700"
+                }`}
+              >
+                {testResult.success
+                  ? t("sources.test.success")
+                  : `${t("sources.test.failure")} ${testResult.message ?? ""}`}
+              </p>
+            )}
+            <DialogFooter className="gap-2">
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
                 {t("dialog.cancel")}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={testConnection.isPending}
+                onClick={() => {
+                  if (!source) return;
+                  setTestResult(null);
+                  testConnection.mutate(source.id, {
+                    onSuccess: (r) => setTestResult(r),
+                    onError: () =>
+                      setTestResult({ success: false, message: t("sources.test.error") }),
+                  });
+                }}
+              >
+                {testConnection.isPending ? t("sources.test.testing") : t("sources.test.button")}
               </Button>
               <Button type="submit" disabled={isPending}>
                 {submitLabel}

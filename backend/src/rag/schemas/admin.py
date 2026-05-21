@@ -141,6 +141,11 @@ class SourceResponse(BaseModel):
     created_at: str
 
 
+class SourceTestResult(BaseModel):
+    success: bool
+    message: str | None = None
+
+
 class ReindexRequest(BaseModel):
     """Payload POST /workspaces/{name}/reindex (body optionnel)."""
 

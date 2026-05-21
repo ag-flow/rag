@@ -95,6 +95,13 @@
       "success": "Source modifiée.",
       "error": "Échec de la modification."
     },
+    "test": {
+      "button": "Tester la connexion",
+      "testing": "Test en cours…",
+      "success": "Connexion réussie.",
+      "failure": "Échec :",
+      "error": "Erreur lors du test."
+    },
     "delete": {
       "title": "Supprimer la source",
       "warning": "Cette action supprime la source. Les documents déjà indexés restent.",

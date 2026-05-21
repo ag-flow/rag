@@ -43,5 +43,11 @@ export const workspacesApi = {
   deleteSource: (name: string, sourceId: string) =>
     api.delete<void>(`${BASE}/${name}/sources/${sourceId}`),
 
+  testSourceConnection: (name: string, sourceId: string) =>
+    api.post<{ success: boolean; message: string | null }>(
+      `${BASE}/${name}/sources/${sourceId}/test-connection`,
+      {},
+    ),
+
   listJobs: (name: string) => api.get<Job[]>(`${BASE}/${name}/jobs`),
 };

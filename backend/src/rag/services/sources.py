@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import os
+import urllib.parse
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -15,7 +18,7 @@ from rag.api.errors import (
 )
 from rag.db.helpers import fetch_all, fetch_one
 from rag.schemas.admin import SourceCreateRequest, SourceUpdateRequest
-from rag.secrets.refs import build_ref
+from rag.secrets.refs import build_ref, is_vault_ref
 from rag.services.harpocrate_vaults import HarpocrateVaultsService
 
 log = structlog.get_logger(__name__)
@@ -209,6 +212,73 @@ async def delete_source(*, workspace_name: str, source_id: str, config_pool: asy
     if tag == "DELETE 0":
         raise SourceNotFound(source_id)
     log.info("source.deleted", workspace=workspace_name, source_id=source_id)
+
+
+async def test_source_connection(
+    *,
+    workspace_name: str,
+    source_id: str,
+    config_pool: asyncpg.Pool,
+    resolver: _ResolverProtocol,
+) -> dict[str, Any]:
+    """Teste la connexion git d'une source via son auth_ref résolu.
+
+    Retourne ``{success: bool, message: str | None}``.
+    """
+    row = await fetch_one(
+        config_pool,
+        """
+        SELECT ws.config, ws.name
+        FROM workspace_sources ws
+        JOIN workspaces w ON w.id = ws.workspace_id
+        WHERE ws.id = $1::uuid AND w.name = $2
+        """,
+        source_id,
+        workspace_name,
+    )
+    if row is None:
+        raise SourceNotFound(source_id)
+
+    raw = row["config"]
+    config = json.loads(raw) if isinstance(raw, str) else dict(raw)
+    url: str = config.get("url", "")
+    auth_ref: str | None = config.get("auth_ref")
+
+    token: str | None = None
+    if auth_ref:
+        if is_vault_ref(auth_ref):
+            token = await resolver.resolve_with_retry(auth_ref)
+        else:
+            log.warning("test_connection.legacy_auth_ref", source_id=source_id)
+
+    if token:
+        parsed = urllib.parse.urlparse(url)
+        authed_url = parsed._replace(
+            netloc=f"x-token-auth:{urllib.parse.quote(token, safe='')}@{parsed.hostname}"
+            + (f":{parsed.port}" if parsed.port else "")
+        ).geturl()
+    else:
+        authed_url = url
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git",
+            "ls-remote",
+            "--heads",
+            authed_url,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+        )
+        _, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=15)
+        if proc.returncode == 0:
+            return {"success": True, "message": None}
+        stderr_msg = stderr_bytes.decode(errors="replace").strip()
+        return {"success": False, "message": stderr_msg[:300] or "git ls-remote a échoué"}
+    except TimeoutError:
+        return {"success": False, "message": "Délai dépassé (15 s)"}
+    except Exception as exc:
+        return {"success": False, "message": str(exc)[:300]}
 
 
 def _source_to_dict(row: asyncpg.Record) -> dict[str, Any]:

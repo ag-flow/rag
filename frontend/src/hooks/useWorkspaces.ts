@@ -135,3 +135,9 @@ export function useDeleteSource(name: string) {
     },
   });
 }
+
+export function useTestSourceConnection(name: string) {
+  return useMutation<{ success: boolean; message: string | null }, Error, string>({
+    mutationFn: (sourceId) => workspacesApi.testSourceConnection(name, sourceId),
+  });
+}
