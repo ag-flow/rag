@@ -200,14 +200,24 @@ ensure_bootstrap_admin_hash() {
   current=$(grep -E '^RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=' "$env_file" 2>/dev/null \
             | head -1 | cut -d= -f2- || true)
   if [[ -n "$current" ]]; then
-    echo "      ✓ RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH déjà défini"
+    echo "  ✓ RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH déjà défini"
     return 0
+  fi
+
+  # htpasswd (apache2-utils) génère des hashs bcrypt natifs.
+  # NB : openssl ne supporte PAS -bcrypt en upstream — il faut htpasswd.
+  if ! command -v htpasswd >/dev/null 2>&1; then
+    echo "  ℹ htpasswd absent, installation de apache2-utils..."
+    apt-get install -y apache2-utils >/dev/null 2>&1 || {
+      echo "  ✗ Échec installation apache2-utils. Installer manuellement : apt install apache2-utils" >&2
+      return 1
+    }
   fi
 
   local plain hash
   plain=$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-20)
-  hash=$(openssl passwd -bcrypt "$plain") || {
-    echo "  ✗ openssl passwd -bcrypt a échoué — vérifier la version d'openssl (besoin >= 1.1.0)." >&2
+  hash=$(htpasswd -nbBC 12 "" "$plain" | tr -d ':\n') || {
+    echo "  ✗ htpasswd a échoué — vérifier le paquet apache2-utils." >&2
     return 1
   }
 
