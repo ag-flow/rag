@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Callable
 from typing import Any, Protocol
 from uuid import UUID
@@ -16,6 +17,8 @@ from rag.indexer.providers.protocol import EmbeddingProvider
 from rag.secrets.refs import build_ref, is_vault_ref
 
 log = structlog.get_logger(__name__)
+
+_API_KEY_CACHE_TTL = 300  # secondes
 
 
 class _ResolverProtocol(Protocol):
@@ -73,6 +76,7 @@ class RealIndexer:
         self._secret_resolver = secret_resolver
         self._client_provider = client_provider
         self._provider_factory = provider_factory
+        self._api_key_cache: dict[str, tuple[str, float]] = {}  # ref → (value, expires_at)
 
     async def index_file(
         self,
@@ -110,7 +114,13 @@ class RealIndexer:
                     )
                     raise _NoDefaultVaultError()
                 ref = _to_vault_ref(ref, default_vault_name)
-            api_key = await self._secret_resolver.resolve_with_retry(ref)
+            cached = self._api_key_cache.get(ref)
+            if cached is None or time.monotonic() > cached[1]:
+                api_key = await self._secret_resolver.resolve_with_retry(ref)
+                self._api_key_cache[ref] = (api_key, time.monotonic() + _API_KEY_CACHE_TTL)
+                log.debug("real_indexer.api_key_cache_miss", ref=ref)
+            else:
+                api_key = cached[0]
 
         provider = self._provider_factory(
             provider=ctx["provider"],
