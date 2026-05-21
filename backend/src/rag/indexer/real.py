@@ -13,7 +13,7 @@ from rag.db.workspace_embeddings import delete_path, upsert_chunks
 from rag.indexer.chunking import Chunk, make_chunker
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
-from rag.secrets.refs import build_ref
+from rag.secrets.refs import build_ref, is_vault_ref
 
 log = structlog.get_logger(__name__)
 
@@ -99,17 +99,18 @@ class RealIndexer:
 
         api_key: str | None = None
         if ctx["api_key_ref"]:
-            default_vault_name = await self._client_provider.get_default_vault_name()
-            if default_vault_name is None:
-                log.warning(
-                    "real_indexer.no_default_vault",
-                    workspace_id=str(workspace_id),
-                    path=path,
-                )
-                raise _NoDefaultVaultError()
-            api_key = await self._secret_resolver.resolve_with_retry(
-                _to_vault_ref(ctx["api_key_ref"], default_vault_name),
-            )
+            ref = ctx["api_key_ref"]
+            if not is_vault_ref(ref):
+                default_vault_name = await self._client_provider.get_default_vault_name()
+                if default_vault_name is None:
+                    log.warning(
+                        "real_indexer.no_default_vault",
+                        workspace_id=str(workspace_id),
+                        path=path,
+                    )
+                    raise _NoDefaultVaultError()
+                ref = _to_vault_ref(ref, default_vault_name)
+            api_key = await self._secret_resolver.resolve_with_retry(ref)
 
         provider = self._provider_factory(
             provider=ctx["provider"],
