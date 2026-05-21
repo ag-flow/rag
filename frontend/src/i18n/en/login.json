@@ -4,7 +4,6 @@
     "button": "→ Sign in with Keycloak"
   },
   "local": {
-    "section_title": "Local admin login",
     "fields": {
       "username": "Username",
       "password": "Password"
