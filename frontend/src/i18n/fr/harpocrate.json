@@ -29,7 +29,7 @@
     "base_url_label": "Base URL",
     "api_key_id_label": "api_key_id",
     "probe_path_label": "probe_path (optionnel)",
-    "probe_path_placeholder": "laissé vide → whoami()",
+    "probe_path_placeholder": "laissé vide → vérification wallet-id (auth seule)",
     "replace_key": "🔁 Remplacer la clé",
     "reveal_key": "👁 Reveal",
     "retire_vault": "Retirer ce coffre",

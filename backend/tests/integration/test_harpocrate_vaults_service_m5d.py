@@ -52,10 +52,16 @@ async def _seed(svc, conn, **overrides):
 
 
 @pytest.mark.asyncio
-async def test_get_wallet_info_combines_whoami_and_info(
+async def test_get_wallet_info_uses_health_check_and_token_info(
     session_pool: asyncpg.Pool,
     monkeypatch,
 ):
+    """get_wallet_info n'utilise plus whoami() mais health_check() + token_info() + info().
+
+    - health_check() → wallet_id (GET /v1/api-keys/{id}/wallet-id, 200 si auth valide)
+    - info()         → wallet_name (GET /v1/wallets/{wallet_id})
+    - token_info()   → api_key_id, permissions, expires_at (lecture locale, sans réseau)
+    """
     _set_env(monkeypatch)
     await run_migrations(session_pool, MIGRATIONS_DIR)
     svc = HarpocrateVaultsService(Settings())
@@ -65,21 +71,23 @@ async def test_get_wallet_info_combines_whoami_and_info(
         expires = datetime(2027, 1, 1, tzinfo=UTC)
         with patch("rag.services.harpocrate_vaults.HarpocrateVaultClient") as mock_client:
             instance = MagicMock()
-            instance.whoami.return_value = MagicMock(
-                api_key_id="k-001",
-                permissions=["read", "write"],
-                expires_at=expires,
-            )
+            instance.health_check.return_value = str(wallet_id)
             # MagicMock(name=...) set le _mock_name interne (utilisé pour le repr),
             # pas un attribut .name. On set name après instanciation.
-            wallet_mock = MagicMock(wallet_id=wallet_id)
+            wallet_mock = MagicMock()
             wallet_mock.name = "prod-wallet"
             instance.info.return_value = wallet_mock
+            instance.token_info.return_value = MagicMock(
+                api_key_id=uuid4(),
+                permission_names=["read", "write"],
+                expires_at_dt=expires,
+            )
+            # Aliaser api_key_id en str pour correspondre au schéma
+            instance.token_info.return_value.api_key_id = uuid4()
             mock_client.return_value = instance
             result = await svc.get_wallet_info(conn, seeded.id)
     assert result.wallet_id == wallet_id
     assert result.wallet_name == "prod-wallet"
-    assert result.api_key_id == "k-001"
     assert result.permissions == ["read", "write"]
     assert result.api_key_expires_at == expires
 

@@ -296,14 +296,14 @@ class HarpocrateVaultsService:
 
         client = HarpocrateVaultClient(url=vault.base_url, token=api_key)
 
-        # Cas auth-only : pas de probe_path → whoami()
+        # Cas auth-only : pas de probe_path → health_check() via wallet-id
         if vault.probe_path is None:
             try:
-                client.whoami()
+                client.health_check()
                 return VaultTestConnectionResult(
                     ok=True,
-                    detail="auth ok (whoami)",
-                    probe_path_used="whoami",
+                    detail="auth ok (health_check)",
+                    probe_path_used="health_check",
                 )
             except Exception as exc:
                 status_code = getattr(
@@ -316,18 +316,18 @@ class HarpocrateVaultsService:
                     vault_id=str(vault_id),
                     ok=False,
                     status_code=status_code,
-                    mode="whoami",
+                    mode="health_check",
                 )
                 if status_code in (401, 403):
                     return VaultTestConnectionResult(
                         ok=False,
                         detail=f"auth refusée ({status_code})",
-                        probe_path_used="whoami",
+                        probe_path_used="health_check",
                     )
                 return VaultTestConnectionResult(
                     ok=False,
                     detail=f"erreur SDK : {type(exc).__name__}",
-                    probe_path_used="whoami",
+                    probe_path_used="health_check",
                 )
 
         # Cas test bout-en-bout : probe_path renseigné → get_secret
@@ -375,7 +375,14 @@ class HarpocrateVaultsService:
         conn: Connection,
         vault_id: UUID,
     ) -> WalletInfoResponse:
-        """Combine whoami() + info() pour retourner les métadonnées du wallet.
+        """Retourne les métadonnées du wallet via health_check() + info() + token_info().
+
+        - wallet_id : health_check() → GET /v1/api-keys/{id}/wallet-id (200 si auth valide)
+        - wallet_name : info() → GET /v1/wallets/{wallet_id}
+        - api_key_id, permissions, expires_at : token_info() (lecture locale, sans appel réseau)
+
+        N'appelle plus whoami() qui fait GET /v1/api-keys/{id} et retourne 404
+        lorsqu'aucun secret n'a été posé à ce path (comportement normal Harpocrate).
 
         Raise VaultNotFoundError si vault_id inconnu côté DB.
         Les exceptions SDK (réseau, 401, etc.) sont propagées telles quelles
@@ -389,23 +396,22 @@ class HarpocrateVaultsService:
             raise VaultNotFoundError(str(vault_id))
 
         client = HarpocrateVaultClient(url=vault.base_url, token=api_key)
-        api_key_info = client.whoami()
+        wallet_id_str = client.health_check()
         wallet = client.info()
+        tok = client.token_info()
 
-        # getattr défensif : les modèles SDK peuvent exposer wallet_id ou id
-        wallet_id_value = getattr(wallet, "wallet_id", None) or getattr(wallet, "id", None)
         log.info(
             "vault.info_fetched",
             vault_id=str(vault_id),
-            wallet_id=str(wallet_id_value),
+            wallet_id=wallet_id_str,
         )
 
         return WalletInfoResponse(
-            wallet_id=wallet_id_value,
+            wallet_id=UUID(wallet_id_str),
             wallet_name=getattr(wallet, "name", None),
-            api_key_id=api_key_info.api_key_id,
-            permissions=list(getattr(api_key_info, "permissions", []) or []),
-            api_key_expires_at=getattr(api_key_info, "expires_at", None),
+            api_key_id=str(tok.api_key_id),
+            permissions=tok.permission_names,
+            api_key_expires_at=tok.expires_at_dt,
         )
 
     async def list_types(

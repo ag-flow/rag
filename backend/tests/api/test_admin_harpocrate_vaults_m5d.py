@@ -37,19 +37,24 @@ def test_get_info_endpoint_returns_wallet_info(
     admin_client: TestClient,
     admin_headers: dict[str, str],
 ) -> None:
+    from uuid import uuid4 as _uuid4
+
     vault = _create_vault(admin_client, admin_headers)
-    wallet_id = uuid4()
+    wallet_id = _uuid4()
+    tok_api_key_id = _uuid4()
     with patch("rag.services.harpocrate_vaults.HarpocrateVaultClient") as mc:
         instance = MagicMock()
-        instance.whoami.return_value = MagicMock(
-            api_key_id="k-001",
-            permissions=["read"],
-            expires_at=None,
-        )
+        instance.health_check.return_value = str(wallet_id)
         # MagicMock(name=...) consume _mock_name interne → set après instanciation
-        wallet_mock = MagicMock(wallet_id=wallet_id)
+        wallet_mock = MagicMock()
         wallet_mock.name = "prod-wallet"
         instance.info.return_value = wallet_mock
+        tok_mock = MagicMock(
+            api_key_id=tok_api_key_id,
+            permission_names=["read"],
+            expires_at_dt=None,
+        )
+        instance.token_info.return_value = tok_mock
         mc.return_value = instance
         r = admin_client.get(
             f"/api/admin/harpocrate-vaults/{vault['id']}/info",
@@ -57,7 +62,7 @@ def test_get_info_endpoint_returns_wallet_info(
         )
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["api_key_id"] == "k-001"
+    assert body["api_key_id"] == str(tok_api_key_id)
     assert body["wallet_name"] == "prod-wallet"
 
 

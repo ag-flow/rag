@@ -1,15 +1,47 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast
+from uuid import UUID
 
 import structlog
 
 if TYPE_CHECKING:
     from harpocrate.models.secret import SecretListResponse
     from harpocrate.models.secret_type import SecretType
-    from harpocrate.models.wallet import ApiKeyInfo, WalletInfo
+    from harpocrate.models.wallet import WalletInfo
 
 log = structlog.get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class TokenInfo:
+    """Informations extraites du token sans appel réseau."""
+
+    api_key_id: UUID
+    permissions: int
+    expires_at: int  # timestamp Unix, 0 = pas d'expiration
+
+    @property
+    def permission_names(self) -> list[str]:
+        """Noms lisibles des permissions (bitmap → liste)."""
+        bits = {
+            0x01: "read",
+            0x02: "write",
+            0x04: "add",
+            0x08: "remove",
+            0x10: "init",
+            0x20: "share",
+        }
+        return [name for bit, name in bits.items() if self.permissions & bit]
+
+    @property
+    def expires_at_dt(self) -> datetime | None:
+        """Expiration en datetime UTC, ou None si pas d'expiration."""
+        if self.expires_at == 0:
+            return None
+        return datetime.fromtimestamp(self.expires_at, tz=UTC)
 
 
 class HarpocrateVaultClient:
@@ -59,9 +91,33 @@ class HarpocrateVaultClient:
 
     # ─── M5d : enrichissements API ────────────────────────────────
 
-    def whoami(self) -> ApiKeyInfo:
-        """Retourne les infos sur l'API key (succès = auth valide)."""
-        return self._sdk.whoami()
+    def health_check(self) -> str:
+        """Vérifie que l'auth est valide en lisant l'endpoint wallet-id.
+
+        Retourne le wallet_id (UUID str). Lève si l'auth est invalide ou le serveur
+        inaccessible.
+
+        N'utilise PAS whoami() qui fait GET /v1/api-keys/{id} et retourne 404
+        lorsqu'aucun secret n'a été posé à ce path — ce comportement Harpocrate
+        est normal et ne signifie pas que l'auth est invalide.
+        """
+        log.debug("vault.health_check", url=self._url)
+        parsed = self._sdk._parsed
+        data = self._sdk._http.get(f"/v1/api-keys/{parsed.api_key_id}/wallet-id")
+        return str(data["wallet_id"])
+
+    def token_info(self) -> TokenInfo:
+        """Retourne les informations du token sans appel réseau.
+
+        Lit les champs api_key_id, permissions et expires_at depuis le token
+        déjà parsé lors de l'initialisation du SDK.
+        """
+        parsed = self._sdk._parsed
+        return TokenInfo(
+            api_key_id=parsed.api_key_id,
+            permissions=parsed.permissions,
+            expires_at=parsed.exp,
+        )
 
     def info(self) -> WalletInfo:
         """Retourne les métadonnées du wallet."""

@@ -132,11 +132,17 @@ async def test_test_connection_404_with_probe_path_is_ko(
 
 
 @pytest.mark.asyncio
-async def test_test_connection_without_probe_path_uses_whoami(
+async def test_test_connection_without_probe_path_uses_health_check(
     session_pool: asyncpg.Pool,
     monkeypatch,
 ):
-    """probe_path=None : on appelle whoami() au lieu d'un probe sur __probe__."""
+    """probe_path=None : on appelle health_check() (wallet-id) au lieu de whoami().
+
+    whoami() fait GET /v1/api-keys/{id} qui retourne 404 si aucun secret n'a
+    été posé à ce path — comportement normal Harpocrate, pas un bug d'auth.
+    health_check() utilise GET /v1/api-keys/{id}/wallet-id qui retourne 200
+    dès que l'auth est valide, indépendamment du contenu du wallet.
+    """
     _set_env(monkeypatch)
     await run_migrations(session_pool, MIGRATIONS_DIR)
     svc = HarpocrateVaultsService(Settings())
@@ -144,20 +150,20 @@ async def test_test_connection_without_probe_path_uses_whoami(
         seeded = await _seed(svc, conn)  # probe_path default = None
         with patch("rag.services.harpocrate_vaults.HarpocrateVaultClient") as mock_client:
             instance = MagicMock()
-            instance.whoami.return_value = MagicMock(api_key_id="k-001")
+            instance.health_check.return_value = "00000000-0000-0000-0000-000000000001"
             mock_client.return_value = instance
             result = await svc.test_connection(conn, seeded.id)
     assert result.ok is True
-    assert "whoami" in result.detail
-    assert result.probe_path_used == "whoami"
+    assert "health_check" in result.detail
+    assert result.probe_path_used == "health_check"
 
 
 @pytest.mark.asyncio
-async def test_test_connection_whoami_401_returns_ko(
+async def test_test_connection_health_check_401_returns_ko(
     session_pool: asyncpg.Pool,
     monkeypatch,
 ):
-    """whoami() sur 401 (api_key invalide) → ok=False."""
+    """health_check() sur 401 (api_key invalide) → ok=False."""
     _set_env(monkeypatch)
     await run_migrations(session_pool, MIGRATIONS_DIR)
     svc = HarpocrateVaultsService(Settings())
@@ -165,12 +171,12 @@ async def test_test_connection_whoami_401_returns_ko(
         seeded = await _seed(svc, conn)
         with patch("rag.services.harpocrate_vaults.HarpocrateVaultClient") as mock_client:
             instance = MagicMock()
-            instance.whoami.side_effect = _FakeSdkError(401)
+            instance.health_check.side_effect = _FakeSdkError(401)
             mock_client.return_value = instance
             result = await svc.test_connection(conn, seeded.id)
     assert result.ok is False
     assert "auth refusée" in result.detail
-    assert result.probe_path_used == "whoami"
+    assert result.probe_path_used == "health_check"
 
 
 @pytest.mark.asyncio
