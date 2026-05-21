@@ -118,7 +118,9 @@ async def require_workspace_apikey(
         JOIN indexer_configs ic ON ic.workspace_id = w.id
         WHERE w.name = $1 AND w.api_key_fingerprint = $3
         """,
-        name, dek, fingerprint,
+        name,
+        dek,
+        fingerprint,
     )
     if row is None:
         # Soit le workspace n'existe pas, soit la clé ne correspond pas —
