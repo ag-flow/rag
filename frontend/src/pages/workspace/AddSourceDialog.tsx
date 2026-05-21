@@ -147,6 +147,10 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
   };
 
   const onSubmitEdit = (v: EditValues) => {
+    _saveEdit(v, { andThen: "close" });
+  };
+
+  const _saveEdit = (v: EditValues, opts: { andThen: "close" | "test" }) => {
     update.mutate(
       {
         sourceId: source!.id,
@@ -163,8 +167,17 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
       },
       {
         onSuccess: () => {
-          toast({ title: t("sources.edit.success") });
-          onOpenChange(false);
+          if (opts.andThen === "close") {
+            toast({ title: t("sources.edit.success") });
+            onOpenChange(false);
+          } else {
+            setTestResult(null);
+            testConnection.mutate(source!.id, {
+              onSuccess: (r) => setTestResult(r),
+              onError: () =>
+                setTestResult({ success: false, message: t("sources.test.error") }),
+            });
+          }
         },
         onError: () => toast({ title: t("sources.edit.error"), variant: "destructive" }),
       },
@@ -239,18 +252,12 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
               <Button
                 type="button"
                 variant="outline"
-                disabled={testConnection.isPending}
-                onClick={() => {
-                  if (!source) return;
-                  setTestResult(null);
-                  testConnection.mutate(source.id, {
-                    onSuccess: (r) => setTestResult(r),
-                    onError: () =>
-                      setTestResult({ success: false, message: t("sources.test.error") }),
-                  });
-                }}
+                disabled={update.isPending || testConnection.isPending}
+                onClick={handleSubmit((v) => _saveEdit(v, { andThen: "test" }))}
               >
-                {testConnection.isPending ? t("sources.test.testing") : t("sources.test.button")}
+                {update.isPending || testConnection.isPending
+                  ? t("sources.test.testing")
+                  : t("sources.test.button")}
               </Button>
               <Button type="submit" disabled={isPending}>
                 {submitLabel}
