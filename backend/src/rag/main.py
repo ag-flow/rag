@@ -24,7 +24,6 @@ from rag.db.migrations import run_migrations
 from rag.db.pool import WorkspacePoolRegistry
 from rag.db.workspace_migrations import apply_pending_for_all_workspaces
 from rag.logging_setup import setup_logging
-from rag.secrets.bootstrap import seed_vaults_from_env_if_empty
 from rag.secrets.client_provider import HarpocrateClientProvider
 from rag.secrets.resolver import SecretResolver
 from rag.services.harpocrate_vaults import HarpocrateVaultsService
@@ -148,15 +147,6 @@ def build_app(
         # retourner un resolver arbitraire ; `client_provider` reste attaché
         # à `app.state` indépendamment.
         app.state.resolver = resolver_factory(settings, app)
-
-        # Rétrocompat M4/M5a/M5b : si la table est vide et que des
-        # HARPOCRATE_API_TOKEN_<ID> sont posés dans l'env, on les sème comme
-        # coffres DB pour que les refs ${vault://rag:...} continuent de résoudre.
-        await seed_vaults_from_env_if_empty(
-            settings=settings,
-            pool=registry.config_pool,
-            vaults_service=app.state.harpocrate_vaults_service,
-        )
 
         app.state.oidc = OidcService(
             config_pool=registry.config_pool,

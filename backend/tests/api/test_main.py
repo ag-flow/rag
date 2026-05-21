@@ -23,8 +23,6 @@ async def test_app_client(pg_container: str) -> AsyncIterator[TestClient]:
     os.environ["RAG_POSTGRES_ADMIN_URL"] = pg_container
     os.environ.setdefault("RAG_MASTER_KEY", "mk_test_xyz_padding_padding_padding_padding")
     os.environ.setdefault("RAG_PUBLIC_URL", "http://localhost:8000")
-    os.environ.setdefault("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_stub")
-    os.environ.setdefault("HARPOCRATE_API_URL_RAG", "https://vault.example.com")
     os.environ.setdefault("ENVIRONMENT", "dev")
 
     app = build_app(

@@ -16,19 +16,13 @@ from rag.services.harpocrate_vaults import HarpocrateVaultsService
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 
-def _set_env(monkeypatch, *, with_env_vault: bool = False) -> None:
+def _set_env(monkeypatch) -> None:
     monkeypatch.setenv("RAG_MASTER_KEY", "x" * 64)
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@localhost:5432/db")
     monkeypatch.setenv("RAG_POSTGRES_ADMIN_URL", "postgresql://u:p@localhost:5432/postgres")
     monkeypatch.setenv("RAG_PUBLIC_URL", "http://localhost:8000")
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
     monkeypatch.setenv("HARPOCRATE_DEK", "passphrase-of-at-least-32-characters-long")
-    if with_env_vault:
-        monkeypatch.setenv("HARPOCRATE_API_TOKEN_RAG", "envtoken")
-        monkeypatch.setenv("HARPOCRATE_API_URL_RAG", "https://h.env")
-    else:
-        monkeypatch.delenv("HARPOCRATE_API_TOKEN_RAG", raising=False)
-        monkeypatch.delenv("HARPOCRATE_API_URL_RAG", raising=False)
 
 
 def _create_req(**o):
@@ -66,43 +60,21 @@ async def test_load_from_db_when_non_empty(
 
 
 @pytest.mark.asyncio
-async def test_fallback_env_when_db_empty(
+async def test_empty_db_yields_no_clients(
     session_pool: asyncpg.Pool,
     monkeypatch,
 ):
-    _set_env(monkeypatch, with_env_vault=True)
-    await run_migrations(session_pool, MIGRATIONS_DIR)
-    svc = HarpocrateVaultsService(Settings())
-    async with session_pool.acquire() as conn:
-        await conn.execute("DELETE FROM harpocrate_vaults")
-
-    with patch("rag.secrets.client_provider.HarpocrateVaultClient") as mock_client:
-        mock_client.return_value = MagicMock()
-        provider = HarpocrateClientProvider(Settings(), svc, session_pool)
-        client = await provider.get_client("rag")
-        assert client is not None
-        assert await provider.get_default_vault_name() == "rag"
-
-
-@pytest.mark.asyncio
-async def test_get_default_first_alphabetical_in_env_fallback(
-    session_pool: asyncpg.Pool,
-    monkeypatch,
-):
+    """Depuis M5c, aucun fallback env : table vide = aucun client disponible."""
     _set_env(monkeypatch)
-    monkeypatch.setenv("HARPOCRATE_API_TOKEN_ZULU", "t1")
-    monkeypatch.setenv("HARPOCRATE_API_URL_ZULU", "https://z")
-    monkeypatch.setenv("HARPOCRATE_API_TOKEN_ALPHA", "t2")
-    monkeypatch.setenv("HARPOCRATE_API_URL_ALPHA", "https://a")
     await run_migrations(session_pool, MIGRATIONS_DIR)
     svc = HarpocrateVaultsService(Settings())
     async with session_pool.acquire() as conn:
         await conn.execute("DELETE FROM harpocrate_vaults")
 
-    with patch("rag.secrets.client_provider.HarpocrateVaultClient") as mock_client:
-        mock_client.return_value = MagicMock()
-        provider = HarpocrateClientProvider(Settings(), svc, session_pool)
-        assert await provider.get_default_vault_name() == "alpha"
+    provider = HarpocrateClientProvider(Settings(), svc, session_pool)
+    assert await provider.get_default_vault_name() is None
+    with pytest.raises(VaultNotFoundError):
+        await provider.get_client("rag")
 
 
 @pytest.mark.asyncio

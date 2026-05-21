@@ -53,12 +53,12 @@ def test_dek_empty_string_treated_as_none(monkeypatch):
     assert settings.harpocrate_dek is None
 
 
-def test_harpocrate_api_keys_now_optional(monkeypatch):
-    """Le validator strict de M4 est supprimé : un boot sans env Harpocrate doit
-    être autorisé (la résolution échouera en runtime si aucun coffre n'est en DB)."""
+def test_settings_boots_without_harpocrate_env_vars(monkeypatch):
+    """Depuis M5c, aucune variable HARPOCRATE_API_TOKEN_*/URL_* n'est lue.
+    Le boot doit reussir sans elles."""
     for k, v in _base_env().items():
         monkeypatch.setenv(k, v)
     monkeypatch.delenv("HARPOCRATE_API_TOKEN_RAG", raising=False)
     monkeypatch.delenv("HARPOCRATE_API_URL_RAG", raising=False)
-    settings = Settings()
-    assert settings.harpocrate_api_keys == {}
+    # Aucune ValidationError attendue
+    Settings()

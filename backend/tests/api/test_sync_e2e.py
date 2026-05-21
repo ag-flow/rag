@@ -34,8 +34,6 @@ async def e2e_client(
     monkeypatch.setenv("RAG_POSTGRES_ADMIN_URL", pg_container.rsplit("/", 1)[0] + "/postgres")
     monkeypatch.setenv("RAG_MASTER_KEY", "mk_test_e2e_sync_padding_padding_padding")
     monkeypatch.setenv("RAG_PUBLIC_URL", "http://localhost:8000")
-    monkeypatch.setenv("HARPOCRATE_API_TOKEN_RAG", "hrpv_1_stub")
-    monkeypatch.setenv("HARPOCRATE_API_URL_RAG", "https://vault.example.com")
     monkeypatch.setenv("ENVIRONMENT", "dev")
     monkeypatch.setenv("SYNC_REPOS_ROOT", str(tmp_path / "repos"))
     monkeypatch.setenv("SYNC_WORKER_POLL_INTERVAL_SECONDS", "1")

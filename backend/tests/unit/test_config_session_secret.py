@@ -12,8 +12,6 @@ _BASE_ENV = {
     "RAG_POSTGRES_ADMIN_URL": "postgresql://u:p@localhost:5432/postgres",
     "RAG_MASTER_KEY": "x" * 40,  # 40 chars > 32 min
     "RAG_PUBLIC_URL": "http://localhost:8000",
-    "HARPOCRATE_API_TOKEN_RAG": "hrpv_test",
-    "HARPOCRATE_API_URL_RAG": "https://vault.example.com",
 }
 
 

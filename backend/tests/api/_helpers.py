@@ -33,8 +33,6 @@ def make_app_client(
     os.environ["RAG_POSTGRES_ADMIN_URL"] = pg_container.rsplit("/", 1)[0] + "/postgres"
     os.environ["RAG_MASTER_KEY"] = "mk_test_e2e_padding_padding_padding_padding"
     os.environ.setdefault("RAG_PUBLIC_URL", "http://localhost:8000")
-    os.environ.pop("HARPOCRATE_API_TOKEN_RAG", None)
-    os.environ.pop("HARPOCRATE_API_URL_RAG", None)
     os.environ.setdefault("HARPOCRATE_DEK", "passphrase-of-at-least-32-characters-long")
     os.environ.setdefault("ENVIRONMENT", "dev")
     os.environ["RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH"] = password_hash

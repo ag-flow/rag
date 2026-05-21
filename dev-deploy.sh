@@ -294,26 +294,14 @@ if [ ! -f ".env" ]; then
     echo "      ✓ POSTGRES_PASSWORD              : généré ($(echo -n "$PG_PASS" | wc -c) chars)"
     echo "      ✓ ${PROJECT_NAME_UPPER}_MASTER_KEY                 : généré ($(echo -n "$MASTER_KEY" | wc -c) chars)"
     echo
-    echo "      ⚠  À RENSEIGNER MANUELLEMENT dans .env avant prochain deploy :"
-    echo "         - HARPOCRATE_API_TOKEN_RAG  (token Harpocrate du projet RAG)"
+    echo "      ⚠  Configurer les coffres Harpocrate via l'IHM /ui/settings/harpocrate-vaults"
+    echo "         après le premier démarrage (HARPOCRATE_DEK requis)."
   else
     echo "[2/5] ⚠  .env absent et .env.example introuvable — config requise pour démarrer"
   fi
 else
   echo "[2/5] .env déjà présent (secrets non régénérés)."
   sync_new_vars_from_example
-fi
-
-# Vars critiques à la M1 qui ne peuvent PAS être auto-générées (le token
-# Harpocrate doit être créé manuellement côté coffre). Si la valeur est vide,
-# le boot du backend échouera sur Pydantic Settings → on warne tôt.
-if [ -f ".env" ]; then
-  for required_key in HARPOCRATE_API_TOKEN_RAG; do
-    val="$(read_env_var "$required_key")"
-    if [ -z "$val" ]; then
-      echo "      ⚠  ${required_key} est vide dans .env — le backend ne démarrera pas tant qu'il n'est pas renseigné."
-    fi
-  done
 fi
 
 # Hash bcrypt du compte admin bootstrap — généré une seule fois si absent.
