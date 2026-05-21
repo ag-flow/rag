@@ -83,9 +83,7 @@ C'est un mécanisme de secours permanent, à la discrétion de l'opérateur.
 
 - Bootstrap actif **uniquement** si `RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH` est
   non-vide au boot. L'opérateur coupe en retirant la var + redémarrant.
-- Le hash bcrypt est seul stocké en `.env` ; le password en clair n'est jamais
-  persistant — il transite uniquement par la console de `dev-deploy.sh` au
-  moment de la génération initiale.
+- Le hash bcrypt est stocké en `.env` (`RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH`). En **dev uniquement**, `dev-deploy.sh` écrit aussi le password en clair dans `.env` sous `RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN` pour commodité opérateur (memo dev). Le backend ne lit JAMAIS cette variable — seul le hash est utilisé pour la vérification. En production, cette variable doit être supprimée manuellement de `.env`.
 - Comparaison `bcrypt.checkpw` (constant-time).
 - Session locale signée par `SECRET_KEY` du `SessionMiddleware` Starlette
   (mécanisme existant, déjà tamper-resistant).

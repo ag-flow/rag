@@ -1470,7 +1470,7 @@ ensure_bootstrap_admin_hash() {
 
   local plain hash
   plain=$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-20)
-  hash=$(openssl passwd -bcrypt "$plain")
+  hash=$(htpasswd -nbBC 12 "" "$plain" | tr -d ':\n')
 
   if grep -qE '^RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=' "$env_file"; then
     sed -i "s|^RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=.*|RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=${hash}|" "$env_file"
@@ -1478,12 +1478,20 @@ ensure_bootstrap_admin_hash() {
     echo "RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=${hash}" >> "$env_file"
   fi
 
+  # Écrit aussi le pwd en clair dans .env pour commodité dev (dev-only).
+  # Le backend ne lit PAS cette variable — c'est juste un memo pour l'opérateur.
+  if grep -qE '^RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN=' "$env_file"; then
+    sed -i "s|^RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN=.*|RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN=${plain}|" "$env_file"
+  else
+    echo "RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN=${plain}" >> "$env_file"
+  fi
+
   echo
   echo "═══════════════════════════════════════════════════════════"
   echo "  COMPTE ADMIN BOOTSTRAP CRÉÉ"
   echo "  Username : admin"
   echo "  Password : ${plain}"
-  echo "  ⚠ Note ce password MAINTENANT, il n'est pas stocké en clair."
+  echo "  (aussi mémorisé dans .env sous RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN)"
   echo "═══════════════════════════════════════════════════════════"
   echo
 }
