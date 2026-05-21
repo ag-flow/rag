@@ -198,7 +198,7 @@ ensure_bootstrap_admin_hash() {
   local env_file="$1"
   local current
   current=$(grep -E '^RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=' "$env_file" 2>/dev/null \
-            | head -1 | cut -d= -f2-)
+            | head -1 | cut -d= -f2- || true)
   if [[ -n "$current" ]]; then
     echo "      ✓ RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH déjà défini"
     return 0
@@ -206,7 +206,10 @@ ensure_bootstrap_admin_hash() {
 
   local plain hash
   plain=$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-20)
-  hash=$(openssl passwd -bcrypt "$plain")
+  hash=$(openssl passwd -bcrypt "$plain") || {
+    echo "  ✗ openssl passwd -bcrypt a échoué — vérifier la version d'openssl (besoin >= 1.1.0)." >&2
+    return 1
+  }
 
   if grep -qE '^RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=' "$env_file"; then
     sed -i "s|^RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=.*|RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=${hash}|" "$env_file"
