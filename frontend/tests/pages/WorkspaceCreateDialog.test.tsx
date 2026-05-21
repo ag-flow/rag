@@ -70,19 +70,19 @@ describe("WorkspaceCreateDialog", () => {
     // Provider, model and vault selects rendered as combobox buttons
     const comboboxes = screen.getAllByRole("combobox");
     expect(comboboxes.length).toBeGreaterThanOrEqual(3);
-    // api_key_ref present by default (provider = openai)
-    expect(screen.getByPlaceholderText("openai_embedding_key")).toBeInTheDocument();
+    // api_key (password field) present by default (provider = openai)
+    expect(screen.getByPlaceholderText("sk-…")).toBeInTheDocument();
   });
 
-  it("shows base_url field only for ollama provider, not api_key_ref", () => {
+  it("shows base_url field only for ollama provider, not api_key", () => {
     render(
       <Wrapper>
         <WorkspaceCreateDialog open={true} onOpenChange={() => {}} />
       </Wrapper>,
     );
 
-    // Initially openai → api_key_ref visible, base_url not
-    expect(screen.getByPlaceholderText("openai_embedding_key")).toBeInTheDocument();
+    // Initially openai → api_key visible, base_url not
+    expect(screen.getByPlaceholderText("sk-…")).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("http://192.168.10.80:11434")).not.toBeInTheDocument();
 
     // Simulate provider change to ollama via the hidden select input
@@ -94,9 +94,9 @@ describe("WorkspaceCreateDialog", () => {
     expect(providerSelect).toBeDefined();
     fireEvent.change(providerSelect!, { target: { value: "ollama" } });
 
-    // After switching to ollama → base_url visible, api_key_ref gone
+    // After switching to ollama → base_url visible, api_key gone
     expect(screen.getByPlaceholderText("http://192.168.10.80:11434")).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("openai_embedding_key")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("sk-…")).not.toBeInTheDocument();
   });
 
   it("submits valid form and calls api.post", async () => {
@@ -113,7 +113,7 @@ describe("WorkspaceCreateDialog", () => {
     );
 
     await user.type(screen.getByPlaceholderText("workspace1"), "test_ws");
-    await user.type(screen.getByPlaceholderText("openai_embedding_key"), "openai_key");
+    await user.type(screen.getByPlaceholderText("sk-…"), "sk-test-key");
 
     // Sélectionner le coffre via le native select (Radix Select)
     const nativeSelects = document.querySelectorAll("select");
@@ -130,7 +130,7 @@ describe("WorkspaceCreateDialog", () => {
           api_key_vault: "vault-main",
           indexer: expect.objectContaining({
             provider: "openai",
-            api_key_ref: "openai_key",
+            api_key: "sk-test-key",
           }),
         }),
       );
@@ -151,7 +151,7 @@ describe("WorkspaceCreateDialog", () => {
     fireEvent.change(vaultSelect!, { target: { value: "vault-main" } });
 
     await user.type(screen.getByPlaceholderText("workspace1"), "BadName");
-    await user.type(screen.getByPlaceholderText("openai_embedding_key"), "key");
+    await user.type(screen.getByPlaceholderText("sk-…"), "sk-key");
     await user.click(screen.getByRole("button", { name: /créer/i }));
 
     await waitFor(() => {

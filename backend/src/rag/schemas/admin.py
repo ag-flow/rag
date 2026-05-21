@@ -14,13 +14,27 @@ _NAME_REGEX = r"^[a-z][a-z0-9_-]{0,62}$"
 
 
 class IndexerSpec(BaseModel):
-    """Indexeur d'un workspace : provider + modèle + api_key_ref (clé logique)."""
+    """Indexeur d'un workspace : provider + modèle + api_key_ref (référence Harpocrate)."""
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
     provider: str = Field(min_length=1)
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
+    base_url: str | None = None
+
+
+class IndexerCreateSpec(BaseModel):
+    """Indexeur pour la création d'un workspace — api_key en clair, jamais persistée telle quelle.
+
+    Le backend écrit la valeur dans Harpocrate et stocke la ref construite en DB.
+    """
+
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    api_key: str | None = None
     base_url: str | None = None
 
 
@@ -36,7 +50,7 @@ class WorkspaceCreateRequest(BaseModel):
         max_length=255,
         description="Nom du coffre Harpocrate où sera stockée l'api_key MCP de ce workspace",
     )
-    indexer: IndexerSpec
+    indexer: IndexerCreateSpec
 
 
 class IndexerPatchSpec(BaseModel):

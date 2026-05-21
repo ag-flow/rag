@@ -4,18 +4,18 @@ import { workspaceCreateSchema } from "@/lib/validators";
 describe("workspaceCreateSchema", () => {
   it("accepts valid openai workspace", () => {
     const result = workspaceCreateSchema.safeParse({
-      name: "harpocrate",
+      name: "workspace1",
       api_key_vault: "vault-main",
       indexer: {
         provider: "openai",
         model: "text-embedding-3-small",
-        api_key_ref: "openai_key",
+        api_key: "sk-abc123",
       },
     });
     expect(result.success).toBe(true);
   });
 
-  it("accepts valid ollama workspace without api_key_ref", () => {
+  it("accepts valid ollama workspace without api_key", () => {
     const result = workspaceCreateSchema.safeParse({
       name: "ws_ollama",
       api_key_vault: "vault-main",
@@ -32,7 +32,7 @@ describe("workspaceCreateSchema", () => {
     const result = workspaceCreateSchema.safeParse({
       name: "",
       api_key_vault: "vault-main",
-      indexer: { provider: "openai", model: "x", api_key_ref: "k" },
+      indexer: { provider: "openai", model: "x", api_key: "sk-k" },
     });
     expect(result.success).toBe(false);
   });
@@ -41,7 +41,7 @@ describe("workspaceCreateSchema", () => {
     const result = workspaceCreateSchema.safeParse({
       name: "BadName",
       api_key_vault: "vault-main",
-      indexer: { provider: "openai", model: "x", api_key_ref: "k" },
+      indexer: { provider: "openai", model: "x", api_key: "sk-k" },
     });
     expect(result.success).toBe(false);
   });
@@ -50,7 +50,7 @@ describe("workspaceCreateSchema", () => {
     const result = workspaceCreateSchema.safeParse({
       name: "a".repeat(65),
       api_key_vault: "vault-main",
-      indexer: { provider: "openai", model: "x", api_key_ref: "k" },
+      indexer: { provider: "openai", model: "x", api_key: "sk-k" },
     });
     expect(result.success).toBe(false);
   });
@@ -59,12 +59,12 @@ describe("workspaceCreateSchema", () => {
     const result = workspaceCreateSchema.safeParse({
       name: "ws",
       api_key_vault: "vault-main",
-      indexer: { provider: "nope", model: "x", api_key_ref: "k" },
+      indexer: { provider: "nope", model: "x", api_key: "sk-k" },
     });
     expect(result.success).toBe(false);
   });
 
-  it("rejects openai without api_key_ref", () => {
+  it("rejects openai without api_key", () => {
     const result = workspaceCreateSchema.safeParse({
       name: "ws",
       api_key_vault: "vault-main",
@@ -72,11 +72,11 @@ describe("workspaceCreateSchema", () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(JSON.stringify(result.error.issues)).toContain("api_key_ref");
+      expect(JSON.stringify(result.error.issues)).toContain("api_key");
     }
   });
 
-  it("accepts ollama without api_key_ref", () => {
+  it("accepts ollama without api_key", () => {
     const result = workspaceCreateSchema.safeParse({
       name: "ws",
       api_key_vault: "vault-main",

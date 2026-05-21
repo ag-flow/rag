@@ -60,7 +60,7 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
       indexer: {
         provider: "openai",
         model: "text-embedding-3-small",
-        api_key_ref: "",
+        api_key: "",
       },
     },
   });
@@ -74,7 +74,7 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
         ...values,
         indexer: {
           ...values.indexer,
-          api_key_ref: values.indexer.api_key_ref ?? null,
+          api_key: values.indexer.api_key ?? null,
           base_url: values.indexer.base_url ?? null,
         },
       };
@@ -207,14 +207,14 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
               {provider !== "ollama" && (
                 <FormField
                   control={form.control}
-                  name="indexer.api_key_ref"
+                  name="indexer.api_key"
                   render={({ field }) => (
                     <FormItem className="mt-3">
-                      <FormLabel>{t("form.api_key_ref_label")}</FormLabel>
+                      <FormLabel>{t("form.api_key_label")}</FormLabel>
                       <FormControl>
-                        <Input placeholder="openai_embedding_key" {...field} />
+                        <Input type="password" placeholder="sk-…" {...field} />
                       </FormControl>
-                      <FormDescription>{t("form.api_key_ref_help")}</FormDescription>
+                      <FormDescription>{t("form.api_key_help")}</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

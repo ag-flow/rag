@@ -20,10 +20,11 @@ export type Workspace = {
 
 export type WorkspaceCreate = {
   name: string;
+  api_key_vault: string;
   indexer: {
     provider: string;
     model: string;
-    api_key_ref: string | null;
+    api_key: string | null;
     base_url?: string | null;
   };
 };

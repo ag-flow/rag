@@ -73,18 +73,19 @@ async def create_workspace(
 ) -> dict[str, str]:
     """Crée un workspace + sa base pgvector + sa table embeddings.
 
-    Étapes (cf. spec 2026-05-21-consolidate-workspace-apikeys-design.md §6.1) :
+    Étapes :
       1. Lookup dimension dans model_dimensions
       2. Vérifie que le coffre api_key_vault existe (→ VaultNotFoundForWorkspace)
-      3. Eager validation de indexer.api_key_ref via Harpocrate (si présent)
-      4. Génère api_key + fingerprint SHA-256 + calcule path/ref Harpocrate
-      5. write_secret dans le coffre choisi (→ HarpocrateWriteFailed si échec)
+      3. Écrit l'api_key indexeur dans Harpocrate si fournie
+         Path convention : <workspace_name>/<provider>/key (ex: wrk1/openai/key)
+      4. Génère api_key MCP + fingerprint SHA-256 + calcule path/ref Harpocrate
+      5. write_secret workspace dans le coffre choisi (→ HarpocrateWriteFailed si échec)
       6. INSERT workspaces + indexer_configs + chunking_configs (TRANSACTION)
-         Sur UniqueViolationError : delete_secret (rollback Harpocrate) + WorkspaceAlreadyExists
-         Sur autre Exception : delete_secret + re-raise
+         Sur UniqueViolationError : delete_secret x2 (rollback Harpocrate) + WorkspaceAlreadyExists
+         Sur autre Exception : delete_secret x2 + re-raise
       7. CREATE DATABASE rag_<name> (admin_dsn, hors transaction)
       8. CREATE EXTENSION + CREATE TABLE embeddings + INDEX ivfflat + migrations
-         Sur échec : DELETE workspaces + DROP DATABASE + delete_secret (rollback Harpocrate)
+         Sur échec : DELETE workspaces + DROP DATABASE + delete_secret x2 (rollback Harpocrate)
       9. Retour { id, name, api_key, api_key_ref, created_at } — api_key en clair UNIQUE
     """
     # 1. Dimension du modèle
@@ -98,15 +99,25 @@ async def create_workspace(
     if vault is None:
         raise VaultNotFoundForWorkspace(request.api_key_vault)
 
-    # 3. Eager validation de la ref indexeur (sauf si None, ex: Ollama sans auth)
-    if request.indexer.api_key_ref is not None:
-        await _validate_ref_via_vault(resolver, request.indexer.api_key_ref, request.api_key_vault)
+    # 3. Stockage de l'api_key indexeur dans Harpocrate (si fournie)
+    indexer_path: str | None = None
+    indexer_api_key_ref: str | None = None
+    if request.indexer.api_key is not None:
+        indexer_path = f"{request.name}/{request.indexer.provider}/key"
+        async with config_pool.acquire() as conn:
+            await harpocrate_vaults_service.write_secret(
+                conn,
+                vault_name=request.api_key_vault,
+                path=indexer_path,
+                value=request.indexer.api_key,
+            )
+        indexer_api_key_ref = build_ref(request.api_key_vault, indexer_path)
 
-    # 4. Génération api_key + fingerprint SHA-256 + ref Harpocrate
+    # 4. Génération api_key MCP + fingerprint SHA-256 + ref Harpocrate
     api_key = generate_api_key()
     fingerprint = sha256(api_key.encode("utf-8")).hexdigest()
-    path = f"wsapi_{request.name}"
-    api_key_ref = build_ref(request.api_key_vault, path)
+    ws_path = f"wsapi_{request.name}"
+    api_key_ref = build_ref(request.api_key_vault, ws_path)
 
     rag_base = f"rag_{request.name}"
     rag_cnx = derive_workspace_dsn(admin_dsn, rag_base)
@@ -116,9 +127,20 @@ async def create_workspace(
         await harpocrate_vaults_service.write_secret(
             conn,
             vault_name=request.api_key_vault,
-            path=path,
+            path=ws_path,
             value=api_key,
         )
+
+    async def _rollback_harpocrate() -> None:
+        async with config_pool.acquire() as conn:
+            await harpocrate_vaults_service.delete_secret(
+                conn, vault_name=request.api_key_vault, path=ws_path
+            )
+        if indexer_path is not None:
+            async with config_pool.acquire() as conn:
+                await harpocrate_vaults_service.delete_secret(
+                    conn, vault_name=request.api_key_vault, path=indexer_path
+                )
 
     # 6. INSERT workspaces + indexer_configs + chunking_configs (TRANSACTION)
     ws_row = None
@@ -149,7 +171,7 @@ async def create_workspace(
                 ws_row["id"],
                 request.indexer.provider,
                 request.indexer.model,
-                request.indexer.api_key_ref,
+                indexer_api_key_ref,
                 request.indexer.base_url,
                 dimension,
             )
@@ -162,40 +184,26 @@ async def create_workspace(
                 ws_row["id"],
             )
     except asyncpg.UniqueViolationError as e:
-        # Rollback Harpocrate : le secret a été écrit mais le workspace n'existe pas
-        async with config_pool.acquire() as conn:
-            await harpocrate_vaults_service.delete_secret(
-                conn, vault_name=request.api_key_vault, path=path
-            )
+        await _rollback_harpocrate()
         raise WorkspaceAlreadyExists(request.name) from e
     except Exception:
-        # Rollback Harpocrate sur toute autre erreur DB
-        async with config_pool.acquire() as conn:
-            await harpocrate_vaults_service.delete_secret(
-                conn, vault_name=request.api_key_vault, path=path
-            )
+        await _rollback_harpocrate()
         raise
 
     # 7. + 8. DDL workspace, avec compensation si erreur
     try:
         await create_workspace_database(admin_dsn, rag_base)
         await create_embeddings_table(rag_cnx, dimension=dimension)
-        # 8bis. Initialise workspace_schema_migrations + applique 001 (idempotent
-        # sur la table fraîchement créée par create_embeddings_table).
         await apply_pending(rag_cnx)
     except Exception:
         log.exception(
             "workspace.create.ddl_failed_rolling_back",
             workspace=request.name,
         )
-        # Compensation : drop base, DELETE config, delete secret Harpocrate
         await drop_workspace_database(admin_dsn, rag_base)
         async with config_pool.acquire() as conn:
             await conn.execute("DELETE FROM workspaces WHERE id=$1", ws_row["id"])
-        async with config_pool.acquire() as conn:
-            await harpocrate_vaults_service.delete_secret(
-                conn, vault_name=request.api_key_vault, path=path
-            )
+        await _rollback_harpocrate()
         raise
 
     log.info("workspace.created", name=request.name, dimension=dimension)

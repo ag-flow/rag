@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from rag.schemas.admin import (
+    IndexerCreateSpec,
     IndexerSpec,
     ModelEntry,
     SourceCreateRequest,
@@ -17,18 +18,33 @@ from rag.schemas.admin import (
 def test_workspace_create_valid_minimal() -> None:
     req = WorkspaceCreateRequest.model_validate(
         {
-            "name": "harpocrate",
-            "api_key_vault": "rag",
+            "name": "workspace1",
+            "api_key_vault": "vault1",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",
-                "api_key_ref": "openai_embedding_key",
+                "api_key": "sk-abc123",
             },
         }
     )
-    assert req.name == "harpocrate"
-    assert req.api_key_vault == "rag"
+    assert req.name == "workspace1"
+    assert req.api_key_vault == "vault1"
     assert req.indexer.provider == "openai"
+    assert req.indexer.api_key == "sk-abc123"
+
+
+def test_workspace_create_valid_ollama_no_api_key() -> None:
+    req = WorkspaceCreateRequest.model_validate(
+        {
+            "name": "myws",
+            "api_key_vault": "vault1",
+            "indexer": {
+                "provider": "ollama",
+                "model": "nomic-embed-text",
+            },
+        }
+    )
+    assert req.indexer.api_key is None
 
 
 def test_workspace_create_name_regex_rejects_uppercase() -> None:
@@ -36,10 +52,10 @@ def test_workspace_create_name_regex_rejects_uppercase() -> None:
         WorkspaceCreateRequest.model_validate(
             {
                 "name": "Harpocrate",
+                "api_key_vault": "vault1",
                 "indexer": {
                     "provider": "openai",
                     "model": "text-embedding-3-small",
-                    "api_key_ref": "k",
                 },
             }
         )
@@ -50,10 +66,10 @@ def test_workspace_create_name_regex_rejects_leading_digit() -> None:
         WorkspaceCreateRequest.model_validate(
             {
                 "name": "1abc",
+                "api_key_vault": "vault1",
                 "indexer": {
                     "provider": "openai",
                     "model": "text-embedding-3-small",
-                    "api_key_ref": "k",
                 },
             }
         )
@@ -65,10 +81,10 @@ def test_workspace_create_name_max_length_63() -> None:
         WorkspaceCreateRequest.model_validate(
             {
                 "name": long,
+                "api_key_vault": "vault1",
                 "indexer": {
                     "provider": "openai",
                     "model": "text-embedding-3-small",
-                    "api_key_ref": "k",
                 },
             }
         )
@@ -79,11 +95,11 @@ def test_workspace_create_name_accepts_exactly_63_chars() -> None:
     req = WorkspaceCreateRequest.model_validate(
         {
             "name": name_63,
-            "api_key_vault": "rag",
+            "api_key_vault": "vault1",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",
-                "api_key_ref": "k",
+                "api_key": "sk-test",
             },
         }
     )
@@ -95,11 +111,11 @@ def test_workspace_create_name_accepts_dash_and_underscore() -> None:
     req = WorkspaceCreateRequest.model_validate(
         {
             "name": "ag-flow_docker",
-            "api_key_vault": "rag",
+            "api_key_vault": "vault1",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",
-                "api_key_ref": "k",
+                "api_key": "sk-test",
             },
         }
     )
@@ -107,23 +123,21 @@ def test_workspace_create_name_accepts_dash_and_underscore() -> None:
 
 
 def test_workspace_create_rejects_extra_fields() -> None:
-    # Garantit que rag.cnx/base n'est pas accepté côté input
-    # (le service les dérive du nom). Pydantic v2 strict.
     with pytest.raises(ValidationError):
         WorkspaceCreateRequest.model_validate(
             {
                 "name": "ws",
+                "api_key_vault": "vault1",
                 "indexer": {
                     "provider": "openai",
                     "model": "text-embedding-3-small",
-                    "api_key_ref": "k",
                 },
                 "rag": {"cnx": "postgresql://x@y/z", "base": "z"},
             }
         )
 
 
-# IndexerSpec ------------------------------------------------------------------
+# IndexerSpec (lecture/réponse) ------------------------------------------------
 
 
 def test_indexer_spec_requires_provider_and_model() -> None:
@@ -131,13 +145,29 @@ def test_indexer_spec_requires_provider_and_model() -> None:
         IndexerSpec.model_validate({"api_key_ref": "k"})
 
 
-def test_indexer_spec_api_key_ref_optional_for_ollama_in_schema() -> None:
-    # Le schéma accepte api_key_ref=None ; la validation métier (eager Harpocrate)
-    # se fera au service en sautant Ollama si la ref est None.
+def test_indexer_spec_api_key_ref_optional() -> None:
     spec = IndexerSpec.model_validate(
         {"provider": "ollama", "model": "nomic-embed-text", "api_key_ref": None}
     )
     assert spec.api_key_ref is None
+
+
+# IndexerCreateSpec (création) -------------------------------------------------
+
+
+def test_indexer_create_spec_api_key_optional_for_ollama() -> None:
+    spec = IndexerCreateSpec.model_validate(
+        {"provider": "ollama", "model": "nomic-embed-text"}
+    )
+    assert spec.api_key is None
+
+
+def test_indexer_create_spec_rejects_api_key_ref() -> None:
+    # api_key_ref n'est plus accepté à la création (extra="forbid")
+    with pytest.raises(ValidationError):
+        IndexerCreateSpec.model_validate(
+            {"provider": "openai", "model": "text-embedding-3-small", "api_key_ref": "k"}
+        )
 
 
 # WorkspacePatchRequest -------------------------------------------------------

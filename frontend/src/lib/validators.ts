@@ -11,13 +11,13 @@ export const workspaceCreateSchema = z
     indexer: z.object({
       provider: z.enum(["openai", "voyage", "ollama"]),
       model: z.string().min(1, "model_required"),
-      api_key_ref: z.string().min(1).optional(),
+      api_key: z.string().min(1).optional(),
       base_url: z.string().url().optional(),
     }),
   })
-  .refine((data) => data.indexer.provider === "ollama" || !!data.indexer.api_key_ref, {
-    message: "api_key_ref_required",
-    path: ["indexer", "api_key_ref"],
+  .refine((data) => data.indexer.provider === "ollama" || !!data.indexer.api_key, {
+    message: "api_key_required",
+    path: ["indexer", "api_key"],
   });
 
 export interface MeResponse {

@@ -28,6 +28,8 @@
     "base_url": "Base URL",
     "base_url_optional": "(optional — Ollama only)",
     "base_url_help": "URL of your Ollama instance (e.g. http://192.168.10.80:11434). Leave empty to use the default instance.",
+    "api_key_label": "API key",
+    "api_key_help": "API key value (e.g. sk-…). It will be stored securely in the vault selected above.",
     "api_key_vault": "Harpocrate vault",
     "api_key_vault_help": "Vault where the workspace MCP api_key will be stored",
     "api_key_vault_none": "No vault configured. Create a vault first via Settings → Harpocrate."
