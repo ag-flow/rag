@@ -1,10 +1,12 @@
+import { Route, Routes } from "react-router-dom";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Sidebar } from "@/components/Sidebar";
 import { Header } from "@/components/Header";
 import { Toaster } from "@/components/ui/toaster";
 import { AppRoutes } from "@/routes";
+import { LoginPage } from "@/pages/LoginPage";
 
-function App() {
+function GuardedShell() {
   return (
     <AuthGuard>
       <div className="flex h-screen bg-slate-50">
@@ -16,8 +18,19 @@ function App() {
           </main>
         </div>
       </div>
-      <Toaster />
     </AuthGuard>
+  );
+}
+
+function App() {
+  return (
+    <>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/*" element={<GuardedShell />} />
+      </Routes>
+      <Toaster />
+    </>
   );
 }
 

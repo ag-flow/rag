@@ -22,7 +22,14 @@ export function Header() {
     .toUpperCase();
 
   function handleLogout() {
-    // POST /auth/logout (cookie envoyé), backend redirige vers Keycloak logout.
+    const isLocal = user.sub === "admin" && user.email === null;
+    if (isLocal) {
+      void fetch("/auth/local/logout", { method: "POST" }).finally(() => {
+        window.location.href = "/ui/login";
+      });
+      return;
+    }
+    // OIDC : POST /auth/logout (cookie envoyé), backend redirige vers Keycloak logout.
     const form = document.createElement("form");
     form.method = "POST";
     form.action = "/auth/logout";

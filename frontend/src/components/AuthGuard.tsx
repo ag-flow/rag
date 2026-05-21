@@ -18,8 +18,11 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   if (isLoading) return <LoadingSpinner />;
 
   if (error && isUnauthorized(error)) {
-    const next = window.location.pathname + window.location.search;
-    window.location.href = `/auth/login?next=${encodeURIComponent(next)}`;
+    let next = window.location.pathname + window.location.search;
+    if (next.startsWith("/ui")) {
+      next = next.slice(3) || "/";
+    }
+    window.location.href = `/ui/login?next=${encodeURIComponent(next)}`;
     return null;
   }
 

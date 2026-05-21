@@ -56,7 +56,7 @@ describe("AuthGuard", () => {
     await waitFor(() => expect(screen.getByText("child")).toBeInTheDocument());
   });
 
-  it("redirects to /auth/login on 401", async () => {
+  it("redirects to /ui/login on 401 (strip /ui prefix from next)", async () => {
     vi.spyOn(apiModule.api, "get").mockRejectedValue(
       new apiModule.ApiError(401, { error: "oidc_session_missing" }),
     );
@@ -71,7 +71,7 @@ describe("AuthGuard", () => {
 
     await waitFor(() => {
       expect(window.location.href).toBe(
-        "/auth/login?next=" + encodeURIComponent("/ui/workspaces"),
+        "/ui/login?next=" + encodeURIComponent("/workspaces"),
       );
     });
   });
