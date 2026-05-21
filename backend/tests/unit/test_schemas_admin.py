@@ -18,6 +18,7 @@ def test_workspace_create_valid_minimal() -> None:
     req = WorkspaceCreateRequest.model_validate(
         {
             "name": "harpocrate",
+            "api_key_vault": "rag",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",
@@ -26,6 +27,7 @@ def test_workspace_create_valid_minimal() -> None:
         }
     )
     assert req.name == "harpocrate"
+    assert req.api_key_vault == "rag"
     assert req.indexer.provider == "openai"
 
 
@@ -77,6 +79,7 @@ def test_workspace_create_name_accepts_exactly_63_chars() -> None:
     req = WorkspaceCreateRequest.model_validate(
         {
             "name": name_63,
+            "api_key_vault": "rag",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",
@@ -92,6 +95,7 @@ def test_workspace_create_name_accepts_dash_and_underscore() -> None:
     req = WorkspaceCreateRequest.model_validate(
         {
             "name": "ag-flow_docker",
+            "api_key_vault": "rag",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",

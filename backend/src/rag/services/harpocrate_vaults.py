@@ -495,6 +495,57 @@ class HarpocrateVaultsService:
             next_cursor=getattr(sdk_resp, "next_cursor", None),
         )
 
+    async def write_secret(
+        self,
+        conn: Connection,
+        *,
+        vault_name: str,
+        path: str,
+        value: str,
+    ) -> None:
+        """Écrit un secret dans le coffre désigné. Upsert idempotent.
+
+        Raise :
+            VaultNotFoundError si le coffre n'existe pas en DB.
+            HarpocrateWriteFailed sur échec côté Harpocrate.
+        """
+        vault = await self.get_by_name(conn, vault_name)
+        if vault is None:
+            raise VaultNotFoundError(vault_name)
+        clear_api_key = await self.reveal_api_key(conn, vault.id)
+        if clear_api_key is None:
+            raise VaultNotFoundError(vault_name)
+        client = HarpocrateVaultClient(url=str(vault.base_url), token=clear_api_key)
+        try:
+            client.set_secret(path, value)
+        except Exception as e:
+            log.error("vault.write.failed", vault=vault_name, path=path, error=str(e))
+            from rag.api.errors import HarpocrateWriteFailed
+
+            raise HarpocrateWriteFailed(str(e)) from e
+
+    async def delete_secret(
+        self,
+        conn: Connection,
+        *,
+        vault_name: str,
+        path: str,
+    ) -> None:
+        """Supprime un secret du coffre. Best-effort : log si fail, ne lève pas."""
+        vault = await self.get_by_name(conn, vault_name)
+        if vault is None:
+            log.warning("vault.delete.skipped.no_vault", vault=vault_name, path=path)
+            return
+        clear_api_key = await self.reveal_api_key(conn, vault.id)
+        if clear_api_key is None:
+            log.warning("vault.delete.skipped.no_api_key", vault=vault_name)
+            return
+        try:
+            client = HarpocrateVaultClient(url=str(vault.base_url), token=clear_api_key)
+            client.delete_secret(path)
+        except Exception as e:
+            log.warning("vault.delete.failed", vault=vault_name, path=path, error=str(e))
+
     def _invalidate_caches(self) -> None:
         self._default_cache = None
         if self._client_provider is not None:
