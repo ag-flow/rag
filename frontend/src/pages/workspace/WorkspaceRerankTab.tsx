@@ -21,6 +21,7 @@ import type { Workspace } from "@/lib/workspaces.types";
 import type { RerankProvider } from "@/lib/rerank.types";
 import {
   RERANK_PROVIDERS,
+  MODELS_BY_PROVIDER,
   rerankFormSchema,
   EMPTY_RERANK_FORM,
   type RerankFormValues,
@@ -59,7 +60,7 @@ export function WorkspaceRerankTab({ workspace, enabled }: Props) {
   }, [data, isLoading, form]);
 
   const provider = form.watch("provider");
-  const apiKeyApplicable = provider === "cohere" || provider === "voyage";
+  const apiKeyApplicable = provider === "cohere" || provider === "openai" || provider === "voyage";
   const baseUrlApplicable = provider === "ollama";
 
   const onSubmit = (values: RerankFormValues) => {
@@ -127,7 +128,16 @@ export function WorkspaceRerankTab({ workspace, enabled }: Props) {
             render={({ field }) => (
               <Select
                 value={field.value}
-                onValueChange={(v) => field.onChange(v as RerankProvider)}
+                onValueChange={(v) => {
+                  const newProvider = v as RerankProvider;
+                  field.onChange(newProvider);
+                  const currentModel = form.getValues("model");
+                  if (!MODELS_BY_PROVIDER[newProvider].includes(currentModel)) {
+                    form.setValue("model", MODELS_BY_PROVIDER[newProvider][0] ?? "", {
+                      shouldDirty: true,
+                    });
+                  }
+                }}
               >
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder={t("rerank.fields.providerPlaceholder")} />
@@ -147,10 +157,23 @@ export function WorkspaceRerankTab({ workspace, enabled }: Props) {
         {/* Modèle */}
         <div>
           <label className="text-sm font-medium text-slate-700">{t("rerank.fields.model")}</label>
-          <Input
-            {...form.register("model")}
-            placeholder={t("rerank.fields.modelPlaceholder")}
-            className="mt-1 font-mono"
+          <Controller
+            name="model"
+            control={form.control}
+            render={({ field }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger className="mt-1 font-mono">
+                  <SelectValue placeholder={t("rerank.fields.modelPlaceholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {MODELS_BY_PROVIDER[provider].map((m) => (
+                    <SelectItem key={m} value={m} className="font-mono">
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           />
           {form.formState.errors.model && (
             <p className="mt-1 text-xs text-red-600">

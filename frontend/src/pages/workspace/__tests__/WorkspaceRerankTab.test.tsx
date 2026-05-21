@@ -66,7 +66,8 @@ describe("WorkspaceRerankTab", () => {
     mockState(mockConfig);
     renderWithProviders(<WorkspaceRerankTab workspace={mockWorkspace} enabled={true} />);
     expect(screen.getByText(/^actif$/i)).toBeInTheDocument();
-    expect(screen.getByDisplayValue("rerank-english-v3.0")).toBeInTheDocument();
+    // Le Select modèle affiche la valeur sélectionnée (peut apparaître dans trigger + options)
+    expect(screen.getAllByText("rerank-english-v3.0").length).toBeGreaterThan(0);
     expect(screen.getByDisplayValue("cohere_rerank_key")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Enregistrer/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Supprimer la config/i })).toBeInTheDocument();
@@ -76,14 +77,15 @@ describe("WorkspaceRerankTab", () => {
     upsertMutate.mockClear();
     mockState(mockConfig);
     renderWithProviders(<WorkspaceRerankTab workspace={mockWorkspace} enabled={true} />);
-    const modelInput = screen.getByDisplayValue("rerank-english-v3.0");
-    fireEvent.change(modelInput, { target: { value: "rerank-multilingual-v3.0" } });
+    // Modifier api_key_ref pour rendre le form dirty
+    const apiKeyInput = screen.getByDisplayValue("cohere_rerank_key");
+    fireEvent.change(apiKeyInput, { target: { value: "new_cohere_key" } });
     fireEvent.click(screen.getByRole("button", { name: /Enregistrer/i }));
     await waitFor(() => expect(upsertMutate).toHaveBeenCalled());
     expect(upsertMutate.mock.calls[0]?.[0]).toMatchObject({
       provider: "cohere",
-      model: "rerank-multilingual-v3.0",
-      api_key_ref: "cohere_rerank_key",
+      model: "rerank-english-v3.0",
+      api_key_ref: "new_cohere_key",
       top_k_pre_rerank: 50,
     });
   });
@@ -103,7 +105,6 @@ describe("WorkspaceRerankTab", () => {
   it("désactive base_url quand provider est cohere", () => {
     mockState({ ...mockConfig, provider: "cohere" });
     renderWithProviders(<WorkspaceRerankTab workspace={mockWorkspace} enabled={true} />);
-    // Le champ base_url n'est pas applicable -> placeholder "— non applicable —" + disabled
     const baseUrlInput = screen
       .getAllByPlaceholderText(/non applicable/i)
       .find((el) => el.getAttribute("name") === "base_url") as HTMLInputElement | undefined;
@@ -117,7 +118,7 @@ describe("WorkspaceRerankTab", () => {
       provider: "ollama",
       api_key_ref: null,
       base_url: "https://ollama.example.com",
-      model: "bge-reranker-v2",
+      model: "bge-reranker-v2-m3",
     });
     renderWithProviders(<WorkspaceRerankTab workspace={mockWorkspace} enabled={true} />);
     const apiKeyInput = screen
@@ -128,12 +129,12 @@ describe("WorkspaceRerankTab", () => {
   });
 
   it("affiche erreur Zod required_for_provider si cohere sans api_key_ref", async () => {
-    mockState(null);
+    mockState({ ...mockConfig, api_key_ref: null });
     renderWithProviders(<WorkspaceRerankTab workspace={mockWorkspace} enabled={true} />);
-    // provider défaut = cohere (EMPTY_RERANK_FORM.provider). On remplit uniquement model.
-    const modelInput = screen.getByPlaceholderText(/rerank-english/i);
-    fireEvent.change(modelInput, { target: { value: "rerank-english-v3.0" } });
-    fireEvent.click(screen.getByRole("button", { name: /Activer/i }));
+    // Modifier top_k pour rendre le form dirty, puis soumettre
+    const topKInput = screen.getByRole("spinbutton");
+    fireEvent.change(topKInput, { target: { value: "60" } });
+    fireEvent.click(screen.getByRole("button", { name: /Enregistrer/i }));
     expect(await screen.findByText(/Requis pour ce provider/i)).toBeInTheDocument();
   });
 
@@ -143,13 +144,12 @@ describe("WorkspaceRerankTab", () => {
       provider: "ollama",
       api_key_ref: null,
       base_url: null,
-      model: "bge-reranker-v2",
+      model: "bge-reranker-v2-m3",
     });
     renderWithProviders(<WorkspaceRerankTab workspace={mockWorkspace} enabled={true} />);
-    // Form en mode ollama avec base_url=null. On modifie le modèle pour marquer le form dirty,
-    // puis on soumet -> Zod doit déclencher required_for_provider sur base_url.
-    const modelInput = screen.getByDisplayValue("bge-reranker-v2");
-    fireEvent.change(modelInput, { target: { value: "bge-reranker-v2.5" } });
+    // Modifier top_k pour rendre le form dirty, puis soumettre
+    const topKInput = screen.getByRole("spinbutton");
+    fireEvent.change(topKInput, { target: { value: "60" } });
     fireEvent.click(screen.getByRole("button", { name: /Enregistrer/i }));
     expect(await screen.findByText(/Requis pour ce provider/i)).toBeInTheDocument();
   });

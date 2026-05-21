@@ -19,17 +19,11 @@ import type { VaultSummary } from "@/lib/harpocrate-vaults.types";
 
 interface VaultDetailTabProps {
   vault: VaultSummary;
-  onReplaceApiKey: () => void;
   onReveal: () => void;
   onRetire: () => void;
 }
 
-export function VaultDetailTab({
-  vault,
-  onReplaceApiKey,
-  onReveal,
-  onRetire,
-}: VaultDetailTabProps) {
+export function VaultDetailTab({ vault, onReveal, onRetire }: VaultDetailTabProps) {
   const { t } = useTranslation("harpocrate");
   const { toast } = useToast();
   const updateMutation = useUpdateVault(vault.id);
@@ -71,34 +65,21 @@ export function VaultDetailTab({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <FormLabel className="text-xs uppercase tracking-wider text-slate-600">
-              {t("detail.name_label")}
-            </FormLabel>
-            <Input
-              value={vault.name}
-              disabled
-              className="mt-1 font-mono text-slate-400 bg-slate-50"
-            />
-          </div>
-
-          <FormField
-            control={form.control}
-            name="label"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs uppercase tracking-wider text-slate-600">
-                  {t("detail.label_label")}
-                </FormLabel>
-                <FormControl>
-                  <Input {...field} className="mt-1" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+        <FormField
+          control={form.control}
+          name="label"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-xs uppercase tracking-wider text-slate-600">
+                {t("detail.label_label")}
+              </FormLabel>
+              <FormControl>
+                <Input {...field} className="mt-1" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}
@@ -126,9 +107,6 @@ export function VaultDetailTab({
               disabled
               className="flex-1 font-mono text-slate-400 bg-slate-50"
             />
-            <Button type="button" variant="outline" onClick={onReplaceApiKey}>
-              {t("detail.replace_key")}
-            </Button>
             <Button type="button" variant="outline" onClick={onReveal}>
               {t("detail.reveal_key")}
             </Button>

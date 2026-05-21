@@ -8,11 +8,10 @@ import { VaultHeader } from "@/pages/harpocrate/VaultHeader";
 import { VaultDetailTab } from "@/pages/harpocrate/VaultDetailTab";
 import { VaultSecretsTab } from "@/pages/harpocrate/VaultSecretsTab";
 import { VaultWalletInfoTab } from "@/pages/harpocrate/VaultWalletInfoTab";
-import { ReplaceApiKeyDialog } from "@/pages/harpocrate/ReplaceApiKeyDialog";
 import { RevealApiKeyDialog } from "@/pages/harpocrate/RevealApiKeyDialog";
 import { RetireVaultDialog } from "@/pages/harpocrate/RetireVaultDialog";
 
-type DialogKind = "replace" | "reveal" | "retire" | null;
+type DialogKind = "reveal" | "retire" | null;
 
 interface VaultDetailPanelProps {
   vaultId: string;
@@ -62,7 +61,6 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
           <TabsContent value="detail">
             <VaultDetailTab
               vault={vault}
-              onReplaceApiKey={() => setDialogOpen("replace")}
               onReveal={() => setDialogOpen("reveal")}
               onRetire={() => setDialogOpen("retire")}
             />
@@ -78,12 +76,6 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
         </Tabs>
       </div>
 
-      <ReplaceApiKeyDialog
-        vaultId={vault.id}
-        currentApiKeyId={vault.api_key_id}
-        open={dialogOpen === "replace"}
-        onOpenChange={(o) => setDialogOpen(o ? "replace" : null)}
-      />
       <RevealApiKeyDialog
         vaultId={vault.id}
         open={dialogOpen === "reveal"}

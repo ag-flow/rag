@@ -36,44 +36,28 @@ describe("VaultDetailTab", () => {
   it("renders the form pre-filled with vault values", () => {
     render(
       <Wrapper>
-        <VaultDetailTab
-          vault={vault}
-          onReplaceApiKey={() => {}}
-          onReveal={() => {}}
-          onRetire={() => {}}
-        />
+        <VaultDetailTab vault={vault} onReveal={() => {}} onRetire={() => {}} />
       </Wrapper>,
     );
 
-    // Name input (immuable, disabled) shows the vault name.
-    expect(screen.getByDisplayValue("rag")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Coffre RAG")).toBeInTheDocument();
     expect(screen.getByDisplayValue("https://vault.yoops.org")).toBeInTheDocument();
     expect(screen.getByDisplayValue("k-001")).toBeInTheDocument();
   });
 
-  it("invokes the retire/replace/reveal handlers", async () => {
+  it("invokes the retire and reveal handlers", async () => {
     const onRetire = vi.fn();
-    const onReplaceApiKey = vi.fn();
     const onReveal = vi.fn();
     const user = userEvent.setup();
 
     render(
       <Wrapper>
-        <VaultDetailTab
-          vault={vault}
-          onReplaceApiKey={onReplaceApiKey}
-          onReveal={onReveal}
-          onRetire={onRetire}
-        />
+        <VaultDetailTab vault={vault} onReveal={onReveal} onRetire={onRetire} />
       </Wrapper>,
     );
 
     await user.click(screen.getByRole("button", { name: /retirer ce coffre/i }));
     expect(onRetire).toHaveBeenCalled();
-
-    await user.click(screen.getByRole("button", { name: /remplacer la clé/i }));
-    expect(onReplaceApiKey).toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: /reveal/i }));
     expect(onReveal).toHaveBeenCalled();
@@ -87,12 +71,7 @@ describe("VaultDetailTab", () => {
 
     render(
       <Wrapper>
-        <VaultDetailTab
-          vault={vault}
-          onReplaceApiKey={() => {}}
-          onReveal={() => {}}
-          onRetire={() => {}}
-        />
+        <VaultDetailTab vault={vault} onReveal={() => {}} onRetire={() => {}} />
       </Wrapper>,
     );
 

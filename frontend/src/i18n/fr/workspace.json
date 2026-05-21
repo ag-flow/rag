@@ -113,6 +113,7 @@
       "providerPlaceholder": "Sélectionner…",
       "providers": {
         "cohere": "Cohere",
+        "openai": "OpenAI",
         "voyage": "Voyage AI",
         "ollama": "Ollama"
       },
