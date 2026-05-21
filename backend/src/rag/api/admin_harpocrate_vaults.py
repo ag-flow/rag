@@ -5,7 +5,7 @@ from uuid import UUID
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from rag.auth.bearer import require_master_key_or_oidc_role
+from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.schemas.harpocrate_vaults import (
     SecretListResponse,
     SecretTypeSummary,
@@ -27,7 +27,7 @@ log = structlog.get_logger(__name__)
 router = APIRouter(
     prefix="/api/admin/harpocrate-vaults",
     tags=["admin-harpocrate-vaults"],
-    dependencies=[Depends(require_master_key_or_oidc_role("rag-admin"))],
+    dependencies=[Depends(require_master_key_or_authenticated_admin)],
 )
 
 

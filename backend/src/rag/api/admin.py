@@ -4,7 +4,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 
-from rag.auth.bearer import require_master_key_or_oidc_role
+from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.schemas.admin import (
     ApiKeyRotateResponse,
     ChunkingConfigResponse,
@@ -63,7 +63,7 @@ def build_admin_router() -> APIRouter:
     """Construit le router master-key des 13 endpoints d'administration."""
     router = APIRouter(
         tags=["admin"],
-        dependencies=[Depends(require_master_key_or_oidc_role("rag-admin"))],
+        dependencies=[Depends(require_master_key_or_authenticated_admin)],
     )
 
     # ─── Workspaces ─────────────────────────────────────────────────────────
@@ -116,7 +116,8 @@ def build_admin_router() -> APIRouter:
         row = await _config_pool(request).fetchrow(
             "SELECT pgp_sym_decrypt(api_key_encrypted, $2::text)::text AS api_key "
             "FROM workspaces WHERE name = $1",
-            name, dek,
+            name,
+            dek,
         )
         if row is None:
             raise HTTPException(
@@ -280,7 +281,8 @@ def build_admin_router() -> APIRouter:
         404 `rerank_not_configured` si le workspace existe mais sans rerank.
         """
         ws_row = await _config_pool(request).fetchrow(
-            "SELECT id FROM workspaces WHERE name = $1", name,
+            "SELECT id FROM workspaces WHERE name = $1",
+            name,
         )
         if ws_row is None:
             raise HTTPException(
@@ -288,6 +290,7 @@ def build_admin_router() -> APIRouter:
                 detail="workspace_not_found",
             )
         from rag.services.rerank_configs import get_rerank_config
+
         cfg = await get_rerank_config(ws_row["id"], _config_pool(request))
         if cfg is None:
             raise HTTPException(
@@ -296,8 +299,10 @@ def build_admin_router() -> APIRouter:
             )
         return RerankConfigResponse(
             workspace_id=cfg["workspace_id"],
-            provider=cfg["provider"], model=cfg["model"],
-            api_key_ref=cfg["api_key_ref"], base_url=cfg["base_url"],
+            provider=cfg["provider"],
+            model=cfg["model"],
+            api_key_ref=cfg["api_key_ref"],
+            base_url=cfg["base_url"],
             top_k_pre_rerank=cfg["top_k_pre_rerank"],
             created_at=cfg["created_at"].isoformat(),
             updated_at=cfg["updated_at"].isoformat(),
@@ -305,11 +310,14 @@ def build_admin_router() -> APIRouter:
 
     @router.put("/workspaces/{name}/rerank")
     async def put_rerank_endpoint(
-        name: str, payload: RerankSpec, request: Request,
+        name: str,
+        payload: RerankSpec,
+        request: Request,
     ) -> RerankConfigResponse:
         """Upsert la config rerank du workspace. Validation eager api_key_ref."""
         ws_row = await _config_pool(request).fetchrow(
-            "SELECT id FROM workspaces WHERE name = $1", name,
+            "SELECT id FROM workspaces WHERE name = $1",
+            name,
         )
         if ws_row is None:
             raise HTTPException(
@@ -317,16 +325,20 @@ def build_admin_router() -> APIRouter:
                 detail="workspace_not_found",
             )
         from rag.services.rerank_configs import upsert_rerank_config
+
         cfg = await upsert_rerank_config(
-            workspace_id=ws_row["id"], spec=payload,
+            workspace_id=ws_row["id"],
+            spec=payload,
             config_pool=_config_pool(request),
             resolver=_resolver(request),
             default_vault_name=await _resolve_default_vault_or_503(request),
         )
         return RerankConfigResponse(
             workspace_id=cfg["workspace_id"],
-            provider=cfg["provider"], model=cfg["model"],
-            api_key_ref=cfg["api_key_ref"], base_url=cfg["base_url"],
+            provider=cfg["provider"],
+            model=cfg["model"],
+            api_key_ref=cfg["api_key_ref"],
+            base_url=cfg["base_url"],
             top_k_pre_rerank=cfg["top_k_pre_rerank"],
             created_at=cfg["created_at"].isoformat(),
             updated_at=cfg["updated_at"].isoformat(),
@@ -339,7 +351,8 @@ def build_admin_router() -> APIRouter:
     async def delete_rerank_endpoint(name: str, request: Request) -> Response:
         """Supprime la config rerank. Idempotent : 204 même si absente."""
         ws_row = await _config_pool(request).fetchrow(
-            "SELECT id FROM workspaces WHERE name = $1", name,
+            "SELECT id FROM workspaces WHERE name = $1",
+            name,
         )
         if ws_row is None:
             raise HTTPException(
@@ -347,15 +360,14 @@ def build_admin_router() -> APIRouter:
                 detail="workspace_not_found",
             )
         from rag.services.rerank_configs import delete_rerank_config
+
         await delete_rerank_config(ws_row["id"], _config_pool(request))
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     # ─── Chunking config ────────────────────────────────────────────────────
 
     @router.get("/workspaces/{name}/chunking-config")
-    async def get_chunking_config_endpoint(
-        name: str, request: Request
-    ) -> ChunkingConfigResponse:
+    async def get_chunking_config_endpoint(name: str, request: Request) -> ChunkingConfigResponse:
         """Retourne la chunking_config du workspace (cf. design M9 §5.2).
 
         Hydratée par défaut à la création du workspace (T6), donc présente dès
@@ -364,9 +376,7 @@ def build_admin_router() -> APIRouter:
         from rag.services.chunking_configs import get_chunking_config
 
         config_pool = _config_pool(request)
-        ws_row = await config_pool.fetchrow(
-            "SELECT id FROM workspaces WHERE name = $1", name
-        )
+        ws_row = await config_pool.fetchrow("SELECT id FROM workspaces WHERE name = $1", name)
         if ws_row is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -405,9 +415,7 @@ def build_admin_router() -> APIRouter:
         from rag.services.jobs import apply_chunking_change
 
         config_pool = _config_pool(request)
-        ws_row = await config_pool.fetchrow(
-            "SELECT id FROM workspaces WHERE name = $1", name
-        )
+        ws_row = await config_pool.fetchrow("SELECT id FROM workspaces WHERE name = $1", name)
         if ws_row is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
