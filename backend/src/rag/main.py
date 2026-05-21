@@ -18,6 +18,7 @@ from rag.api.errors import register_error_handlers
 from rag.api.health import build_health_router
 from rag.api.mcp import build_mcp_router
 from rag.api.workspace import build_workspace_router
+from rag.api.ws import router as ws_router
 from rag.auth.workspace_auth import ApiKeyCache
 from rag.config import Settings
 from rag.db.migrations import run_migrations
@@ -170,6 +171,7 @@ def build_app(
         # M4a : démarre le sync worker avec RealIndexer (remplace NoOpIndexer)
         # M4b : indexer aussi exposé sur app.state pour le router push synchrone
         from rag.indexer.real import RealIndexer
+        from rag.services.job_log_bus import JobLogBus
         from rag.sync.repo_storage import RepoStorage
         from rag.sync.worker import SyncWorker
 
@@ -181,6 +183,7 @@ def build_app(
         )
         app.state.indexer = indexer
         app.state.apikey_cache = ApiKeyCache()
+        app.state.job_log_bus = JobLogBus()
 
         sync_worker = SyncWorker(
             config_pool=registry.config_pool,
@@ -190,6 +193,7 @@ def build_app(
             client_provider=app.state.client_provider,
             poll_interval_seconds=settings.sync_worker_poll_interval_seconds,
             default_sync_interval_seconds=settings.sync_default_interval_seconds,
+            job_log_bus=app.state.job_log_bus,
         )
         await sync_worker.start()
         app.state.sync_worker = sync_worker
@@ -222,6 +226,7 @@ def build_app(
     app.include_router(build_auth_methods_router())
     app.include_router(build_workspace_router())
     app.include_router(build_mcp_router())
+    app.include_router(ws_router)
     register_error_handlers(app)
     return app
 

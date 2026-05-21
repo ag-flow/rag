@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, MoreHorizontal, ChevronRight, ChevronDown } from "lucide-react";
+import { Plus, MoreHorizontal, ChevronRight, ChevronDown, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import {
@@ -9,7 +9,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useWorkspaceSources } from "@/hooks/useWorkspaces";
+import { useWorkspaceSources, useTriggerSourceSync } from "@/hooks/useWorkspaces";
+import { useJobLogs } from "@/hooks/useJobLogs";
 import type { Source } from "@/lib/workspaces.types";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { AddSourceDialog } from "./AddSourceDialog";
@@ -134,6 +135,7 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
                       <span className="text-slate-400">{t("sources.fields.exclude")}</span>
                       <code className="font-mono">{source.config.exclude.join(", ") || "—"}</code>
                     </div>
+                    <SourceSyncPanel workspaceName={name} sourceId={source.id} />
                   </div>
                 )}
               </div>
@@ -151,5 +153,74 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
       />
       <DeleteSourceAlert name={name} sourceId={deleteId} onClose={() => setDeleteId(null)} />
     </>
+  );
+}
+
+// ─── Source sync panel ────────────────────────────────────────────────────────
+
+interface SyncPanelProps {
+  workspaceName: string;
+  sourceId: string;
+}
+
+function SourceSyncPanel({ workspaceName, sourceId }: SyncPanelProps) {
+  const { t } = useTranslation("workspace");
+  const trigger = useTriggerSourceSync(workspaceName);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const { lines, jobStatus } = useJobLogs(jobId);
+  const logEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [lines]);
+
+  const handleRun = () => {
+    setJobId(null);
+    trigger.mutate(sourceId, {
+      onSuccess: (job) => setJobId(job.id),
+    });
+  };
+
+  const isRunning = trigger.isPending || jobStatus === "running";
+
+  return (
+    <div className="pt-2 border-t border-slate-200 mt-1">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={handleRun}
+        disabled={isRunning}
+        className="h-7 text-xs"
+      >
+        <Play className="h-3 w-3 mr-1" />
+        {isRunning ? t("sources.sync.running") : t("sources.sync.run")}
+      </Button>
+
+      {jobId !== null && (
+        <div className="mt-2 rounded bg-slate-900 font-mono text-xs p-2 max-h-40 overflow-y-auto">
+          {lines.map((l, i) => (
+            <div
+              key={i}
+              className={
+                l.level === "error"
+                  ? "text-red-400"
+                  : l.level === "warning"
+                    ? "text-yellow-300"
+                    : "text-slate-300"
+              }
+            >
+              {l.msg}
+            </div>
+          ))}
+          {jobStatus === "done" && (
+            <div className="text-green-400 mt-1">✓ {t("sources.sync.done")}</div>
+          )}
+          {jobStatus === "error" && (
+            <div className="text-red-400 mt-1">✗ {t("sources.sync.error")}</div>
+          )}
+          <div ref={logEndRef} />
+        </div>
+      )}
+    </div>
   );
 }

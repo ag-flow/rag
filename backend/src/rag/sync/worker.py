@@ -8,6 +8,7 @@ import asyncpg
 import structlog
 
 from rag.indexer.protocol import IndexerProtocol
+from rag.services.job_log_bus import JobLogBus
 from rag.sync.executor import execute_next_pending_job
 from rag.sync.repo_storage import RepoStorage
 from rag.sync.scheduler import schedule_due_sources
@@ -51,6 +52,7 @@ class SyncWorker:
         client_provider: _ClientProviderProtocol,
         poll_interval_seconds: int,
         default_sync_interval_seconds: int,
+        job_log_bus: JobLogBus | None = None,
     ) -> None:
         self._config_pool = config_pool
         self._storage = storage
@@ -59,6 +61,7 @@ class SyncWorker:
         self._client_provider = client_provider
         self._poll_interval = poll_interval_seconds
         self._default_sync_interval = default_sync_interval_seconds
+        self._job_log_bus = job_log_bus
         self._task: asyncio.Task[None] | None = None
         self._stop_event = asyncio.Event()
 
@@ -100,6 +103,7 @@ class SyncWorker:
                     indexer=self._indexer,
                     resolver=self._resolver,
                     client_provider=self._client_provider,
+                    job_log_bus=self._job_log_bus,
                 )
             except Exception:
                 log.exception("sync.worker.cycle_error")

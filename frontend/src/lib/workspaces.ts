@@ -49,5 +49,8 @@ export const workspacesApi = {
       {},
     ),
 
+  triggerSourceSync: (name: string, sourceId: string) =>
+    api.post<Job>(`${BASE}/${name}/sources/${sourceId}/sync`, {}),
+
   listJobs: (name: string) => api.get<Job[]>(`${BASE}/${name}/jobs`),
 };

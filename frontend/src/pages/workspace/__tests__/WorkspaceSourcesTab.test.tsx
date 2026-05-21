@@ -27,6 +27,11 @@ vi.mock("@/hooks/useWorkspaces", () => ({
   useUpdateSource: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteSource: () => ({ mutate: vi.fn(), isPending: false }),
   useTestSourceConnection: () => ({ mutate: vi.fn(), isPending: false }),
+  useTriggerSourceSync: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
+vi.mock("@/hooks/useJobLogs", () => ({
+  useJobLogs: () => ({ lines: [], jobStatus: "idle" }),
 }));
 
 vi.mock("@/hooks/useHarpocrateVaults", () => ({

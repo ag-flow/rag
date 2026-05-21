@@ -10,6 +10,7 @@ from rag.api.errors import (
     ChunkingChangeRequiresReindex,
     IndexerChangeRequiresReindex,
     RefNotFoundInVault,
+    SourceNotFound,
     VaultUnreachable,
     WorkspaceNotFound,
 )
@@ -60,6 +61,38 @@ async def create_pending_job(
         raise WorkspaceNotFound(workspace_name)
 
     log.info("job.created_pending", workspace=workspace_name, triggered_by=triggered_by)
+    return _job_to_dict(row)
+
+
+async def create_source_pending_job(
+    *, workspace_name: str, source_id: str, config_pool: asyncpg.Pool
+) -> dict[str, Any]:
+    """Insère un job en status 'pending' pour une source spécifique.
+
+    Lève WorkspaceNotFound si le workspace n'existe pas.
+    Lève SourceNotFound si la source n'appartient pas au workspace.
+    """
+    row = await fetch_one(
+        config_pool,
+        """
+        INSERT INTO index_jobs (workspace_id, source_id, triggered_by, status)
+        SELECT w.id, $2::uuid, 'manual', 'pending'
+        FROM workspaces w
+        JOIN workspace_sources ws ON ws.id = $2::uuid AND ws.workspace_id = w.id
+        WHERE w.name = $1
+        RETURNING id, triggered_by, status, files_changed, files_skipped,
+                  error_message, started_at, finished_at, duration_ms
+        """,
+        workspace_name,
+        source_id,
+    )
+    if row is None:
+        ws = await fetch_one(config_pool, "SELECT id FROM workspaces WHERE name=$1", workspace_name)
+        if ws is None:
+            raise WorkspaceNotFound(workspace_name)
+        raise SourceNotFound(source_id)
+
+    log.info("job.created_pending_source", workspace=workspace_name, source_id=source_id)
     return _job_to_dict(row)
 
 

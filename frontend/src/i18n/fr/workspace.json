@@ -102,6 +102,12 @@
       "failure": "Échec :",
       "error": "Erreur lors du test."
     },
+    "sync": {
+      "run": "Lancer la synchronisation",
+      "running": "Synchronisation en cours…",
+      "done": "Synchronisation terminée.",
+      "error": "Synchronisation échouée."
+    },
     "delete": {
       "title": "Supprimer la source",
       "warning": "Cette action supprime la source. Les documents déjà indexés restent.",

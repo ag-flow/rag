@@ -13,6 +13,7 @@ from rag.indexer.protocol import IndexerProtocol
 from rag.schemas.sync import ChangeSet, JobToProcess
 from rag.secrets.refs import build_ref, is_vault_ref
 from rag.secrets.resolver import VaultLookupFailed
+from rag.services.job_log_bus import JobLogBus
 from rag.sync.git_ops import (
     GitCloneError,
     GitPullError,
@@ -180,6 +181,7 @@ async def execute_next_pending_job(
     indexer: IndexerProtocol,
     resolver: _ResolverProtocol,
     client_provider: _ClientProviderProtocol,
+    job_log_bus: JobLogBus | None = None,
 ) -> bool:
     """Picke 1 job pending + exécute le pipeline complet.
 
@@ -203,11 +205,16 @@ async def execute_next_pending_job(
             indexer=indexer,
             resolver=resolver,
             default_vault_name=default_vault_name,
+            job_log_bus=job_log_bus,
         )
     except Exception as e:
         msg = _format_error(e)
         log.exception("sync.executor.job_error", job_id=str(job.job_id))
         await _mark_job_error(config_pool, job_id=job.job_id, error_message=msg)
+        if job_log_bus is not None:
+            jid = str(job.job_id)
+            job_log_bus.publish(jid, "error", f"Erreur : {msg}")
+            job_log_bus.complete(jid, status="error")
     return True
 
 
@@ -219,13 +226,23 @@ async def _process_job(
     indexer: IndexerProtocol,
     resolver: _ResolverProtocol,
     default_vault_name: str | None,
+    job_log_bus: JobLogBus | None = None,
 ) -> None:
+    jid = str(job.job_id)
+    bus = job_log_bus
+
+    def _log(level: str, msg: str) -> None:
+        if bus is not None:
+            bus.publish(jid, level, msg)
+
     config = job.source_config
     url = config["url"]
     branch = config.get("branch", "main")
     include = config.get("include") or ["**/*"]
     exclude = config.get("exclude") or []
     last_commit = config.get("last_commit")
+
+    _log("info", f"Démarrage — source : {url} (branche {branch})")
 
     # 1. Résolution token (lazy). Si auth_ref présent mais pas de coffre
     # par défaut configuré, on échoue le job proprement.
@@ -237,11 +254,17 @@ async def _process_job(
         else None
     )
 
+    if token:
+        _log("info", "Auth : token résolu.")
+    else:
+        _log("info", "Auth : source publique.")
+
     # 2. Path local + clone ou pull
     storage.ensure_exists(workspace_id=job.workspace_id, source_id=job.source_id)
     dest = storage.path_for(workspace_id=job.workspace_id, source_id=job.source_id)
 
     if storage.has_git(workspace_id=job.workspace_id, source_id=job.source_id):
+        _log("info", "git pull…")
         await pull(dest=dest, branch=branch)
         was_fresh_clone = False
     else:
@@ -254,10 +277,12 @@ async def _process_job(
                 else:
                     child.unlink()
             dest.rmdir()
+        _log("info", f"git clone {url}…")
         await clone(url=url, branch=branch, token=token, dest=dest)
         was_fresh_clone = True
 
     current = await head_commit(dest)
+    _log("info", f"HEAD : {current[:12]}")
 
     # 3. Diff
     # Si pas de last_commit, ou clone frais, ou HEAD identique : on bascule
@@ -273,6 +298,12 @@ async def _process_job(
             to_commit=current,
         )
     changes = filter_glob(changes, include=include, exclude=exclude)
+
+    _log(
+        "info",
+        f"À traiter : {len(changes.added)} ajoutés, "
+        f"{len(changes.modified)} modifiés, {len(changes.deleted)} supprimés.",
+    )
 
     # 4. Traite les fichiers
     files_changed = 0
@@ -346,8 +377,11 @@ async def _process_job(
 
     log.info(
         "sync.executor.job_done",
-        job_id=str(job.job_id),
+        job_id=jid,
         workspace=job.workspace_name,
         files_changed=files_changed,
         files_skipped=files_skipped,
     )
+    _log("info", f"Terminé : {files_changed} fichiers mis à jour, {files_skipped} ignorés.")
+    if bus is not None:
+        bus.complete(jid, status="done", files_changed=files_changed, files_skipped=files_skipped)

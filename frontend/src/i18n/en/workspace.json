@@ -102,6 +102,12 @@
       "failure": "Failed:",
       "error": "Test error."
     },
+    "sync": {
+      "run": "Run sync",
+      "running": "Syncing…",
+      "done": "Sync complete.",
+      "error": "Sync failed."
+    },
     "delete": {
       "title": "Delete source",
       "warning": "This removes the source. Already indexed documents remain.",

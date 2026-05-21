@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { workspacesApi } from "@/lib/workspaces";
 import type {
   ApiKeyRotateResponse,
+  Job,
   Source,
   SourceCreateRequest,
   SourceUpdateRequest,
@@ -139,5 +140,15 @@ export function useDeleteSource(name: string) {
 export function useTestSourceConnection(name: string) {
   return useMutation<{ success: boolean; message: string | null }, Error, string>({
     mutationFn: (sourceId) => workspacesApi.testSourceConnection(name, sourceId),
+  });
+}
+
+export function useTriggerSourceSync(name: string) {
+  const qc = useQueryClient();
+  return useMutation<Job, Error, string>({
+    mutationFn: (sourceId) => workspacesApi.triggerSourceSync(name, sourceId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["workspace", name, "jobs"] });
+    },
   });
 }

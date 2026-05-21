@@ -244,6 +244,20 @@ def build_admin_router() -> APIRouter:
         )
         return SourceTestResult(**result)
 
+    @router.post(
+        "/workspaces/{name}/sources/{source_id}/sync",
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    async def post_source_sync(name: str, source_id: str, request: Request) -> JobResponse:
+        from rag.services.jobs import create_source_pending_job
+
+        row = await create_source_pending_job(
+            workspace_name=name,
+            source_id=source_id,
+            config_pool=_config_pool(request),
+        )
+        return JobResponse(**row)
+
     # ─── Reindex / Jobs ──────────────────────────────────────────────────────
 
     @router.post("/workspaces/{name}/reindex", status_code=status.HTTP_202_ACCEPTED)

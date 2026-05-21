@@ -7,6 +7,7 @@ import path from "path";
 // autre utilisateur. Si pas de backend local en :8000, le proxy Vite échoue
 // gracieusement (ECONNREFUSED) au lieu de polluer un autre env.
 const BACKEND = process.env.VITE_BACKEND_URL ?? "http://127.0.0.1:8000";
+const WS_BACKEND = BACKEND.replace(/^http/, "ws");
 
 export default defineConfig({
   base: "/ui/",
@@ -20,6 +21,7 @@ export default defineConfig({
       "/api":  { target: BACKEND, changeOrigin: true },
       "/auth": { target: BACKEND, changeOrigin: true },
       "/me":   { target: BACKEND, changeOrigin: true },
+      "/ws":   { target: WS_BACKEND, changeOrigin: true, ws: true },
     },
   },
   build: {
