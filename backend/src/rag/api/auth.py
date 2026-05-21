@@ -157,9 +157,10 @@ def build_auth_router() -> APIRouter:
         local_session = request.session.get(_LOCAL_SESSION_KEY)
         if local_session:
             expires_at = local_session.get("expires_at", 0)
-            if expires_at > int(time.time()):
+            username = local_session.get("username")
+            if expires_at > int(time.time()) and username:
                 return MeResponse(
-                    sub=local_session["username"],
+                    sub=username,
                     email=None,
                     name=None,
                     roles=["rag-admin"],
