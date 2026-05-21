@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -97,10 +98,19 @@ export function AddSourceDialog({ name, open, onOpenChange }: Props) {
             <Input {...form.register("branch")} />
           </div>
           <div>
-            <label className="text-xs font-medium text-slate-700">
-              {t("sources.fields.auth_ref")}{" "}
-              <span className="text-slate-400">({t("optional")})</span>
-            </label>
+            <div className="flex items-baseline justify-between">
+              <label className="text-xs font-medium text-slate-700">
+                {t("sources.fields.auth_ref")}{" "}
+                <span className="text-slate-400">({t("optional")})</span>
+              </label>
+              <Link
+                to="/settings/harpocrate-vaults"
+                className="text-xs text-blue-600 hover:underline"
+                onClick={() => onOpenChange(false)}
+              >
+                {t("sources.fields.auth_ref_manage")}
+              </Link>
+            </div>
             <Input {...form.register("auth_ref")} placeholder="github_token" />
           </div>
           <div>

@@ -65,6 +65,7 @@
       "url": "URL",
       "branch": "Branch",
       "auth_ref": "Auth reference",
+      "auth_ref_manage": "Manage in Harpocrate",
       "include": "Include",
       "exclude": "Exclude"
     },

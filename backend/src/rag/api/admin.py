@@ -178,6 +178,13 @@ def build_admin_router() -> APIRouter:
 
     # ─── Sources ─────────────────────────────────────────────────────────────
 
+    @router.get("/workspaces/{name}/sources")
+    async def list_sources_endpoint(name: str, request: Request) -> list[SourceResponse]:
+        from rag.services.sources import list_sources
+
+        rows = await list_sources(config_pool=_config_pool(request), workspace_name=name)
+        return [SourceResponse(**r) for r in rows]
+
     @router.post("/workspaces/{name}/sources", status_code=status.HTTP_201_CREATED)
     async def post_source(
         name: str, payload: SourceCreateRequest, request: Request
