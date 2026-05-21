@@ -8,6 +8,8 @@ from uuid import UUID
 import asyncpg
 from fastapi import HTTPException, Request, status
 
+from rag.api.errors import HarpocrateUnreachableForApikey, VaultUnreachable
+
 
 class ApiKeyCache:
     """Cache process-lifetime des api_keys MCP workspace résolues depuis Harpocrate.
@@ -59,53 +61,51 @@ async def require_workspace_apikey(
     name: str,
     request: Request,
 ) -> AuthContext:
-    """Dependency FastAPI : valide `Authorization: Bearer <WORKSPACE_API_KEY>`.
+    """Dep FastAPI : valide `Authorization: Bearer <api_key>` workspace.
 
-    Lookup O(1) par fingerprint SHA-256 puis comparaison timing-safe sur
-    la valeur déchiffrée (pgp_sym_decrypt).
-    NOTE(T6): cache non utilisé temporairement — lookup DB direct.
+    Lookup O(1) par fingerprint SHA-256 → résolution via cache process-lifetime
+    (puis Harpocrate sur miss) → comparaison timing-safe.
 
-    - 401 si bearer absent / mauvais scheme / clé invalide.
-    - 401 si workspace inexistant (401 uniforme — ne révèle pas l'existence).
-    - 503 si DEK absent en config.
-    - Sur succès : retourne `AuthContext(workspace_id, indexer_used)`.
+    - 401 si Bearer absent / scheme invalide / clé invalide / workspace inconnu.
+    - 503 `harpocrate_unreachable` si Harpocrate down sur cache miss.
     """
     api_key = _extract_bearer(request)
+    fingerprint = sha256(api_key.encode("utf-8")).hexdigest()
 
     pool: asyncpg.Pool = request.app.state.pools.config_pool
-    dek: str | None = request.app.state.settings.api_key_dek
-    if dek is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="api_key_dek_unavailable",
-        )
-
-    # NOTE(T6): require_workspace_apikey sera migré vers Harpocrate en T6.
-    # Temporairement, le cache n'est pas utilisé ici — lookup DB direct.
-    fingerprint = sha256(api_key.encode("utf-8")).hexdigest()
     row = await pool.fetchrow(
         """
         SELECT w.id,
-               pgp_sym_decrypt(w.api_key_encrypted, $2::text)::text AS stored,
+               w.api_key_ref,
                ic.provider || '/' || ic.model AS indexer_used
         FROM workspaces w
         JOIN indexer_configs ic ON ic.workspace_id = w.id
-        WHERE w.name = $1 AND w.api_key_fingerprint = $3
+        WHERE w.name = $1 AND w.api_key_fingerprint = $2
         """,
         name,
-        dek,
         fingerprint,
     )
     if row is None:
-        # Soit le workspace n'existe pas, soit la clé ne correspond pas —
-        # 401 dans les deux cas pour ne pas révéler l'existence du workspace.
+        # Workspace inconnu OU bearer ne match aucun fingerprint : 401 uniform.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid_workspace_apikey",
         )
 
-    # Vérification timing-safe contre collision SHA-256 théorique.
-    if not compare_digest(api_key, row["stored"]):
+    cache: ApiKeyCache = request.app.state.apikey_cache
+    api_key_ref: str = row["api_key_ref"]
+    cached = cache.get(api_key_ref)
+    if cached is None:
+        resolver = request.app.state.resolver
+        try:
+            cached = await resolver.resolve_with_retry(api_key_ref)
+        except VaultUnreachable as e:
+            raise HarpocrateUnreachableForApikey() from e
+        cache.put(api_key_ref, cached)
+
+    if not compare_digest(cached, api_key):
+        # Très rare : fingerprint matché mais clair non. Possible après
+        # rotation Harpocrate hors-bande sans mise à jour fingerprint DB.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid_workspace_apikey",
