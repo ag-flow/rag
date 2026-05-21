@@ -107,7 +107,7 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
                 <FormItem>
                   <FormLabel>{t("form.name")}</FormLabel>
                   <FormControl>
-                    <Input placeholder="harpocrate" {...field} />
+                    <Input placeholder="workspace1" {...field} />
                   </FormControl>
                   <FormDescription>{t("form.name_help")}</FormDescription>
                   <FormMessage />
