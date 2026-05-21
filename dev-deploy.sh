@@ -193,6 +193,31 @@ sync_new_vars_from_example() {
   fi
 }
 
+# ─── HARPOCRATE_DEK (init si absent) ─────────────────────────
+# Passphrase pgcrypto qui chiffre les api_keys des coffres Harpocrate en DB.
+# Obligatoire dès qu'un coffre est créé (sinon 500 sur POST /admin/harpocrate-vaults).
+ensure_harpocrate_dek() {
+  local env_file="$1"
+  local current
+  current=$(grep -E '^HARPOCRATE_DEK=' "$env_file" 2>/dev/null \
+            | head -1 | cut -d= -f2- || true)
+  if [[ -n "$current" ]]; then
+    echo "  ✓ HARPOCRATE_DEK déjà défini"
+    return 0
+  fi
+
+  local dek
+  dek="$(gen_urlsafe 48)"
+
+  if grep -qE '^HARPOCRATE_DEK=' "$env_file"; then
+    sed -i "s|^HARPOCRATE_DEK=.*|HARPOCRATE_DEK=${dek}|" "$env_file"
+  else
+    echo "HARPOCRATE_DEK=${dek}" >> "$env_file"
+  fi
+
+  echo "  ✓ HARPOCRATE_DEK généré (48 chars)"
+}
+
 # ─── Bootstrap admin local (init si absent) ─────────────────
 ensure_bootstrap_admin_hash() {
   local env_file="$1"
@@ -293,6 +318,7 @@ fi
 
 # Hash bcrypt du compte admin bootstrap — généré une seule fois si absent.
 if [ -f ".env" ]; then
+  ensure_harpocrate_dek ".env"
   ensure_bootstrap_admin_hash ".env"
 fi
 
