@@ -24,9 +24,13 @@ export function Header() {
   function handleLogout() {
     const isLocal = user.sub === "admin" && user.email === null;
     if (isLocal) {
-      void fetch("/auth/local/logout", { method: "POST" }).finally(() => {
-        window.location.href = "/ui/login";
-      });
+      fetch("/auth/local/logout", { method: "POST" })
+        .catch(() => {
+          // Session non joignable côté serveur — on procède quand même au redirect.
+        })
+        .finally(() => {
+          window.location.href = "/ui/login";
+        });
       return;
     }
     // OIDC : POST /auth/logout (cookie envoyé), backend redirige vers Keycloak logout.

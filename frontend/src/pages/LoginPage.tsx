@@ -18,7 +18,11 @@ type FormValues = z.infer<typeof schema>;
 function getNextFromSearch(): string {
   const params = new URLSearchParams(window.location.search);
   const next = params.get("next");
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/workspaces";
+  // Anti open-redirect : doit commencer par `/`, ne pas commencer par `//` ni `\` (backslash).
+  if (next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("\\")) {
+    return next;
+  }
+  return "/workspaces";
 }
 
 export function LoginPage() {
@@ -46,7 +50,7 @@ export function LoginPage() {
     } else if (resp.status === 503) {
       setError(t("errors.bootstrap_disabled"));
     } else {
-      setError(`Erreur ${resp.status}`);
+      setError(t("errors.generic", { status: resp.status }));
     }
   };
 
@@ -77,7 +81,7 @@ export function LoginPage() {
 
         {showOidc && (
           <Button type="button" onClick={handleSsoClick} className="w-full mb-4">
-            → {t("oidc.button")}
+            {t("oidc.button")}
           </Button>
         )}
 

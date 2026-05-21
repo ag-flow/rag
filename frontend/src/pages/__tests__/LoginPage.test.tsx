@@ -32,6 +32,7 @@ beforeAll(async () => {
 
 type LocationLike = { href: string; pathname: string; search: string };
 let locationStub: LocationLike;
+const _origLocation = window.location;
 
 beforeEach(() => {
   locationStub = { href: "", pathname: "/ui/login", search: "" };
@@ -44,6 +45,11 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    writable: true,
+    value: _origLocation,
+  });
 });
 
 function mockMethods(methods: AuthMethods | undefined, isLoading = false) {
