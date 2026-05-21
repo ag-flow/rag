@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslation } from "react-i18next";
@@ -64,6 +65,13 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
       },
     },
   });
+
+  useEffect(() => {
+    const first = vaults[0];
+    if (first && !form.getValues("api_key_vault")) {
+      form.setValue("api_key_vault", first.name);
+    }
+  }, [vaults, form]);
 
   const provider = form.watch("indexer.provider");
   const models = MODELS_BY_PROVIDER[provider] ?? [];
