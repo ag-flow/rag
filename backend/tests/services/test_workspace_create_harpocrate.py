@@ -8,6 +8,7 @@ import pytest
 
 from rag.api.errors import (
     HarpocrateWriteFailed,
+    RefNotFoundInVault,
     VaultNotFoundForWorkspace,
     WorkspaceAlreadyExists,
 )
@@ -235,3 +236,73 @@ async def test_create_workspace_db_failure_triggers_harpocrate_delete_secret() -
     call_kwargs = harpo.delete_secret.call_args.kwargs
     assert call_kwargs["vault_name"] == "rag"
     assert call_kwargs["path"] == "wsapi_existing-ws"
+
+
+# ---------------------------------------------------------------------------
+# Test 5 — SecretNotFound du SDK remonte en RefNotFoundInVault (422, pas 500)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_workspace_secret_not_found_raises_ref_not_found_in_vault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Si api_key_ref pointe vers un secret inexistant dans Harpocrate,
+    SecretNotFound (SDK) doit être converti en RefNotFoundInVault (422).
+
+    Régression : avant le fix, SecretNotFound n'était pas catché dans le
+    resolver et remontait en 500 brut.
+    """
+    import sys
+    import types
+
+    # Simule harpocrate.exceptions.SecretNotFound sans dépendre du SDK.
+    class _FakeSecretNotFound(Exception):
+        pass
+
+    fake_exc_module = types.ModuleType("harpocrate.exceptions")
+    fake_exc_module.SecretNotFound = _FakeSecretNotFound  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "harpocrate.exceptions", fake_exc_module)
+
+    harpo = _make_harpo_service(vault_exists=True)
+    pool = _make_stub_pool()
+
+    # Le resolver lève _FakeSecretNotFound (simule le SDK quand le secret manque).
+    from rag.secrets.resolver import SecretResolver
+
+    class _FakeVaultClient:
+        def get_secret(self, path: str) -> str:
+            raise _FakeSecretNotFound(f"secret missing: {path}")
+
+    resolver = SecretResolver(
+        harpocrate_clients={"rag": _FakeVaultClient()},
+        cache_ttl=0,
+    )
+
+    request = WorkspaceCreateRequest(
+        name="ws-missing-ref",
+        api_key_vault="rag",
+        indexer=IndexerSpec(
+            provider="openai",
+            model="text-embedding-3-small",
+            api_key_ref="openai_embedding_key",
+            base_url=None,
+        ),
+    )
+
+    with (
+        patch("rag.services.workspaces.get_dimension_or_raise", new=AsyncMock(return_value=1536)),
+        pytest.raises(RefNotFoundInVault) as exc_info,
+    ):
+        await create_workspace(
+            request=request,
+            config_pool=pool,
+            admin_dsn="postgresql://stub",
+            resolver=resolver,
+            harpocrate_vaults_service=harpo,
+        )
+
+    # L'exception porte le nom de la clé logique
+    assert "openai_embedding_key" in str(exc_info.value)
+    # Le secret n'a pas été écrit puisque la validation a échoué avant
+    harpo.write_secret.assert_not_called()

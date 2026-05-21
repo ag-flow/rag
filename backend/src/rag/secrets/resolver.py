@@ -175,6 +175,17 @@ class SecretResolver:
             value = client.get_secret(path)
         except PermissionError as e:
             raise VaultLookupFailed(f"401 on {raw_ref!r}") from e
+        except Exception as e:
+            # SecretNotFound (SDK) et toute erreur de lookup non-auth → VaultLookupFailed.
+            # L'import est différé : le SDK peut être absent en test-time.
+            try:
+                from harpocrate.exceptions import SecretNotFound  # type: ignore[import-not-found]
+
+                if isinstance(e, SecretNotFound):
+                    raise VaultLookupFailed(f"Secret not found in vault: {raw_ref!r}") from e
+            except ImportError:
+                pass
+            raise
 
         if self._cache_ttl > 0:
             self._cache[raw_ref] = _CacheEntry(value=value, expires_at=now + self._cache_ttl)

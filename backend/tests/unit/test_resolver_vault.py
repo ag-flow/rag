@@ -18,6 +18,17 @@ class FakeVaultClient:
         return self._secrets[path]
 
 
+class FakeSecretNotFound(Exception):
+    """Simule harpocrate.exceptions.SecretNotFound sans dépendre du SDK."""
+
+
+class FakeVaultClientRaisesSecretNotFound:
+    """Client vault dont get_secret lève FakeSecretNotFound (simule le SDK)."""
+
+    def get_secret(self, path: str) -> str:
+        raise FakeSecretNotFound(f"secret missing: {path}")
+
+
 async def test_resolver_uses_correct_vault_client() -> None:
     api1 = FakeVaultClient({"shared/openai": "sk-real-from-api1"})
     api2 = FakeVaultClient({"shared/openai": "sk-real-from-api2"})
@@ -42,3 +53,33 @@ def test_harpocrate_client_implements_protocol() -> None:
     assert hasattr(HarpocrateVaultClient, "get_secret")
     client_type: type[VaultClient] = HarpocrateVaultClient  # type assignable au Protocol
     assert client_type is HarpocrateVaultClient
+
+
+# ---------------------------------------------------------------------------
+# SecretNotFound (SDK) → VaultLookupFailed dans le resolver
+# ---------------------------------------------------------------------------
+
+
+async def test_resolver_secret_not_found_sdk_converted_to_vault_lookup_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SecretNotFound levé par le SDK doit être converti en VaultLookupFailed.
+
+    Le resolver est la couche d'anti-corruption responsable de ce mapping : les
+    couches au-dessus (workspaces, sources, jobs) ne voient jamais SecretNotFound.
+    On simule le SDK via monkeypatch : harpocrate.exceptions.SecretNotFound est
+    remplacé par FakeSecretNotFound, et le client vault lève cette exception.
+    """
+    import sys
+    import types
+
+    # Crée un module fictif harpocrate.exceptions exposant SecretNotFound.
+    fake_module = types.ModuleType("harpocrate.exceptions")
+    fake_module.SecretNotFound = FakeSecretNotFound  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "harpocrate.exceptions", fake_module)
+
+    client = FakeVaultClientRaisesSecretNotFound()
+    r = SecretResolver(harpocrate_clients={"myvault": client}, cache_ttl=0)
+
+    with pytest.raises(VaultLookupFailed, match="Secret not found in vault"):
+        await r.resolve("${vault://myvault:my/secret/path}")

@@ -210,10 +210,11 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
                   name="indexer.api_key_ref"
                   render={({ field }) => (
                     <FormItem className="mt-3">
-                      <FormLabel>{t("form.api_key_ref")}</FormLabel>
+                      <FormLabel>{t("form.api_key_ref_label")}</FormLabel>
                       <FormControl>
                         <Input placeholder="openai_embedding_key" {...field} />
                       </FormControl>
+                      <FormDescription>{t("form.api_key_ref_help")}</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -235,6 +236,7 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
                       <FormControl>
                         <Input placeholder="http://192.168.10.80:11434" {...field} />
                       </FormControl>
+                      <FormDescription>{t("form.base_url_help")}</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -66,7 +66,7 @@ describe("WorkspaceCreateDialog", () => {
     );
 
     // Name input — FormLabel htmlFor wired via FormItem id
-    expect(screen.getByPlaceholderText("harpocrate")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("workspace1")).toBeInTheDocument();
     // Provider, model and vault selects rendered as combobox buttons
     const comboboxes = screen.getAllByRole("combobox");
     expect(comboboxes.length).toBeGreaterThanOrEqual(3);
@@ -112,7 +112,7 @@ describe("WorkspaceCreateDialog", () => {
       </Wrapper>,
     );
 
-    await user.type(screen.getByPlaceholderText("harpocrate"), "test_ws");
+    await user.type(screen.getByPlaceholderText("workspace1"), "test_ws");
     await user.type(screen.getByPlaceholderText("openai_embedding_key"), "openai_key");
 
     // Sélectionner le coffre via le native select (Radix Select)
@@ -150,7 +150,7 @@ describe("WorkspaceCreateDialog", () => {
     const vaultSelect = nativeSelects[0];
     fireEvent.change(vaultSelect!, { target: { value: "vault-main" } });
 
-    await user.type(screen.getByPlaceholderText("harpocrate"), "BadName");
+    await user.type(screen.getByPlaceholderText("workspace1"), "BadName");
     await user.type(screen.getByPlaceholderText("openai_embedding_key"), "key");
     await user.click(screen.getByRole("button", { name: /créer/i }));
 
