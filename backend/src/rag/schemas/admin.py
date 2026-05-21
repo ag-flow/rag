@@ -30,6 +30,12 @@ class WorkspaceCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(pattern=_NAME_REGEX, max_length=63)
+    api_key_vault: str = Field(
+        ...,
+        min_length=1,
+        max_length=255,
+        description="Nom du coffre Harpocrate où sera stockée l'api_key MCP de ce workspace",
+    )
     indexer: IndexerSpec
 
 

@@ -354,6 +354,54 @@ class LocalSessionExpired(AdminError):
         return {"error": "local_session_expired", "message": "Session locale expirée"}
 
 
+class VaultNotFoundForWorkspace(AdminError):
+    """Le coffre Harpocrate demandé pour stocker l'api_key MCP n'existe pas."""
+
+    http_status = 400
+
+    def __init__(self, vault_name: str) -> None:
+        self._vault_name = vault_name
+        super().__init__()
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "error": "vault_not_found",
+            "message": (
+                f"Le coffre Harpocrate '{self._vault_name}' n'existe pas. "
+                "Créer le coffre via /ui/settings/harpocrate-vaults avant "
+                "de créer un workspace."
+            ),
+        }
+
+
+class HarpocrateWriteFailed(AdminError):
+    """Échec d'écriture du secret côté Harpocrate."""
+
+    http_status = 502
+
+    def __init__(self, reason: str) -> None:
+        self._reason = reason
+        super().__init__()
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "error": "harpocrate_write_failed",
+            "message": f"Échec écriture du secret côté Harpocrate : {self._reason}",
+        }
+
+
+class HarpocrateUnreachableForApikey(AdminError):
+    """Harpocrate inaccessible lors de la résolution d'une api_key workspace."""
+
+    http_status = 503
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "error": "harpocrate_unreachable",
+            "message": "Harpocrate inaccessible pour résoudre l'api_key workspace.",
+        }
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """Enregistre les handlers d'exceptions JSON globaux."""
 
