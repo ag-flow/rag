@@ -36,7 +36,6 @@ def make_app_client(
     os.environ.pop("HARPOCRATE_API_TOKEN_RAG", None)
     os.environ.pop("HARPOCRATE_API_URL_RAG", None)
     os.environ.setdefault("HARPOCRATE_DEK", "passphrase-of-at-least-32-characters-long")
-    os.environ.setdefault("RAG_API_KEY_DEK", "test-api-key-dek-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
     os.environ.setdefault("ENVIRONMENT", "dev")
     os.environ["RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH"] = password_hash
     os.environ["RAG_BOOTSTRAP_ADMIN_USERNAME"] = username
