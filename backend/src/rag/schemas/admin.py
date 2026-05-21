@@ -101,7 +101,10 @@ class SourceCreateRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    name: str = Field(min_length=1, pattern=r"^[a-z0-9_-]+$")
     type: Literal["git"]
+    api_key_vault: str = Field(min_length=1)
+    auth_value: str | None = None
     config: dict[str, Any]
 
     @field_validator("config")
@@ -117,6 +120,7 @@ class SourceUpdateRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    auth_value: str | None = None
     config: dict[str, Any]
 
     @field_validator("config")
@@ -129,6 +133,7 @@ class SourceUpdateRequest(BaseModel):
 
 class SourceResponse(BaseModel):
     id: UUID
+    name: str | None
     type: str
     config: dict[str, Any]
     last_indexed_at: str | None

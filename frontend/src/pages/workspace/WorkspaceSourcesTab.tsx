@@ -66,15 +66,20 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
                   onClick={() => toggle(source.id)}
                   className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-50"
                 >
-                  <div className="flex items-center gap-2 text-sm">
+                  <div className="flex items-center gap-2 text-sm min-w-0">
                     {isOpen ? (
-                      <ChevronDown className="h-3.5 w-3.5" />
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0" />
                     ) : (
-                      <ChevronRight className="h-3.5 w-3.5" />
+                      <ChevronRight className="h-3.5 w-3.5 shrink-0" />
                     )}
-                    <code className="font-mono text-xs">{source.config.url}</code>
-                    <span className="text-slate-500">· {source.config.branch}</span>
-                    <span className="text-slate-400">
+                    {source.name && (
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-slate-700 shrink-0">
+                        {source.name}
+                      </span>
+                    )}
+                    <code className="font-mono text-xs truncate">{source.config.url}</code>
+                    <span className="text-slate-500 shrink-0">· {source.config.branch}</span>
+                    <span className="text-slate-400 shrink-0">
                       ·{" "}
                       {source.last_indexed_at
                         ? formatRelativeTime(source.last_indexed_at, t)
@@ -107,16 +112,27 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
                 </button>
                 {isOpen && (
                   <div className="border-t border-slate-100 px-3 py-2 text-xs text-slate-600 space-y-1 bg-slate-50">
-                    <div>
-                      {t("sources.fields.auth_ref")}: <code>{source.config.auth_ref ?? "—"}</code>
-                    </div>
-                    <div>
-                      {t("sources.fields.include")}:{" "}
-                      <code>{source.config.include.join(", ") || "—"}</code>
-                    </div>
-                    <div>
-                      {t("sources.fields.exclude")}:{" "}
-                      <code>{source.config.exclude.join(", ") || "—"}</code>
+                    <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                      {source.name && (
+                        <>
+                          <span className="text-slate-400">{t("sources.fields.source_name")}</span>
+                          <code className="font-mono">{source.name}</code>
+                        </>
+                      )}
+                      <span className="text-slate-400">{t("sources.fields.url")}</span>
+                      <code className="font-mono break-all">{source.config.url}</code>
+                      <span className="text-slate-400">{t("sources.fields.branch")}</span>
+                      <code className="font-mono">{source.config.branch}</code>
+                      <span className="text-slate-400">{t("sources.fields.auth_value")}</span>
+                      <span>
+                        {source.config.auth_ref
+                          ? t("sources.fields.auth_status_set")
+                          : t("sources.fields.auth_status_none")}
+                      </span>
+                      <span className="text-slate-400">{t("sources.fields.include")}</span>
+                      <code className="font-mono">{source.config.include.join(", ") || "—"}</code>
+                      <span className="text-slate-400">{t("sources.fields.exclude")}</span>
+                      <code className="font-mono">{source.config.exclude.join(", ") || "—"}</code>
                     </div>
                   </div>
                 )}

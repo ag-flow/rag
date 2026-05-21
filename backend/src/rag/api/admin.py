@@ -192,13 +192,11 @@ def build_admin_router() -> APIRouter:
     ) -> SourceResponse:
         from rag.services.sources import add_source  # import retardé : évite cycle au boot
 
-        default_vault = await _resolve_default_vault_or_503(request)
         row = await add_source(
             workspace_name=name,
             request=payload,
             config_pool=_config_pool(request),
-            resolver=_resolver(request),  # type: ignore[arg-type]
-            default_vault_name=default_vault,
+            harpocrate_vaults_service=request.app.state.harpocrate_vaults_service,
         )
         return SourceResponse(**row)
 
@@ -208,14 +206,12 @@ def build_admin_router() -> APIRouter:
     ) -> SourceResponse:
         from rag.services.sources import update_source
 
-        default_vault = await _resolve_default_vault_or_503(request)
         row = await update_source(
             workspace_name=name,
             source_id=source_id,
             request=payload,
             config_pool=_config_pool(request),
-            resolver=_resolver(request),  # type: ignore[arg-type]
-            default_vault_name=default_vault,
+            harpocrate_vaults_service=request.app.state.harpocrate_vaults_service,
         )
         return SourceResponse(**row)
 

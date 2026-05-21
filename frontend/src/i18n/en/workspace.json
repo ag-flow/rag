@@ -63,10 +63,18 @@
     "editAction": "Edit",
     "deleteAction": "Delete",
     "fields": {
+      "source_name": "Source name",
+      "source_name_placeholder": "e.g. my-repo",
+      "source_name_hint": "Unique identifier, lowercase, digits, hyphens",
+      "vault": "Harpocrate vault",
+      "vault_placeholder": "Select a vault…",
       "url": "URL",
       "branch": "Branch",
-      "auth_ref": "Auth reference",
-      "auth_ref_manage": "Manage in Harpocrate",
+      "auth_value": "GitHub token (PAT)",
+      "auth_value_placeholder": "github_pat_…",
+      "auth_value_link": "Generate GitHub token",
+      "auth_status_set": "authentication configured",
+      "auth_status_none": "no authentication",
       "include": "Include",
       "exclude": "Exclude"
     },
@@ -76,7 +84,9 @@
       "success": "Source added.",
       "error": "Failed to add source.",
       "errors": {
-        "invalid_url": "Invalid URL."
+        "invalid_url": "Invalid URL.",
+        "invalid_slug": "Invalid identifier (lowercase, digits, hyphens only).",
+        "required": "Required field."
       }
     },
     "edit": {

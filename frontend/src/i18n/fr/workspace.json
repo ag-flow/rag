@@ -63,10 +63,18 @@
     "editAction": "Modifier",
     "deleteAction": "Supprimer",
     "fields": {
+      "source_name": "Nom de la source",
+      "source_name_placeholder": "ex. mon-repo",
+      "source_name_hint": "Identifiant unique, minuscules, chiffres, tirets",
+      "vault": "Coffre Harpocrate",
+      "vault_placeholder": "Sélectionner un coffre…",
       "url": "URL",
       "branch": "Branche",
-      "auth_ref": "Référence d'authentification",
-      "auth_ref_manage": "Gérer dans Harpocrate",
+      "auth_value": "Token GitHub (PAT)",
+      "auth_value_placeholder": "github_pat_…",
+      "auth_value_link": "Générer un token GitHub",
+      "auth_status_set": "authentification configurée",
+      "auth_status_none": "aucune authentification",
       "include": "Inclure",
       "exclude": "Exclure"
     },
@@ -76,7 +84,9 @@
       "success": "Source ajoutée.",
       "error": "Échec de l'ajout.",
       "errors": {
-        "invalid_url": "URL invalide."
+        "invalid_url": "URL invalide.",
+        "invalid_slug": "Identifiant invalide (minuscules, chiffres, tirets uniquement).",
+        "required": "Champ requis."
       }
     },
     "edit": {

@@ -8,6 +8,7 @@ vi.mock("@/hooks/useWorkspaces", () => ({
     data: [
       {
         id: "src-1",
+        name: "mon-repo",
         type: "git",
         config: {
           url: "https://github.com/org/repo",
@@ -27,6 +28,10 @@ vi.mock("@/hooks/useWorkspaces", () => ({
   useDeleteSource: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
+vi.mock("@/hooks/useHarpocrateVaults", () => ({
+  useVaults: () => ({ data: [] }),
+}));
+
 vi.mock("@/hooks/useToast", () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
@@ -35,6 +40,11 @@ describe("WorkspaceSourcesTab", () => {
   it("affiche la liste des sources", () => {
     renderWithProviders(<WorkspaceSourcesTab name="my-workspace" enabled={true} />);
     expect(screen.getByText("https://github.com/org/repo")).toBeInTheDocument();
+  });
+
+  it("affiche le nom de la source dans le header", () => {
+    renderWithProviders(<WorkspaceSourcesTab name="my-workspace" enabled={true} />);
+    expect(screen.getByText("mon-repo")).toBeInTheDocument();
   });
 
   it("affiche le titre avec le count", () => {
@@ -48,8 +58,7 @@ describe("WorkspaceSourcesTab", () => {
     const row = urlEl.closest("button");
     expect(row).not.toBeNull();
     fireEvent.click(row!);
-    // Après expand, les champs détail apparaissent
-    expect(screen.getByText(/Référence d'authentification/i)).toBeInTheDocument();
+    expect(screen.getByText(/aucune authentification/i)).toBeInTheDocument();
   });
 
   it("affiche le bouton Ajouter une source", () => {

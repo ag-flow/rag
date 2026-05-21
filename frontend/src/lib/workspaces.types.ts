@@ -50,19 +50,31 @@ export type SourceConfig = {
 
 export type Source = {
   id: string;
+  name: string | null;
   type: "git";
   config: SourceConfig;
   last_indexed_at: string | null;
   created_at: string;
 };
 
+type SourceConfigInput = {
+  url: string;
+  branch: string;
+  include: string[];
+  exclude: string[];
+};
+
 export type SourceCreateRequest = {
+  name: string;
   type: "git";
-  config: SourceConfig;
+  api_key_vault: string;
+  auth_value: string | null;
+  config: SourceConfigInput;
 };
 
 export type SourceUpdateRequest = {
-  config: SourceConfig;
+  auth_value: string | null;
+  config: SourceConfigInput;
 };
 
 export type Job = {
