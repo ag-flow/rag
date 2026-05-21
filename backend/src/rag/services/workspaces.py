@@ -23,7 +23,7 @@ from rag.db.workspace_schema import (
     drop_workspace_database,
 )
 from rag.schemas.admin import WorkspaceCreateRequest, WorkspacePatchRequest
-from rag.secrets.refs import build_ref
+from rag.secrets.refs import build_ref, parse_ref
 from rag.secrets.resolver import VaultLookupFailed
 from rag.services.apikey import generate_api_key
 from rag.services.harpocrate_vaults import HarpocrateVaultsService
@@ -304,55 +304,54 @@ async def rotate_apikey(
     *,
     name: str,
     config_pool: asyncpg.Pool,
-    api_key_dek: str,
-    apikey_cache: ApiKeyCache | None = None,
-    max_attempts: int = 3,
-) -> str:
-    """Régénère une api_key pour le workspace, retourne la nouvelle en clair.
+    harpocrate_vaults_service: HarpocrateVaultsService,
+    apikey_cache: ApiKeyCache,
+) -> dict[str, str]:
+    """Rotation api_key MCP d'un workspace.
 
-    Boucle bornée à max_attempts pour gérer la collision théorique du
-    fingerprint (proba ~2⁻¹²⁸ par paire). Lève RuntimeError au-delà.
-    Lève WorkspaceNotFound si le workspace n'existe pas.
-
-    Invalide instantanément l'ancienne clé (UPDATE atomique chiffré) et,
-    si un cache est fourni, supprime toute entrée en cache pour ce workspace
-    afin que les requêtes suivantes refassent la vérification.
+    Étapes :
+      1. Lit le `api_key_ref` actuel du workspace.
+      2. Parse la ref pour obtenir (vault_name, path).
+      3. Génère nouvelle api_key + fingerprint.
+      4. Écrit la nouvelle valeur dans Harpocrate (upsert).
+      5. UPDATE fingerprint en DB.
+      6. Invalide le cache mémoire pour ce ref.
+      7. Retourne la nouvelle api_key en clair (one-shot).
     """
-    row = await fetch_one(config_pool, "SELECT id FROM workspaces WHERE name=$1", name)
+    row = await config_pool.fetchrow(
+        "SELECT api_key_ref FROM workspaces WHERE name = $1",
+        name,
+    )
     if row is None:
         raise WorkspaceNotFound(name)
 
-    last_err: asyncpg.UniqueViolationError | None = None
-    for _ in range(max_attempts):
-        new_key = generate_api_key()
-        fingerprint = sha256(new_key.encode("utf-8")).hexdigest()
-        try:
-            async with config_pool.acquire() as conn:
-                await conn.execute(
-                    "UPDATE workspaces SET "
-                    "api_key_encrypted = pgp_sym_encrypt($1::text, $2::text)::bytea, "
-                    "api_key_fingerprint = $3, "
-                    "updated_at = now() "
-                    "WHERE id = $4",
-                    new_key,
-                    api_key_dek,
-                    fingerprint,
-                    row["id"],
-                )
-            break
-        except asyncpg.UniqueViolationError as e:
-            last_err = e
-            continue
-    else:
-        raise RuntimeError(f"fingerprint collision after {max_attempts} attempts") from last_err
+    api_key_ref: str = row["api_key_ref"]
+    vault_name, path = parse_ref(api_key_ref)
 
-    if apikey_cache is not None:
-        # FIXME(T5) : invalidate attend la ref vault "${vault://...}", pas le name.
-        # Refactoré en T5.
-        apikey_cache.invalidate(name)
+    new_api_key = generate_api_key()
+    new_fingerprint = sha256(new_api_key.encode("utf-8")).hexdigest()
+
+    # 4. Écrit AVANT update DB. write_secret demande une Connection.
+    async with config_pool.acquire() as conn:
+        await harpocrate_vaults_service.write_secret(
+            conn,
+            vault_name=vault_name,
+            path=path,
+            value=new_api_key,
+        )
+
+    # 5. Update fingerprint en DB
+    await config_pool.execute(
+        "UPDATE workspaces SET api_key_fingerprint = $1 WHERE name = $2",
+        new_fingerprint,
+        name,
+    )
+
+    # 6. Invalide le cache (référence complète)
+    apikey_cache.invalidate(api_key_ref)
 
     log.info("workspace.apikey_rotated", name=name)
-    return new_key
+    return {"api_key": new_api_key}
 
 
 def _to_workspace_dict(row: asyncpg.Record) -> dict[str, object]:
