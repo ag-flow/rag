@@ -24,7 +24,10 @@
     "api_key_ref_help_present": "Clé présente dans Harpocrate",
     "api_key_ref_help_missing": "Clé absente du vault",
     "base_url": "Base URL",
-    "base_url_optional": "(optionnel — Ollama uniquement)"
+    "base_url_optional": "(optionnel — Ollama uniquement)",
+    "api_key_vault": "Coffre Harpocrate",
+    "api_key_vault_help": "Coffre où sera stockée l'api_key MCP du workspace",
+    "api_key_vault_none": "Aucun coffre configuré. Créer d'abord un coffre via Paramètres → Harpocrate."
   },
   "actions": {
     "rotate_apikey": "Régénérer l'api_key",

@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 import structlog
 from asyncpg import Connection, UniqueViolationError
+from harpocrate.exceptions import VaultHttpError  # type: ignore[import-not-found]
 
 from rag.config import Settings
 from rag.schemas.harpocrate_vaults import (
@@ -397,8 +398,21 @@ class HarpocrateVaultsService:
 
         client = HarpocrateVaultClient(url=vault.base_url, token=api_key)
         wallet_id_str = client.health_check()
-        wallet = client.info()
         tok = client.token_info()
+
+        wallet = None
+        try:
+            wallet = client.info()
+        except VaultHttpError as e:
+            if e.status_code == 401:
+                log.warning(
+                    "vault.info.api_key_not_allowed",
+                    vault_id=str(vault_id),
+                    url=vault.base_url,
+                    status_code=e.status_code,
+                )
+            else:
+                raise
 
         log.info(
             "vault.info_fetched",
@@ -408,7 +422,7 @@ class HarpocrateVaultsService:
 
         return WalletInfoResponse(
             wallet_id=UUID(wallet_id_str),
-            wallet_name=getattr(wallet, "name", None),
+            wallet_name=getattr(wallet, "name", None) if wallet is not None else None,
             api_key_id=str(tok.api_key_id),
             permissions=tok.permission_names,
             api_key_expires_at=tok.expires_at_dt,

@@ -7,6 +7,7 @@ export const workspaceCreateSchema = z
       .min(1, "name_required")
       .max(64, "name_too_long")
       .regex(/^[a-z][a-z0-9_-]{0,62}$/, "name_invalid_format"),
+    api_key_vault: z.string().min(1).max(255),
     indexer: z.object({
       provider: z.enum(["openai", "voyage", "ollama"]),
       model: z.string().min(1, "model_required"),

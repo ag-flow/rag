@@ -7,6 +7,27 @@ import i18n from "@/lib/i18n";
 import { CreateWorkspaceDialog as WorkspaceCreateDialog } from "@/pages/workspace/CreateWorkspaceDialog";
 import * as apiModule from "@/lib/api";
 
+// Mock useVaults : fournit un coffre disponible pour que le Select s'affiche
+// et que le bouton Créer ne soit pas désactivé.
+vi.mock("@/hooks/useHarpocrateVaults", () => ({
+  useVaults: () => ({
+    data: [
+      {
+        id: "vault-1",
+        name: "vault-main",
+        label: "Coffre principal",
+        base_url: "http://localhost:8200",
+        api_key_id: "key-id",
+        probe_path: null,
+        is_default: true,
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+      },
+    ],
+    isLoading: false,
+  }),
+}));
+
 function Wrapper({ children }: { children: ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
@@ -15,6 +36,25 @@ function Wrapper({ children }: { children: ReactNode }) {
 describe("WorkspaceCreateDialog", () => {
   beforeEach(async () => {
     vi.restoreAllMocks();
+    // Restaure le mock useVaults après restoreAllMocks
+    vi.mock("@/hooks/useHarpocrateVaults", () => ({
+      useVaults: () => ({
+        data: [
+          {
+            id: "vault-1",
+            name: "vault-main",
+            label: "Coffre principal",
+            base_url: "http://localhost:8200",
+            api_key_id: "key-id",
+            probe_path: null,
+            is_default: true,
+            created_at: "2026-01-01T00:00:00Z",
+            updated_at: "2026-01-01T00:00:00Z",
+          },
+        ],
+        isLoading: false,
+      }),
+    }));
     await i18n.changeLanguage("fr");
   });
 
@@ -27,9 +67,9 @@ describe("WorkspaceCreateDialog", () => {
 
     // Name input — FormLabel htmlFor wired via FormItem id
     expect(screen.getByPlaceholderText("harpocrate")).toBeInTheDocument();
-    // Provider and model selects rendered as combobox buttons
+    // Provider, model and vault selects rendered as combobox buttons
     const comboboxes = screen.getAllByRole("combobox");
-    expect(comboboxes.length).toBeGreaterThanOrEqual(2);
+    expect(comboboxes.length).toBeGreaterThanOrEqual(3);
     // api_key_ref present by default (provider = openai)
     expect(screen.getByPlaceholderText("openai_embedding_key")).toBeInTheDocument();
   });
@@ -47,9 +87,10 @@ describe("WorkspaceCreateDialog", () => {
 
     // Simulate provider change to ollama via the hidden select input
     // Radix Select renders a native <select> in the DOM for form compatibility
+    // Le premier native select est le coffre vault, le second est le provider
     const nativeSelects = document.querySelectorAll("select");
-    // First native select is provider
-    const providerSelect = nativeSelects[0];
+    // Le select provider est le second (après le vault select)
+    const providerSelect = nativeSelects[1];
     expect(providerSelect).toBeDefined();
     fireEvent.change(providerSelect!, { target: { value: "ollama" } });
 
@@ -73,6 +114,12 @@ describe("WorkspaceCreateDialog", () => {
 
     await user.type(screen.getByPlaceholderText("harpocrate"), "test_ws");
     await user.type(screen.getByPlaceholderText("openai_embedding_key"), "openai_key");
+
+    // Sélectionner le coffre via le native select (Radix Select)
+    const nativeSelects = document.querySelectorAll("select");
+    const vaultSelect = nativeSelects[0];
+    fireEvent.change(vaultSelect!, { target: { value: "vault-main" } });
+
     await user.click(screen.getByRole("button", { name: /créer/i }));
 
     await waitFor(() => {
@@ -80,6 +127,7 @@ describe("WorkspaceCreateDialog", () => {
         "/api/admin/workspaces",
         expect.objectContaining({
           name: "test_ws",
+          api_key_vault: "vault-main",
           indexer: expect.objectContaining({
             provider: "openai",
             api_key_ref: "openai_key",
@@ -96,6 +144,11 @@ describe("WorkspaceCreateDialog", () => {
         <WorkspaceCreateDialog open={true} onOpenChange={() => {}} />
       </Wrapper>,
     );
+
+    // Sélectionner un coffre pour ne pas bloquer la soumission sur ce champ
+    const nativeSelects = document.querySelectorAll("select");
+    const vaultSelect = nativeSelects[0];
+    fireEvent.change(vaultSelect!, { target: { value: "vault-main" } });
 
     await user.type(screen.getByPlaceholderText("harpocrate"), "BadName");
     await user.type(screen.getByPlaceholderText("openai_embedding_key"), "key");

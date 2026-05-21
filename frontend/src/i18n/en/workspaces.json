@@ -24,7 +24,10 @@
     "api_key_ref_help_present": "Key present in Harpocrate",
     "api_key_ref_help_missing": "Key missing from vault",
     "base_url": "Base URL",
-    "base_url_optional": "(optional — Ollama only)"
+    "base_url_optional": "(optional — Ollama only)",
+    "api_key_vault": "Harpocrate vault",
+    "api_key_vault_help": "Vault where the workspace MCP api_key will be stored",
+    "api_key_vault_none": "No vault configured. Create a vault first via Settings → Harpocrate."
   },
   "actions": {
     "rotate_apikey": "Rotate api_key",

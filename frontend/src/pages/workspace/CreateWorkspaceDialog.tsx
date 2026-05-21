@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { z } from "zod";
 import { useCreateWorkspace } from "@/hooks/useWorkspaces";
+import { useVaults } from "@/hooks/useHarpocrateVaults";
 import { workspaceCreateSchema } from "@/lib/validators";
 import { useToast } from "@/hooks/useToast";
 
@@ -49,11 +50,13 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
   const { t } = useTranslation("workspaces");
   const { toast } = useToast();
   const createMutation = useCreateWorkspace();
+  const { data: vaults = [], isLoading: vaultsLoading } = useVaults();
 
   const form = useForm<WorkspaceFormData>({
     resolver: zodResolver(workspaceCreateSchema),
     defaultValues: {
       name: "",
+      api_key_vault: "",
       indexer: {
         provider: "openai",
         model: "text-embedding-3-small",
@@ -107,6 +110,36 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
                     <Input placeholder="harpocrate" {...field} />
                   </FormControl>
                   <FormDescription>{t("form.name_help")}</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="api_key_vault"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("form.api_key_vault")}</FormLabel>
+                  {vaults.length === 0 && !vaultsLoading ? (
+                    <p className="text-sm text-amber-600">{t("form.api_key_vault_none")}</p>
+                  ) : (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={t("form.api_key_vault")} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {vaults.map((v) => (
+                          <SelectItem key={v.name} value={v.name}>
+                            {v.label} ({v.name})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <FormDescription>{t("form.api_key_vault_help")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -213,7 +246,10 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t("common:buttons.cancel")}
               </Button>
-              <Button type="submit" disabled={createMutation.isPending}>
+              <Button
+                type="submit"
+                disabled={createMutation.isPending || vaults.length === 0}
+              >
                 {t("common:buttons.create")}
               </Button>
             </DialogFooter>
