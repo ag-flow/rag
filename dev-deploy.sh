@@ -193,6 +193,37 @@ sync_new_vars_from_example() {
   fi
 }
 
+# ─── Bootstrap admin local (init si absent) ─────────────────
+ensure_bootstrap_admin_hash() {
+  local env_file="$1"
+  local current
+  current=$(grep -E '^RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=' "$env_file" 2>/dev/null \
+            | head -1 | cut -d= -f2-)
+  if [[ -n "$current" ]]; then
+    echo "      ✓ RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH déjà défini"
+    return 0
+  fi
+
+  local plain hash
+  plain=$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-20)
+  hash=$(openssl passwd -bcrypt "$plain")
+
+  if grep -qE '^RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=' "$env_file"; then
+    sed -i "s|^RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=.*|RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=${hash}|" "$env_file"
+  else
+    echo "RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=${hash}" >> "$env_file"
+  fi
+
+  echo
+  echo "═══════════════════════════════════════════════════════════"
+  echo "  COMPTE ADMIN BOOTSTRAP CRÉÉ"
+  echo "  Username : admin"
+  echo "  Password : ${plain}"
+  echo "  ⚠ Note ce password MAINTENANT, il n'est pas stocké en clair."
+  echo "═══════════════════════════════════════════════════════════"
+  echo
+}
+
 if [ ! -f ".env" ]; then
   if [ -f ".env.example" ]; then
     echo "[2/5] .env absent → création depuis .env.example + génération secrets aléatoires"
@@ -234,6 +265,11 @@ if [ -f ".env" ]; then
       echo "      ⚠  ${required_key} est vide dans .env — le backend ne démarrera pas tant qu'il n'est pas renseigné."
     fi
   done
+fi
+
+# Hash bcrypt du compte admin bootstrap — généré une seule fois si absent.
+if [ -f ".env" ]; then
+  ensure_bootstrap_admin_hash ".env"
 fi
 
 # ─── 3) Build images locales ────────────────────────────────────────────────
