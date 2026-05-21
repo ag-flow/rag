@@ -13,6 +13,7 @@ from rag.api.errors import (
     OidcStateMismatch,
     OidcStateMissing,
 )
+from rag.auth.bearer import _LOCAL_SESSION_KEY
 from rag.auth.oidc_dependency import require_oidc_role
 from rag.schemas.local_auth import LocalLoginRequest, LocalLoginResponse
 from rag.schemas.oidc import MeResponse, OidcUserContext
@@ -21,7 +22,6 @@ log = structlog.get_logger(__name__)
 
 _SESSION_KEY = "_oidc_session"
 _STATE_KEY = "_oidc_state"
-_LOCAL_SESSION_KEY = "_local_session"
 
 
 def _safe_next(raw: str | None) -> str:

@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from starlette.middleware.sessions import SessionMiddleware
 
 from rag.api.errors import register_error_handlers
-from rag.auth.bearer import require_master_key_or_authenticated_admin
+from rag.auth.bearer import _LOCAL_SESSION_KEY, require_master_key_or_authenticated_admin
 from rag.services.local_auth import LocalAuthService
 
 
@@ -42,7 +42,7 @@ def app_with_dep() -> FastAPI:
 
     @app.post("/_setup_local_session")
     async def setup(request: Request) -> dict:
-        request.session["_local_session"] = {
+        request.session[_LOCAL_SESSION_KEY] = {
             "username": "admin",
             "expires_at": int(time.time()) + 3600,
         }
@@ -50,7 +50,7 @@ def app_with_dep() -> FastAPI:
 
     @app.post("/_setup_expired_local_session")
     async def setup_expired(request: Request) -> dict:
-        request.session["_local_session"] = {
+        request.session[_LOCAL_SESSION_KEY] = {
             "username": "admin",
             "expires_at": int(time.time()) - 1,
         }
@@ -89,8 +89,13 @@ def test_local_session_expired_returns_401(app_with_dep: FastAPI) -> None:
     assert resp.json()["error"] == "local_session_expired"
 
 
-def test_no_auth_returns_401(app_with_dep: FastAPI) -> None:
-    """No Bearer, no local session → fallback OIDC échoue (pas de config)."""
+def test_no_auth_falls_through_to_oidc_and_returns_401(app_with_dep: FastAPI) -> None:
+    """No Bearer, no local session → fallback OIDC.
+
+    require_oidc_role vérifie d'abord le cookie _oidc_session : absent →
+    OidcSessionMissing (401) de façon déterministe, avant même d'appeler
+    get_config(). L'assertion est donc exactement 401, non ambiguë.
+    """
     client = TestClient(app_with_dep)
     resp = client.get("/protected")
-    assert resp.status_code in (401, 503)
+    assert resp.status_code == 401
