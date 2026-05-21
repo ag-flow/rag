@@ -214,17 +214,20 @@ ensure_bootstrap_admin_hash() {
     }
   fi
 
-  local plain hash
+  local plain hash hash_escaped
   plain=$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-20)
   hash=$(htpasswd -nbBC 12 "" "$plain" | tr -d ':\n') || {
     echo "  ✗ htpasswd a échoué — vérifier le paquet apache2-utils." >&2
     return 1
   }
+  # docker-compose interprète $ dans les valeurs env_file : on doit doubler pour échapper.
+  # Cf. .env.example : "doubler tout $ en $$ si déposé via env_file".
+  hash_escaped="${hash//\$/\$\$}"
 
   if grep -qE '^RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=' "$env_file"; then
-    sed -i "s|^RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=.*|RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=${hash}|" "$env_file"
+    sed -i "s|^RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=.*|RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=${hash_escaped}|" "$env_file"
   else
-    echo "RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=${hash}" >> "$env_file"
+    echo "RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=${hash_escaped}" >> "$env_file"
   fi
 
   # Écrit aussi le pwd en clair dans .env pour commodité dev (dev-only).
