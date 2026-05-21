@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import time
-from collections import OrderedDict
 from dataclasses import dataclass
 from hashlib import sha256
 from secrets import compare_digest
@@ -11,50 +9,28 @@ import asyncpg
 from fastapi import HTTPException, Request, status
 
 
-@dataclass
-class _CacheEntry:
-    workspace_id: UUID
-    indexer_used: str
-    inserted_at: float
-
-
 class ApiKeyCache:
-    """Cache LRU+TTL des api_keys workspace validées.
+    """Cache process-lifetime des api_keys MCP workspace résolues depuis Harpocrate.
 
-    Clé : (workspace_name, api_key_clair). Valeur : _CacheEntry.
+    Clé : `api_key_ref` (string `${vault://<vault>:<path>}`).
+    Valeur : api_key en clair.
 
-    Le cache ne contient que des entrées dont la vérification a réussi.
-    Un attaquant qui présente une clé invalide paie le lookup DB + compare_digest
-    à chaque tentative, sans pollution du cache.
+    Pas de TTL : la valeur survit tant que le process tourne. Invalidation
+    explicite via `invalidate(ref)` à la rotation. Cold au démarrage : aucune
+    entrée préchargée.
     """
 
-    def __init__(self, *, max_size: int = 256, ttl_seconds: int = 300) -> None:
-        self._max_size = max_size
-        self._ttl_seconds = ttl_seconds
-        self._store: OrderedDict[tuple[str, str], _CacheEntry] = OrderedDict()
+    def __init__(self) -> None:
+        self._store: dict[str, str] = {}
 
-    def get(self, workspace_name: str, api_key: str) -> _CacheEntry | None:
-        key = (workspace_name, api_key)
-        entry = self._store.get(key)
-        if entry is None:
-            return None
-        if time.monotonic() - entry.inserted_at > self._ttl_seconds:
-            del self._store[key]
-            return None
-        self._store.move_to_end(key)
-        return entry
+    def get(self, ref: str) -> str | None:
+        return self._store.get(ref)
 
-    def put(self, workspace_name: str, api_key: str, entry: _CacheEntry) -> None:
-        key = (workspace_name, api_key)
-        self._store[key] = entry
-        self._store.move_to_end(key)
-        while len(self._store) > self._max_size:
-            self._store.popitem(last=False)
+    def put(self, ref: str, value: str) -> None:
+        self._store[ref] = value
 
-    def invalidate(self, workspace_name: str) -> None:
-        to_delete = [k for k in self._store if k[0] == workspace_name]
-        for k in to_delete:
-            del self._store[k]
+    def invalidate(self, ref: str) -> None:
+        self._store.pop(ref, None)
 
 
 @dataclass
@@ -95,7 +71,6 @@ async def require_workspace_apikey(
     """
     api_key = _extract_bearer(request)
 
-    cache: ApiKeyCache = request.app.state.apikey_cache
     pool: asyncpg.Pool = request.app.state.pools.config_pool
     dek: str | None = request.app.state.settings.api_key_dek
     if dek is None:
@@ -104,10 +79,8 @@ async def require_workspace_apikey(
             detail="api_key_dek_unavailable",
         )
 
-    entry = cache.get(name, api_key)
-    if entry is not None:
-        return AuthContext(workspace_id=entry.workspace_id, indexer_used=entry.indexer_used)
-
+    # NOTE(T6): require_workspace_apikey sera migré vers Harpocrate en T6.
+    # Temporairement, le cache n'est pas utilisé ici — lookup DB direct.
     fingerprint = sha256(api_key.encode("utf-8")).hexdigest()
     row = await pool.fetchrow(
         """
@@ -137,10 +110,4 @@ async def require_workspace_apikey(
             detail="invalid_workspace_apikey",
         )
 
-    new_entry = _CacheEntry(
-        workspace_id=row["id"],
-        indexer_used=row["indexer_used"],
-        inserted_at=time.monotonic(),
-    )
-    cache.put(name, api_key, new_entry)
     return AuthContext(workspace_id=row["id"], indexer_used=row["indexer_used"])

@@ -31,6 +31,28 @@ class HarpocrateVaultClient:
         log.debug("vault.lookup", url=self._url, path=path)
         return cast(str, self._sdk.secrets.get(path))
 
+    def set_secret(self, path: str, value: str) -> None:
+        """Crée ou met à jour un secret au path donné (upsert idempotent).
+
+        Tente un `put` (update) en premier ; si le secret n'existe pas encore,
+        crée via `create`. Requiert les permissions [write] ou [add] selon le cas.
+        """
+        from harpocrate.exceptions import SecretNotFound  # type: ignore[import-not-found]
+
+        log.debug("vault.set", url=self._url, path=path)
+        try:
+            self._sdk.secrets.put(path, value)
+        except SecretNotFound:
+            self._sdk.secrets.create(path, value)
+
+    def delete_secret(self, path: str) -> None:
+        """Supprime le secret au path donné. Best-effort : pas d'erreur si absent."""
+        log.debug("vault.delete", url=self._url, path=path)
+        try:
+            self._sdk.secrets.delete(path)
+        except Exception as e:  # best-effort : log et continue si absent
+            log.warning("vault.delete.failed", url=self._url, path=path, error=str(e))
+
     # ─── M5d : enrichissements API ────────────────────────────────
 
     def whoami(self) -> ApiKeyInfo:
