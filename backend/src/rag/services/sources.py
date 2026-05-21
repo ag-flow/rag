@@ -129,24 +129,24 @@ async def update_source(
 
     config = dict(request.config)
 
-    if request.auth_value:
-        # Récupère le nom et le vault actuels depuis la DB pour construire le path
-        current = await fetch_one(
-            config_pool,
-            """
-            SELECT ws.name, ws.config
-            FROM workspace_sources ws
-            WHERE ws.id = $1::uuid AND ws.workspace_id = $2
-            """,
-            source_id,
-            ws_id,
-        )
-        if current is None:
-            raise SourceNotFound(source_id)
-        raw = current["config"]
-        current_config = json.loads(raw) if isinstance(raw, str) else dict(raw)
-        existing_ref: str | None = current_config.get("auth_ref")
+    # Toujours lire le config actuel pour préserver auth_ref si aucun nouveau PAT fourni
+    current = await fetch_one(
+        config_pool,
+        """
+        SELECT ws.name, ws.config
+        FROM workspace_sources ws
+        WHERE ws.id = $1::uuid AND ws.workspace_id = $2
+        """,
+        source_id,
+        ws_id,
+    )
+    if current is None:
+        raise SourceNotFound(source_id)
+    raw = current["config"]
+    current_config = json.loads(raw) if isinstance(raw, str) else dict(raw)
+    existing_ref: str | None = current_config.get("auth_ref")
 
+    if request.auth_value:
         # Détermine le vault : priorité au vault explicitement fourni dans la requête
         source_name = current["name"] or source_id
         if request.api_key_vault:
@@ -178,6 +178,9 @@ async def update_source(
                     vault_obj = await harpocrate_vaults_service.get_by_name(conn, vault_name)
                 if vault_obj:
                     config["auth_ref"] = build_ref(vault_obj.api_key_id, auth_path)
+    elif existing_ref:
+        # Pas de nouveau PAT → on préserve la ref existante
+        config["auth_ref"] = existing_ref
 
     async with config_pool.acquire() as conn:
         row = await conn.fetchrow(
