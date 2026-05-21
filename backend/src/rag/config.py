@@ -61,6 +61,14 @@ class Settings(BaseSettings):
 
     api_key_dek: str | None = Field(default=None, alias="RAG_API_KEY_DEK")
 
+    rag_bootstrap_admin_username: str = "admin"
+    rag_bootstrap_admin_password_hash: str = ""
+    rag_bootstrap_session_ttl_seconds: int = Field(default=28800, ge=60)
+
+    @property
+    def bootstrap_enabled(self) -> bool:
+        return bool(self.rag_bootstrap_admin_password_hash.strip())
+
     rag_session_secret: SecretStr = SecretStr("")
 
     model_config = SettingsConfigDict(
