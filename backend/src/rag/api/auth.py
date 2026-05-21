@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import structlog
 from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.responses import RedirectResponse
 
 from rag.api.errors import (
+    BootstrapDisabled,
+    LocalAuthInvalidCredentials,
     OidcNotConfigured,
     OidcSessionExpired,
     OidcSessionMissing,
@@ -11,10 +14,14 @@ from rag.api.errors import (
     OidcStateMissing,
 )
 from rag.auth.oidc_dependency import require_oidc_role
+from rag.schemas.local_auth import LocalLoginRequest, LocalLoginResponse
 from rag.schemas.oidc import MeResponse, OidcUserContext
+
+log = structlog.get_logger(__name__)
 
 _SESSION_KEY = "_oidc_session"
 _STATE_KEY = "_oidc_state"
+_LOCAL_SESSION_KEY = "_local_session"
 
 
 def _safe_next(raw: str | None) -> str:
@@ -123,6 +130,23 @@ def build_auth_router() -> APIRouter:
         else:
             logout_url = f"{request.app.state.public_url}/"
         return RedirectResponse(url=logout_url, status_code=302)
+
+    @router.post("/auth/local/login", response_model=LocalLoginResponse)
+    async def local_login(payload: LocalLoginRequest, request: Request) -> LocalLoginResponse:
+        local_auth = request.app.state.local_auth
+        if not local_auth.enabled:
+            raise BootstrapDisabled()
+        if not local_auth.verify(username=payload.username, password=payload.password):
+            log.warning("auth.local.login.failure", username=payload.username)
+            raise LocalAuthInvalidCredentials()
+        request.session[_LOCAL_SESSION_KEY] = local_auth.build_session_payload()
+        log.info("auth.local.login.success", username=payload.username)
+        return LocalLoginResponse()
+
+    @router.post("/auth/local/logout", status_code=status.HTTP_204_NO_CONTENT)
+    async def local_logout(request: Request) -> Response:
+        request.session.pop(_LOCAL_SESSION_KEY, None)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @router.get("/me", response_model=MeResponse)
     async def me(

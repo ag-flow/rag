@@ -324,6 +324,36 @@ class OidcRoleForbidden(AdminError):
         }
 
 
+class BootstrapDisabled(AdminError):
+    """Login local appelé alors que RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH est vide."""
+
+    http_status = 503
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "error": "bootstrap_disabled",
+            "message": "RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH non défini dans la configuration",
+        }
+
+
+class LocalAuthInvalidCredentials(AdminError):
+    """Username inconnu ou mot de passe incorrect. Réponse uniforme."""
+
+    http_status = 401
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "invalid_credentials", "message": "Identifiants invalides"}
+
+
+class LocalSessionExpired(AdminError):
+    """Cookie _local_session présent mais expires_at < now."""
+
+    http_status = 401
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "local_session_expired", "message": "Session locale expirée"}
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """Enregistre les handlers d'exceptions JSON globaux."""
 

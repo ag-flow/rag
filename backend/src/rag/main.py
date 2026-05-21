@@ -13,6 +13,7 @@ from rag.api.admin import build_admin_router
 from rag.api.admin_harpocrate_vaults import router as admin_harpocrate_vaults_router
 from rag.api.admin_oidc import build_admin_oidc_router
 from rag.api.auth import build_auth_router
+from rag.api.auth_methods import build_auth_methods_router
 from rag.api.errors import register_error_handlers
 from rag.api.health import build_health_router
 from rag.api.mcp import build_mcp_router
@@ -27,6 +28,7 @@ from rag.secrets.bootstrap import seed_vaults_from_env_if_empty
 from rag.secrets.client_provider import HarpocrateClientProvider
 from rag.secrets.resolver import SecretResolver
 from rag.services.harpocrate_vaults import HarpocrateVaultsService
+from rag.services.local_auth import LocalAuthService
 from rag.services.oidc import OidcService
 
 log = structlog.get_logger(__name__)
@@ -161,6 +163,12 @@ def build_app(
         )
         app.state.public_url = str(settings.rag_public_url).rstrip("/")
 
+        app.state.local_auth = LocalAuthService(
+            username=settings.rag_bootstrap_admin_username,
+            password_hash=settings.rag_bootstrap_admin_password_hash,
+            ttl_seconds=settings.rag_bootstrap_session_ttl_seconds,
+        )
+
         # M3 : recovery au boot (jobs running orphelins → error)
         from rag.sync.recovery import reset_stale_running_jobs
 
@@ -218,6 +226,7 @@ def build_app(
     app.include_router(build_admin_oidc_router(), prefix="/api/admin")
     app.include_router(admin_harpocrate_vaults_router)
     app.include_router(build_auth_router())
+    app.include_router(build_auth_methods_router())
     app.include_router(build_workspace_router())
     app.include_router(build_mcp_router())
     register_error_handlers(app)
