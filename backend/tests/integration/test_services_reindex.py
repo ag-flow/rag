@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import asyncpg
 import pytest
@@ -11,10 +13,9 @@ from rag.api.errors import IndexerChangeRequiresReindex, WorkspaceNotFound
 from rag.db.migrations import run_migrations
 from rag.db.workspace_schema import derive_workspace_dsn
 from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
+from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.jobs import reindex_workspace
 from rag.services.workspaces import create_workspace
-
-_TEST_DEK = "x" * 32
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
@@ -23,6 +24,16 @@ class _Resolver:
     async def resolve_with_retry(self, ref: str) -> str:
         assert re.fullmatch(r"\$\{vault://[^:]+:[^}]+\}", ref)
         return "sk-x"
+
+
+def _make_harpo_service() -> MagicMock:
+    service = MagicMock()
+    vault = MagicMock(spec=VaultSummary)
+    vault.id = uuid4()
+    service.get_by_name = AsyncMock(return_value=vault)
+    service.write_secret = AsyncMock(return_value=None)
+    service.delete_secret = AsyncMock(return_value=None)
+    return service
 
 
 @pytest.fixture
@@ -49,13 +60,13 @@ async def _create_with_doc(pg_container: str, session_pool: asyncpg.Pool, name: 
     await create_workspace(
         request=WorkspaceCreateRequest(
             name=name,
+            api_key_vault="rag",
             indexer=IndexerSpec(provider="openai", model="text-embedding-3-small", api_key_ref="k"),
         ),
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
-        default_vault_name="rag",
-        api_key_dek=_TEST_DEK,
+        harpocrate_vaults_service=_make_harpo_service(),
     )
     ws_id = await session_pool.fetchval("SELECT id FROM workspaces WHERE name=$1", name)
     await session_pool.execute(

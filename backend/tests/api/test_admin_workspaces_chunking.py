@@ -29,6 +29,7 @@ def _create_ws(client: TestClient, headers: dict[str, str], name: str) -> str:
         headers=headers,
         json={
             "name": name,
+            "api_key_vault": "rag",
             "indexer": {
                 "provider": "ollama",
                 "model": "mxbai-embed-large",

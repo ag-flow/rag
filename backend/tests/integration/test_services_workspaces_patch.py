@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import asyncpg
 import pytest
@@ -15,10 +17,9 @@ from rag.schemas.admin import (
     WorkspaceCreateRequest,
     WorkspacePatchRequest,
 )
+from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.secrets.resolver import VaultLookupFailed
 from rag.services.workspaces import create_workspace, get_workspace, patch_workspace
-
-_TEST_DEK = "x" * 32
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
@@ -34,6 +35,16 @@ class _Resolver:
         if logical not in self._known:
             raise VaultLookupFailed(f"no secret {logical}")
         return "sk-x"
+
+
+def _make_harpo_service() -> MagicMock:
+    service = MagicMock()
+    vault = MagicMock(spec=VaultSummary)
+    vault.id = uuid4()
+    service.get_by_name = AsyncMock(return_value=vault)
+    service.write_secret = AsyncMock(return_value=None)
+    service.delete_secret = AsyncMock(return_value=None)
+    return service
 
 
 @pytest.fixture
@@ -65,6 +76,7 @@ async def test_patch_api_key_ref_updates_indexer_config(
     await create_workspace(
         request=WorkspaceCreateRequest(
             name="ws_patch",
+            api_key_vault="rag",
             indexer=IndexerSpec(
                 provider="openai", model="text-embedding-3-small", api_key_ref="old_key"
             ),
@@ -72,8 +84,7 @@ async def test_patch_api_key_ref_updates_indexer_config(
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=resolver,  # type: ignore[arg-type]
-        default_vault_name="rag",
-        api_key_dek=_TEST_DEK,
+        harpocrate_vaults_service=_make_harpo_service(),
     )
 
     await patch_workspace(
@@ -113,6 +124,7 @@ async def test_patch_workspace_new_ref_not_in_vault_raises(
     await create_workspace(
         request=WorkspaceCreateRequest(
             name="ws_patch_bad",
+            api_key_vault="rag",
             indexer=IndexerSpec(
                 provider="openai", model="text-embedding-3-small", api_key_ref="old_key"
             ),
@@ -120,7 +132,7 @@ async def test_patch_workspace_new_ref_not_in_vault_raises(
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=resolver,  # type: ignore[arg-type]
-        api_key_dek=_TEST_DEK,
+        harpocrate_vaults_service=_make_harpo_service(),
     )
 
     with pytest.raises(RefNotFoundInVault):

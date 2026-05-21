@@ -11,6 +11,7 @@ def _create_ws(client: TestClient, headers: dict[str, str], name: str) -> dict:
         headers=headers,
         json={
             "name": name,
+            "api_key_vault": "rag",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",
@@ -28,6 +29,7 @@ def test_post_workspaces_201_returns_api_key_once(
         headers=admin_headers,
         json={
             "name": "ws_e2e_a",
+            "api_key_vault": "rag",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",
@@ -43,7 +45,8 @@ def test_post_workspaces_201_returns_api_key_once(
 
 def test_post_workspaces_401_without_bearer(admin_client: TestClient) -> None:
     r = admin_client.post(
-        "/api/admin/workspaces", json={"name": "x", "indexer": {"provider": "p", "model": "m"}}
+        "/api/admin/workspaces",
+        json={"name": "x", "api_key_vault": "rag", "indexer": {"provider": "p", "model": "m"}},
     )
     assert r.status_code == 401
 
@@ -56,6 +59,7 @@ def test_post_workspaces_422_unknown_model(
         headers=admin_headers,
         json={
             "name": "ws_unknown_model",
+            "api_key_vault": "rag",
             "indexer": {"provider": "nope", "model": "nope", "api_key_ref": "k"},
         },
     )
@@ -72,6 +76,7 @@ def test_post_workspaces_422_ref_not_in_vault(
         headers=admin_headers,
         json={
             "name": "ws_bad_ref",
+            "api_key_vault": "rag",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",
@@ -92,6 +97,7 @@ def test_post_workspaces_409_duplicate(
         headers=admin_headers,
         json={
             "name": "ws_dup_e2e",
+            "api_key_vault": "rag",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",

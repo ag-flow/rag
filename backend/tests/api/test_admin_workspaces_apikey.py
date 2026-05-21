@@ -11,6 +11,7 @@ def _create_ws(client: TestClient, headers: dict[str, str], name: str) -> dict:
         headers=headers,
         json={
             "name": name,
+            "api_key_vault": "rag",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",

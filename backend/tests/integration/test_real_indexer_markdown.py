@@ -6,6 +6,8 @@ Workspace configuré en markdown → chunks ont la metadata section_title/path/l
 from __future__ import annotations
 
 import json
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import asyncpg
 import pytest
@@ -14,9 +16,18 @@ from rag.db.pool import WorkspacePoolRegistry
 from rag.db.workspace_schema import derive_workspace_dsn, drop_workspace_database
 from rag.indexer.real import RealIndexer
 from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
+from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.workspaces import create_workspace
 
-_TEST_DEK = "x" * 32
+
+def _make_harpo_service() -> MagicMock:
+    service = MagicMock()
+    vault = MagicMock(spec=VaultSummary)
+    vault.id = uuid4()
+    service.get_by_name = AsyncMock(return_value=vault)
+    service.write_secret = AsyncMock(return_value=None)
+    service.delete_secret = AsyncMock(return_value=None)
+    return service
 
 
 README_DEMO = """\
@@ -75,6 +86,7 @@ async def test_real_indexer_markdown_strategy_produces_section_metadata(
     """End-to-end : workspace configuré en markdown → chunks ont la metadata."""
     req = WorkspaceCreateRequest(
         name="ws_md_e2e",
+        api_key_vault="rag",
         indexer=IndexerSpec(
             provider="ollama",
             model="mxbai-embed-large",
@@ -87,8 +99,7 @@ async def test_real_indexer_markdown_strategy_produces_section_metadata(
         config_pool=migrated,
         admin_dsn=admin_dsn,
         resolver=_NullResolver(),  # type: ignore[arg-type]
-        default_vault_name="rag",
-        api_key_dek=_TEST_DEK,
+        harpocrate_vaults_service=_make_harpo_service(),
     )
     rag_base = await migrated.fetchval(
         "SELECT rag_base FROM workspaces WHERE id = $1",

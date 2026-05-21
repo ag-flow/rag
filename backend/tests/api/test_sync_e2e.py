@@ -76,6 +76,7 @@ def test_full_pipeline_create_workspace_source_reindex_done(
         headers=_bearer(),
         json={
             "name": "ws_e2e_sync",
+            "api_key_vault": "rag",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",

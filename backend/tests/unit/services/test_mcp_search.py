@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-# Tests unitaires pour search() (T1 -- _authenticate lookup DB direct).
-# NOTE(T6): _authenticate n'utilise plus le cache. Chaque appel search effectue
-# 3 fetchrow par workspace : existence check, fingerprint lookup, load_context.
+# Tests unitaires pour search() après T7.
+# _authenticate fait un seul fetchrow (fingerprint JOIN) puis fetchval sur miss.
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -14,8 +13,6 @@ from rag.api.errors import WorkspaceNotFound
 from rag.auth.workspace_auth import ApiKeyCache
 from rag.schemas.mcp import SearchHit
 from rag.services.mcp import McpWorkspaceRef, search
-
-_DEK = "x" * 32
 
 
 class _FakeProvider:
@@ -32,16 +29,30 @@ class _FakeProvider:
 
 
 class _FakeResolver:
-    def __init__(self) -> None:
+    def __init__(self, value: str = "resolved-secret") -> None:
         self.calls = 0
+        self._value = value
 
     async def resolve_with_retry(self, _ref: str) -> str:
         self.calls += 1
-        return "resolved-secret"
+        return self._value
+
+
+class _MapResolver:
+    """Resolver qui dispatche par ref (sous-chaîne du path)."""
+
+    def __init__(self, mapping: dict[str, str]) -> None:
+        self._mapping = mapping
+
+    async def resolve_with_retry(self, ref: str) -> str:
+        for key, val in self._mapping.items():
+            if key in ref:
+                return val
+        raise KeyError(f"no mapping for {ref}")
 
 
 def _ctx_row(name: str, provider: str, model: str, api_key_ref: str | None) -> dict[str, Any]:
-    """Construit la row renvoyee par _load_workspace_context (fetchrow #3)."""
+    """Construit la row renvoyée par _load_workspace_context (fetchrow #2)."""
     return {
         "workspace_name": name,
         "rag_cnx": "dsn",
@@ -65,8 +76,18 @@ def _pool_for_workspace(
     model: str,
     api_key_ref: str | None,
 ) -> MagicMock:
-    """Pool qui repond aux 3 fetchrow de _authenticate + _load_workspace_context."""
-    fingerprint_row = {"stored": api_key}
+    """Pool qui répond aux fetchrow de _authenticate + _load_workspace_context.
+
+    _authenticate : fetchrow(fingerprint JOIN) → retourne row avec id+api_key_ref+indexer_used.
+    _load_workspace_context : fetchrow(workspace context) → retourne ctx_row.
+    fetchval : jamais appelé si fingerprint matche.
+    """
+    api_key_ref_val = api_key_ref or f"${{vault://rag:{name}_apikey}}"
+    auth_row = {
+        "id": ws_id,
+        "api_key_ref": api_key_ref_val,
+        "indexer_used": f"{provider}/{model}",
+    }
     ctx_row = _ctx_row(name, provider, model, api_key_ref)
 
     call_count = 0
@@ -75,16 +96,14 @@ def _pool_for_workspace(
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            # existence check
-            return {"id": ws_id, "indexer_used": f"{provider}/{model}"}
-        if call_count == 2:
-            # fingerprint lookup
-            return fingerprint_row
-        # load_workspace_context
+            # _authenticate fingerprint lookup
+            return auth_row
+        # _load_workspace_context
         return ctx_row
 
     pool = MagicMock()
     pool.fetchrow = AsyncMock(side_effect=_fetchrow)
+    pool.fetchval = AsyncMock(return_value=None)  # jamais appelé sur happy path
     return pool
 
 
@@ -104,6 +123,7 @@ async def test_search_single_workspace_returns_hits(monkeypatch) -> None:
     ws_pool = MagicMock()
     registry = _fake_registry_returning(ws_pool)
     provider = _FakeProvider(vec=[0.1, 0.2])
+    resolver = _FakeResolver(value=api_key)
 
     fake_vector_search = AsyncMock(
         return_value=[
@@ -123,7 +143,6 @@ async def test_search_single_workspace_returns_hits(monkeypatch) -> None:
     monkeypatch.setattr(mcp, "vector_search", fake_vector_search)
 
     cache = ApiKeyCache()
-    resolver = _FakeResolver()
     hits = await search(
         refs=[McpWorkspaceRef(name="ws_a", api_key=api_key)],
         query="hello",
@@ -132,7 +151,6 @@ async def test_search_single_workspace_returns_hits(monkeypatch) -> None:
         config_pool=pool,
         pool_registry=registry,
         apikey_cache=cache,
-        api_key_dek=_DEK,
         secret_resolver=resolver,
         default_vault_name="rag",
         provider_factory=lambda **_kw: provider,  # type: ignore[arg-type]
@@ -141,7 +159,7 @@ async def test_search_single_workspace_returns_hits(monkeypatch) -> None:
     assert len(hits) == 1
     assert hits[0].workspace == "ws_a"
     assert provider.calls == 1
-    assert resolver.calls == 1  # api_key_ref non-None -> vault resolved
+    assert resolver.calls >= 1  # resolver appelé : auth workspace + indexer api_key_ref
 
 
 @pytest.mark.asyncio
@@ -158,7 +176,7 @@ async def test_search_skips_vault_when_api_key_ref_is_none(monkeypatch) -> None:
     monkeypatch.setattr(mcp, "vector_search", AsyncMock(return_value=[]))
 
     cache = ApiKeyCache()
-    resolver = _FakeResolver()
+    resolver = _FakeResolver(value=api_key)
     await search(
         refs=[McpWorkspaceRef(name="ws_ollama", api_key=api_key)],
         query="x",
@@ -167,57 +185,52 @@ async def test_search_skips_vault_when_api_key_ref_is_none(monkeypatch) -> None:
         config_pool=pool,
         pool_registry=registry,
         apikey_cache=cache,
-        api_key_dek=_DEK,
         secret_resolver=resolver,
         default_vault_name="rag",
         provider_factory=lambda **_kw: provider,  # type: ignore[arg-type]
     )
-    assert resolver.calls == 0  # api_key_ref None -> no vault call
+    # api_key_ref None dans ctx → pas de résolution Harpocrate pour l'indexeur,
+    # mais il y en a une pour l'auth workspace (api_key_ref non None dans auth_row).
+    # Le resolver est appelé 1 fois pour l'auth.
+    assert resolver.calls == 1
 
 
 @pytest.mark.asyncio
 async def test_search_multi_workspace_concat_in_order(monkeypatch) -> None:
-    """Deux workspaces : les hits sont concatenes (ordre exact non garanti via gather)."""
+    """Deux workspaces : les hits sont concaténés (ordre non garanti via gather)."""
     ws_id_a = uuid4()
     ws_id_b = uuid4()
 
-    # _search_one appelle _authenticate (2 fetchrow) puis _load_workspace_context (1).
-    # asyncio.gather lance les 2 taches en concurrence ; on identifie les calls
-    # par le nom du workspace dans les args SQL quand c'est disponible.
-    # - existence check : (sql, ws_name)           -> args[0] = ws_name
-    # - fingerprint lookup : (sql, dek, ws_name, fp) -> args[1] = ws_name
-    # - load context : (sql, ws_name)               -> args[0] = ws_name
-    a_count: dict[str, int] = {"ws_a": 0, "ws_b": 0}
+    # Pool unique qui dispatche par ws_name via les args
+    ws_id_map = {"ws_a": ws_id_a, "ws_b": ws_id_b}
+    n_map: dict[str, int] = {"ws_a": 0, "ws_b": 0}
 
     async def _fetchrow(_query: str, *args: Any) -> dict[str, Any] | None:
-        # Determine workspace name from args
+        # Détermine le workspace via l'arg ws_name (premier arg string dans les queries)
         ws_name: str | None = None
-        if len(args) == 1 and isinstance(args[0], str) and args[0] in ("ws_a", "ws_b"):
-            ws_name = args[0]
-        elif len(args) >= 2 and isinstance(args[1], str) and args[1] in ("ws_a", "ws_b"):
-            ws_name = args[1]
-
+        for a in args:
+            if isinstance(a, str) and a in ("ws_a", "ws_b"):
+                ws_name = a
+                break
         if ws_name is None:
             return None
 
-        a_count[ws_name] += 1
-        call_n = a_count[ws_name]
-        ws_id = ws_id_a if ws_name == "ws_a" else ws_id_b
+        n_map[ws_name] += 1
+        ws_id = ws_id_map[ws_name]
         provider = "openai" if ws_name == "ws_a" else "voyage"
-        api_key = "k1" if ws_name == "ws_a" else "k2"
+        ref = f"${{vault://rag:{ws_name}_apikey}}"
 
-        if call_n == 1:  # existence check
-            return {"id": ws_id, "indexer_used": f"{provider}/m"}
-        if call_n == 2:  # fingerprint lookup
-            return {"stored": api_key}
-        # load context
+        if n_map[ws_name] == 1:
+            return {"id": ws_id, "api_key_ref": ref, "indexer_used": f"{provider}/m"}
         return _ctx_row(ws_name, provider, "m", None)
 
     pool = MagicMock()
     pool.fetchrow = AsyncMock(side_effect=_fetchrow)
+    pool.fetchval = AsyncMock(return_value=None)
+
     ws_pool = MagicMock()
     registry = _fake_registry_returning(ws_pool)
-    provider = _FakeProvider(vec=[0.1])
+    provider_stub = _FakeProvider(vec=[0.1])
 
     async def _vector_search(_pool, **kw: Any) -> list[SearchHit]:
         name = kw["workspace_name"]
@@ -237,6 +250,8 @@ async def test_search_multi_workspace_concat_in_order(monkeypatch) -> None:
     monkeypatch.setattr(mcp, "vector_search", _vector_search)
 
     cache = ApiKeyCache()
+    # Resolver retourne la bonne api_key par workspace ref
+    resolver = _MapResolver({"ws_a_apikey": "k1", "ws_b_apikey": "k2"})
     hits = await search(
         refs=[
             McpWorkspaceRef(name="ws_a", api_key="k1"),
@@ -248,10 +263,9 @@ async def test_search_multi_workspace_concat_in_order(monkeypatch) -> None:
         config_pool=pool,
         pool_registry=registry,
         apikey_cache=cache,
-        api_key_dek=_DEK,
-        secret_resolver=_FakeResolver(),
+        secret_resolver=resolver,  # type: ignore[arg-type]
         default_vault_name="rag",
-        provider_factory=lambda **_kw: provider,  # type: ignore[arg-type]
+        provider_factory=lambda **_kw: provider_stub,  # type: ignore[arg-type]
     )
 
     assert set(h.workspace for h in hits) == {"ws_a", "ws_b"}
@@ -261,7 +275,9 @@ async def test_search_multi_workspace_concat_in_order(monkeypatch) -> None:
 async def test_search_fail_fast_on_workspace_not_found() -> None:
     cache = ApiKeyCache()
     pool = MagicMock()
-    pool.fetchrow = AsyncMock(return_value=None)  # workspace inexistant
+    # fingerprint lookup → None, puis fetchval (exists) → None (workspace absent)
+    pool.fetchrow = AsyncMock(return_value=None)
+    pool.fetchval = AsyncMock(return_value=None)
     registry = MagicMock()
 
     with pytest.raises(WorkspaceNotFound):
@@ -273,7 +289,6 @@ async def test_search_fail_fast_on_workspace_not_found() -> None:
             config_pool=pool,
             pool_registry=registry,
             apikey_cache=cache,
-            api_key_dek=_DEK,
             secret_resolver=_FakeResolver(),
             default_vault_name="rag",
         )
@@ -281,15 +296,13 @@ async def test_search_fail_fast_on_workspace_not_found() -> None:
 
 @pytest.mark.asyncio
 async def test_search_fail_fast_on_bad_apikey() -> None:
-    """Cle invalide (fingerprint non trouve) -> 401."""
+    """Fingerprint ne matche pas (fetchrow None) + workspace existe → 401."""
     cache = ApiKeyCache()
     pool = MagicMock()
-    pool.fetchrow = AsyncMock(
-        side_effect=[
-            {"id": uuid4(), "indexer_used": "openai/m"},
-            None,  # fingerprint lookup returns None (key not found)
-        ]
-    )
+    # fetchrow → None (fingerprint lookup miss)
+    pool.fetchrow = AsyncMock(return_value=None)
+    # fetchval → 1 (workspace existe)
+    pool.fetchval = AsyncMock(return_value=1)
     registry = MagicMock()
 
     with pytest.raises(HTTPException) as exc:
@@ -301,7 +314,6 @@ async def test_search_fail_fast_on_bad_apikey() -> None:
             config_pool=pool,
             pool_registry=registry,
             apikey_cache=cache,
-            api_key_dek=_DEK,
             secret_resolver=_FakeResolver(),
             default_vault_name="rag",
         )

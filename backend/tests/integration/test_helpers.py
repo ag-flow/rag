@@ -10,12 +10,14 @@ from rag.db.migrations import run_migrations
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
-# Helper local au fichier — utilise un dek constant pour reproducibilité.
-_TEST_DEK = "x" * 32
 _INSERT_WS_SQL = (
-    "INSERT INTO workspaces (name, api_key_encrypted, api_key_fingerprint, rag_cnx, rag_base) "
-    "VALUES ($1, pgp_sym_encrypt('k', $2::text)::bytea, $3, 'c', 'b')"
+    "INSERT INTO workspaces (name, api_key_ref, api_key_fingerprint, rag_cnx, rag_base) "
+    "VALUES ($1, $2, $3, 'c', 'b')"
 )
+
+
+def _ref(name: str) -> str:
+    return f"${{vault://test:{name}_apikey}}"
 
 
 @pytest.fixture
@@ -32,7 +34,7 @@ async def test_fetch_one_returns_row(migrated: asyncpg.Pool) -> None:
         migrated,
         _INSERT_WS_SQL,
         "w_helper",
-        _TEST_DEK,
+        _ref("w_helper"),
         "fp_w_helper",
     )
     row = await fetch_one(migrated, "SELECT name FROM workspaces WHERE name = $1", "w_helper")
@@ -48,8 +50,8 @@ async def test_fetch_one_returns_none_when_no_match(migrated: asyncpg.Pool) -> N
 
 @pytest.mark.asyncio
 async def test_fetch_all_returns_list(migrated: asyncpg.Pool) -> None:
-    await execute(migrated, _INSERT_WS_SQL, "a", _TEST_DEK, "fp_a")
-    await execute(migrated, _INSERT_WS_SQL, "b", _TEST_DEK, "fp_b")
+    await execute(migrated, _INSERT_WS_SQL, "a", _ref("a"), "fp_a")
+    await execute(migrated, _INSERT_WS_SQL, "b", _ref("b"), "fp_b")
     rows = await fetch_all(migrated, "SELECT name FROM workspaces ORDER BY name")
     assert [r["name"] for r in rows] == ["a", "b"]
 
@@ -57,7 +59,7 @@ async def test_fetch_all_returns_list(migrated: asyncpg.Pool) -> None:
 @pytest.mark.asyncio
 async def test_transaction_commits(migrated: asyncpg.Pool) -> None:
     async with transaction(migrated) as conn:
-        await conn.execute(_INSERT_WS_SQL, "tx_ok", _TEST_DEK, "fp_tx_ok")
+        await conn.execute(_INSERT_WS_SQL, "tx_ok", _ref("tx_ok"), "fp_tx_ok")
 
     count = await fetch_one(migrated, "SELECT COUNT(*) AS c FROM workspaces WHERE name = 'tx_ok'")
     assert count is not None and count["c"] == 1
@@ -67,7 +69,7 @@ async def test_transaction_commits(migrated: asyncpg.Pool) -> None:
 async def test_transaction_rolls_back_on_error(migrated: asyncpg.Pool) -> None:
     with pytest.raises(RuntimeError, match="forced"):
         async with transaction(migrated) as conn:
-            await conn.execute(_INSERT_WS_SQL, "tx_rb", _TEST_DEK, "fp_tx_rb")
+            await conn.execute(_INSERT_WS_SQL, "tx_rb", _ref("tx_rb"), "fp_tx_rb")
             raise RuntimeError("forced")
 
     count = await fetch_one(migrated, "SELECT COUNT(*) AS c FROM workspaces WHERE name = 'tx_rb'")

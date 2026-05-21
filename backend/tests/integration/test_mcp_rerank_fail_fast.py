@@ -24,7 +24,6 @@ from tests.integration._workspace_seed import seed_workspace
 # Constantes de test
 # ---------------------------------------------------------------------------
 
-_DEK = "x" * 32
 _API_KEY = "e2e-failfast-test-key"
 _WS_NAME = "ws_failfast_e2e"
 
@@ -49,8 +48,10 @@ _FAKE_HITS = [
 
 
 class _StubResolver:
+    """Retourne l'api_key réelle pour les refs workspace (compare_digest doit passer)."""
+
     async def resolve_with_retry(self, ref: str) -> str:
-        return "stubbed"
+        return _API_KEY
 
 
 # ---------------------------------------------------------------------------
@@ -70,7 +71,6 @@ async def test_rerank_provider_unreachable_propagates(
             conn,
             name=_WS_NAME,
             api_key=_API_KEY,
-            dek=_DEK,
             rag_cnx="postgresql://unused/test",
             rag_base="rag_test",
         )
@@ -100,7 +100,11 @@ async def test_rerank_provider_unreachable_propagates(
     # Embedding provider stub
     embed_stub = MagicMock()
     embed_stub.embed_query = AsyncMock(return_value=[0.1] * 4)
-    provider_factory: Any = lambda **_: embed_stub
+
+    def _embed_factory(**_kw: Any) -> Any:
+        return embed_stub
+
+    provider_factory: Any = _embed_factory
 
     # Reranker qui lève RerankProviderUnreachable
     failing_reranker = MagicMock(spec=RerankProvider)
@@ -118,7 +122,6 @@ async def test_rerank_provider_unreachable_propagates(
             config_pool=migrated,
             pool_registry=registry,
             apikey_cache=ApiKeyCache(),
-            api_key_dek=_DEK,
             secret_resolver=_StubResolver(),
             provider_factory=provider_factory,
             rerank_factory=rerank_factory,

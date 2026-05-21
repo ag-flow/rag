@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import asyncpg
 import pytest
@@ -14,11 +16,10 @@ from rag.api.errors import (
 )
 from rag.db.migrations import run_migrations
 from rag.schemas.admin import IndexerSpec, SourceCreateRequest, WorkspaceCreateRequest
+from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.secrets.resolver import VaultLookupFailed
 from rag.services.sources import add_source, delete_source, list_sources
 from rag.services.workspaces import create_workspace
-
-_TEST_DEK = "x" * 32
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
@@ -34,6 +35,16 @@ class _Resolver:
         if logical not in self._known:
             raise VaultLookupFailed(f"no {logical}")
         return "tok-x"
+
+
+def _make_harpo_service() -> MagicMock:
+    service = MagicMock()
+    vault = MagicMock(spec=VaultSummary)
+    vault.id = uuid4()
+    service.get_by_name = AsyncMock(return_value=vault)
+    service.write_secret = AsyncMock(return_value=None)
+    service.delete_secret = AsyncMock(return_value=None)
+    return service
 
 
 @pytest.fixture
@@ -60,13 +71,13 @@ async def _setup_ws(pg_container: str, session_pool: asyncpg.Pool, name: str) ->
     await create_workspace(
         request=WorkspaceCreateRequest(
             name=name,
+            api_key_vault="rag",
             indexer=IndexerSpec(provider="openai", model="text-embedding-3-small", api_key_ref="k"),
         ),
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=resolver,  # type: ignore[arg-type]
-        default_vault_name="rag",
-        api_key_dek=_TEST_DEK,
+        harpocrate_vaults_service=_make_harpo_service(),
     )
     return resolver
 

@@ -36,7 +36,7 @@ def _make_ws(
     r = client.post(
         "/api/admin/workspaces",
         headers=admin_headers,
-        json={"name": name, "indexer": indexer_body},
+        json={"name": name, "api_key_vault": "rag", "indexer": indexer_body},
     )
     assert r.status_code == 201, r.text
     return r.json()["api_key"]

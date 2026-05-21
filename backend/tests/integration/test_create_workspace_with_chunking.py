@@ -4,15 +4,27 @@ applique les migrations workspace (workspace_schema_migrations + metadata).
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
+
 import asyncpg
 import pytest
 
 from rag.db.workspace_schema import derive_workspace_dsn, drop_workspace_database
 from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
+from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.chunking_configs import get_chunking_config
 from rag.services.workspaces import create_workspace
 
-_TEST_DEK = "x" * 32
+
+def _make_harpo_service() -> MagicMock:
+    service = MagicMock()
+    vault = MagicMock(spec=VaultSummary)
+    vault.id = uuid4()
+    service.get_by_name = AsyncMock(return_value=vault)
+    service.write_secret = AsyncMock(return_value=None)
+    service.delete_secret = AsyncMock(return_value=None)
+    return service
 
 
 class _NullResolver:
@@ -36,6 +48,7 @@ async def _cleanup_workspace(migrated: asyncpg.Pool, admin_dsn: str, name: str) 
 def _make_request(name: str) -> WorkspaceCreateRequest:
     return WorkspaceCreateRequest(
         name=name,
+        api_key_vault="rag",
         indexer=IndexerSpec(
             provider="ollama",
             model="mxbai-embed-large",
@@ -59,8 +72,7 @@ async def test_create_workspace_inserts_default_chunking_config(
             config_pool=migrated,
             admin_dsn=admin_dsn,
             resolver=_NullResolver(),  # type: ignore[arg-type]
-            default_vault_name="rag",
-            api_key_dek=_TEST_DEK,
+            harpocrate_vaults_service=_make_harpo_service(),
         )
         cfg = await get_chunking_config(ws["id"], migrated)
         assert cfg["strategy"] == "paragraph"
@@ -86,8 +98,7 @@ async def test_create_workspace_applies_workspace_migrations(
             config_pool=migrated,
             admin_dsn=admin_dsn,
             resolver=_NullResolver(),  # type: ignore[arg-type]
-            default_vault_name="rag",
-            api_key_dek=_TEST_DEK,
+            harpocrate_vaults_service=_make_harpo_service(),
         )
 
         row = await migrated.fetchrow(

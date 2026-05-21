@@ -30,6 +30,7 @@ def _make_ws(client: TestClient, admin_headers: dict[str, str], name: str) -> st
         headers=admin_headers,
         json={
             "name": name,
+            "api_key_vault": "rag",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",

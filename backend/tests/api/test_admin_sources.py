@@ -9,6 +9,7 @@ def _setup_ws(client: TestClient, headers: dict[str, str], name: str) -> None:
         headers=headers,
         json={
             "name": name,
+            "api_key_vault": "rag",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",

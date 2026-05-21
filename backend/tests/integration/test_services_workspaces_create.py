@@ -4,6 +4,8 @@ import re
 from collections.abc import Iterator
 from hashlib import sha256
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import asyncpg
 import pytest
@@ -17,12 +19,11 @@ from rag.api.errors import (
 from rag.db.migrations import run_migrations
 from rag.db.workspace_schema import derive_workspace_dsn
 from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
+from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.secrets.resolver import VaultLookupFailed
 from rag.services.workspaces import create_workspace
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
-
-_TEST_DEK = "x" * 32
 
 
 class _StubResolver:
@@ -44,9 +45,37 @@ class _StubResolver:
         return self._known[logical]
 
 
+def _make_harpo_service(
+    *,
+    vault_exists: bool = True,
+    secret_store: dict[str, str] | None = None,
+) -> MagicMock:
+    """Stub HarpocrateVaultsService pour les tests d'intégration."""
+    store = secret_store if secret_store is not None else {}
+    service = MagicMock()
+    if vault_exists:
+        vault = MagicMock(spec=VaultSummary)
+        vault.id = uuid4()
+        vault.base_url = "http://harpo-stub:8200"
+        service.get_by_name = AsyncMock(return_value=vault)
+    else:
+        service.get_by_name = AsyncMock(return_value=None)
+
+    async def _write(_conn, *, vault_name: str, path: str, value: str) -> None:
+        store[path] = value
+
+    async def _delete(_conn, *, vault_name: str, path: str) -> None:
+        store.pop(path, None)
+
+    service.write_secret = _write
+    service.delete_secret = _delete
+    return service
+
+
 def _make_request(name: str = "ws_create_1") -> WorkspaceCreateRequest:
     return WorkspaceCreateRequest(
         name=name,
+        api_key_vault="rag",
         indexer=IndexerSpec(
             provider="openai",
             model="text-embedding-3-small",
@@ -83,6 +112,8 @@ async def test_create_workspace_inserts_config_and_creates_db(
     await run_migrations(session_pool, MIGRATIONS_DIR)
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
     resolver = _StubResolver({"openai_embedding_key": "sk-xxx"})
+    store: dict[str, str] = {}
+    harpo = _make_harpo_service(secret_store=store)
 
     req = _make_request(name="ws_create_1")
     resp = await create_workspace(
@@ -90,24 +121,25 @@ async def test_create_workspace_inserts_config_and_creates_db(
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=resolver,  # type: ignore[arg-type]
-        default_vault_name="rag",
-        api_key_dek=_TEST_DEK,
+        harpocrate_vaults_service=harpo,
     )
 
     assert resp["name"] == "ws_create_1"
     assert re.fullmatch(r"[A-Za-z0-9_-]{48}", resp["api_key"])
 
-    # workspaces row inséré — vérifier api_key_encrypted + api_key_fingerprint
+    # L'api_key a été écrite dans Harpocrate via write_secret
+    assert "wsapi_ws_create_1" in store
+    assert store["wsapi_ws_create_1"] == resp["api_key"]
+
+    # workspaces row inséré — vérifier api_key_ref + api_key_fingerprint
     row = await session_pool.fetchrow(
-        "SELECT id, name, rag_base, api_key_fingerprint, "
-        "pgp_sym_decrypt(api_key_encrypted, $1::text)::text AS decrypted "
-        "FROM workspaces WHERE name=$2",
-        _TEST_DEK,
+        "SELECT id, name, rag_base, api_key_ref, api_key_fingerprint "
+        "FROM workspaces WHERE name=$1",
         "ws_create_1",
     )
     assert row is not None
     assert row["rag_base"] == "rag_ws_create_1"
-    assert row["decrypted"] == resp["api_key"]
+    assert "wsapi_ws_create_1" in row["api_key_ref"]
     assert row["api_key_fingerprint"] == sha256(resp["api_key"].encode()).hexdigest()
 
     # indexer_configs row inséré
@@ -142,14 +174,14 @@ async def test_create_workspace_duplicate_name_raises(
     await run_migrations(session_pool, MIGRATIONS_DIR)
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
     resolver = _StubResolver({"openai_embedding_key": "sk-x"})
+    harpo = _make_harpo_service()
     req = _make_request(name="ws_dup")
     await create_workspace(
         request=req,
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=resolver,  # type: ignore[arg-type]
-        default_vault_name="rag",
-        api_key_dek=_TEST_DEK,
+        harpocrate_vaults_service=harpo,
     )
 
     with pytest.raises(WorkspaceAlreadyExists):
@@ -158,7 +190,7 @@ async def test_create_workspace_duplicate_name_raises(
             config_pool=session_pool,
             admin_dsn=admin_dsn,
             resolver=resolver,  # type: ignore[arg-type]
-            api_key_dek=_TEST_DEK,
+            harpocrate_vaults_service=harpo,
         )
 
 
@@ -169,8 +201,10 @@ async def test_create_workspace_unknown_model_raises(
     await run_migrations(session_pool, MIGRATIONS_DIR)
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
     resolver = _StubResolver({"k": "v"})
+    harpo = _make_harpo_service()
     req = WorkspaceCreateRequest(
         name="ws_unknown",
+        api_key_vault="rag",
         indexer=IndexerSpec(provider="nope", model="nope", api_key_ref="k"),
     )
     with pytest.raises(ModelNotSupported):
@@ -179,7 +213,7 @@ async def test_create_workspace_unknown_model_raises(
             config_pool=session_pool,
             admin_dsn=admin_dsn,
             resolver=resolver,  # type: ignore[arg-type]
-            api_key_dek=_TEST_DEK,
+            harpocrate_vaults_service=harpo,
         )
 
 
@@ -190,6 +224,7 @@ async def test_create_workspace_ref_not_in_vault_raises(
     await run_migrations(session_pool, MIGRATIONS_DIR)
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
     resolver = _StubResolver({})  # aucune clé connue
+    harpo = _make_harpo_service()
     req = _make_request("ws_no_ref")
     with pytest.raises(RefNotFoundInVault) as exc_info:
         await create_workspace(
@@ -197,7 +232,7 @@ async def test_create_workspace_ref_not_in_vault_raises(
             config_pool=session_pool,
             admin_dsn=admin_dsn,
             resolver=resolver,  # type: ignore[arg-type]
-            api_key_dek=_TEST_DEK,
+            harpocrate_vaults_service=harpo,
         )
     assert exc_info.value.ref == "openai_embedding_key"
 
@@ -209,6 +244,7 @@ async def test_create_workspace_vault_unreachable_raises(
     await run_migrations(session_pool, MIGRATIONS_DIR)
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
     resolver = _StubResolver({}, raise_on=ConnectionError("vault down"))
+    harpo = _make_harpo_service()
     req = _make_request("ws_vault_down")
     with pytest.raises(VaultUnreachable):
         await create_workspace(
@@ -216,5 +252,5 @@ async def test_create_workspace_vault_unreachable_raises(
             config_pool=session_pool,
             admin_dsn=admin_dsn,
             resolver=resolver,  # type: ignore[arg-type]
-            api_key_dek=_TEST_DEK,
+            harpocrate_vaults_service=harpo,
         )

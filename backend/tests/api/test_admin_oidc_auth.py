@@ -131,6 +131,7 @@ def test_post_workspaces_with_master_key_still_works(
         headers=admin_headers,
         json={
             "name": "ws_mk",
+            "api_key_vault": "rag",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",
@@ -153,6 +154,7 @@ def test_post_workspaces_with_oidc_admin_role_succeeds(
         "/api/admin/workspaces",
         json={
             "name": "ws_oidc",
+            "api_key_vault": "rag",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",
@@ -175,6 +177,7 @@ def test_post_workspaces_with_oidc_viewer_role_returns_403(
         "/api/admin/workspaces",
         json={
             "name": "ws_viewer",
+            "api_key_vault": "rag",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",
@@ -193,7 +196,7 @@ def test_post_workspaces_without_auth_returns_401(
     """Sans Bearer ni cookie → 401."""
     r = admin_client.post(
         "/api/admin/workspaces",
-        json={"name": "x", "indexer": {"provider": "x", "model": "x"}},
+        json={"name": "x", "api_key_vault": "rag", "indexer": {"provider": "x", "model": "x"}},
     )
     assert r.status_code == 401
 

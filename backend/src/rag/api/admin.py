@@ -4,6 +4,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 
+from rag.api.errors import HarpocrateUnreachableForApikey, VaultUnreachable
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.schemas.admin import (
     ApiKeyRotateResponse,
@@ -21,6 +22,7 @@ from rag.schemas.admin import (
     WorkspacePatchRequest,
     WorkspaceResponse,
 )
+from rag.secrets.refs import parse_ref
 from rag.services.workspaces import (
     create_workspace,
     delete_workspace,
@@ -73,20 +75,12 @@ def build_admin_router() -> APIRouter:
         payload: WorkspaceCreateRequest,
         request: Request,
     ) -> WorkspaceCreateResponse:
-        dek: str | None = request.app.state.settings.api_key_dek
-        if dek is None:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="api_key_dek_unavailable",
-            )
-        default_vault = await _resolve_default_vault_or_503(request)
         resp = await create_workspace(
             request=payload,
             config_pool=_config_pool(request),
             admin_dsn=_admin_dsn(request),
             resolver=_resolver(request),  # type: ignore[arg-type]
-            default_vault_name=default_vault,
-            api_key_dek=dek,
+            harpocrate_vaults_service=request.app.state.harpocrate_vaults_service,
         )
         return WorkspaceCreateResponse.model_validate(resp)
 
@@ -106,25 +100,28 @@ def build_admin_router() -> APIRouter:
 
         Conforme spec 08 : sert à `init-rag.sh` côté ag.flow.docker pour
         provisionner `.rag-client.json` au démarrage container.
+
+        Résolution via cache process-lifetime → Harpocrate sur miss.
         """
-        dek: str | None = request.app.state.settings.api_key_dek
-        if dek is None:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="api_key_dek_unavailable",
-            )
-        row = await _config_pool(request).fetchrow(
-            "SELECT pgp_sym_decrypt(api_key_encrypted, $2::text)::text AS api_key "
-            "FROM workspaces WHERE name = $1",
-            name,
-            dek,
+        pool = _config_pool(request)
+        row = await pool.fetchrow(
+            "SELECT api_key_ref FROM workspaces WHERE name = $1", name
         )
         if row is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="workspace_not_found",
             )
-        return ApiKeyRotateResponse(api_key=row["api_key"])
+        cache = request.app.state.apikey_cache
+        api_key_ref: str = row["api_key_ref"]
+        cached = cache.get(api_key_ref)
+        if cached is None:
+            try:
+                cached = await request.app.state.resolver.resolve_with_retry(api_key_ref)
+            except VaultUnreachable as e:
+                raise HarpocrateUnreachableForApikey() from e
+            cache.put(api_key_ref, cached)
+        return ApiKeyRotateResponse(api_key=cached)
 
     @router.patch("/workspaces/{name}")
     async def patch_workspace_endpoint(
@@ -143,28 +140,41 @@ def build_admin_router() -> APIRouter:
 
     @router.delete("/workspaces/{name}", status_code=status.HTTP_204_NO_CONTENT)
     async def delete_workspace_endpoint(name: str, request: Request) -> Response:
+        pool = _config_pool(request)
+        # Lire api_key_ref AVANT la suppression DB pour le rollback Harpocrate.
+        ref_row = await pool.fetchrow(
+            "SELECT api_key_ref FROM workspaces WHERE name = $1", name
+        )
         await delete_workspace(
             name=name,
-            config_pool=_config_pool(request),
+            config_pool=pool,
             admin_dsn=_admin_dsn(request),
         )
+        # Suppression best-effort du secret Harpocrate (idempotent si absent).
+        if ref_row is not None:
+            try:
+                vault_name, path = parse_ref(ref_row["api_key_ref"])
+                async with pool.acquire() as conn:
+                    await request.app.state.harpocrate_vaults_service.delete_secret(
+                        conn, vault_name=vault_name, path=path
+                    )
+            except Exception:
+                import structlog as _structlog
+                _structlog.get_logger(__name__).warning(
+                    "workspace.delete.harpocrate_cleanup_failed",
+                    workspace=name,
+                )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @router.post("/workspaces/{name}/rotate-apikey")
     async def rotate_apikey_endpoint(name: str, request: Request) -> ApiKeyRotateResponse:
-        dek: str | None = request.app.state.settings.api_key_dek
-        if dek is None:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="api_key_dek_unavailable",
-            )
-        new_key = await rotate_apikey(
+        result = await rotate_apikey(
             name=name,
             config_pool=_config_pool(request),
-            api_key_dek=dek,
+            harpocrate_vaults_service=request.app.state.harpocrate_vaults_service,
             apikey_cache=request.app.state.apikey_cache,
         )
-        return ApiKeyRotateResponse(api_key=new_key)
+        return ApiKeyRotateResponse(api_key=result["api_key"])
 
     # ─── Sources ─────────────────────────────────────────────────────────────
 

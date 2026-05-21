@@ -12,7 +12,7 @@ import asyncpg
 import structlog
 from fastapi import HTTPException, status
 
-from rag.api.errors import WorkspaceNotFound
+from rag.api.errors import HarpocrateUnreachableForApikey, VaultUnreachable, WorkspaceNotFound
 from rag.auth.workspace_auth import ApiKeyCache
 from rag.db.pool import WorkspacePoolRegistry
 from rag.db.workspace_search import vector_search
@@ -28,12 +28,7 @@ log = structlog.get_logger(__name__)
 
 @dataclass(frozen=True)
 class _CacheEntry:
-    """Résultat d'authentification d'un workspace (workspace_id + indexer_used).
-
-    Utilisé comme valeur de retour de `_authenticate`. Temporairement défini
-    ici car l'ancienne définition dans workspace_auth a été retirée en T1.
-    NOTE(T6) : sera consolidé lors du refactor cache complet.
-    """
+    """Résultat d'authentification d'un workspace (workspace_id + indexer_used)."""
 
     workspace_id: object  # UUID asyncpg
     indexer_used: str
@@ -61,57 +56,74 @@ def normalize_refs(
     return [McpWorkspaceRef(name=w.name, api_key=w.api_key) for w in req.workspaces]
 
 
+class _SecretResolverProtocolForAuth(Protocol):
+    async def resolve_with_retry(self, ref: str) -> str: ...
+
+
 async def _authenticate(
     *,
     ref: McpWorkspaceRef,
     config_pool: asyncpg.Pool,
     apikey_cache: ApiKeyCache,
-    api_key_dek: str,
+    secret_resolver: _SecretResolverProtocolForAuth,
 ) -> _CacheEntry:
-    """Valide la paire (workspace_name, api_key) avec cache LRU+TTL.
+    """Valide la paire (workspace_name, api_key) via fingerprint+cache+Harpocrate.
 
-    Lookup O(1) par fingerprint SHA-256 puis comparaison timing-safe sur la
-    valeur déchiffrée (pgp_sym_decrypt).
+    Lookup O(1) par fingerprint SHA-256 → résolution via cache process-lifetime
+    (puis Harpocrate sur miss) → comparaison timing-safe.
 
     Retourne un `_CacheEntry` (workspace_id, indexer_used, inserted_at).
     - WorkspaceNotFound si workspace inconnu ou pas d'indexer_config.
-    - HTTPException 401 si la clé ne correspond pas (non mise en cache).
+    - HTTPException 401 si la clé ne correspond pas.
+    - HarpocrateUnreachableForApikey si Harpocrate inaccessible sur cache miss.
     """
-    # NOTE(T6) : cache non utilisé temporairement — refactor complet en T6.
+    fingerprint = sha256(ref.api_key.encode("utf-8")).hexdigest()
 
-    # Premier SELECT : vérifie l'existence du workspace+indexer (pour WorkspaceNotFound).
-    exists_row = await config_pool.fetchrow(
+    row = await config_pool.fetchrow(
         """
-        SELECT w.id, ic.provider || '/' || ic.model AS indexer_used
+        SELECT w.id,
+               w.api_key_ref,
+               ic.provider || '/' || ic.model AS indexer_used
         FROM workspaces w
         JOIN indexer_configs ic ON ic.workspace_id = w.id
-        WHERE w.name = $1
+        WHERE w.name = $1 AND w.api_key_fingerprint = $2
         """,
         ref.name,
+        fingerprint,
     )
-    if exists_row is None:
-        raise WorkspaceNotFound(ref.name)
-
-    # Deuxième SELECT : lookup par fingerprint + déchiffrement.
-    fingerprint = sha256(ref.api_key.encode("utf-8")).hexdigest()
-    auth_row = await config_pool.fetchrow(
-        "SELECT pgp_sym_decrypt(api_key_encrypted, $1::text)::text AS stored "
-        "FROM workspaces WHERE name = $2 AND api_key_fingerprint = $3",
-        api_key_dek, ref.name, fingerprint,
-    )
-    if auth_row is None or not compare_digest(ref.api_key, auth_row["stored"]):
+    if row is None:
+        # Workspace inconnu OU fingerprint ne matche pas → 401 uniforme.
+        # On fait un second SELECT pour distinguer WorkspaceNotFound de 401.
+        exists = await config_pool.fetchval(
+            "SELECT 1 FROM workspaces WHERE name = $1", ref.name
+        )
+        if exists is None:
+            raise WorkspaceNotFound(ref.name)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid_workspace_apikey",
         )
 
-    entry = _CacheEntry(
-        workspace_id=exists_row["id"],
-        indexer_used=exists_row["indexer_used"],
+    api_key_ref: str = row["api_key_ref"]
+    cached = apikey_cache.get(api_key_ref)
+    if cached is None:
+        try:
+            cached = await secret_resolver.resolve_with_retry(api_key_ref)
+        except VaultUnreachable as e:
+            raise HarpocrateUnreachableForApikey() from e
+        apikey_cache.put(api_key_ref, cached)
+
+    if not compare_digest(cached, ref.api_key):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid_workspace_apikey",
+        )
+
+    return _CacheEntry(
+        workspace_id=row["id"],
+        indexer_used=row["indexer_used"],
         inserted_at=time.monotonic(),
     )
-    # NOTE(T6) : cache non utilisé temporairement — refactor complet en T6.
-    return entry
 
 
 async def _load_workspace_context(
@@ -199,7 +211,6 @@ async def search(
     config_pool: asyncpg.Pool,
     pool_registry: WorkspacePoolRegistry,
     apikey_cache: ApiKeyCache,
-    api_key_dek: str,
     secret_resolver: _ResolverProtocol,
     default_vault_name: str = "rag",
     provider_factory: Callable[..., EmbeddingProvider] | None = None,
@@ -229,7 +240,6 @@ async def search(
             config_pool=config_pool,
             pool_registry=pool_registry,
             apikey_cache=apikey_cache,
-            api_key_dek=api_key_dek,
             secret_resolver=secret_resolver,
             default_vault_name=default_vault_name,
             provider_factory=factory,
@@ -250,14 +260,16 @@ async def _search_one(
     config_pool: asyncpg.Pool,
     pool_registry: WorkspacePoolRegistry,
     apikey_cache: ApiKeyCache,
-    api_key_dek: str,
     secret_resolver: _ResolverProtocol,
     default_vault_name: str,
     provider_factory: Callable[..., EmbeddingProvider],
     rerank_factory: Callable[..., RerankProvider],
 ) -> _WorkspaceResult:
     auth = await _authenticate(
-        ref=ref, config_pool=config_pool, apikey_cache=apikey_cache, api_key_dek=api_key_dek
+        ref=ref,
+        config_pool=config_pool,
+        apikey_cache=apikey_cache,
+        secret_resolver=secret_resolver,
     )
     ctx = await _load_workspace_context(config_pool, ref.name)
 

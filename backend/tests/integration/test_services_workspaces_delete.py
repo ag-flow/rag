@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import asyncpg
 import pytest
@@ -10,9 +12,8 @@ import pytest
 from rag.api.errors import WorkspaceNotFound
 from rag.db.migrations import run_migrations
 from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
+from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.workspaces import create_workspace, delete_workspace
-
-_TEST_DEK = "x" * 32
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
@@ -21,6 +22,16 @@ class _Resolver:
     async def resolve_with_retry(self, ref: str) -> str:
         assert re.fullmatch(r"\$\{vault://[^:]+:[^}]+\}", ref)
         return "sk-x"
+
+
+def _make_harpo_service() -> MagicMock:
+    service = MagicMock()
+    vault = MagicMock(spec=VaultSummary)
+    vault.id = uuid4()
+    service.get_by_name = AsyncMock(return_value=vault)
+    service.write_secret = AsyncMock(return_value=None)
+    service.delete_secret = AsyncMock(return_value=None)
+    return service
 
 
 @pytest.fixture
@@ -51,13 +62,13 @@ async def test_delete_workspace_drops_db_and_config(
     await create_workspace(
         request=WorkspaceCreateRequest(
             name="ws_del",
+            api_key_vault="rag",
             indexer=IndexerSpec(provider="openai", model="text-embedding-3-small", api_key_ref="k"),
         ),
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
-        default_vault_name="rag",
-        api_key_dek=_TEST_DEK,
+        harpocrate_vaults_service=_make_harpo_service(),
     )
 
     await delete_workspace(name="ws_del", config_pool=session_pool, admin_dsn=admin_dsn)
@@ -93,13 +104,13 @@ async def test_delete_workspace_idempotent_retry_after_partial_failure(
     await create_workspace(
         request=WorkspaceCreateRequest(
             name="ws_orphan",
+            api_key_vault="rag",
             indexer=IndexerSpec(provider="openai", model="text-embedding-3-small", api_key_ref="k"),
         ),
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
-        default_vault_name="rag",
-        api_key_dek=_TEST_DEK,
+        harpocrate_vaults_service=_make_harpo_service(),
     )
 
     admin = await asyncpg.connect(admin_dsn)

@@ -28,7 +28,6 @@ from tests.integration._workspace_seed import seed_workspace
 # Constantes de test
 # ---------------------------------------------------------------------------
 
-_DEK = "x" * 32
 _API_KEY = "e2e-rerank-test-key"
 _WS_NAME = "ws_rerank_e2e"
 
@@ -87,8 +86,10 @@ def _make_non_called_rerank_factory() -> tuple[Callable[..., Any], MagicMock]:
 
 
 class _StubResolver:
+    """Retourne l'api_key réelle pour les refs workspace (compare_digest doit passer)."""
+
     async def resolve_with_retry(self, ref: str) -> str:
-        return "stubbed"
+        return _API_KEY
 
 
 # ---------------------------------------------------------------------------
@@ -97,14 +98,15 @@ class _StubResolver:
 
 
 @pytest.fixture
-async def ws_with_rerank(migrated: asyncpg.Pool) -> tuple[asyncpg.Pool, UUID, WorkspacePoolRegistry]:
+async def ws_with_rerank(
+    migrated: asyncpg.Pool,
+) -> tuple[asyncpg.Pool, UUID, WorkspacePoolRegistry]:
     """Seed un workspace avec indexer_config + rerank_config (ollama/bge)."""
     async with migrated.acquire() as conn:
         ws_id = await seed_workspace(
             conn,
             name=_WS_NAME,
             api_key=_API_KEY,
-            dek=_DEK,
             rag_cnx="postgresql://unused/test",
             rag_base="rag_test",
         )
@@ -129,14 +131,15 @@ async def ws_with_rerank(migrated: asyncpg.Pool) -> tuple[asyncpg.Pool, UUID, Wo
 
 
 @pytest.fixture
-async def ws_without_rerank(migrated: asyncpg.Pool) -> tuple[asyncpg.Pool, UUID, WorkspacePoolRegistry]:
+async def ws_without_rerank(
+    migrated: asyncpg.Pool,
+) -> tuple[asyncpg.Pool, UUID, WorkspacePoolRegistry]:
     """Seed un workspace avec indexer_config mais sans rerank_config."""
     async with migrated.acquire() as conn:
         ws_id = await seed_workspace(
             conn,
             name=_WS_NAME,
             api_key=_API_KEY,
-            dek=_DEK,
             rag_cnx="postgresql://unused/test",
             rag_base="rag_test",
         )
@@ -180,7 +183,6 @@ async def test_rerank_changes_order_when_configured(
         config_pool=config_pool,
         pool_registry=registry,
         apikey_cache=ApiKeyCache(),
-        api_key_dek=_DEK,
         secret_resolver=_StubResolver(),
         provider_factory=_make_embedding_provider_factory(),
         rerank_factory=rerank_factory,
@@ -217,7 +219,6 @@ async def test_no_rerank_when_not_configured(
         config_pool=config_pool,
         pool_registry=registry,
         apikey_cache=ApiKeyCache(),
-        api_key_dek=_DEK,
         secret_resolver=_StubResolver(),
         provider_factory=_make_embedding_provider_factory(),
         rerank_factory=rerank_factory,
@@ -257,7 +258,6 @@ async def test_rerank_skipped_for_singleton(
         config_pool=config_pool,
         pool_registry=registry,
         apikey_cache=ApiKeyCache(),
-        api_key_dek=_DEK,
         secret_resolver=_StubResolver(),
         provider_factory=_make_embedding_provider_factory(),
         rerank_factory=rerank_factory,

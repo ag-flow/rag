@@ -32,6 +32,7 @@ def test_mcp_e2e_ollama_search_returns_relevant_doc(
         headers=admin_headers,
         json={
             "name": "ws_mcp_smoke",
+            "api_key_vault": "rag",
             "indexer": {
                 "provider": "ollama",
                 "model": "mxbai-embed-large",

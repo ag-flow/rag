@@ -46,6 +46,7 @@ def test_delete_model_409_in_use(
         headers=admin_headers,
         json={
             "name": "ws_uses_model",
+            "api_key_vault": "rag",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",

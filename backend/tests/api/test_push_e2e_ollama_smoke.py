@@ -32,6 +32,7 @@ def test_push_e2e_indexes_embeddings_in_pgvector(
         headers=admin_headers,
         json={
             "name": "ws_smoke_ollama",
+            "api_key_vault": "rag",
             "indexer": {
                 "provider": "ollama",
                 "model": "nomic-embed-text",
