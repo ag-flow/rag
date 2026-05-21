@@ -9,8 +9,8 @@ class LocalAuthService:
     """Auth locale bootstrap : un seul user `admin`, hash bcrypt en .env.
 
     Le service est `enabled` si et seulement si `password_hash` est non vide.
-    `verify` est constant-time grace a `bcrypt.checkpw`. Aucune validation
-    au boot du format du hash : un hash invalide fait simplement echouer le
+    `verify` est constant-time grâce à `bcrypt.checkpw`. Aucune validation
+    au boot du format du hash : un hash invalide fait simplement échouer le
     login (False), pas de fail-fast.
     """
 
@@ -44,7 +44,7 @@ class LocalAuthService:
                 self._password_hash.encode("utf-8"),
             )
         except ValueError:
-            # Hash malforme — ne crashe pas, simplement login refuse.
+            # Hash malformé — ne crashe pas, simplement login refusé.
             return False
 
     def build_session_payload(self) -> dict[str, int | str]:

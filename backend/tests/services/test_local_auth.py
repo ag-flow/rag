@@ -14,22 +14,22 @@ def known_hash() -> str:
     return bcrypt.hashpw(b"correctpwd", bcrypt.gensalt(rounds=4)).decode()
 
 
-def test_verify_success(known_hash: str) -> None:
+def test_verify_correct_credentials_returns_true(known_hash: str) -> None:
     svc = LocalAuthService(username="admin", password_hash=known_hash, ttl_seconds=3600)
     assert svc.verify(username="admin", password="correctpwd") is True
 
 
-def test_verify_wrong_password(known_hash: str) -> None:
+def test_verify_wrong_password_returns_false(known_hash: str) -> None:
     svc = LocalAuthService(username="admin", password_hash=known_hash, ttl_seconds=3600)
     assert svc.verify(username="admin", password="wrong") is False
 
 
-def test_verify_wrong_username(known_hash: str) -> None:
+def test_verify_wrong_username_returns_false(known_hash: str) -> None:
     svc = LocalAuthService(username="admin", password_hash=known_hash, ttl_seconds=3600)
     assert svc.verify(username="root", password="correctpwd") is False
 
 
-def test_verify_when_disabled() -> None:
+def test_verify_when_disabled_returns_false() -> None:
     """password_hash vide -> enabled=False -> verify retourne toujours False."""
     svc = LocalAuthService(username="admin", password_hash="", ttl_seconds=3600)
     assert svc.enabled is False
@@ -42,7 +42,7 @@ def test_verify_malformed_hash_returns_false() -> None:
     assert svc.verify(username="admin", password="anything") is False
 
 
-def test_build_session_payload_has_expiry(known_hash: str) -> None:
+def test_build_session_payload_with_ttl_sets_correct_expiry(known_hash: str) -> None:
     svc = LocalAuthService(username="admin", password_hash=known_hash, ttl_seconds=3600)
     before = int(time.time())
     payload = svc.build_session_payload()
