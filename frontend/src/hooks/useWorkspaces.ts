@@ -4,6 +4,7 @@ import type {
   ApiKeyRotateResponse,
   Source,
   SourceCreateRequest,
+  SourceUpdateRequest,
   Workspace,
   WorkspaceCreate,
   WorkspaceCreateResponse,
@@ -110,6 +111,16 @@ export function useAddSource(name: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["workspace", name, "sources"] });
       void qc.invalidateQueries({ queryKey: ["workspace", name] });
+    },
+  });
+}
+
+export function useUpdateSource(name: string) {
+  const qc = useQueryClient();
+  return useMutation<Source, Error, { sourceId: string; payload: SourceUpdateRequest }>({
+    mutationFn: ({ sourceId, payload }) => workspacesApi.updateSource(name, sourceId, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["workspace", name, "sources"] });
     },
   });
 }

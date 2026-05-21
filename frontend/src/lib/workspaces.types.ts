@@ -61,6 +61,10 @@ export type SourceCreateRequest = {
   config: SourceConfig;
 };
 
+export type SourceUpdateRequest = {
+  config: SourceConfig;
+};
+
 export type Job = {
   id: string;
   triggered_by:

@@ -4,6 +4,7 @@ import type {
   Job,
   Source,
   SourceCreateRequest,
+  SourceUpdateRequest,
   Workspace,
   WorkspaceCreate,
   WorkspaceCreateResponse,
@@ -35,6 +36,9 @@ export const workspacesApi = {
 
   addSource: (name: string, payload: SourceCreateRequest) =>
     api.post<Source>(`${BASE}/${name}/sources`, payload),
+
+  updateSource: (name: string, sourceId: string, payload: SourceUpdateRequest) =>
+    api.patch<Source>(`${BASE}/${name}/sources/${sourceId}`, payload),
 
   deleteSource: (name: string, sourceId: string) =>
     api.delete<void>(`${BASE}/${name}/sources/${sourceId}`),

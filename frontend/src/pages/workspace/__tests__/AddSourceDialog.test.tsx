@@ -6,10 +6,8 @@ import { AddSourceDialog } from "@/pages/workspace/AddSourceDialog";
 const mockMutate = vi.fn();
 
 vi.mock("@/hooks/useWorkspaces", () => ({
-  useAddSource: () => ({
-    mutate: mockMutate,
-    isPending: false,
-  }),
+  useAddSource: () => ({ mutate: mockMutate, isPending: false }),
+  useUpdateSource: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock("@/hooks/useToast", () => ({

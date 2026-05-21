@@ -25,6 +25,7 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
   const { data, isLoading } = useWorkspaceSources(name, enabled);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
+  const [editSource, setEditSource] = useState<Source | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   if (isLoading) return <LoadingSpinner />;
@@ -92,6 +93,9 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <DropdownMenuItem onSelect={() => setEditSource(source)}>
+                        {t("sources.editAction")}
+                      </DropdownMenuItem>
                       <DropdownMenuItem
                         onSelect={() => setDeleteId(source.id)}
                         className="text-red-600"
@@ -123,6 +127,12 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
       )}
 
       <AddSourceDialog name={name} open={addOpen} onOpenChange={setAddOpen} />
+      <AddSourceDialog
+        name={name}
+        open={editSource !== null}
+        onOpenChange={(o) => !o && setEditSource(null)}
+        {...(editSource !== null ? { source: editSource } : {})}
+      />
       <DeleteSourceAlert name={name} sourceId={deleteId} onClose={() => setDeleteId(null)} />
     </>
   );

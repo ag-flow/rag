@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,7 +14,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/useToast";
-import { useAddSource } from "@/hooks/useWorkspaces";
+import { useAddSource, useUpdateSource } from "@/hooks/useWorkspaces";
+import type { Source } from "@/lib/workspaces.types";
 
 const schema = z.object({
   url: z.string().url("invalid_url"),
@@ -29,6 +31,7 @@ interface Props {
   name: string;
   open: boolean;
   onOpenChange: (o: boolean) => void;
+  source?: Source;
 }
 
 const splitCsv = (s: string | undefined): string[] =>
@@ -37,10 +40,13 @@ const splitCsv = (s: string | undefined): string[] =>
     .map((x) => x.trim())
     .filter(Boolean);
 
-export function AddSourceDialog({ name, open, onOpenChange }: Props) {
+export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
   const { t } = useTranslation("workspace");
   const { toast } = useToast();
   const add = useAddSource(name);
+  const update = useUpdateSource(name);
+  const isEdit = source !== undefined;
+
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -52,34 +58,66 @@ export function AddSourceDialog({ name, open, onOpenChange }: Props) {
     },
   });
 
+  useEffect(() => {
+    if (open) {
+      if (source) {
+        form.reset({
+          url: source.config.url,
+          branch: source.config.branch,
+          auth_ref: source.config.auth_ref ?? "",
+          include: source.config.include.join(", "),
+          exclude: source.config.exclude.join(", "),
+        });
+      } else {
+        form.reset({ url: "", branch: "main", auth_ref: "", include: "", exclude: "" });
+      }
+    }
+  }, [open, source, form]);
+
   const onSubmit = (v: FormValues) => {
-    add.mutate(
-      {
-        type: "git",
-        config: {
-          url: v.url,
-          branch: v.branch,
-          auth_ref: v.auth_ref || null,
-          include: splitCsv(v.include),
-          exclude: splitCsv(v.exclude),
+    const config = {
+      url: v.url,
+      branch: v.branch,
+      auth_ref: v.auth_ref || null,
+      include: splitCsv(v.include),
+      exclude: splitCsv(v.exclude),
+    };
+
+    if (isEdit) {
+      update.mutate(
+        { sourceId: source.id, payload: { config } },
+        {
+          onSuccess: () => {
+            toast({ title: t("sources.edit.success") });
+            onOpenChange(false);
+          },
+          onError: () => toast({ title: t("sources.edit.error"), variant: "destructive" }),
         },
-      },
-      {
-        onSuccess: () => {
-          toast({ title: t("sources.add.success") });
-          form.reset();
-          onOpenChange(false);
+      );
+    } else {
+      add.mutate(
+        { type: "git", config },
+        {
+          onSuccess: () => {
+            toast({ title: t("sources.add.success") });
+            form.reset();
+            onOpenChange(false);
+          },
+          onError: () => toast({ title: t("sources.add.error"), variant: "destructive" }),
         },
-        onError: () => toast({ title: t("sources.add.error"), variant: "destructive" }),
-      },
-    );
+      );
+    }
   };
+
+  const isPending = isEdit ? update.isPending : add.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t("sources.add.title")}</DialogTitle>
+          <DialogTitle>
+            {isEdit ? t("sources.edit.title") : t("sources.add.title")}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
           <div>
@@ -129,8 +167,8 @@ export function AddSourceDialog({ name, open, onOpenChange }: Props) {
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               {t("dialog.cancel")}
             </Button>
-            <Button type="submit" disabled={add.isPending}>
-              {t("sources.add.submit")}
+            <Button type="submit" disabled={isPending}>
+              {isEdit ? t("sources.edit.submit") : t("sources.add.submit")}
             </Button>
           </DialogFooter>
         </form>

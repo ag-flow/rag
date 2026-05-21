@@ -112,6 +112,21 @@ class SourceCreateRequest(BaseModel):
         return v
 
 
+class SourceUpdateRequest(BaseModel):
+    """Payload PATCH /workspaces/{name}/sources/{source_id}."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    config: dict[str, Any]
+
+    @field_validator("config")
+    @classmethod
+    def config_must_have_url(cls, v: dict[str, Any]) -> dict[str, Any]:
+        if "url" not in v or not v["url"]:
+            raise ValueError("config.url is required for git sources")
+        return v
+
+
 class SourceResponse(BaseModel):
     id: UUID
     type: str

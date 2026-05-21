@@ -23,6 +23,7 @@ vi.mock("@/hooks/useWorkspaces", () => ({
     isLoading: false,
   }),
   useAddSource: () => ({ mutate: vi.fn(), isPending: false }),
+  useUpdateSource: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteSource: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 

@@ -15,7 +15,7 @@ from rag.api.errors import (
     WorkspaceNotFound,
 )
 from rag.db.helpers import fetch_all, fetch_one
-from rag.schemas.admin import SourceCreateRequest
+from rag.schemas.admin import SourceCreateRequest, SourceUpdateRequest
 from rag.secrets.refs import build_ref
 from rag.secrets.resolver import VaultLookupFailed
 
@@ -106,6 +106,39 @@ async def list_sources(config_pool: asyncpg.Pool, *, workspace_name: str) -> lis
         workspace_name,
     )
     return [_source_to_dict(r) for r in rows]
+
+
+async def update_source(
+    *,
+    workspace_name: str,
+    source_id: str,
+    request: SourceUpdateRequest,
+    config_pool: asyncpg.Pool,
+    resolver: _ResolverProtocol,
+    default_vault_name: str = "rag",
+) -> dict[str, Any]:
+    """Met à jour la config d'une source. Lève SourceNotFound si l'id n'appartient pas au workspace."""
+    ws_id = await _get_workspace_id_or_raise(config_pool, workspace_name)
+
+    auth_ref = request.config.get("auth_ref")
+    if auth_ref:
+        await _validate_ref_via_vault(resolver, auth_ref, default_vault_name)
+
+    async with config_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE workspace_sources SET config = $1::jsonb
+            WHERE id = $2::uuid AND workspace_id = $3
+            RETURNING id, type, config, last_indexed_at, created_at
+            """,
+            json.dumps(request.config),
+            source_id,
+            ws_id,
+        )
+    if row is None:
+        raise SourceNotFound(source_id)
+    log.info("source.updated", workspace=workspace_name, source_id=source_id)
+    return _source_to_dict(row)
 
 
 async def delete_source(*, workspace_name: str, source_id: str, config_pool: asyncpg.Pool) -> None:

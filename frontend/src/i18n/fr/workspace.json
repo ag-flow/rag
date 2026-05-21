@@ -60,6 +60,7 @@
     "addButton": "Ajouter une source",
     "empty": "Aucune source. Ajoutez-en une pour commencer.",
     "neverSynced": "jamais synchronisé",
+    "editAction": "Modifier",
     "deleteAction": "Supprimer",
     "fields": {
       "url": "URL",
@@ -77,6 +78,12 @@
       "errors": {
         "invalid_url": "URL invalide."
       }
+    },
+    "edit": {
+      "title": "Modifier la source git",
+      "submit": "Enregistrer",
+      "success": "Source modifiée.",
+      "error": "Échec de la modification."
     },
     "delete": {
       "title": "Supprimer la source",

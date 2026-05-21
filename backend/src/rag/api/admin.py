@@ -17,6 +17,7 @@ from rag.schemas.admin import (
     RerankSpec,
     SourceCreateRequest,
     SourceResponse,
+    SourceUpdateRequest,
     WorkspaceCreateRequest,
     WorkspaceCreateResponse,
     WorkspacePatchRequest,
@@ -194,6 +195,23 @@ def build_admin_router() -> APIRouter:
         default_vault = await _resolve_default_vault_or_503(request)
         row = await add_source(
             workspace_name=name,
+            request=payload,
+            config_pool=_config_pool(request),
+            resolver=_resolver(request),  # type: ignore[arg-type]
+            default_vault_name=default_vault,
+        )
+        return SourceResponse(**row)
+
+    @router.patch("/workspaces/{name}/sources/{source_id}")
+    async def patch_source(
+        name: str, source_id: str, payload: SourceUpdateRequest, request: Request
+    ) -> SourceResponse:
+        from rag.services.sources import update_source
+
+        default_vault = await _resolve_default_vault_or_503(request)
+        row = await update_source(
+            workspace_name=name,
+            source_id=source_id,
             request=payload,
             config_pool=_config_pool(request),
             resolver=_resolver(request),  # type: ignore[arg-type]
