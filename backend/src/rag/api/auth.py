@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import time
+
 import structlog
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Request, Response, status
 from fastapi.responses import RedirectResponse
 
 from rag.api.errors import (
     BootstrapDisabled,
     LocalAuthInvalidCredentials,
+    LocalSessionExpired,
     OidcNotConfigured,
     OidcSessionExpired,
     OidcSessionMissing,
@@ -16,7 +19,7 @@ from rag.api.errors import (
 from rag.auth.bearer import _LOCAL_SESSION_KEY
 from rag.auth.oidc_dependency import require_oidc_role
 from rag.schemas.local_auth import LocalLoginRequest, LocalLoginResponse
-from rag.schemas.oidc import MeResponse, OidcUserContext
+from rag.schemas.oidc import MeResponse
 
 log = structlog.get_logger(__name__)
 
@@ -150,9 +153,23 @@ def build_auth_router() -> APIRouter:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @router.get("/me", response_model=MeResponse)
-    async def me(
-        user: OidcUserContext = Depends(require_oidc_role("rag-viewer")),  # noqa: B008
-    ) -> MeResponse:
+    async def me(request: Request) -> MeResponse:
+        local_session = request.session.get(_LOCAL_SESSION_KEY)
+        if local_session:
+            expires_at = local_session.get("expires_at", 0)
+            if expires_at > int(time.time()):
+                return MeResponse(
+                    sub=local_session["username"],
+                    email=None,
+                    name=None,
+                    roles=["rag-admin"],
+                )
+            request.session.pop(_LOCAL_SESSION_KEY, None)
+            raise LocalSessionExpired()
+
+        # Délègue au chemin OIDC existant
+        oidc_dep = require_oidc_role("rag-viewer")
+        user = await oidc_dep(request)
         return MeResponse(
             sub=user.sub,
             email=user.email,
