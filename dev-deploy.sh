@@ -396,6 +396,14 @@ if [ "$SMOKE_OK" = "1" ]; then
   → Backend direct   : http://${IP}:8000/     (bypass Caddy, debug)
   → pgweb (DB UI)    : http://${IP}:8081/
   → Postgres CLI     : psql postgresql://rag:<POSTGRES_PASSWORD>@${IP}:5432/postgres
+EOF
+# Compte admin bootstrap — affiché uniquement si le mot de passe en clair est présent dans .env.
+_bootstrap_user=$(grep -E '^RAG_BOOTSTRAP_ADMIN_USERNAME=' .env 2>/dev/null | head -1 | cut -d= -f2- || true)
+_bootstrap_plain=$(grep -E '^RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN=' .env 2>/dev/null | head -1 | cut -d= -f2- || true)
+if [[ -n "$_bootstrap_plain" ]]; then
+  echo "  → Compte admin     : ${_bootstrap_user:-admin} / ${_bootstrap_plain}  (login local sur ${APP_URL}/ui/login)"
+fi
+cat <<EOF
 ═════════════════════════════════════════════════════════════════
 EOF
 else
