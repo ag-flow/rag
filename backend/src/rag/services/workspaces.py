@@ -308,6 +308,8 @@ async def rotate_apikey(
         raise RuntimeError(f"fingerprint collision after {max_attempts} attempts") from last_err
 
     if apikey_cache is not None:
+        # FIXME(T5) : invalidate attend la ref vault "${vault://...}", pas le name.
+        # Refactoré en T5.
         apikey_cache.invalidate(name)
 
     log.info("workspace.apikey_rotated", name=name)

@@ -34,8 +34,12 @@ class HarpocrateVaultClient:
     def set_secret(self, path: str, value: str) -> None:
         """Crée ou met à jour un secret au path donné (upsert idempotent).
 
-        Tente un `put` (update) en premier ; si le secret n'existe pas encore,
-        crée via `create`. Requiert les permissions [write] ou [add] selon le cas.
+        Tente un `put` (update) d'abord ; si le secret n'existe pas encore
+        (`SecretNotFound`), crée via `create`. Toute autre exception
+        (ex. permission denied, timeout) est propagée à l'appelant.
+
+        Note : import `SecretNotFound` différé car le SDK peut être absent
+        au test-time (le module charge sans lui via TYPE_CHECKING).
         """
         from harpocrate.exceptions import SecretNotFound  # type: ignore[import-not-found]
 

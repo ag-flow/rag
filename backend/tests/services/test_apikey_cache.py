@@ -33,3 +33,4 @@ def test_cache_invalidate_unknown_ref_no_error() -> None:
     """invalidate sur clé inexistante est idempotent."""
     cache = ApiKeyCache()
     cache.invalidate("${vault://rag:never_put}")  # ne doit pas lever
+    assert cache.get("${vault://rag:never_put}") is None  # store inchangé

@@ -62,7 +62,8 @@ async def require_workspace_apikey(
     """Dependency FastAPI : valide `Authorization: Bearer <WORKSPACE_API_KEY>`.
 
     Lookup O(1) par fingerprint SHA-256 puis comparaison timing-safe sur
-    la valeur déchiffrée (pgp_sym_decrypt). Cache LRU+TTL conservé.
+    la valeur déchiffrée (pgp_sym_decrypt).
+    NOTE(T6): cache non utilisé temporairement — lookup DB direct.
 
     - 401 si bearer absent / mauvais scheme / clé invalide.
     - 401 si workspace inexistant (401 uniforme — ne révèle pas l'existence).

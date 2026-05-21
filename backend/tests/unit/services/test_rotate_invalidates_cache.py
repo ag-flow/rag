@@ -1,32 +1,33 @@
 from __future__ import annotations
 
-import time
+# Tests unitaires pour rotate_apikey et invalidation cache (T1).
+# NOTE(T5): apikey_cache.invalidate() recoit le name du workspace pour l'instant
+# (pas encore la ref vault complete). Refactore en T5.
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
 
-from rag.auth.workspace_auth import ApiKeyCache, _CacheEntry
+from rag.auth.workspace_auth import ApiKeyCache
 from rag.services.workspaces import rotate_apikey
 
 
 @pytest.mark.asyncio
 async def test_rotate_apikey_calls_invalidate_on_cache(monkeypatch) -> None:
-    cache = ApiKeyCache(max_size=4, ttl_seconds=60)
-    cache.put(
-        "ws_x",
-        "old-key",
-        _CacheEntry(
-            workspace_id=uuid4(),
-            indexer_used="openai/m",
-            inserted_at=time.monotonic(),
-        ),
-    )
+    """rotate_apikey appelle cache.invalidate(name) apres rotation."""
+    cache = ApiKeyCache()
+    # Pre-popule avec la ref vault (T5 utilisera la vraie ref)
+    # Pour l'instant on teste juste que invalidate est appele
+    invalidate_calls: list[str] = []
+    original_invalidate = cache.invalidate
+
+    def _track_invalidate(ref: str) -> None:
+        invalidate_calls.append(ref)
+        original_invalidate(ref)
+
+    monkeypatch.setattr(cache, "invalidate", _track_invalidate)
 
     pool = MagicMock()
-    pool.execute = AsyncMock()
-    # rotate_apikey utilise `fetch_one(pool, ...)` du module db.pool — qui
-    # appelle pool.acquire().__aenter__().fetchrow(...). On stub :
     conn = MagicMock()
     conn.fetchrow = AsyncMock(return_value={"id": uuid4()})
     conn.execute = AsyncMock()
@@ -36,12 +37,13 @@ async def test_rotate_apikey_calls_invalidate_on_cache(monkeypatch) -> None:
 
     await rotate_apikey(name="ws_x", config_pool=pool, apikey_cache=cache, api_key_dek="x" * 32)
 
-    assert cache.get("ws_x", "old-key") is None
+    assert len(invalidate_calls) == 1
+    assert invalidate_calls[0] == "ws_x"
 
 
 @pytest.mark.asyncio
 async def test_rotate_apikey_works_without_cache_kwarg() -> None:
-    """Rétro-compat : appelable sans `apikey_cache=` (None par défaut)."""
+    """Retro-compat : appelable sans `apikey_cache=` (None par defaut)."""
     pool = MagicMock()
     conn = MagicMock()
     conn.fetchrow = AsyncMock(return_value={"id": uuid4()})

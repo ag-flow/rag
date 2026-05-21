@@ -4,6 +4,8 @@ import asyncio
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from hashlib import sha256
+from secrets import compare_digest
 from typing import Any, Protocol
 
 import asyncpg
@@ -11,7 +13,7 @@ import structlog
 from fastapi import HTTPException, status
 
 from rag.api.errors import WorkspaceNotFound
-from rag.auth.workspace_auth import ApiKeyCache, _CacheEntry
+from rag.auth.workspace_auth import ApiKeyCache
 from rag.db.pool import WorkspacePoolRegistry
 from rag.db.workspace_search import vector_search
 from rag.indexer.providers.factory import make_provider
@@ -19,12 +21,23 @@ from rag.indexer.providers.protocol import EmbeddingProvider
 from rag.rerank.protocol import RerankProvider
 from rag.rerank.providers.factory import make_rerank_provider as _make_rerank_default
 from rag.schemas.mcp import MultiWorkspaceRequest, SearchHit, SingleWorkspaceRequest
-from hashlib import sha256
-from secrets import compare_digest
-
 from rag.secrets.refs import build_ref
 
 log = structlog.get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class _CacheEntry:
+    """Résultat d'authentification d'un workspace (workspace_id + indexer_used).
+
+    Utilisé comme valeur de retour de `_authenticate`. Temporairement défini
+    ici car l'ancienne définition dans workspace_auth a été retirée en T1.
+    NOTE(T6) : sera consolidé lors du refactor cache complet.
+    """
+
+    workspace_id: object  # UUID asyncpg
+    indexer_used: str
+    inserted_at: float
 
 
 @dataclass(frozen=True)
@@ -64,9 +77,7 @@ async def _authenticate(
     - WorkspaceNotFound si workspace inconnu ou pas d'indexer_config.
     - HTTPException 401 si la clé ne correspond pas (non mise en cache).
     """
-    cached = apikey_cache.get(ref.name, ref.api_key)
-    if cached is not None:
-        return cached
+    # NOTE(T6) : cache non utilisé temporairement — refactor complet en T6.
 
     # Premier SELECT : vérifie l'existence du workspace+indexer (pour WorkspaceNotFound).
     exists_row = await config_pool.fetchrow(
@@ -99,7 +110,7 @@ async def _authenticate(
         indexer_used=exists_row["indexer_used"],
         inserted_at=time.monotonic(),
     )
-    apikey_cache.put(ref.name, ref.api_key, entry)
+    # NOTE(T6) : cache non utilisé temporairement — refactor complet en T6.
     return entry
 
 
@@ -245,7 +256,9 @@ async def _search_one(
     provider_factory: Callable[..., EmbeddingProvider],
     rerank_factory: Callable[..., RerankProvider],
 ) -> _WorkspaceResult:
-    auth = await _authenticate(ref=ref, config_pool=config_pool, apikey_cache=apikey_cache, api_key_dek=api_key_dek)
+    auth = await _authenticate(
+        ref=ref, config_pool=config_pool, apikey_cache=apikey_cache, api_key_dek=api_key_dek
+    )
     ctx = await _load_workspace_context(config_pool, ref.name)
 
     api_key: str | None = None

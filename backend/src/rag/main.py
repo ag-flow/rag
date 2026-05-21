@@ -113,7 +113,7 @@ def build_app(
         await run_migrations(registry.config_pool, target_dir)
 
         # M5e — guard : si des workspaces existent en BDD, RAG_API_KEY_DEK doit être défini
-        # (sinon impossible de déchiffrer les api_keys, le service tournerait en mode dégradé silencieux).
+        # (sinon impossible de déchiffrer les api_keys — service en mode dégradé silencieux).
         async with registry.config_pool.acquire() as conn:
             workspaces_count = await conn.fetchval("SELECT COUNT(*) FROM workspaces")
         if workspaces_count > 0 and settings.api_key_dek is None:
@@ -187,7 +187,7 @@ def build_app(
             client_provider=app.state.client_provider,
         )
         app.state.indexer = indexer
-        app.state.apikey_cache = ApiKeyCache(max_size=256, ttl_seconds=300)
+        app.state.apikey_cache = ApiKeyCache()
 
         sync_worker = SyncWorker(
             config_pool=registry.config_pool,
