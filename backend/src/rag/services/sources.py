@@ -144,8 +144,13 @@ async def update_source(
         current_config = json.loads(raw) if isinstance(raw, str) else dict(raw)
         existing_ref: str | None = current_config.get("auth_ref")
 
-        # Détermine le vault depuis la ref existante ou prend le défaut
-        if existing_ref:
+        # Détermine le vault : priorité au vault explicitement fourni dans la requête
+        source_name = current["name"] or source_id
+        if request.api_key_vault:
+            vault_name = request.api_key_vault
+            auth_path = f"{workspace_name}/{source_name}/auth"
+            existing_ref = None  # force recalcul de la ref
+        elif existing_ref:
             from rag.secrets.refs import parse_ref
             vault_api_key_id, auth_path = parse_ref(existing_ref)
             async with config_pool.acquire() as conn:
@@ -153,7 +158,6 @@ async def update_source(
             vault_name = vault.name if vault else None
         else:
             vault_name = None
-            source_name = current["name"] or source_id
             auth_path = f"{workspace_name}/{source_name}/auth"
 
         if vault_name:

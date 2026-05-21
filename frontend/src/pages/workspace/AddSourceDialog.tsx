@@ -35,6 +35,7 @@ const createSchema = z.object({
 });
 
 const editSchema = z.object({
+  vault: z.string().optional(),
   url: z.string().url("invalid_url"),
   branch: z.string().min(1).default("main"),
   auth_value: z.string().optional(),
@@ -92,8 +93,10 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
 
   useEffect(() => {
     if (!open) return;
+    const firstVault = vaults?.[0];
     if (isEdit && source) {
       editForm.reset({
+        vault: firstVault?.name ?? "",
         url: source.config.url,
         branch: source.config.branch,
         auth_value: "",
@@ -101,7 +104,6 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
         exclude: source.config.exclude.join(", "),
       });
     } else {
-      const firstVault = vaults?.[0];
       createForm.reset({
         source_name: "",
         vault: firstVault?.name ?? "",
@@ -144,6 +146,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
       {
         sourceId: source!.id,
         payload: {
+          api_key_vault: v.vault || null,
           auth_value: v.auth_value || null,
           config: {
             url: v.url,
@@ -176,6 +179,37 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
             <DialogTitle>{title}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmitEdit)} className="space-y-3">
+            {source?.name && (
+              <div>
+                <label className="text-xs font-medium text-slate-700">
+                  {t("sources.fields.source_name")}
+                </label>
+                <Input value={source.name} readOnly disabled className="bg-slate-50 opacity-70" />
+              </div>
+            )}
+            <div>
+              <label className="text-xs font-medium text-slate-700">
+                {t("sources.fields.vault")}
+              </label>
+              <Controller
+                name="vault"
+                control={control}
+                render={({ field }) => (
+                  <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("sources.fields.vault_placeholder")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(vaults ?? []).map((v) => (
+                        <SelectItem key={v.name} value={v.name}>
+                          {v.label || v.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
             <UrlField register={register} errors={formState.errors} t={t} />
             <BranchField register={register} t={t} />
             <AuthValueField register={register} control={control} t={t} />

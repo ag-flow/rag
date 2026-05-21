@@ -73,6 +73,7 @@ export type SourceCreateRequest = {
 };
 
 export type SourceUpdateRequest = {
+  api_key_vault?: string | null;
   auth_value: string | null;
   config: SourceConfigInput;
 };

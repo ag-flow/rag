@@ -120,6 +120,7 @@ class SourceUpdateRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    api_key_vault: str | None = None
     auth_value: str | None = None
     config: dict[str, Any]
 
