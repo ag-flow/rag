@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Plus, MoreHorizontal, ChevronRight, ChevronDown, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -165,8 +166,19 @@ interface SyncPanelProps {
 
 function SourceSyncPanel({ workspaceName, sourceId }: SyncPanelProps) {
   const { t } = useTranslation("workspace");
+  const qc = useQueryClient();
+  const jobQueryKey = ["source-active-job", workspaceName, sourceId] as const;
+
+  // jobId stocké dans le cache Query : survit aux navigations et aux toggle d'accordion
+  const { data: jobId = null } = useQuery<string | null>({
+    queryKey: jobQueryKey,
+    queryFn: () => null,
+    enabled: false,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+
   const trigger = useTriggerSourceSync(workspaceName);
-  const [jobId, setJobId] = useState<string | null>(null);
   const { lines, jobStatus } = useJobLogs(jobId);
   const logEndRef = useRef<HTMLDivElement>(null);
 
@@ -175,9 +187,8 @@ function SourceSyncPanel({ workspaceName, sourceId }: SyncPanelProps) {
   }, [lines]);
 
   const handleRun = () => {
-    setJobId(null);
     trigger.mutate(sourceId, {
-      onSuccess: (job) => setJobId(job.id),
+      onSuccess: (job) => qc.setQueryData<string | null>(jobQueryKey, job.id),
     });
   };
 
