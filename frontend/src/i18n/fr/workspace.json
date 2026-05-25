@@ -1,0 +1,284 @@
+{
+  "title": "Workspaces",
+  "list": {
+    "header": "Workspaces",
+    "new": "+ Nouveau"
+  },
+  "empty": {
+    "title": "Aucun workspace",
+    "description": "Créez votre premier workspace pour indexer des sources."
+  },
+  "header": {
+    "created": "créé {{when}}",
+    "reindex": "Réindexer",
+    "menu": {
+      "reveal": "Révéler la clé API",
+      "rotate": "Régénérer la clé API",
+      "delete": "Supprimer le workspace"
+    }
+  },
+  "tabs": {
+    "detail": "Détail",
+    "sources": "Sources git ({{count}})",
+    "jobs": "Jobs",
+    "model": "Modèle",
+    "rerank": "Rerank",
+    "chunking": "Chunking"
+  },
+  "detail": {
+    "stats": {
+      "title": "Statistiques",
+      "sources": "{{count}} sources",
+      "documents": "{{count}} documents",
+      "lastIndexed": "dernière sync : {{when}}"
+    },
+    "apikey": {
+      "title": "Clé API workspace",
+      "reveal": "Révéler",
+      "rotate": "Régénérer"
+    },
+    "apiKeyRef": {
+      "title": "Référence Harpocrate",
+      "editable": "modifiable",
+      "save": "Enregistrer",
+      "errors": {
+        "alphanum_underscore_only": "Caractères autorisés : a-z, A-Z, 0-9, underscore."
+      }
+    },
+    "ids": {
+      "title": "Identifiants (lecture seule)",
+      "name": "nom",
+      "id": "id"
+    },
+    "save": {
+      "success": "Référence enregistrée.",
+      "error": "Erreur à l'enregistrement."
+    }
+  },
+  "sources": {
+    "title": "Sources git ({{count}})",
+    "addButton": "Ajouter une source",
+    "empty": "Aucune source. Ajoutez-en une pour commencer.",
+    "neverSynced": "jamais synchronisé",
+    "editAction": "Modifier",
+    "deleteAction": "Supprimer",
+    "fields": {
+      "source_name": "Nom de la source",
+      "source_name_placeholder": "ex. mon-repo",
+      "source_name_hint": "Identifiant unique, minuscules, chiffres, tirets",
+      "vault": "Coffre Harpocrate",
+      "vault_placeholder": "Sélectionner un coffre…",
+      "url": "URL",
+      "branch": "Branche",
+      "auth_value": "Token GitHub (PAT)",
+      "auth_value_placeholder": "github_pat_…",
+      "auth_value_link": "Générer un token GitHub",
+      "auth_status_set": "authentification configurée",
+      "auth_status_none": "aucune authentification",
+      "include": "Inclure",
+      "exclude": "Exclure"
+    },
+    "add": {
+      "title": "Ajouter une source git",
+      "submit": "Ajouter",
+      "success": "Source ajoutée.",
+      "error": "Échec de l'ajout.",
+      "errors": {
+        "invalid_url": "URL invalide.",
+        "invalid_slug": "Identifiant invalide (minuscules, chiffres, tirets uniquement).",
+        "required": "Champ requis."
+      }
+    },
+    "edit": {
+      "title": "Modifier la source git",
+      "submit": "Enregistrer",
+      "success": "Source modifiée.",
+      "error": "Échec de la modification."
+    },
+    "test": {
+      "button": "Tester la connexion",
+      "testing": "Test en cours…",
+      "success": "Connexion réussie.",
+      "failure": "Échec :",
+      "error": "Erreur lors du test."
+    },
+    "sync": {
+      "run": "Lancer la synchronisation",
+      "running": "Synchronisation en cours…",
+      "done": "Synchronisation terminée.",
+      "error": "Synchronisation échouée."
+    },
+    "delete": {
+      "title": "Supprimer la source",
+      "warning": "Cette action supprime la source. Les documents déjà indexés restent.",
+      "confirm": "Supprimer",
+      "success": "Source supprimée.",
+      "error": "Échec de la suppression."
+    }
+  },
+  "jobs": {
+    "title": "Jobs ({{count}})",
+    "empty": "Aucun job d'indexation.",
+    "changes": "{{changed}} ch / {{skipped}} sk"
+  },
+  "model": {
+    "title": "Modèle d'indexation",
+    "provider": "provider",
+    "model": "model",
+    "base_url": "base_url",
+    "api_key_ref": "api_key_ref",
+    "immutableNote": "Le modèle est immutable. Changer provider ou model invaliderait toutes les dimensions vecteurs et nécessiterait une réindexation complète, non supportée dans cette version."
+  },
+  "rerank": {
+    "title": "Reranking",
+    "titleOptional": "Reranking (optionnel)",
+    "badge": {
+      "active": "actif"
+    },
+    "description": {
+      "configured": "Activé pour ce workspace. Les hits pgvector sont retriés par le modèle sélectionné avant retour MCP.",
+      "empty": "Ajoute une seconde passe de tri sur les hits pgvector. Si désactivé, le tri par similarité cosinus seul est utilisé."
+    },
+    "fields": {
+      "provider": "Provider",
+      "providerPlaceholder": "Sélectionner…",
+      "providers": {
+        "cohere": "Cohere",
+        "openai": "OpenAI",
+        "voyage": "Voyage AI",
+        "ollama": "Ollama"
+      },
+      "model": "Modèle",
+      "modelPlaceholder": "ex. rerank-english-v3.0",
+      "baseUrl": "Base URL (Ollama)",
+      "baseUrlPlaceholder": "https://ollama.example.com",
+      "baseUrlNotApplicable": "— non applicable —",
+      "apiKeyRef": "Référence clé API Harpocrate",
+      "apiKeyRefPlaceholder": "cohere_rerank_key",
+      "apiKeyRefNotApplicable": "— non applicable —",
+      "topK": "top_k pré-rerank",
+      "topKHelp": "(1-500)"
+    },
+    "errors": {
+      "required": "Champ requis.",
+      "required_for_provider": "Requis pour ce provider.",
+      "alphanum_underscore_only": "Caractères autorisés : a-z, A-Z, 0-9, underscore.",
+      "invalid_url": "URL invalide.",
+      "min": "Doit être ≥ 1.",
+      "max": "Doit être ≤ 500."
+    },
+    "warning": "Si le provider tombe, la recherche échoue (pas de fallback silencieux). Cohérent avec la philosophie fail-fast.",
+    "lastModified": "Dernière modification : {{when}}",
+    "actions": {
+      "save": "Enregistrer",
+      "activate": "Activer",
+      "cancel": "Annuler",
+      "delete": "Supprimer la config"
+    },
+    "save": {
+      "success": "Configuration enregistrée.",
+      "error": "Échec de l'enregistrement."
+    },
+    "delete": {
+      "title": "Désactiver le reranking ?",
+      "warning": "La configuration rerank de ce workspace sera supprimée. Les prochaines recherches utiliseront uniquement la similarité cosinus pgvector.",
+      "reversibleNote": "Cette action est réversible (recréer la config).",
+      "confirm": "Désactiver",
+      "success": "Configuration supprimée.",
+      "error": "Échec de la suppression."
+    }
+  },
+  "chunking": {
+    "title": "Configuration du chunking",
+    "badgeMandatory": "obligatoire",
+    "description": "Stratégie de découpage des documents avant indexation. Modifier ces paramètres nécessite une réindexation complète du workspace.",
+    "warning": "Modifier ces paramètres rend les chunks existants incohérents avec les nouveaux embeddings. Une réindexation complète sera demandée.",
+    "fields": {
+      "strategy": "Stratégie",
+      "strategyHelp": {
+        "paragraph": "Découpage par paragraphes avec coalesce des petits et split des gros.",
+        "markdown": "Respecte la structure d'un document Markdown : un chunk = une section délimitée par les titres (H1, H2 par défaut). Les blocs de code (```) ne sont jamais coupés."
+      },
+      "strategies": {
+        "paragraph": "Paragraphes (par défaut)",
+        "markdown": "Markdown"
+      },
+      "maxChars": "Taille max d'un chunk (caractères)",
+      "maxCharsHelp": "doit être ≥ 1",
+      "minChars": "Taille min avant coalesce (caractères)",
+      "minCharsHelp": "doit être < taille max",
+      "overlapChars": "Overlap entre chunks (caractères)",
+      "overlapCharsHelp": "doit être < taille max"
+    },
+    "errors": {
+      "required": "Valeur requise",
+      "min": "Valeur trop petite",
+      "min_lt_max": "Doit être inférieur à la taille max",
+      "overlap_lt_max": "Doit être inférieur à la taille max"
+    },
+    "actions": { "save": "Enregistrer", "cancel": "Annuler" },
+    "save": {
+      "success": "Configuration enregistrée",
+      "noChange": "Aucune modification",
+      "error": "Échec de l'enregistrement"
+    },
+    "reindex": {
+      "triggered": "Réindexation lancée",
+      "dialog": {
+        "title": "Réindexation requise",
+        "intro": "Cette modification nécessite de réindexer l'intégralité du workspace.",
+        "labelCurrent": "Configuration actuelle :",
+        "labelNew": "Nouvelle configuration :",
+        "consequence": "Cette opération va supprimer tous les chunks existants et ré-indexer les documents. Cela peut prendre plusieurs minutes.",
+        "actions": { "cancel": "Annuler", "confirm": "Réindexer maintenant" }
+      }
+    },
+    "lastModified": "Dernière modification : {{when}}"
+  },
+  "dialog": {
+    "cancel": "Annuler",
+    "close": "Fermer",
+    "reveal": {
+      "title": "Révéler la clé API",
+      "warning": "Affiche la clé API en clair. Continuer ?",
+      "confirm": "Révéler",
+      "copyHint": "Copiez la clé maintenant — elle sera masquée dans 30 secondes.",
+      "autoMaskNote": "La clé sera masquée automatiquement dans 30 secondes.",
+      "copied": "Clé copiée.",
+      "error": "Échec de la révélation."
+    },
+    "rotate": {
+      "title": "Régénérer la clé API",
+      "warning": "Cette action invalide immédiatement la clé actuelle. Les agents existants devront être reconfigurés.",
+      "confirmLabel": "Tapez « {{name}} » pour confirmer",
+      "confirm": "Régénérer",
+      "copyHint": "Nouvelle clé générée. Copiez-la maintenant — elle ne sera plus affichée.",
+      "oneTimeWarning": "Affichage à usage unique : la clé ne sera plus accessible après fermeture (sauf via Révéler).",
+      "success": "Clé régénérée.",
+      "error": "Échec de la régénération.",
+      "copied": "Clé copiée."
+    },
+    "reindex": {
+      "title": "Réindexer",
+      "warning": "Toutes les sources du workspace seront re-synchronisées. Les documents non modifiés sont skip (déduplication SHA-256).",
+      "confirm": "Déclencher la réindexation",
+      "success": "Réindexation déclenchée.",
+      "error": "Échec du déclenchement."
+    },
+    "delete": {
+      "title": "Supprimer le workspace",
+      "warning": "Supprime le workspace + sa base pgvector + tous ses documents indexés. Irréversible.",
+      "confirmLabel": "Tapez « {{name}} » pour confirmer",
+      "confirm": "Supprimer définitivement",
+      "success": "Workspace supprimé.",
+      "error": "Échec de la suppression."
+    }
+  },
+  "optional": "optionnel",
+  "time": {
+    "justNow": "à l'instant",
+    "minutesAgo": "il y a {{count}} min",
+    "hoursAgo": "il y a {{count}} h",
+    "daysAgo": "il y a {{count}} j"
+  }
+}

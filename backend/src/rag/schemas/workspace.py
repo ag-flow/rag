@@ -1,0 +1,39 @@
+from __future__ import annotations
+
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, Field, field_validator
+
+_PATH_MAX_LEN = 1024
+_CONTENT_MAX_BYTES = 5 * 1024 * 1024  # 5 MB UTF-8
+
+
+class PushRequest(BaseModel):
+    path: str = Field(..., min_length=1, max_length=_PATH_MAX_LEN)
+    content: str = Field(..., min_length=1)
+
+    @field_validator("content")
+    @classmethod
+    def _content_size(cls, v: str) -> str:
+        if len(v.encode("utf-8")) > _CONTENT_MAX_BYTES:
+            raise ValueError("content_too_large")
+        return v
+
+
+class PushIndexedResponse(BaseModel):
+    path: str
+    status: Literal["indexed"] = "indexed"
+    chunks: int
+    hash: str
+
+
+class PushSkippedResponse(BaseModel):
+    path: str
+    status: Literal["skipped"] = "skipped"
+    reason: Literal["content_unchanged"] = "content_unchanged"
+
+
+PushResponse = Annotated[
+    PushIndexedResponse | PushSkippedResponse,
+    Field(discriminator="status"),
+]

@@ -20,27 +20,43 @@ services:
     networks: [rag]
 
   backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     image: rag-backend:latest
     container_name: rag-backend
     restart: unless-stopped
     env_file: .env
+    environment:
+      # SHA injecté par dev-deploy.sh au up — pas de rebuild requis quand le commit change.
+      GIT_SHA: ${GIT_SHA:-unknown}
     # Exposé sur le LAN pour curl direct sur l'API depuis le Windows dev pendant les tests.
     ports:
       - "8000:8000"
     depends_on:
       postgres: { condition: service_healthy }
     networks: [rag]
+    volumes:
+      # M3 : clones git persistants entre runs.
+      # `dev-deploy.sh --reset` (down -v) purge ce volume au passage.
+      - rag_repos:/var/lib/rag/repos
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
       retries: 5
 
   frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     image: rag-frontend:latest
     container_name: rag-frontend
     restart: unless-stopped
-    depends_on: [backend]
     networks: [rag]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/healthz"]
+      interval: 10s
+      retries: 5
 
   caddy:
     image: caddy:2-alpine
@@ -52,10 +68,10 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    depends_on: [frontend, backend]
+    depends_on: [backend, frontend]
     networks: [rag]
 
-  # http://192.168.10.184:8081/
+  # http://<host>:8081/  — exposé sur l'IP de l'hôte Docker
   pgweb:
     image: sosedoff/pgweb:latest
     container_name: rag-pgweb
@@ -72,6 +88,7 @@ volumes:
   postgres_data:
   caddy_data:
   caddy_config:
+  rag_repos:    # M3 : clones git du sync worker (/var/lib/rag/repos)
 
 networks:
   rag:

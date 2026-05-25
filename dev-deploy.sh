@@ -5,23 +5,22 @@
 # Cible : machine de dev (LXC, VM, poste local) avec Docker installé.
 # Le script :
 #   1. git pull (ou clone si pas encore fait)
-#   2. Crée .env depuis .env.example si absent
-#   3. Crée les dossiers data/ pour les volumes Docker (gitignored)
-#   4. Build les images locales backend + frontend
-#   5. Down + up de la stack via docker-compose-dev.yml
+#   2. Crée .env depuis .env.example si absent (+ secrets aléatoires)
+#   3. Build les images locales (backend ; frontend skippé tant que M5 pas commencé)
+#   4. Down de la stack (avec -v si --reset)
+#   5. Pull images registry (postgres + caddy + pgweb) + up -d
+#   Final : attend que /health réponde et affiche /version (timeout 60s)
 #
 # Usage :
 #   ./dev-deploy.sh                       # reste sur la branche courante, pull
 #   ./dev-deploy.sh feat/ma-branche       # checkout cette branche, puis pull
-#   ./dev-deploy.sh --reset               # DESTRUCTIF : down + wipe data/postgres + redeploy
+#   ./dev-deploy.sh --reset               # DESTRUCTIF : down -v (purge volumes)
 #   ./dev-deploy.sh feat/ma-branche --reset
 #
-# Le flag --reset force la suppression du data dir Postgres (`data/postgres/`).
-# Utile quand le standby a été basebackuppé depuis un master avec un
-# POSTGRES_PASSWORD différent, ou pour repartir d'une base fraîche en dev.
-# Ne supprime PAS `data/backups/` ni `.env`.
-#
-# Pour la PROD (pull GHCR, pas de build local), utiliser scripts/refresh.sh.
+# Le flag --reset force un `docker compose down -v` qui purge les volumes
+# nommés Docker (`postgres_data`, `caddy_data`, `caddy_config`). La base
+# Postgres repart de zéro avec POSTGRES_PASSWORD du .env. Le `.env` est
+# conservé.
 #
 # ─── Réutilisabilité ────────────────────────────────────────────────────────
 # Ce script est conçu comme un template. Pour le reprendre dans un autre
@@ -34,8 +33,9 @@ set -euo pipefail
 # ─── Configuration du projet (À MODIFIER lors d'une réutilisation) ──────────
 PROJECT_NAME="rag"
 PROJECT_NAME_UPPER="$(echo "$PROJECT_NAME" | tr '[:lower:]' '[:upper:]')"
-
 REPO_URL="${REPO_URL:-git@github.com:ag-flow/rag.git}"
+
+
 COMPOSE_FILE="docker-compose-dev.yml"
 
 # Parse args : on accepte un mix « branche optionnelle » + « flags --xxx ».
@@ -72,9 +72,6 @@ Installer Docker sur Debian/Ubuntu :
     curl -fsSL https://get.docker.com | sh
     sudo systemctl enable --now docker
 
-Ou si tu utilises un LXC Proxmox, le recréer avec le flag --docker :
-    bash <(wget -qO- .../create-lxc.sh) <CTID> ${PROJECT_NAME}-dev --docker
-
 Puis relancer ./dev-deploy.sh.
 EOF
   exit 1
@@ -90,37 +87,37 @@ fi
 
 if [ -d ".git" ]; then
   if [ -n "$TARGET_BRANCH" ]; then
-    echo "[1/6] Repo détecté dans $(pwd) — switch vers ${TARGET_BRANCH}..."
+    echo "[1/5] Repo détecté dans $(pwd) — switch vers ${TARGET_BRANCH}..."
     git fetch origin
     git checkout "$TARGET_BRANCH"
     git pull --ff-only origin "$TARGET_BRANCH"
   else
     CURRENT_BRANCH="$(git branch --show-current)"
-    echo "[1/6] Repo détecté dans $(pwd) — pull branche courante (${CURRENT_BRANCH})..."
+    echo "[1/5] Repo détecté dans $(pwd) — pull branche courante (${CURRENT_BRANCH})..."
     git pull --ff-only
   fi
 else
   APP_DIR="${PROJECT_NAME}"
   if [ -d "$APP_DIR/.git" ]; then
     if [ -n "$TARGET_BRANCH" ]; then
-      echo "[1/6] Repo dans ./${APP_DIR} — switch vers ${TARGET_BRANCH}..."
+      echo "[1/5] Repo dans ./${APP_DIR} — switch vers ${TARGET_BRANCH}..."
       git -C "$APP_DIR" fetch origin
       git -C "$APP_DIR" checkout "$TARGET_BRANCH"
       git -C "$APP_DIR" pull --ff-only origin "$TARGET_BRANCH"
     else
       CURRENT_BRANCH="$(git -C "$APP_DIR" branch --show-current)"
-      echo "[1/6] Repo dans ./${APP_DIR} — pull branche courante (${CURRENT_BRANCH})..."
+      echo "[1/5] Repo dans ./${APP_DIR} — pull branche courante (${CURRENT_BRANCH})..."
       git -C "$APP_DIR" pull --ff-only
     fi
   else
     # Premier clone : on demande explicitement une branche cible (sinon
     # on ne sait pas laquelle prendre — pas de "branche courante" possible).
     if [ -z "$TARGET_BRANCH" ]; then
-      echo "[1/6] Aucun repo trouvé. Premier clone — précise la branche en argument :"
+      echo "[1/5] Aucun repo trouvé. Premier clone — précise la branche en argument :"
       echo "      ./dev-deploy.sh main"
       exit 1
     fi
-    echo "[1/6] Clone du repo dans ./${APP_DIR} (branche ${TARGET_BRANCH})..."
+    echo "[1/5] Clone du repo dans ./${APP_DIR} (branche ${TARGET_BRANCH})..."
     git clone --branch "$TARGET_BRANCH" "$REPO_URL" "$APP_DIR"
   fi
   cd "$APP_DIR"
@@ -132,12 +129,6 @@ fi
 # Utilisable directement dans une URL ou un DSN sans escape.
 gen_urlsafe() {
   openssl rand -base64 48 | tr '+/' '-_' | tr -d '=' | head -c "${1:-24}"
-}
-
-# Génère une chaîne base64 standard d'exactement N bytes décodés.
-# Pour ${PROJECT_NAME_UPPER}_HMAC_KEY (Pydantic Settings la décode → 32 bytes).
-gen_b64_bytes() {
-  openssl rand -base64 "${1:-32}" | tr -d '\n'
 }
 
 # Substitue la valeur d'une clé `KEY=...` dans un .env.
@@ -163,42 +154,6 @@ read_env_var() {
 detect_eth0_ip() {
   ip -4 -o addr show dev eth0 2>/dev/null \
     | awk '{print $4}' | cut -d/ -f1 | head -1
-}
-
-# Détecte le port HÔTE mappé sur le port 443 (HTTPS) du service frontend.
-# Source de vérité = le compose, pas l'image (l'image expose des ports
-# internes via Dockerfile EXPOSE — le mapping host n'est défini que par
-# le compose ou la CLI `docker run -p`).
-#
-# Stratégie en cascade :
-#   1) Runtime : `docker compose port frontend 443` (si les containers
-#      tournent déjà). Source de vérité absolue.
-#   2) Compose YAML : grep sur le mapping `"...:NNNN:443"`. Fonctionne
-#      avant le up.
-#   3) Fallback : 8443 (valeur du compose dev par défaut).
-detect_frontend_https_port() {
-  local port=""
-
-  # Source 1 : runtime (containers up)
-  if docker compose -f "$COMPOSE_FILE" ps -q frontend 2>/dev/null | grep -q .; then
-    port=$(docker compose -f "$COMPOSE_FILE" port frontend 443 2>/dev/null \
-           | awk -F: '{print $NF}' | head -1)
-    if [ -n "$port" ]; then
-      echo "$port"
-      return
-    fi
-  fi
-
-  # Source 2 : compose YAML (avant le up)
-  port=$(grep -oE '"[0-9.]+:[0-9]+:443"' "$COMPOSE_FILE" 2>/dev/null \
-         | head -1 | awk -F: '{print $2}')
-  if [ -n "$port" ]; then
-    echo "$port"
-    return
-  fi
-
-  # Fallback
-  echo "8443"
 }
 
 # Ajoute au .env les clés présentes dans .env.example mais manquantes côté
@@ -238,162 +193,242 @@ sync_new_vars_from_example() {
   fi
 }
 
+# ─── HARPOCRATE_DEK (init si absent) ─────────────────────────
+# Passphrase pgcrypto qui chiffre les api_keys des coffres Harpocrate en DB.
+# Obligatoire dès qu'un coffre est créé (sinon 500 sur POST /admin/harpocrate-vaults).
+ensure_harpocrate_dek() {
+  local env_file="$1"
+  local current
+  current=$(grep -E '^HARPOCRATE_DEK=' "$env_file" 2>/dev/null \
+            | head -1 | cut -d= -f2- || true)
+  if [[ -n "$current" ]]; then
+    echo "  ✓ HARPOCRATE_DEK déjà défini"
+    return 0
+  fi
+
+  local dek
+  dek="$(gen_urlsafe 48)"
+
+  if grep -qE '^HARPOCRATE_DEK=' "$env_file"; then
+    sed -i "s|^HARPOCRATE_DEK=.*|HARPOCRATE_DEK=${dek}|" "$env_file"
+  else
+    echo "HARPOCRATE_DEK=${dek}" >> "$env_file"
+  fi
+
+  echo "  ✓ HARPOCRATE_DEK généré (48 chars)"
+}
+
+# ─── Bootstrap admin local (init si absent) ─────────────────
+ensure_bootstrap_admin_hash() {
+  local env_file="$1"
+  local current
+  current=$(grep -E '^RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=' "$env_file" 2>/dev/null \
+            | head -1 | cut -d= -f2- || true)
+  if [[ -n "$current" ]]; then
+    echo "  ✓ RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH déjà défini"
+    return 0
+  fi
+
+  # htpasswd (apache2-utils) génère des hashs bcrypt natifs.
+  # NB : openssl ne supporte PAS -bcrypt en upstream — il faut htpasswd.
+  if ! command -v htpasswd >/dev/null 2>&1; then
+    echo "  ℹ htpasswd absent, installation de apache2-utils..."
+    apt-get install -y apache2-utils >/dev/null 2>&1 || {
+      echo "  ✗ Échec installation apache2-utils. Installer manuellement : apt install apache2-utils" >&2
+      return 1
+    }
+  fi
+
+  local plain hash hash_escaped
+  plain=$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-20)
+  hash=$(htpasswd -nbBC 12 "" "$plain" | tr -d ':\n') || {
+    echo "  ✗ htpasswd a échoué — vérifier le paquet apache2-utils." >&2
+    return 1
+  }
+  # docker-compose interprète $ dans les valeurs env_file : on doit doubler pour échapper.
+  # Cf. .env.example : "doubler tout $ en $$ si déposé via env_file".
+  hash_escaped="${hash//\$/\$\$}"
+
+  if grep -qE '^RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=' "$env_file"; then
+    sed -i "s|^RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=.*|RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=${hash_escaped}|" "$env_file"
+  else
+    echo "RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=${hash_escaped}" >> "$env_file"
+  fi
+
+  # Écrit aussi le pwd en clair dans .env pour commodité dev (dev-only).
+  # Le backend ne lit PAS cette variable — c'est juste un memo pour l'opérateur.
+  if grep -qE '^RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN=' "$env_file"; then
+    sed -i "s|^RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN=.*|RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN=${plain}|" "$env_file"
+  else
+    echo "RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN=${plain}" >> "$env_file"
+  fi
+
+  echo
+  echo "═══════════════════════════════════════════════════════════"
+  echo "  COMPTE ADMIN BOOTSTRAP CRÉÉ"
+  echo "  Username : admin"
+  echo "  Password : ${plain}"
+  echo "  (aussi mémorisé dans .env sous RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN)"
+  echo "═══════════════════════════════════════════════════════════"
+  echo
+}
+
 if [ ! -f ".env" ]; then
   if [ -f ".env.example" ]; then
-    echo "[2/6] .env absent → création depuis .env.example + génération secrets aléatoires"
+    echo "[2/5] .env absent → création depuis .env.example + génération secrets aléatoires"
     cp .env.example .env
 
-    # Secrets auto-générés : tout ce qui PEUT être random sans casser
-    # l'usage. Les autres valeurs (KEYCLOAK_*, PUBLIC_URL, listmonk) restent
-    # à éditer manuellement par l'admin.
+    # Secrets auto-générés (M1) :
+    # - POSTGRES_PASSWORD : 32 chars URL-safe — utilisé par DATABASE_URL et
+    #   RAG_POSTGRES_ADMIN_URL via interpolation du .env.
+    # - RAG_MASTER_KEY    : 48 chars URL-safe — Bearer admin (cf. M2).
     PG_PASS="$(gen_urlsafe 32)"
-    HMAC_KEY="$(gen_b64_bytes 32)"
-    ADMIN_PASS="$(gen_urlsafe 24)"
+    MASTER_KEY="$(gen_urlsafe 48)"
 
     set_env_value .env "POSTGRES_PASSWORD" "$PG_PASS"
-    set_env_value .env "${PROJECT_NAME_UPPER}_HMAC_KEY" "$HMAC_KEY"
-    set_env_value .env "${PROJECT_NAME_UPPER}_ADMIN_LOCAL_PASSWORD" "$ADMIN_PASS"
-    # Active aussi l'admin local par défaut en dev (sinon le password
-    # généré ne sert à rien).
-    set_env_value .env "${PROJECT_NAME_UPPER}_ADMIN_LOCAL_ENABLED" "true"
-
-    # PUBLIC_URL : URL externe d'accès au frontend en HTTPS. On résout le
-    # port directement depuis le compose (pas hardcodé) — si tu changes le
-    # mapping de port côté compose, le script suit automatiquement.
-    ETH0_IP="$(detect_eth0_ip)"
-    HTTPS_PORT="$(detect_frontend_https_port)"
-    if [ -n "$ETH0_IP" ]; then
-      PUBLIC_URL="https://${ETH0_IP}:${HTTPS_PORT}"
-      set_env_value .env "${PROJECT_NAME_UPPER}_PUBLIC_URL" "$PUBLIC_URL"
-    fi
+    set_env_value .env "${PROJECT_NAME_UPPER}_MASTER_KEY" "$MASTER_KEY"
 
     # `.env` contient des secrets : restreindre les permissions.
     chmod 600 .env
 
-    echo "      ✓ POSTGRES_PASSWORD                              : généré ($(echo -n "$PG_PASS" | wc -c) chars)"
-    echo "      ✓ ${PROJECT_NAME_UPPER}_HMAC_KEY                 : généré (base64 de 32 bytes)"
-    echo "      ✓ ${PROJECT_NAME_UPPER}_ADMIN_LOCAL_PASSWORD     : généré ($(echo -n "$ADMIN_PASS" | wc -c) chars)"
-    echo "      ✓ ${PROJECT_NAME_UPPER}_ADMIN_LOCAL_ENABLED      : true (admin local activé pour le dev)"
-    if [ -n "$ETH0_IP" ]; then
-      echo "      ✓ ${PROJECT_NAME_UPPER}_PUBLIC_URL             : ${PUBLIC_URL} (IP eth0 détectée)"
-    else
-      echo "      ⚠  ${PROJECT_NAME_UPPER}_PUBLIC_URL : eth0 non détectée — édite .env manuellement"
-    fi
+    echo "      ✓ POSTGRES_PASSWORD              : généré ($(echo -n "$PG_PASS" | wc -c) chars)"
+    echo "      ✓ ${PROJECT_NAME_UPPER}_MASTER_KEY                 : généré ($(echo -n "$MASTER_KEY" | wc -c) chars)"
     echo
-    echo "      ⚠  Login admin local : admin / ${ADMIN_PASS}"
-    echo "         (récupérable plus tard dans .env — chmod 600)"
-    echo
-    echo "      ⚠  À ÉDITER MANUELLEMENT dans .env si nécessaire :"
-    echo "         - ${PROJECT_NAME_UPPER}_KEYCLOAK_URL / REALM / CLIENT_ID  (si auth OIDC)"
-    echo "         - ${PROJECT_NAME_UPPER}_LISTMONK_*                         (si envoi mails recovery)"
+    echo "      ⚠  Configurer les coffres Harpocrate via l'IHM /ui/settings/harpocrate-vaults"
+    echo "         après le premier démarrage (HARPOCRATE_DEK requis)."
   else
-    echo "[2/6] ⚠  .env absent et .env.example introuvable — config requise pour démarrer"
+    echo "[2/5] ⚠  .env absent et .env.example introuvable — config requise pour démarrer"
   fi
 else
-  echo "[2/6] .env déjà présent (secrets non régénérés)."
+  echo "[2/5] .env déjà présent (secrets non régénérés)."
   sync_new_vars_from_example
 fi
 
-# ─── 3) Dossiers data/ pour volumes Docker (ignorés par .gitignore) ─────────
+# Hash bcrypt du compte admin bootstrap — généré une seule fois si absent.
+if [ -f ".env" ]; then
+  ensure_harpocrate_dek ".env"
+  ensure_bootstrap_admin_hash ".env"
+fi
 
-echo "[3/6] Création des dossiers data/ (gitignored) si absents..."
-mkdir -p data/postgres
-mkdir -p data/backups
-# UID 1001 = user '${PROJECT_NAME}' dans l'image backend (Dockerfile prod stage).
-# Sans ce chown, le container échoue à écrire dans /var/lib/${PROJECT_NAME}/backups.
-# `2>/dev/null || true` car en local Windows/MINGW on n'a pas chown utile.
-chown -R 1001:1001 data/backups 2>/dev/null || true
-# Override password Postgres — fichier optionnel rempli par le wizard pairing
-# côté standby. Le bind mount dans docker-compose-dev.yml exige que le fichier
-# EXISTE côté hôte (sinon Docker crée un dossier vide à sa place). On le touch
-# vide ici ; le backend l'ignore tant qu'il est vide.
-[ -f data/db-password-override.txt ] || touch data/db-password-override.txt
+# ─── 3) Build images locales ────────────────────────────────────────────────
 
-# ─── 4) Build images locales ────────────────────────────────────────────────
-
-echo "[4/6] Build de ${PROJECT_NAME}-backend:dev..."
-docker build -t "${PROJECT_NAME}-backend:dev" backend/
+echo "[3/5] Build de ${PROJECT_NAME}-backend:dev..."
+if [ -f backend/Dockerfile ]; then
+  # Tag :dev pour la trace de build + :latest pour que docker-compose tire l'image
+  # qui vient d'être construite (le compose référence rag-backend:latest).
+  docker build -t "${PROJECT_NAME}-backend:dev" -t "${PROJECT_NAME}-backend:latest" backend/
+else
+  echo "      backend/Dockerfile absent — build skippé (phase d'amorçage)."
+fi
 
 echo "      Build de ${PROJECT_NAME}-frontend:dev..."
-docker build -t "${PROJECT_NAME}-frontend:dev" frontend/
+if [ -f frontend/Dockerfile ]; then
+  docker build -t "${PROJECT_NAME}-frontend:dev" -t "${PROJECT_NAME}-frontend:latest" frontend/
+else
+  echo "      frontend/Dockerfile absent — build skippé (jalon M5 pas encore commencé)."
+fi
 
-# ─── 5) Stop + cleanup orphelins ────────────────────────────────────────────
+# ─── 4) Stop + cleanup orphelins ────────────────────────────────────────────
 
-echo "[5/6] Arrêt de la stack (incl. orphelins)..."
+echo "[4/5] Arrêt de la stack (incl. orphelins)..."
 if [ "$RESET_DATA" = "1" ]; then
-  # `down -v` supprime aussi les volumes nommés (au cas où on en aurait
-  # ajouté plus tard). Les bind mounts (data/postgres, data/backups) ne sont
-  # PAS impactés par -v — on les nettoie explicitement juste après.
+  # `down -v` purge les volumes nommés Docker : `postgres_data` (base
+  # complète réinit au prochain up avec POSTGRES_PASSWORD du .env),
+  # `caddy_data`, `caddy_config`. Le .env est conservé.
+  echo "      ⚠  --reset : down -v (purge postgres_data + caddy_data + caddy_config)"
   docker compose -f "$COMPOSE_FILE" down -v --remove-orphans || true
 else
   docker compose -f "$COMPOSE_FILE" down --remove-orphans || true
 fi
 
-# Reset des bind mounts si demandé. On supprime UNIQUEMENT le data dir
-# Postgres : les backups (`data/backups`) et le .env sont conservés. Les
-# fichiers du data dir Postgres appartiennent à l'uid 999 du conteneur
-# (user `postgres`) → on a besoin de root sur l'hôte pour les rm. Fallback
-# sudo si rm direct échoue (cas où l'admin lance le script sans root).
-if [ "$RESET_DATA" = "1" ]; then
-  echo "      ⚠  --reset : suppression de data/postgres (DESTRUCTIF)..."
-  if [ -d "data/postgres" ]; then
-    rm -rf data/postgres 2>/dev/null || sudo rm -rf data/postgres
-  fi
-  echo "      ✓ data/postgres supprimé — Postgres se réinitialisera avec POSTGRES_PASSWORD du .env"
-fi
+# ─── 5) Pull images registry restantes (postgres) puis up ──────────────────
 
-# ─── 6) Pull images registry restantes (postgres) puis up ──────────────────
-
-echo "[6/6] Pull images registry (postgres)..."
-docker compose -f "$COMPOSE_FILE" pull postgres || true
+echo "[5/5] Pull images registry (postgres + caddy + pgweb)..."
+# On pull SEULEMENT les services tiers (services avec `image:` pur, sans `build:`).
+# Les services rag-backend et rag-frontend ont à la fois `image:` et `build:` :
+# `docker compose pull` SANS argument tente quand même de les pull depuis le
+# registry (qui n'existe pas — images custom buildées localement en étape [3/5])
+# et affiche des erreurs « pull access denied » qui polluent la sortie sans
+# bloquer le déploiement. On préfère lister explicitement les services tiers.
+docker compose -f "$COMPOSE_FILE" pull postgres caddy pgweb || true
 
 echo "      Démarrage de la stack..."
+# Expose le SHA git courant au compose (variable interpolée dans
+# docker-compose-dev.yml → backend.environment.GIT_SHA). Fallback "unknown"
+# si jamais on est hors d'un repo git (cas du clone fraîchement créé plus haut,
+# qui a forcément un .git, mais on garde le filet).
+export GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 docker compose -f "$COMPOSE_FILE" up -d --remove-orphans --pull never
 
 echo
-echo "✓ Déploiement DEV terminé. Services :"
+echo "✓ Stack lancée. Services :"
 docker compose -f "$COMPOSE_FILE" ps
 echo
 echo "Logs en direct :"
 echo "  docker compose -f ${COMPOSE_FILE} logs -f backend"
-echo "  docker compose -f ${COMPOSE_FILE} logs -f frontend"
 echo
 
 # ─── Affichage final : URL d'accès ──────────────────────────────────────────
-# On lit la PUBLIC_URL réelle dans .env (source de vérité). Fallback sur
-# l'IP eth0 si elle existe, sinon localhost.
-APP_URL="$(read_env_var "${PROJECT_NAME_UPPER}_PUBLIC_URL")"
-if [ -z "$APP_URL" ]; then
-  # À ce stade les containers tournent : detect_frontend_https_port utilise
-  # directement `docker compose port` → source de vérité runtime.
-  HTTPS_PORT_FINAL="$(detect_frontend_https_port)"
-  ETH0_IP_FINAL="$(detect_eth0_ip)"
-  if [ -n "$ETH0_IP_FINAL" ]; then
-    APP_URL="https://${ETH0_IP_FINAL}:${HTTPS_PORT_FINAL}"
-  else
-    APP_URL="https://localhost:${HTTPS_PORT_FINAL}"
-  fi
+# Pour le smoke (URLs affichées à l'admin local), on utilise TOUJOURS l'IP
+# eth0 — pas RAG_PUBLIC_URL, qui peut contenir une valeur héritée non
+# pertinente en dev (ex: `http://localhost` par défaut dans .env.example,
+# ou une URL Cloudflare configurée pour la prod). Les URLs doivent être
+# copiables tel quel depuis le poste de dev.
+IP="$(detect_eth0_ip)"
+if [ -z "$IP" ]; then
+  echo "✗ Impossible de détecter l'IP eth0 — interface absente ou nommée différemment (ens18, enp0s3…)." >&2
+  echo "  Le smoke ne peut pas afficher d'URL utilisable. Adapter detect_eth0_ip si besoin." >&2
+  exit 1
 fi
+APP_URL="http://${IP}"
 
+# ─── Smoke /health : on attend que le backend réponde ─────────────────────
+# Timeout 60s (12 × 5s). Le boot inclut : pool DB + migrations idempotentes
+# + resolver. En cas d'échec on remonte un exit code non-zero pour que les
+# scripts d'orchestration (ex : CI) puissent déclencher une alerte.
+# Le smoke tape directement le backend sur eth0:8000 (bypass Caddy) pour
+# isoler un éventuel souci de proxy d'un souci backend.
+
+echo "Smoke /health (timeout 60s)..."
+SMOKE_OK=0
+for _ in $(seq 1 12); do
+  if curl -sf -m 3 "http://${IP}:8000/health" >/dev/null 2>&1; then
+    SMOKE_OK=1
+    break
+  fi
+  sleep 5
+done
+
+if [ "$SMOKE_OK" = "1" ]; then
+  VERSION_JSON="$(curl -sf -m 3 "http://${IP}:8000/version" 2>/dev/null || echo '{}')"
+  cat <<EOF
+═════════════════════════════════════════════════════════════════
+  ✓ /health     ${APP_URL}/health → ok
+  ✓ /version    ${VERSION_JSON}
+
+  Endpoints exposés (cf. docker compose ps) :
+  → IHM (frontend)   : ${APP_URL}/
+  → API admin        : ${APP_URL}/api/admin/  (auth Bearer ${PROJECT_NAME_UPPER}_MASTER_KEY)
+  → API MCP          : ${APP_URL}/mcp         (auth Bearer api_key workspace)
+  → Backend direct   : http://${IP}:8000/     (bypass Caddy, debug)
+  → pgweb (DB UI)    : http://${IP}:8081/
+  → Postgres CLI     : psql postgresql://rag:<POSTGRES_PASSWORD>@${IP}:5432/postgres
+EOF
+# Compte admin bootstrap — affiché uniquement si le mot de passe en clair est présent dans .env.
+_bootstrap_user=$(grep -E '^RAG_BOOTSTRAP_ADMIN_USERNAME=' .env 2>/dev/null | head -1 | cut -d= -f2- || true)
+_bootstrap_plain=$(grep -E '^RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN=' .env 2>/dev/null | head -1 | cut -d= -f2- || true)
+if [[ -n "$_bootstrap_plain" ]]; then
+  echo "  → Compte admin     : ${_bootstrap_user:-admin} / ${_bootstrap_plain}  (login local sur ${APP_URL}/ui/login)"
+fi
 cat <<EOF
 ═════════════════════════════════════════════════════════════════
-  → Ouvre dans ton navigateur :   ${APP_URL}
+EOF
+else
+  cat >&2 <<EOF
+═════════════════════════════════════════════════════════════════
+  ✗ /health n'a pas répondu en 60s — vérifier les logs :
+      docker compose -f ${COMPOSE_FILE} logs --tail=80 backend
 ═════════════════════════════════════════════════════════════════
 EOF
-
-# ─── Affichage credentials admin local ──────────────────────────────────────
-# Si l'admin local est activé dans le .env, on rappelle username + password
-# à chaque déploiement. Évite à l'admin d'aller fouiller dans .env quand il
-# lance le script depuis une nouvelle session.
-ADMIN_ENABLED="$(read_env_var "${PROJECT_NAME_UPPER}_ADMIN_LOCAL_ENABLED")"
-if [ "$ADMIN_ENABLED" = "true" ]; then
-  ADMIN_USER="$(read_env_var "${PROJECT_NAME_UPPER}_ADMIN_LOCAL_USERNAME")"
-  ADMIN_PWD="$(read_env_var "${PROJECT_NAME_UPPER}_ADMIN_LOCAL_PASSWORD")"
-  : "${ADMIN_USER:=admin}"
-  cat <<EOF
-  → Admin local activé :
-      username : ${ADMIN_USER}
-      password : ${ADMIN_PWD}
-═════════════════════════════════════════════════════════════════
-EOF
+  exit 1
 fi

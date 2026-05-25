@@ -51,6 +51,7 @@ rm -rf rag
 git clone --branch dev git@github.com:ag-flow/rag.git rag
 cd rag
 ./dev-deploy.sh --reset
+
 ```
 
 La branche **`dev`** est la seule branche de livraison test — voir `CLAUDE.md` § Livraison test. Ne pas cloner d'autre branche pour cet environnement.
@@ -72,6 +73,7 @@ POSTGRES_USER=rag
 POSTGRES_PASSWORD=<générer : openssl rand -base64 32 | tr -d '/+=' | head -c 32>
 POSTGRES_DB=rag_config
 DATABASE_URL=postgresql://rag:${POSTGRES_PASSWORD}@postgres:5432/rag_config
+RAG_POSTGRES_ADMIN_URL=postgresql://rag:${POSTGRES_PASSWORD}@postgres:5432/postgres
 
 # ─── Master key API (administration) ────────────────────────
 RAG_MASTER_KEY=<générer : openssl rand -base64 48 | tr '+/' '-_' | tr -d '=' | head -c 48>
@@ -86,15 +88,10 @@ RAG_PUBLIC_URL=http://192.168.10.184
 HARPOCRATE_API_TOKEN_RAG=
 HARPOCRATE_API_URL_RAG=https://vault.yoops.org
 
-# ─── Keycloak OIDC (optionnel — pour IHM /ui) ──────────────
-# Si non renseigné, l'IHM /ui sera désactivée mais l'API REST/MCP fonctionne.
-KEYCLOAK_ISSUER=
-KEYCLOAK_CLIENT_ID=rag-service
-KEYCLOAK_CLIENT_SECRET_REF=keycloak_rag_client_secret
-
 # ─── Divers ─────────────────────────────────────────────────
 ENVIRONMENT=dev
 LOG_LEVEL=INFO
+SYNC_WORKER_POLL_INTERVAL_SECONDS=30
 ```
 
 Sécurise le fichier :
@@ -107,10 +104,9 @@ chmod 600 .env
 
 | Variable | Comment l'obtenir |
 |---|---|
-| `POSTGRES_PASSWORD` | À générer aléatoirement (cf. snippet ci-dessus) |
-| `RAG_MASTER_KEY` | À générer aléatoirement, à stocker côté Harpocrate ensuite |
+| `POSTGRES_PASSWORD` | À générer aléatoirement |
+| `RAG_MASTER_KEY` | À générer aléatoirement |
 | `HARPOCRATE_API_TOKEN_RAG` | Créer une API key dans le coffre Harpocrate scopée au wallet RAG, copier le token complet `hrpv_1_*` |
-| `KEYCLOAK_CLIENT_SECRET_REF` | Clé logique stockée dans Harpocrate ; le client `rag-service` doit avoir été créé dans le realm `homelab` de Keycloak (voir `specs/10-auth.md`) |
 
 > Ne JAMAIS committer `.env` — il est gitignored. Toute modif se fait directement sur le LXC.
 

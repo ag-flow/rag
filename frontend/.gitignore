@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+.vite/
+coverage/
+# Negate root-level lib/ rule that would wrongly ignore frontend/src/lib/ and frontend/tests/lib/
+!src/lib/
+!src/lib/**
+!tests/lib/
+!tests/lib/**
