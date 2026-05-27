@@ -38,9 +38,10 @@ echo '{"service": "'$RAG_SERVICE_URL'/mcp", "workspaces": []}' > $RAG_CLIENT_FIL
 for workspace in $(echo $RAG_WORKSPACES | jq -r '.[]'); do
   echo "Provisioning RAG workspace: $workspace"
 
+  # L'endpoint est protégé par Authorization: Bearer $RAG_MASTER_KEY
   response=$(curl -sf \
     -H "Authorization: Bearer $RAG_MASTER_KEY" \
-    "$RAG_SERVICE_URL/workspaces/$workspace/apikey")
+    "$RAG_SERVICE_URL/api/admin/workspaces/$workspace/apikey")
 
   if [ $? -ne 0 ]; then
     echo "Warning: workspace '$workspace' not found or unreachable, skipping"
@@ -79,7 +80,7 @@ echo "RAG client configured: $(jq '.workspaces | length' $RAG_CLIENT_FILE) works
 
 ## Idempotence
 
-Le script est idempotent — le container peut redémarrer sans effet de bord. L'endpoint `GET /workspaces/{name}/apikey` retourne toujours la même clé pour un workspace donné.
+Le script est idempotent — le container peut redémarrer sans effet de bord. L'endpoint `GET /api/admin/workspaces/{name}/apikey` retourne toujours la même clé pour un workspace donné : côté serveur, la valeur est stockée sous forme chiffrée (`pgp_sym_encrypt`) et déchiffrée à la lecture grâce au secret `RAG_API_KEY_DEK`. Ce secret doit être défini dans le `.env` du backend avant le premier appel.
 
 ---
 
@@ -92,6 +93,15 @@ RUN chmod +x /app/init-rag.sh
 
 ENTRYPOINT ["/bin/bash", "-c", "/app/init-rag.sh && exec python main.py"]
 ```
+
+---
+
+## Prérequis serveur
+
+Le service RAG doit avoir `RAG_API_KEY_DEK` défini (≥32 chars). Cette clé
+maître chiffre les api_keys workspace en BDD et permet à l'endpoint
+`GET /apikey` de fonctionner de manière idempotente. Cf. M5e dans
+`docs/superpowers/specs/`.
 
 ---
 

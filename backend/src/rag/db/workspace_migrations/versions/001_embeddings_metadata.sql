@@ -1,0 +1,2 @@
+ALTER TABLE embeddings
+    ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;

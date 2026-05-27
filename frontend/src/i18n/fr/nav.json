@@ -1,0 +1,17 @@
+{
+  "sections": {
+    "administration": "Administration",
+    "usage": "Usage",
+    "configuration": "Configuration"
+  },
+  "items": {
+    "workspaces": "Workspaces",
+    "sources": "Sources",
+    "jobs": "Jobs",
+    "models": "Modèles",
+    "push": "Push activity",
+    "mcp": "Recherche MCP",
+    "harpocrate_vaults": "Coffres Harpocrate",
+    "oidc_config": "Config OIDC"
+  }
+}

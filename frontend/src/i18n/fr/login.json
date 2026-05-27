@@ -1,0 +1,23 @@
+{
+  "title": "Connexion",
+  "oidc": {
+    "button": "→ Connexion via Keycloak"
+  },
+  "local": {
+    "fields": {
+      "username": "Username",
+      "password": "Password"
+    },
+    "submit": "Se connecter"
+  },
+  "errors": {
+    "invalid_credentials": "Identifiants invalides",
+    "no_method": "Aucune méthode d'authentification configurée — contactez l'administrateur",
+    "bootstrap_disabled": "Login local désactivé",
+    "generic": "Erreur {{status}}"
+  },
+  "info": {
+    "oidc_not_configured": "OIDC pas encore configuré. Loguez-vous avec le compte admin local pour le paramétrer.",
+    "separator_or": "ou login admin local"
+  }
+}

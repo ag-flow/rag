@@ -1,0 +1,42 @@
+# Caddyfile dev — reverse proxy HTTP minimal pour env de dev (LXC ou local).
+# /api/*  → backend:8000 (FastAPI)
+# /auth/* → backend:8000 (OIDC flow M5a)
+# /me     → backend:8000 (OIDC)
+# /ws/*   → backend:8000 (WebSocket logs jobs)
+# /ui*    → frontend:80 (Nginx static, M5b)
+# /health → backend:8000 (smoke direct)
+# /version → backend:8000 (smoke direct)
+# /       → message d'accueil
+#
+# Pas de TLS — Cloudflare Tunnel gère le HTTPS en front en prod.
+
+{
+    auto_https off
+}
+
+:80 {
+    handle /api/* {
+        reverse_proxy backend:8000
+    }
+    handle /auth/* {
+        reverse_proxy backend:8000
+    }
+    handle /me {
+        reverse_proxy backend:8000
+    }
+    handle /ws/* {
+        reverse_proxy backend:8000
+    }
+    handle /health {
+        reverse_proxy backend:8000
+    }
+    handle /version {
+        reverse_proxy backend:8000
+    }
+    handle /ui* {
+        reverse_proxy frontend:80
+    }
+    handle {
+        respond "ag-flow.rag — see /ui or /api/*" 200
+    }
+}

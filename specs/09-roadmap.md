@@ -31,19 +31,31 @@ Le modèle de données est conçu pour être extensible. Les sources futures s'a
 
 ### Amélioration du chunking
 
-V1 utilise un chunking naïf par taille fixe. Extensions envisagées :
-- Chunking sémantique (respect des sections Markdown)
-- Chunking par blocs de code
-- Métadonnées de chunk enrichies (titre de section parent, type de contenu)
+✅ Infrastructure backend livrée en M9 — cf. `docs/superpowers/specs/2026-05-18-M9-backend-chunking-infrastructure-design.md`.
+✅ Frontend livré en M9b — onglet `Chunking` dans `WorkspaceDetailPanel`, cf. `docs/superpowers/specs/2026-05-19-M9b-frontend-chunking-design.md`.
+✅ Stratégie sémantique `markdown` livrée en M9c (backend) + M9c-front (IHM) — cf. `docs/superpowers/specs/2026-05-19-M9c-backend-markdown-chunker-design.md` et `docs/superpowers/specs/2026-05-20-M9c-front-markdown-chunking-design.md`. Configurable via le Select Stratégie de l'onglet Chunking du workspace. Par défaut : `heading_levels=[1,2]` ; customisable via API admin (`PUT /chunking-config` avec `extras.heading_levels=[…]`).
+
+Stratégies disponibles : `paragraph` (M4a), `markdown` (M9c + M9c-front).
+
+Stratégies futures (jalons distincts) :
+- Chunking par blocs de code (langage-aware) — jalon M9d ou +
+- Métadonnées enrichies (content_type, language) — quand un usage concret le justifiera
+- Exposition de la metadata via MCP `search()` — quand un client agent en tirera parti
 
 ---
 
 ### Reranking
 
-Après récupération des `top_k` chunks, un reranker améliore la pertinence avant de retourner les résultats :
+✅ Livré en M8 — cf. `docs/superpowers/specs/2026-05-17-M8-backend-reranking-design.md`.
+
+Config par workspace (table `rerank_configs`), 3 providers :
 - Cohere Rerank API
 - Voyage AI Rerank
-- Modèle local via Ollama
+- Ollama local (BGE / Jina)
+
+Fail-fast si le provider tombe (cohérent avec `mcp.py`).
+
+Frontend livré en M8b (onglet "Rerank" dans `WorkspaceDetailPanel`) — cf. `docs/superpowers/specs/2026-05-18-M8b-frontend-rerank-design.md`.
 
 ---
 

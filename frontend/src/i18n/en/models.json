@@ -1,0 +1,49 @@
+{
+  "title": "Embedding models",
+  "subtitle": "Catalog of (provider, model, dimension) tuples supported when creating workspaces.",
+  "count": "{{count}} model(s)",
+  "add": "Add",
+  "empty": "No model registered yet. Add one to get started.",
+  "section": {
+    "count": "({{count}})"
+  },
+  "row": {
+    "dim": "dim {{dimension}}",
+    "delete": "Delete"
+  },
+  "time": {
+    "now": "just now",
+    "minutes": "{{count}} min ago",
+    "hours": "{{count}} h ago",
+    "days": "{{count}} d ago"
+  },
+  "errors": {
+    "duplicate": "This provider/model tuple already exists."
+  },
+  "dialog": {
+    "cancel": "Cancel",
+    "add": {
+      "title": "Add a model",
+      "provider": "Provider",
+      "providerOther": "Other…",
+      "providerOtherLabel": "Custom provider",
+      "model": "Model",
+      "dimension": "Dimension",
+      "submit": "Add",
+      "success": "Model added.",
+      "error": "Failed to add.",
+      "errors": {
+        "model_required": "Model name is required.",
+        "dimension_positive": "Dimension must be a positive integer.",
+        "provider_other_required": "Specify the custom provider name."
+      }
+    },
+    "delete": {
+      "title": "Delete model",
+      "warning": "Removes \"{{provider}}/{{model}}\" from the catalog. Existing workspaces using this model keep working — you just can't create new ones with it.",
+      "confirm": "Delete",
+      "success": "Model deleted.",
+      "error": "Failed to delete."
+    }
+  }
+}

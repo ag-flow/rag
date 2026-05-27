@@ -1,0 +1,284 @@
+{
+  "title": "Workspaces",
+  "list": {
+    "header": "Workspaces",
+    "new": "+ New"
+  },
+  "empty": {
+    "title": "No workspace yet",
+    "description": "Create your first workspace to index sources."
+  },
+  "header": {
+    "created": "created {{when}}",
+    "reindex": "Reindex",
+    "menu": {
+      "reveal": "Reveal API key",
+      "rotate": "Rotate API key",
+      "delete": "Delete workspace"
+    }
+  },
+  "tabs": {
+    "detail": "Detail",
+    "sources": "Git sources ({{count}})",
+    "jobs": "Jobs",
+    "model": "Model",
+    "rerank": "Rerank",
+    "chunking": "Chunking"
+  },
+  "detail": {
+    "stats": {
+      "title": "Statistics",
+      "sources": "{{count}} sources",
+      "documents": "{{count}} documents",
+      "lastIndexed": "last sync: {{when}}"
+    },
+    "apikey": {
+      "title": "Workspace API key",
+      "reveal": "Reveal",
+      "rotate": "Rotate"
+    },
+    "apiKeyRef": {
+      "title": "Harpocrate reference",
+      "editable": "editable",
+      "save": "Save",
+      "errors": {
+        "alphanum_underscore_only": "Allowed characters: a-z, A-Z, 0-9, underscore."
+      }
+    },
+    "ids": {
+      "title": "Identifiers (read-only)",
+      "name": "name",
+      "id": "id"
+    },
+    "save": {
+      "success": "Reference saved.",
+      "error": "Error saving."
+    }
+  },
+  "sources": {
+    "title": "Git sources ({{count}})",
+    "addButton": "Add source",
+    "empty": "No sources. Add one to get started.",
+    "neverSynced": "never synced",
+    "editAction": "Edit",
+    "deleteAction": "Delete",
+    "fields": {
+      "source_name": "Source name",
+      "source_name_placeholder": "e.g. my-repo",
+      "source_name_hint": "Unique identifier, lowercase, digits, hyphens",
+      "vault": "Harpocrate vault",
+      "vault_placeholder": "Select a vault…",
+      "url": "URL",
+      "branch": "Branch",
+      "auth_value": "GitHub token (PAT)",
+      "auth_value_placeholder": "github_pat_…",
+      "auth_value_link": "Generate GitHub token",
+      "auth_status_set": "authentication configured",
+      "auth_status_none": "no authentication",
+      "include": "Include",
+      "exclude": "Exclude"
+    },
+    "add": {
+      "title": "Add git source",
+      "submit": "Add",
+      "success": "Source added.",
+      "error": "Failed to add source.",
+      "errors": {
+        "invalid_url": "Invalid URL.",
+        "invalid_slug": "Invalid identifier (lowercase, digits, hyphens only).",
+        "required": "Required field."
+      }
+    },
+    "edit": {
+      "title": "Edit git source",
+      "submit": "Save",
+      "success": "Source updated.",
+      "error": "Failed to update source."
+    },
+    "test": {
+      "button": "Test connection",
+      "testing": "Testing…",
+      "success": "Connection successful.",
+      "failure": "Failed:",
+      "error": "Test error."
+    },
+    "sync": {
+      "run": "Run sync",
+      "running": "Syncing…",
+      "done": "Sync complete.",
+      "error": "Sync failed."
+    },
+    "delete": {
+      "title": "Delete source",
+      "warning": "This removes the source. Already indexed documents remain.",
+      "confirm": "Delete",
+      "success": "Source deleted.",
+      "error": "Failed to delete source."
+    }
+  },
+  "jobs": {
+    "title": "Jobs ({{count}})",
+    "empty": "No indexing jobs.",
+    "changes": "{{changed}} ch / {{skipped}} sk"
+  },
+  "model": {
+    "title": "Indexer model",
+    "provider": "provider",
+    "model": "model",
+    "base_url": "base_url",
+    "api_key_ref": "api_key_ref",
+    "immutableNote": "The model is immutable. Changing provider or model would invalidate all vector dimensions and require a full reindex, not supported in this version."
+  },
+  "rerank": {
+    "title": "Reranking",
+    "titleOptional": "Reranking (optional)",
+    "badge": {
+      "active": "active"
+    },
+    "description": {
+      "configured": "Enabled for this workspace. pgvector hits are re-ranked by the selected model before MCP return.",
+      "empty": "Adds a second pass to rank pgvector hits. If disabled, only cosine similarity is used."
+    },
+    "fields": {
+      "provider": "Provider",
+      "providerPlaceholder": "Select…",
+      "providers": {
+        "cohere": "Cohere",
+        "openai": "OpenAI",
+        "voyage": "Voyage AI",
+        "ollama": "Ollama"
+      },
+      "model": "Model",
+      "modelPlaceholder": "e.g. rerank-english-v3.0",
+      "baseUrl": "Base URL (Ollama)",
+      "baseUrlPlaceholder": "https://ollama.example.com",
+      "baseUrlNotApplicable": "— not applicable —",
+      "apiKeyRef": "Harpocrate API key reference",
+      "apiKeyRefPlaceholder": "cohere_rerank_key",
+      "apiKeyRefNotApplicable": "— not applicable —",
+      "topK": "top_k pre-rerank",
+      "topKHelp": "(1-500)"
+    },
+    "errors": {
+      "required": "Required field.",
+      "required_for_provider": "Required for this provider.",
+      "alphanum_underscore_only": "Allowed characters: a-z, A-Z, 0-9, underscore.",
+      "invalid_url": "Invalid URL.",
+      "min": "Must be ≥ 1.",
+      "max": "Must be ≤ 500."
+    },
+    "warning": "If the provider fails, search fails (no silent fallback). Consistent with fail-fast philosophy.",
+    "lastModified": "Last modified: {{when}}",
+    "actions": {
+      "save": "Save",
+      "activate": "Activate",
+      "cancel": "Cancel",
+      "delete": "Delete config"
+    },
+    "save": {
+      "success": "Configuration saved.",
+      "error": "Failed to save configuration."
+    },
+    "delete": {
+      "title": "Disable reranking?",
+      "warning": "The rerank configuration of this workspace will be removed. Future searches will only use pgvector cosine similarity.",
+      "reversibleNote": "This action is reversible (recreate the config).",
+      "confirm": "Disable",
+      "success": "Configuration removed.",
+      "error": "Failed to remove configuration."
+    }
+  },
+  "chunking": {
+    "title": "Chunking configuration",
+    "badgeMandatory": "mandatory",
+    "description": "Document chunking strategy applied before indexing. Modifying these parameters requires a full reindexation of the workspace.",
+    "warning": "Modifying these parameters makes existing chunks inconsistent with new embeddings. A full reindexation will be required.",
+    "fields": {
+      "strategy": "Strategy",
+      "strategyHelp": {
+        "paragraph": "Split by paragraphs with coalesce of small ones and split of large ones.",
+        "markdown": "Follows the structure of a Markdown document: one chunk = one section delimited by headings (H1, H2 by default). Code fences (```) are never split."
+      },
+      "strategies": {
+        "paragraph": "Paragraphs (default)",
+        "markdown": "Markdown"
+      },
+      "maxChars": "Max chunk size (characters)",
+      "maxCharsHelp": "must be ≥ 1",
+      "minChars": "Min size before coalesce (characters)",
+      "minCharsHelp": "must be < max size",
+      "overlapChars": "Overlap between chunks (characters)",
+      "overlapCharsHelp": "must be < max size"
+    },
+    "errors": {
+      "required": "Required value",
+      "min": "Value too small",
+      "min_lt_max": "Must be less than max size",
+      "overlap_lt_max": "Must be less than max size"
+    },
+    "actions": { "save": "Save", "cancel": "Cancel" },
+    "save": {
+      "success": "Configuration saved",
+      "noChange": "No changes",
+      "error": "Save failed"
+    },
+    "reindex": {
+      "triggered": "Reindexation started",
+      "dialog": {
+        "title": "Reindexation required",
+        "intro": "This modification requires reindexing the entire workspace.",
+        "labelCurrent": "Current configuration:",
+        "labelNew": "New configuration:",
+        "consequence": "This operation will delete all existing chunks and re-index the documents. This may take several minutes.",
+        "actions": { "cancel": "Cancel", "confirm": "Reindex now" }
+      }
+    },
+    "lastModified": "Last modified: {{when}}"
+  },
+  "dialog": {
+    "cancel": "Cancel",
+    "close": "Close",
+    "reveal": {
+      "title": "Reveal API key",
+      "warning": "Displays the API key in plain text. Continue?",
+      "confirm": "Reveal",
+      "copyHint": "Copy the key now — it will be masked in 30 seconds.",
+      "autoMaskNote": "The key will be automatically masked in 30 seconds.",
+      "copied": "Key copied.",
+      "error": "Failed to reveal key."
+    },
+    "rotate": {
+      "title": "Rotate API key",
+      "warning": "This immediately invalidates the current key. Existing agents will need to be reconfigured.",
+      "confirmLabel": "Type \"{{name}}\" to confirm",
+      "confirm": "Rotate",
+      "copyHint": "New key generated. Copy it now — it won't be shown again.",
+      "oneTimeWarning": "One-time display: the key won't be accessible after closing (except via Reveal).",
+      "success": "Key rotated.",
+      "error": "Failed to rotate key.",
+      "copied": "Key copied."
+    },
+    "reindex": {
+      "title": "Reindex",
+      "warning": "All workspace sources will be re-synced. Unchanged documents are skipped (SHA-256 deduplication).",
+      "confirm": "Trigger reindex",
+      "success": "Reindex triggered.",
+      "error": "Failed to trigger reindex."
+    },
+    "delete": {
+      "title": "Delete workspace",
+      "warning": "Deletes the workspace + its pgvector database + all indexed documents. Irreversible.",
+      "confirmLabel": "Type \"{{name}}\" to confirm",
+      "confirm": "Delete permanently",
+      "success": "Workspace deleted.",
+      "error": "Failed to delete workspace."
+    }
+  },
+  "optional": "optional",
+  "time": {
+    "justNow": "just now",
+    "minutesAgo": "{{count}} min ago",
+    "hoursAgo": "{{count}} h ago",
+    "daysAgo": "{{count}} d ago"
+  }
+}

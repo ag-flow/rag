@@ -1,0 +1,49 @@
+{
+  "title": "Modèles d'embedding",
+  "subtitle": "Catalogue des couples (provider, model, dimension) supportés pour la création de workspaces.",
+  "count": "{{count}} modèle(s)",
+  "add": "Ajouter",
+  "empty": "Aucun modèle enregistré. Ajoutez-en un pour commencer.",
+  "section": {
+    "count": "({{count}})"
+  },
+  "row": {
+    "dim": "dim {{dimension}}",
+    "delete": "Supprimer"
+  },
+  "time": {
+    "now": "à l'instant",
+    "minutes": "il y a {{count}} min",
+    "hours": "il y a {{count}} h",
+    "days": "il y a {{count}} j"
+  },
+  "errors": {
+    "duplicate": "Ce couple provider/model existe déjà."
+  },
+  "dialog": {
+    "cancel": "Annuler",
+    "add": {
+      "title": "Ajouter un modèle",
+      "provider": "Provider",
+      "providerOther": "Autre…",
+      "providerOtherLabel": "Provider personnalisé",
+      "model": "Model",
+      "dimension": "Dimension",
+      "submit": "Ajouter",
+      "success": "Modèle ajouté.",
+      "error": "Échec de l'ajout.",
+      "errors": {
+        "model_required": "Le nom du modèle est requis.",
+        "dimension_positive": "La dimension doit être un entier positif.",
+        "provider_other_required": "Indiquez le nom du provider personnalisé."
+      }
+    },
+    "delete": {
+      "title": "Supprimer le modèle",
+      "warning": "Supprime « {{provider}}/{{model}} » du catalogue. Les workspaces existants qui utilisent ce modèle continuent de fonctionner — on ne pourra plus en créer de nouveaux avec.",
+      "confirm": "Supprimer",
+      "success": "Modèle supprimé.",
+      "error": "Échec de la suppression."
+    }
+  }
+}

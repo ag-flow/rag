@@ -1,0 +1,26 @@
+{
+  "title": "OIDC configuration",
+  "subtitle": "Single Sign-On authentication (Keycloak, Auth0, …).",
+  "fields": {
+    "issuer": "Issuer URL",
+    "client_id": "Client ID",
+    "client_secret_ref": "client_secret reference (Harpocrate)"
+  },
+  "actions": {
+    "cancel": "Cancel",
+    "save": "Save"
+  },
+  "save": {
+    "success": "OIDC configuration saved.",
+    "error": "Failed to save."
+  },
+  "warning": {
+    "sessions": "Changing OIDC disconnects active sessions."
+  },
+  "errors": {
+    "invalid_url": "Invalid URL.",
+    "required": "Required field.",
+    "too_long": "Maximum 255 characters.",
+    "alphanum_underscore_only": "Allowed characters: a-z, A-Z, 0-9, underscore."
+  }
+}
