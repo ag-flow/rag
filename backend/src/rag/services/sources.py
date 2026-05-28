@@ -151,6 +151,7 @@ async def update_source(
     request: SourceUpdateRequest,
     config_pool: asyncpg.Pool,
     harpocrate_vaults_service: HarpocrateVaultsService,
+    resolver: _ResolverProtocol,
 ) -> dict[str, Any]:
     """Met à jour la config d'une source.
 
@@ -213,6 +214,14 @@ async def update_source(
         # Pas de nouveau PAT → on préserve la ref existante
         config["auth_ref"] = existing_ref
 
+    detect_token: str | None = request.auth_value
+    if not detect_token and existing_ref and is_vault_ref(existing_ref):
+        try:
+            detect_token = await resolver.resolve_with_retry(existing_ref)
+        except Exception:
+            detect_token = None
+    config, branch_warning = await _resolve_branch_for_write(config, token=detect_token)
+
     async with config_pool.acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -227,7 +236,9 @@ async def update_source(
     if row is None:
         raise SourceNotFound(source_id)
     log.info("source.updated", workspace=workspace_name, source_id=source_id)
-    return _source_to_dict(row)
+    result = _source_to_dict(row)
+    result["branch_warning"] = branch_warning
+    return result
 
 
 async def delete_source(*, workspace_name: str, source_id: str, config_pool: asyncpg.Pool) -> None:

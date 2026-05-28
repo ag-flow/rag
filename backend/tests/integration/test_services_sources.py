@@ -15,10 +15,15 @@ from rag.api.errors import (
     WorkspaceNotFound,
 )
 from rag.db.migrations import run_migrations
-from rag.schemas.admin import IndexerSpec, SourceCreateRequest, WorkspaceCreateRequest
+from rag.schemas.admin import (
+    IndexerSpec,
+    SourceCreateRequest,
+    SourceUpdateRequest,
+    WorkspaceCreateRequest,
+)
 from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.secrets.resolver import VaultLookupFailed
-from rag.services.sources import add_source, delete_source, list_sources
+from rag.services.sources import add_source, delete_source, list_sources, update_source
 from rag.services.workspaces import create_workspace
 from tests.integration._git_fixture import make_bare_repo_with_commits
 
@@ -310,3 +315,37 @@ async def test_add_source_explicit_branch_no_detection(
     )
     assert src["config"]["branch"] == "develop"
     assert src["branch_warning"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_source_empty_branch_redetects(
+    pg_container: str, session_pool: asyncpg.Pool, cleanup_ws_dbs: None, tmp_path: Path
+) -> None:
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    resolver = await _setup_ws(pg_container, session_pool, "ws_branch_upd")
+    bare = make_bare_repo_with_commits(tmp_path, {"README.md": "x"}, default_branch="master")
+    created = await add_source(
+        workspace_name="ws_branch_upd",
+        request=SourceCreateRequest(
+            name="repo-upd",
+            type="git",
+            api_key_vault="rag",
+            auth_value=None,
+            config={"url": f"file://{bare}", "branch": "main", "include": [], "exclude": []},
+        ),
+        config_pool=session_pool,
+        harpocrate_vaults_service=_make_harpo_service(),
+    )
+    updated = await update_source(
+        workspace_name="ws_branch_upd",
+        source_id=created["id"],
+        request=SourceUpdateRequest(
+            auth_value=None,
+            config={"url": f"file://{bare}", "include": [], "exclude": []},
+        ),
+        config_pool=session_pool,
+        harpocrate_vaults_service=_make_harpo_service(),
+        resolver=resolver,  # type: ignore[arg-type]
+    )
+    assert updated["config"]["branch"] == "master"
+    assert updated["branch_warning"] is None
