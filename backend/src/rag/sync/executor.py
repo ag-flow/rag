@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import json
 import shutil
 from hashlib import sha256
@@ -14,6 +15,7 @@ from rag.schemas.sync import ChangeSet, JobToProcess
 from rag.secrets.refs import build_ref, is_vault_ref
 from rag.secrets.resolver import VaultLookupFailed
 from rag.services.job_log_bus import JobLogBus
+from rag.services.webhook_dispatch import dispatch_webhooks
 from rag.sync.git_ops import (
     GitCloneError,
     GitPullError,
@@ -58,7 +60,9 @@ async def pick_next_pending_job(
             RETURNING
                 j.id AS job_id,
                 j.workspace_id,
-                j.source_id
+                j.source_id,
+                j.triggered_by,
+                j.correlation_id
             """
         )
         if row is None:
@@ -96,6 +100,8 @@ async def pick_next_pending_job(
         source_config=source_config,
         indexer_provider=context["indexer_provider"] or "",
         indexer_model=context["indexer_model"] or "",
+        triggered_by=row["triggered_by"],
+        correlation_id=str(row["correlation_id"]) if row["correlation_id"] else None,
     )
 
 
@@ -174,6 +180,117 @@ async def _mark_job_error(
         )
 
 
+async def _execute_push_job(
+    *,
+    job: JobToProcess,
+    config_pool: asyncpg.Pool,
+    indexer: IndexerProtocol,
+    webhook_secret: str | None,
+    resolver: _ResolverProtocol | None,
+) -> None:
+    jid = str(job.job_id)
+    final_status = "error"
+    files_changed = 0
+    files_skipped = 0
+    error_message: str | None = None
+    duration_ms: int | None = None
+
+    try:
+        row = await config_pool.fetchrow(
+            "SELECT path, content FROM push_job_payloads WHERE job_id=$1",
+            job.job_id,
+        )
+        if row is None:
+            raise RuntimeError(f"push_job_payloads not found for job {jid}")
+
+        path, content = row["path"], row["content"]
+        content_hash = "sha256:" + sha256(content.encode("utf-8")).hexdigest()
+
+        existing = await config_pool.fetchval(
+            "SELECT content_hash FROM indexed_documents WHERE workspace_id=$1 AND path=$2",
+            job.workspace_id,
+            path,
+        )
+
+        if existing == content_hash:
+            await config_pool.execute(
+                """
+                UPDATE index_jobs
+                SET status='skipped', finished_at=now(),
+                    duration_ms=CASE
+                        WHEN started_at IS NOT NULL THEN
+                            EXTRACT(MILLISECONDS FROM (now() - started_at))::int
+                        ELSE 0
+                    END
+                WHERE id=$1
+                """,
+                job.job_id,
+            )
+            final_status = "skipped"
+            files_skipped = 1
+        else:
+            await indexer.index_file(
+                workspace_id=job.workspace_id,
+                path=path,
+                content=content,
+                content_hash=content_hash,
+                indexer_used=job.indexer_used,
+            )
+            await config_pool.execute(
+                """
+                UPDATE index_jobs
+                SET status='done', finished_at=now(), files_changed=1,
+                    duration_ms=CASE
+                        WHEN started_at IS NOT NULL THEN
+                            EXTRACT(MILLISECONDS FROM (now() - started_at))::int
+                        ELSE 0
+                    END
+                WHERE id=$1
+                """,
+                job.job_id,
+            )
+            final_status = "done"
+            files_changed = 1
+
+        log.info(
+            "push_job.done",
+            job_id=jid,
+            workspace=job.workspace_name,
+            status=final_status,
+        )
+    except Exception as e:
+        error_message = _truncate(str(e))
+        await _mark_job_error(config_pool, job_id=job.job_id, error_message=error_message)
+        final_status = "error"
+        log.exception("push_job.error", job_id=jid)
+    finally:
+        try:
+            await config_pool.execute(
+                "DELETE FROM push_job_payloads WHERE job_id=$1", job.job_id
+            )
+        except Exception:
+            log.warning("push_job.payload_cleanup_failed", job_id=jid)
+
+    finished_at = datetime.datetime.now(datetime.UTC).isoformat()
+    correlation_id = job.correlation_id or jid
+    await dispatch_webhooks(
+        config_pool=config_pool,
+        workspace_id=str(job.workspace_id),
+        workspace_name=job.workspace_name,
+        job_id=jid,
+        correlation_id=correlation_id,
+        triggered_by=job.triggered_by,
+        status=final_status,
+        files_changed=files_changed,
+        files_skipped=files_skipped,
+        duration_ms=duration_ms,
+        finished_at=finished_at,
+        error_message=error_message,
+        webhook_secret=webhook_secret,
+        resolver=resolver,
+    )
+
+
 async def execute_next_pending_job(
     *,
     config_pool: asyncpg.Pool,
@@ -182,6 +299,7 @@ async def execute_next_pending_job(
     resolver: _ResolverProtocol,
     client_provider: _ClientProviderProtocol,
     job_log_bus: JobLogBus | None = None,
+    webhook_secret: str | None = None,
 ) -> bool:
     """Picke 1 job pending + exécute le pipeline complet.
 
@@ -197,16 +315,26 @@ async def execute_next_pending_job(
         return False
 
     try:
-        default_vault_name = await client_provider.get_default_vault_name()
-        await _process_job(
-            job=job,
-            config_pool=config_pool,
-            storage=storage,
-            indexer=indexer,
-            resolver=resolver,
-            default_vault_name=default_vault_name,
-            job_log_bus=job_log_bus,
-        )
+        if job.triggered_by == "push":
+            await _execute_push_job(
+                job=job,
+                config_pool=config_pool,
+                indexer=indexer,
+                webhook_secret=webhook_secret,
+                resolver=resolver,
+            )
+        else:
+            default_vault_name = await client_provider.get_default_vault_name()
+            await _execute_git_job(
+                job=job,
+                config_pool=config_pool,
+                storage=storage,
+                indexer=indexer,
+                resolver=resolver,
+                default_vault_name=default_vault_name,
+                job_log_bus=job_log_bus,
+                webhook_secret=webhook_secret,
+            )
     except Exception as e:
         msg = _format_error(e)
         log.exception("sync.executor.job_error", job_id=str(job.job_id))
@@ -218,7 +346,7 @@ async def execute_next_pending_job(
     return True
 
 
-async def _process_job(
+async def _execute_git_job(
     *,
     job: JobToProcess,
     config_pool: asyncpg.Pool,
@@ -227,6 +355,7 @@ async def _process_job(
     resolver: _ResolverProtocol,
     default_vault_name: str | None,
     job_log_bus: JobLogBus | None = None,
+    webhook_secret: str | None,
 ) -> None:
     jid = str(job.job_id)
     bus = job_log_bus
@@ -260,6 +389,9 @@ async def _process_job(
         _log("info", "Auth : source publique.")
 
     # 2. Path local + clone ou pull
+    # source_id est toujours non-None pour les jobs git.
+    if job.source_id is None:
+        raise RuntimeError(f"git job {job.job_id} sans source_id")
     storage.ensure_exists(workspace_id=job.workspace_id, source_id=job.source_id)
     dest = storage.path_for(workspace_id=job.workspace_id, source_id=job.source_id)
 
@@ -283,6 +415,11 @@ async def _process_job(
 
     current = await head_commit(dest)
     _log("info", f"HEAD : {current[:12]}")
+
+    # Mise à jour du correlation_id avec le hash de commit
+    await config_pool.execute(
+        "UPDATE index_jobs SET correlation_id=$1 WHERE id=$2", current, job.job_id
+    )
 
     # 3. Diff
     # Si pas de last_commit, ou clone frais, ou HEAD identique : on bascule
@@ -402,3 +539,26 @@ async def _process_job(
     _log("info", f"Terminé : {files_changed} fichiers mis à jour, {files_skipped} ignorés.")
     if bus is not None:
         bus.complete(jid, status="done", files_changed=files_changed, files_skipped=files_skipped)
+
+    # 7. Dispatch webhooks
+    finished_at_str = datetime.datetime.now(datetime.UTC).isoformat()
+    correlation_id_val = current  # the commit hash
+    await dispatch_webhooks(
+        config_pool=config_pool,
+        workspace_id=str(job.workspace_id),
+        workspace_name=job.workspace_name,
+        job_id=jid,
+        correlation_id=correlation_id_val,
+        triggered_by=job.triggered_by,
+        status="done",
+        files_changed=files_changed,
+        files_skipped=files_skipped,
+        duration_ms=None,
+        finished_at=finished_at_str,
+        error_message=None,
+        webhook_secret=webhook_secret,
+        resolver=resolver,
+        git_repo=url,
+        git_branch=branch,
+        git_commit=current,
+    )
