@@ -12,6 +12,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from rag.api.admin import build_admin_router
 from rag.api.admin_harpocrate_vaults import router as admin_harpocrate_vaults_router
 from rag.api.admin_oidc import build_admin_oidc_router
+from rag.api.admin_webhooks import build_webhooks_router
 from rag.api.auth import build_auth_router
 from rag.api.auth_methods import build_auth_methods_router
 from rag.api.errors import register_error_handlers
@@ -222,6 +223,7 @@ def build_app(
     app.include_router(build_admin_router(), prefix="/api/admin")
     app.include_router(build_admin_oidc_router(), prefix="/api/admin")
     app.include_router(admin_harpocrate_vaults_router)
+    app.include_router(build_webhooks_router(), prefix="/api/admin")
     app.include_router(build_auth_router())
     app.include_router(build_auth_methods_router())
     app.include_router(build_workspace_router())
