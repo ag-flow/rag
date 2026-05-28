@@ -186,6 +186,11 @@ def build_app(
         app.state.apikey_cache = ApiKeyCache()
         app.state.job_log_bus = JobLogBus()
 
+        webhook_secret: str | None = (
+            settings.rag_webhook_secret.get_secret_value()
+            if settings.rag_webhook_secret
+            else None
+        )
         sync_worker = SyncWorker(
             config_pool=registry.config_pool,
             storage=RepoStorage(root=settings.sync_repos_root),
@@ -195,6 +200,7 @@ def build_app(
             poll_interval_seconds=settings.sync_worker_poll_interval_seconds,
             default_sync_interval_seconds=settings.sync_default_interval_seconds,
             job_log_bus=app.state.job_log_bus,
+            webhook_secret=webhook_secret,
         )
         await sync_worker.start()
         app.state.sync_worker = sync_worker
