@@ -44,6 +44,7 @@ def _make_harpo_service(
         vault = MagicMock(spec=VaultSummary)
         vault.id = uuid4()
         vault.base_url = "http://harpocrate:8200"
+        vault.api_key_id = "rag"
         harpo.get_by_name = AsyncMock(return_value=vault)
         harpo.reveal_api_key = AsyncMock(return_value="tok-test")
     else:

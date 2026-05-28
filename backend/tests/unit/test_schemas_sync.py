@@ -54,5 +54,7 @@ def test_job_to_process_requires_workspace_and_indexer_config() -> None:
         source_config={"url": "https://github.com/x/y", "branch": "main"},
         indexer_provider="openai",
         indexer_model="text-embedding-3-small",
+        triggered_by="scheduled",
+        correlation_id=None,
     )
     assert j.indexer_used == "openai/text-embedding-3-small"

@@ -7,7 +7,15 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from rag.auth.workspace_auth import ApiKeyCache
+from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.workspaces import rotate_apikey
+
+
+def _make_vault_mock(name: str = "rag") -> MagicMock:
+    """Stub minimal de VaultSummary pour get_by_api_key_id."""
+    vault = MagicMock(spec=VaultSummary)
+    vault.name = name
+    return vault
 
 
 def _make_pool(api_key_ref: str) -> MagicMock:
@@ -49,6 +57,7 @@ async def test_rotate_apikey_updates_harpocrate_value_and_fingerprint(
     pool = _make_pool(existing_api_key_ref)
 
     harpo = MagicMock()
+    harpo.get_by_api_key_id = AsyncMock(return_value=_make_vault_mock())
     harpo.write_secret = AsyncMock()
 
     await rotate_apikey(
@@ -82,6 +91,7 @@ async def test_rotate_apikey_invalidates_cache(
     """L'ancien clair est évincé du cache après rotation."""
     pool = _make_pool(existing_api_key_ref)
     harpo = MagicMock()
+    harpo.get_by_api_key_id = AsyncMock(return_value=_make_vault_mock())
     harpo.write_secret = AsyncMock()
 
     await rotate_apikey(
@@ -100,6 +110,7 @@ async def test_rotate_apikey_returns_new_clear_value(existing_api_key_ref: str) 
     """Le retour contient bien la nouvelle api_key en clair."""
     pool = _make_pool(existing_api_key_ref)
     harpo = MagicMock()
+    harpo.get_by_api_key_id = AsyncMock(return_value=_make_vault_mock())
     harpo.write_secret = AsyncMock()
 
     result = await rotate_apikey(
@@ -122,6 +133,7 @@ async def test_rotate_apikey_harpocrate_write_failed_no_db_update(
 
     pool = _make_pool(existing_api_key_ref)
     harpo = MagicMock()
+    harpo.get_by_api_key_id = AsyncMock(return_value=_make_vault_mock())
     harpo.write_secret = AsyncMock(side_effect=HarpocrateWriteFailed("test failure"))
 
     with pytest.raises(HarpocrateWriteFailed):
