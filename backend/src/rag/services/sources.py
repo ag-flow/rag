@@ -95,6 +95,10 @@ async def add_source(
             )
         config["auth_ref"] = build_ref(vault.api_key_id, auth_path)
 
+    config, branch_warning = await _resolve_branch_for_write(
+        config, token=request.auth_value
+    )
+
     try:
         async with config_pool.acquire() as conn:
             row = await conn.fetchrow(
@@ -119,7 +123,9 @@ async def add_source(
     if row is None:
         raise RuntimeError("unexpected None from RETURNING")
     log.info("source.added", workspace=workspace_name, source_id=str(row["id"]))
-    return _source_to_dict(row)
+    result = _source_to_dict(row)
+    result["branch_warning"] = branch_warning
+    return result
 
 
 async def list_sources(config_pool: asyncpg.Pool, *, workspace_name: str) -> list[dict[str, Any]]:

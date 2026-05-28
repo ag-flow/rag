@@ -139,6 +139,7 @@ class SourceResponse(BaseModel):
     config: dict[str, Any]
     last_indexed_at: str | None
     created_at: str
+    branch_warning: str | None = None
 
 
 class SourceTestResult(BaseModel):

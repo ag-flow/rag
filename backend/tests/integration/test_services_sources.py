@@ -20,6 +20,7 @@ from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.secrets.resolver import VaultLookupFailed
 from rag.services.sources import add_source, delete_source, list_sources
 from rag.services.workspaces import create_workspace
+from tests.integration._git_fixture import make_bare_repo_with_commits
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
@@ -233,3 +234,79 @@ async def test_add_source_sets_next_sync_at_to_now(
     )
     # next_sync_at devrait être quasi maintenant (±5s)
     assert -5 <= float(next_at_offset) <= 5
+
+
+@pytest.mark.asyncio
+async def test_add_source_empty_branch_detects_default(
+    pg_container: str, session_pool: asyncpg.Pool, cleanup_ws_dbs: None, tmp_path: Path
+) -> None:
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    await _setup_ws(pg_container, session_pool, "ws_branch_a")
+    bare = make_bare_repo_with_commits(tmp_path, {"README.md": "x"}, default_branch="master")
+    src = await add_source(
+        workspace_name="ws_branch_a",
+        request=SourceCreateRequest(
+            name="repo1",
+            type="git",
+            api_key_vault="rag",
+            auth_value=None,
+            config={"url": f"file://{bare}", "include": ["**/*.md"], "exclude": []},
+        ),
+        config_pool=session_pool,
+        harpocrate_vaults_service=_make_harpo_service(),
+    )
+    assert src["config"]["branch"] == "master"
+    assert src["branch_warning"] is None
+
+
+@pytest.mark.asyncio
+async def test_add_source_unreachable_falls_back_to_main_with_warning(
+    pg_container: str, session_pool: asyncpg.Pool, cleanup_ws_dbs: None
+) -> None:
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    await _setup_ws(pg_container, session_pool, "ws_branch_b")
+    src = await add_source(
+        workspace_name="ws_branch_b",
+        request=SourceCreateRequest(
+            name="repo2",
+            type="git",
+            api_key_vault="rag",
+            auth_value=None,
+            config={
+                "url": "https://example.invalid/x/y.git",
+                "include": ["**/*.md"],
+                "exclude": [],
+            },
+        ),
+        config_pool=session_pool,
+        harpocrate_vaults_service=_make_harpo_service(),
+    )
+    assert src["config"]["branch"] == "main"
+    assert src["branch_warning"] is not None
+
+
+@pytest.mark.asyncio
+async def test_add_source_explicit_branch_no_detection(
+    pg_container: str, session_pool: asyncpg.Pool, cleanup_ws_dbs: None
+) -> None:
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    await _setup_ws(pg_container, session_pool, "ws_branch_c")
+    src = await add_source(
+        workspace_name="ws_branch_c",
+        request=SourceCreateRequest(
+            name="repo3",
+            type="git",
+            api_key_vault="rag",
+            auth_value=None,
+            config={
+                "url": "https://example.invalid/x/y.git",
+                "branch": "develop",
+                "include": [],
+                "exclude": [],
+            },
+        ),
+        config_pool=session_pool,
+        harpocrate_vaults_service=_make_harpo_service(),
+    )
+    assert src["config"]["branch"] == "develop"
+    assert src["branch_warning"] is None
