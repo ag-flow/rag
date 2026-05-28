@@ -97,6 +97,17 @@ export type Job = {
   duration_ms: number | null;
 };
 
+export type JobFileEntry = {
+  path: string;
+  change_type: "added" | "modified" | "deleted";
+};
+
+export type JobFilesResponse = {
+  files: JobFileEntry[];
+  total: number;
+  limit: number;
+};
+
 export type ApiKeyRotateResponse = {
   api_key: string;
 };

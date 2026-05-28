@@ -2,6 +2,7 @@ import { api } from "@/lib/api";
 import type {
   ApiKeyRotateResponse,
   Job,
+  JobFilesResponse,
   Source,
   SourceCreateRequest,
   SourceUpdateRequest,
@@ -53,4 +54,7 @@ export const workspacesApi = {
     api.post<Job>(`${BASE}/${name}/sources/${sourceId}/sync`, {}),
 
   listJobs: (name: string) => api.get<Job[]>(`${BASE}/${name}/jobs`),
+
+  listJobFiles: (name: string, jobId: string) =>
+    api.get<JobFilesResponse>(`${BASE}/${name}/jobs/${jobId}/files`),
 };
