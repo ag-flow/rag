@@ -25,21 +25,22 @@ def build_workspace_router() -> APIRouter:
         correlation_id = str(_uuid_mod.uuid4())
         pool: asyncpg.Pool = request.app.state.pools.config_pool
 
-        job_id = await pool.fetchval(
-            """
-            INSERT INTO index_jobs (workspace_id, triggered_by, status, correlation_id)
-            VALUES ($1, 'push', 'pending', $2)
-            RETURNING id
-            """,
-            auth.workspace_id,
-            correlation_id,
-        )
-        await pool.execute(
-            "INSERT INTO push_job_payloads (job_id, path, content) VALUES ($1, $2, $3)",
-            job_id,
-            norm_path,
-            payload.content,
-        )
+        async with pool.acquire() as conn, conn.transaction():
+            job_id = await conn.fetchval(
+                """
+                INSERT INTO index_jobs (workspace_id, triggered_by, status, correlation_id)
+                VALUES ($1, 'push', 'pending', $2)
+                RETURNING id
+                """,
+                auth.workspace_id,
+                correlation_id,
+            )
+            await conn.execute(
+                "INSERT INTO push_job_payloads (job_id, path, content) VALUES ($1, $2, $3)",
+                job_id,
+                norm_path,
+                payload.content,
+            )
 
         body = PushAsyncResponse(job_id=str(job_id), status="pending")
         return JSONResponse(

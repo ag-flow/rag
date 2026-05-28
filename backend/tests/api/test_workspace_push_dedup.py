@@ -73,7 +73,7 @@ def test_push_payload_stored_in_db(
         finally:
             await conn.close()
 
-    asyncio.get_event_loop().run_until_complete(check())
+    asyncio.run(check())
 
 
 def test_push_two_requests_create_two_jobs(

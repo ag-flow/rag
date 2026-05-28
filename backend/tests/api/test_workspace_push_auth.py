@@ -22,16 +22,16 @@ def _make_ws(client: TestClient, admin_headers: dict[str, str], name: str) -> st
     return r.json()["api_key"]
 
 
-def test_push_returns_404_for_unknown_workspace(
+def test_push_returns_401_for_unknown_workspace(
     admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
 ) -> None:
     r = admin_client.post(
         "/workspaces/ghost/index",
-        headers={"Authorization": "Bearer some-key"},
-        json={"path": "x.md", "content": "y"},
+        headers={"Authorization": "Bearer nonexistent_key_xyz"},
+        json={"path": "doc.md", "content": "x"},
     )
-    assert r.status_code == 404
-    assert r.json()["error"] == "workspace_not_found"
+    assert r.status_code == 401
+    assert r.json()["detail"] == "invalid_workspace_apikey"
 
 
 def test_push_returns_401_without_authorization(
