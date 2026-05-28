@@ -28,7 +28,7 @@ const createSchema = z.object({
   source_name: z.string().min(1).regex(/^[a-z0-9_-]+$/, "invalid_slug"),
   vault: z.string().min(1, "required"),
   url: z.string().url("invalid_url"),
-  branch: z.string().min(1).default("main"),
+  branch: z.string().optional(),
   auth_value: z.string().optional(),
   include: z.string().optional(),
   exclude: z.string().optional(),
@@ -37,7 +37,7 @@ const createSchema = z.object({
 const editSchema = z.object({
   vault: z.string().optional(),
   url: z.string().url("invalid_url"),
-  branch: z.string().min(1).default("main"),
+  branch: z.string().optional(),
   auth_value: z.string().optional(),
   include: z.string().optional(),
   exclude: z.string().optional(),
@@ -59,6 +59,11 @@ const splitCsv = (s: string | undefined): string[] =>
     .map((x) => x.trim())
     .filter(Boolean);
 
+const branchOrUndefined = (b: string | undefined): string | undefined => {
+  const trimmed = (b ?? "").trim();
+  return trimmed === "" ? undefined : trimmed;
+};
+
 export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
   const { t } = useTranslation("workspace");
   const { toast } = useToast();
@@ -77,7 +82,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
       source_name: "",
       vault: "",
       url: "",
-      branch: "main",
+      branch: "",
       auth_value: "",
       include: "",
       exclude: "",
@@ -88,7 +93,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
     resolver: zodResolver(editSchema),
     defaultValues: {
       url: "",
-      branch: "main",
+      branch: "",
       auth_value: "",
       include: "",
       exclude: "",
@@ -113,7 +118,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
         source_name: "",
         vault: firstVault?.name ?? "",
         url: "",
-        branch: "main",
+        branch: "",
         auth_value: "",
         include: "",
         exclude: "",
@@ -122,6 +127,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
   }, [open, source, isEdit, vaults, createForm, editForm]);
 
   const onSubmitCreate = (v: CreateValues) => {
+    const branch = branchOrUndefined(v.branch);
     add.mutate(
       {
         name: v.source_name,
@@ -130,13 +136,16 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
         auth_value: v.auth_value || null,
         config: {
           url: v.url,
-          branch: v.branch,
+          ...(branch !== undefined && { branch }),
           include: splitCsv(v.include),
           exclude: splitCsv(v.exclude),
         },
       },
       {
-        onSuccess: () => {
+        onSuccess: (created) => {
+          if (created.branch_warning) {
+            toast({ title: t("sources.add.branch_warning") });
+          }
           toast({ title: t("sources.add.success") });
           createForm.reset();
           onOpenChange(false);
@@ -151,6 +160,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
   };
 
   const _saveEdit = (v: EditValues, opts: { andThen: "close" | "test" }) => {
+    const branch = branchOrUndefined(v.branch);
     update.mutate(
       {
         sourceId: source!.id,
@@ -159,7 +169,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
           auth_value: v.auth_value || null,
           config: {
             url: v.url,
-            branch: v.branch,
+            ...(branch !== undefined && { branch }),
             include: splitCsv(v.include),
             exclude: splitCsv(v.exclude),
           },
@@ -369,7 +379,7 @@ function BranchField({ register, t }: FieldProps) {
   return (
     <div>
       <label className="text-xs font-medium text-slate-700">{t("sources.fields.branch")}</label>
-      <Input {...register("branch")} />
+      <Input {...register("branch")} placeholder={t("sources.fields.branch_placeholder")} />
     </div>
   );
 }
