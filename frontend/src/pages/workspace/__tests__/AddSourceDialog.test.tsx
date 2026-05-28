@@ -3,10 +3,14 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "./testUtils";
 import { AddSourceDialog } from "@/pages/workspace/AddSourceDialog";
 
-const { mockMutate, mockToast, mockAddResponse } = vi.hoisted(() => ({
+const { mockMutate, mockToast, mockAddResponse, mockVaults } = vi.hoisted(() => ({
   mockMutate: vi.fn(),
   mockToast: vi.fn(),
   mockAddResponse: { value: { id: "s1", branch_warning: null as string | null } },
+  // Référence STABLE : useVaults() doit renvoyer le même objet à chaque render.
+  // Un nouvel objet par appel ferait boucler le useEffect (deps: vaults) qui
+  // appelle form.reset() → re-render → OOM du worker vitest.
+  mockVaults: { data: [{ name: "vault-default", label: "Default Vault", api_key_id: "key-1" }] },
 }));
 
 vi.mock("@/hooks/useWorkspaces", () => ({
@@ -22,9 +26,7 @@ vi.mock("@/hooks/useWorkspaces", () => ({
 }));
 
 vi.mock("@/hooks/useHarpocrateVaults", () => ({
-  useVaults: () => ({
-    data: [{ name: "vault-default", label: "Default Vault", api_key_id: "key-1" }],
-  }),
+  useVaults: () => mockVaults,
 }));
 
 vi.mock("@/hooks/useToast", () => ({
