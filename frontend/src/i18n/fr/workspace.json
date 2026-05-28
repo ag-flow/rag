@@ -121,7 +121,20 @@
   "jobs": {
     "title": "Jobs ({{count}})",
     "empty": "Aucun job d'indexation.",
-    "changes": "{{changed}} ch / {{skipped}} sk"
+    "changes": "{{changed}} ch / {{skipped}} sk",
+    "detail": {
+      "source": "Source",
+      "started": "Début",
+      "finished": "Fin",
+      "files": "Fichiers modifiés ({{count}})",
+      "added": "ajouté",
+      "modified": "modifié",
+      "deleted": "supprimé",
+      "more": "+ {{count}} fichiers supplémentaires",
+      "no_files": "Aucun détail de fichier (job antérieur à cette fonctionnalité).",
+      "loading": "Chargement…",
+      "error": "Échec du chargement des fichiers."
+    }
   },
   "model": {
     "title": "Modèle d'indexation",

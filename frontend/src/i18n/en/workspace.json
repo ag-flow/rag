@@ -121,7 +121,20 @@
   "jobs": {
     "title": "Jobs ({{count}})",
     "empty": "No indexing jobs.",
-    "changes": "{{changed}} ch / {{skipped}} sk"
+    "changes": "{{changed}} ch / {{skipped}} sk",
+    "detail": {
+      "source": "Source",
+      "started": "Started",
+      "finished": "Finished",
+      "files": "Changed files ({{count}})",
+      "added": "added",
+      "modified": "modified",
+      "deleted": "deleted",
+      "more": "+ {{count}} more files",
+      "no_files": "No file detail (job predates this feature).",
+      "loading": "Loading…",
+      "error": "Failed to load files."
+    }
   },
   "model": {
     "title": "Indexer model",
