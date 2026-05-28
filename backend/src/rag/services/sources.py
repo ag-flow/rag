@@ -20,6 +20,7 @@ from rag.db.helpers import fetch_all, fetch_one
 from rag.schemas.admin import SourceCreateRequest, SourceUpdateRequest
 from rag.secrets.refs import build_ref, is_vault_ref
 from rag.services.harpocrate_vaults import HarpocrateVaultsService
+from rag.sync.git_ops import detect_default_branch
 
 log = structlog.get_logger(__name__)
 
@@ -33,6 +34,30 @@ async def _get_workspace_id_or_raise(config_pool: asyncpg.Pool, name: str) -> UU
     if row is None:
         raise WorkspaceNotFound(name)
     return UUID(str(row["id"]))
+
+
+async def _resolve_branch_for_write(
+    config: dict[str, Any], *, token: str | None
+) -> tuple[dict[str, Any], str | None]:
+    """Garantit une branche concrète dans `config`.
+
+    - Branche déjà fournie (non vide) → inchangée, pas d'avertissement.
+    - Branche vide/absente → détecte la branche par défaut du remote.
+      Détection OK → branche détectée. Échec → repli "main" + avertissement.
+
+    Retourne (config copié avec branche résolue, message d'avertissement | None).
+    Ne mute pas le dict d'entrée.
+    """
+    config = dict(config)
+    if config.get("branch"):
+        return config, None
+    detected = await detect_default_branch(url=config.get("url", ""), token=token)
+    if detected:
+        config["branch"] = detected
+        return config, None
+    config["branch"] = "main"
+    log.warning("source.branch_detect_failed", url=config.get("url", ""))
+    return config, "Branche par défaut non détectée, repli sur 'main'."
 
 
 async def add_source(
