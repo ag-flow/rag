@@ -12,7 +12,7 @@ from rag.api.errors import (
     VaultNotFoundForWorkspace,
     WorkspaceAlreadyExists,
 )
-from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
+from rag.schemas.admin import IndexerCreateSpec, WorkspaceCreateRequest
 from rag.services.workspaces import create_workspace
 
 
@@ -21,10 +21,10 @@ def _make_request(name: str = "test1", vault: str = "rag") -> WorkspaceCreateReq
     return WorkspaceCreateRequest(
         name=name,
         api_key_vault=vault,
-        indexer=IndexerSpec(
+        indexer=IndexerCreateSpec(
             provider="ollama",
             model="mxbai-embed-large",
-            api_key_ref=None,
+            api_key=None,
             base_url="http://ollama:11434",
         ),
     )
@@ -279,30 +279,39 @@ async def test_create_workspace_secret_not_found_raises_ref_not_found_in_vault(
         cache_ttl=0,
     )
 
-    request = WorkspaceCreateRequest(
-        name="ws-missing-ref",
-        api_key_vault="rag",
-        indexer=IndexerSpec(
-            provider="openai",
-            model="text-embedding-3-small",
-            api_key_ref="openai_embedding_key",
-            base_url=None,
-        ),
+    # Pour tester RefNotFoundInVault, on simule une création d'un workspace qui
+    # contient déjà une api_key_ref (ce qui n'arrive normalement que via create_workspace_database
+    # ou migrations, mais ici on veut tester l'eager validation du resolver).
+    # Puisque WorkspaceCreateRequest.indexer utilise IndexerCreateSpec (qui n'a pas api_key_ref),
+    # on va mocker resolve_with_retry pour qu'il soit appelé avec une ref calculée.
+
+    # En fait, create_workspace appelle _validate_ref_via_vault SI request.indexer.api_key_ref est présent.
+    # Mais IndexerCreateSpec n'a PAS api_key_ref.
+    # Dans workspaces.py:81, create_workspace ne valide PAS de ref, il en CRÉE une.
+
+    # Rectification: le test test_create_workspace_secret_not_found_raises_ref_not_found_in_vault
+    # semble tester un cas qui n'existe plus dans create_workspace (eager validation d'une ref existante).
+    # C'est patch_workspace qui fait ça.
+
+    # On va tester patch_workspace au lieu de create_workspace pour RefNotFoundInVault
+    from rag.schemas.admin import WorkspacePatchRequest, IndexerPatchSpec
+    from rag.services.workspaces import patch_workspace
+
+    request = WorkspacePatchRequest(
+        indexer=IndexerPatchSpec(api_key_ref="openai_embedding_key")
     )
 
     with (
-        patch("rag.services.workspaces.get_dimension_or_raise", new=AsyncMock(return_value=1536)),
+        patch("rag.services.workspaces.fetch_one", new=AsyncMock(return_value={"id": uuid4()})),
         pytest.raises(RefNotFoundInVault) as exc_info,
     ):
-        await create_workspace(
+        await patch_workspace(
+            name="ws1",
             request=request,
             config_pool=pool,
-            admin_dsn="postgresql://stub",
             resolver=resolver,
-            harpocrate_vaults_service=harpo,
+            default_vault_name="rag",
         )
 
     # L'exception porte le nom de la clé logique
     assert "openai_embedding_key" in str(exc_info.value)
-    # Le secret n'a pas été écrit puisque la validation a échoué avant
-    harpo.write_secret.assert_not_called()

@@ -3395,4 +3395,3 @@ Recherche manuelle de "TBD"/"TODO"/"fill in"/"appropriate"/"Similar to" : aucun 
 - T19 : 1h (quality gate + smoke deploy + tag)
 
 **Total estimé : ~17-18h** soit ~2.5 jours de travail focalisé.
-
