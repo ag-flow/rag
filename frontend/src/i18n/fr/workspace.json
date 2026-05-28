@@ -70,6 +70,7 @@
       "vault_placeholder": "Sélectionner un coffre…",
       "url": "URL",
       "branch": "Branche",
+      "branch_placeholder": "branche par défaut du dépôt (ex: main)",
       "auth_value": "Token GitHub (PAT)",
       "auth_value_placeholder": "github_pat_…",
       "auth_value_link": "Générer un token GitHub",
@@ -82,6 +83,7 @@
       "title": "Ajouter une source git",
       "submit": "Ajouter",
       "success": "Source ajoutée.",
+      "branch_warning": "Branche par défaut non détectée, « main » utilisé. Vérifiez si la synchronisation échoue.",
       "error": "Échec de l'ajout.",
       "errors": {
         "invalid_url": "URL invalide.",

@@ -70,6 +70,7 @@
       "vault_placeholder": "Select a vault…",
       "url": "URL",
       "branch": "Branch",
+      "branch_placeholder": "repository default branch (e.g. main)",
       "auth_value": "GitHub token (PAT)",
       "auth_value_placeholder": "github_pat_…",
       "auth_value_link": "Generate GitHub token",
@@ -82,6 +83,7 @@
       "title": "Add git source",
       "submit": "Add",
       "success": "Source added.",
+      "branch_warning": "Default branch not detected, fell back to \"main\". Check if sync fails.",
       "error": "Failed to add source.",
       "errors": {
         "invalid_url": "Invalid URL.",
