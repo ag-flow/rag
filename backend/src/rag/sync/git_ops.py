@@ -24,6 +24,19 @@ class GitPullError(RuntimeError):
 # Token-in-URL pattern : https://user:token@host... → https://***@host
 _TOKEN_URL_RE = re.compile(r"https?://[^@\s]+@", re.IGNORECASE)
 
+# Ligne symref de `git ls-remote --symref <url> HEAD` :
+#   "ref: refs/heads/<branch>\tHEAD"
+_SYMREF_HEAD_RE = re.compile(r"^ref:\s+refs/heads/(?P<branch>\S+)\s+HEAD", re.MULTILINE)
+
+
+def _parse_symref_head(stdout: str) -> str | None:
+    """Extrait le nom de branche de la ligne symref de `ls-remote --symref HEAD`.
+
+    Retourne None si aucune ligne symref n'est présente.
+    """
+    match = _SYMREF_HEAD_RE.search(stdout)
+    return match.group("branch") if match else None
+
 
 def sanitize_git_output(text: str) -> str:
     """Remplace tout `https://<user>:<token>@host` par `https://***@host`.
