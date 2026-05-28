@@ -157,7 +157,7 @@ async def pull(*, dest: Path, branch: str) -> None:
 
 
 async def detect_default_branch(
-    *, url: str, token: str | None, timeout: float = 15.0
+    *, url: str, token: str | None, deadline: float = 15.0
 ) -> str | None:
     """Branche par défaut du remote via `git ls-remote --symref <url> HEAD`.
 
@@ -168,17 +168,18 @@ async def detect_default_branch(
     auth_url = _build_authenticated_url(url, token)
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
     try:
-        proc = await asyncio.create_subprocess_exec(
-            "git",
-            "ls-remote",
-            "--symref",
-            auth_url,
-            "HEAD",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env,
-        )
-        stdout_b, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        async with asyncio.timeout(deadline):
+            proc = await asyncio.create_subprocess_exec(
+                "git",
+                "ls-remote",
+                "--symref",
+                auth_url,
+                "HEAD",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+            )
+            stdout_b, _ = await proc.communicate()
     except (TimeoutError, FileNotFoundError, NotADirectoryError, OSError):
         return None
     if proc.returncode != 0:
