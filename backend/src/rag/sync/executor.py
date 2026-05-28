@@ -308,6 +308,8 @@ async def _process_job(
     # 4. Traite les fichiers
     files_changed = 0
     files_skipped = 0
+    changed_files: list[tuple[str, str]] = []  # (path, change_type)
+    added_set = set(changes.added)
 
     for path in changes.added + changes.modified:
         full = dest / path
@@ -336,10 +338,12 @@ async def _process_job(
             indexer_used=job.indexer_used,
         )
         files_changed += 1
+        changed_files.append((path, "added" if path in added_set else "modified"))
 
     for path in changes.deleted:
         await indexer.delete_file(workspace_id=job.workspace_id, path=path)
         files_changed += 1
+        changed_files.append((path, "deleted"))
 
     # 5. Update workspace_sources : last_commit + last_indexed_at
     async with config_pool.acquire() as conn:
@@ -374,6 +378,19 @@ async def _process_job(
             files_skipped,
             job.job_id,
         )
+        if changed_files:
+            try:
+                await conn.execute(
+                    """
+                    INSERT INTO index_job_files (job_id, path, change_type)
+                    SELECT $1, p, t FROM unnest($2::text[], $3::text[]) AS u(p, t)
+                    """,
+                    job.job_id,
+                    [p for p, _ in changed_files],
+                    [t for _, t in changed_files],
+                )
+            except Exception:
+                log.warning("sync.executor.job_files_persist_failed", job_id=jid)
 
     log.info(
         "sync.executor.job_done",
