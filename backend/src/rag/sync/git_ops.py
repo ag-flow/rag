@@ -156,6 +156,36 @@ async def pull(*, dest: Path, branch: str) -> None:
     log.info("git.pull.done", dest=str(dest), branch=branch)
 
 
+async def detect_default_branch(
+    *, url: str, token: str | None, timeout: float = 15.0
+) -> str | None:
+    """Branche par défaut du remote via `git ls-remote --symref <url> HEAD`.
+
+    Retourne le nom de branche (ex: "main", "master"), ou None si
+    indéterminable (échec réseau, timeout, repo injoignable, pas de symref).
+    Ne lève jamais : le repli est de la responsabilité de l'appelant.
+    """
+    auth_url = _build_authenticated_url(url, token)
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git",
+            "ls-remote",
+            "--symref",
+            auth_url,
+            "HEAD",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
+        )
+        stdout_b, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except (TimeoutError, FileNotFoundError, NotADirectoryError, OSError):
+        return None
+    if proc.returncode != 0:
+        return None
+    return _parse_symref_head(stdout_b.decode("utf-8", errors="replace"))
+
+
 async def list_all_files(dest: Path) -> list[str]:
     """Retourne tous les fichiers trackés par git (`git ls-files`).
 
