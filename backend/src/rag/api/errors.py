@@ -154,6 +154,17 @@ class JobNotFound(AdminError):
         return {"error": "job_not_found", "id": self.job_id}
 
 
+class WebhookNotFound(AdminError):
+    http_status = 404
+
+    def __init__(self, webhook_id: str) -> None:
+        super().__init__(webhook_id)
+        self.webhook_id = webhook_id
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "webhook_not_found", "webhook_id": self.webhook_id}
+
+
 class ChunkingConfigNotFound(AdminError):
     http_status = 404
 
@@ -174,6 +185,22 @@ class SourceTypeNotSupported(AdminError):
 
     def to_payload(self) -> dict[str, object]:
         return {"error": "source_type_not_supported", "type": self.type, "supported": ["git"]}
+
+
+class ReservedHeader(AdminError):
+    http_status = 422
+
+    def __init__(self, header_name: str, reserved: list[str]) -> None:
+        super().__init__(header_name)
+        self.header_name = header_name
+        self.reserved = reserved
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "error": "reserved_header",
+            "message": f"Header '{self.header_name}' is reserved and cannot be configured.",
+            "reserved_headers": self.reserved,
+        }
 
 
 class ModelInUse(AdminError):

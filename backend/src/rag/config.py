@@ -57,6 +57,12 @@ class Settings(BaseSettings):
 
     rag_session_secret: SecretStr = SecretStr("")
 
+    rag_webhook_secret: SecretStr | None = Field(
+        default=None,
+        description="Secret HMAC pour signer les payloads webhook (X-RAG-Signature). "
+        "Optionnel — si absent, la signature est omise (warning au dispatch).",
+    )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
