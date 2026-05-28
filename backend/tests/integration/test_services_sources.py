@@ -10,7 +10,6 @@ import asyncpg
 import pytest
 
 from rag.api.errors import (
-    RefNotFoundInVault,
     SourceNotFound,
     WorkspaceNotFound,
 )
@@ -93,23 +92,24 @@ async def test_add_source_git_inserts_row(
     pg_container: str, session_pool: asyncpg.Pool, cleanup_ws_dbs: None
 ) -> None:
     await run_migrations(session_pool, MIGRATIONS_DIR)
-    resolver = await _setup_ws(pg_container, session_pool, "ws_src_a")
+    await _setup_ws(pg_container, session_pool, "ws_src_a")
 
     src = await add_source(
         workspace_name="ws_src_a",
         request=SourceCreateRequest(
+            name="harpocrate",
             type="git",
+            api_key_vault="rag",
+            auth_value=None,
             config={
                 "url": "https://github.com/gael/harpocrate",
                 "branch": "main",
-                "auth_ref": "github_token",
                 "include": ["**/*.md"],
                 "exclude": [],
             },
         ),
         config_pool=session_pool,
-        resolver=resolver,  # type: ignore[arg-type]
-        default_vault_name="rag",
+        harpocrate_vaults_service=_make_harpo_service(),
     )
     assert src["type"] == "git"
     assert src["config"]["url"] == "https://github.com/gael/harpocrate"
@@ -121,56 +121,40 @@ async def test_add_source_git_inserts_row(
 @pytest.mark.asyncio
 async def test_add_source_workspace_not_found(session_pool: asyncpg.Pool) -> None:
     await run_migrations(session_pool, MIGRATIONS_DIR)
-    resolver = _Resolver({"github_token"})
     with pytest.raises(WorkspaceNotFound):
         await add_source(
             workspace_name="absent",
             request=SourceCreateRequest(
+                name="repo",
                 type="git",
-                config={"url": "https://github.com/x/y", "auth_ref": "github_token"},
+                api_key_vault="rag",
+                auth_value=None,
+                config={"url": "https://github.com/x/y"},
             ),
             config_pool=session_pool,
-            resolver=resolver,  # type: ignore[arg-type]
+            harpocrate_vaults_service=_make_harpo_service(),
         )
 
 
-@pytest.mark.asyncio
-async def test_add_source_auth_ref_not_in_vault_raises(
-    pg_container: str, session_pool: asyncpg.Pool, cleanup_ws_dbs: None
-) -> None:
-    await run_migrations(session_pool, MIGRATIONS_DIR)
-    resolver = await _setup_ws(pg_container, session_pool, "ws_src_b")
-    # On retire github_token de la ref connue pour ce test :
-    resolver._known.discard("github_token")  # type: ignore[attr-defined]
-
-    with pytest.raises(RefNotFoundInVault):
-        await add_source(
-            workspace_name="ws_src_b",
-            request=SourceCreateRequest(
-                type="git",
-                config={"url": "https://github.com/x/y", "auth_ref": "github_token"},
-            ),
-            config_pool=session_pool,
-            resolver=resolver,  # type: ignore[arg-type]
-        )
-
 
 @pytest.mark.asyncio
-async def test_add_source_no_auth_ref_does_not_resolve(
+async def test_add_source_public_no_auth_value(
     pg_container: str, session_pool: asyncpg.Pool, cleanup_ws_dbs: None
 ) -> None:
-    """Source publique sans auth_ref : pas de validation Harpocrate, OK."""
+    """Source publique sans auth_value : pas d'écriture Harpocrate, OK."""
     await run_migrations(session_pool, MIGRATIONS_DIR)
-    resolver = await _setup_ws(pg_container, session_pool, "ws_src_pub")
+    await _setup_ws(pg_container, session_pool, "ws_src_pub")
     src = await add_source(
         workspace_name="ws_src_pub",
         request=SourceCreateRequest(
+            name="pubrepo",
             type="git",
+            api_key_vault="rag",
+            auth_value=None,
             config={"url": "https://github.com/public/repo", "branch": "main"},
         ),
         config_pool=session_pool,
-        resolver=resolver,  # type: ignore[arg-type]
-        default_vault_name="rag",
+        harpocrate_vaults_service=_make_harpo_service(),
     )
     assert src["type"] == "git"
 
@@ -180,16 +164,18 @@ async def test_delete_source_removes_row(
     pg_container: str, session_pool: asyncpg.Pool, cleanup_ws_dbs: None
 ) -> None:
     await run_migrations(session_pool, MIGRATIONS_DIR)
-    resolver = await _setup_ws(pg_container, session_pool, "ws_src_del")
+    await _setup_ws(pg_container, session_pool, "ws_src_del")
     src = await add_source(
         workspace_name="ws_src_del",
         request=SourceCreateRequest(
+            name="delrepo",
             type="git",
-            config={"url": "https://github.com/x/y", "auth_ref": "github_token"},
+            api_key_vault="rag",
+            auth_value=None,
+            config={"url": "https://github.com/x/y"},
         ),
         config_pool=session_pool,
-        resolver=resolver,  # type: ignore[arg-type]
-        default_vault_name="rag",
+        harpocrate_vaults_service=_make_harpo_service(),
     )
 
     await delete_source(workspace_name="ws_src_del", source_id=src["id"], config_pool=session_pool)
@@ -219,17 +205,19 @@ async def test_add_source_sets_next_sync_at_to_now(
     """M3 : à la création d'une source, next_sync_at doit être posé à now()
     pour déclencher le premier sync au prochain cycle du worker."""
     await run_migrations(session_pool, MIGRATIONS_DIR)
-    resolver = await _setup_ws(pg_container, session_pool, "ws_src_next_sync")
+    await _setup_ws(pg_container, session_pool, "ws_src_next_sync")
 
     src = await add_source(
         workspace_name="ws_src_next_sync",
         request=SourceCreateRequest(
+            name="nextrepo",
             type="git",
-            config={"url": "https://github.com/x/y", "auth_ref": "github_token"},
+            api_key_vault="rag",
+            auth_value=None,
+            config={"url": "https://github.com/x/y"},
         ),
         config_pool=session_pool,
-        resolver=resolver,  # type: ignore[arg-type]
-        default_vault_name="rag",
+        harpocrate_vaults_service=_make_harpo_service(),
     )
 
     next_at_offset = await session_pool.fetchval(
