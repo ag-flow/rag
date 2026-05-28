@@ -5,15 +5,14 @@ from pathlib import Path
 import asyncpg
 import pytest
 
+from rag.api.errors import ReservedHeader, WebhookNotFound
 from rag.db.migrations import run_migrations
 from rag.services.webhooks import (
     create_webhook,
     delete_webhook,
     list_webhooks,
     patch_webhook,
-    patch_webhook_header,
 )
-from rag.api.errors import ReservedHeader, WebhookNotFound, WorkspaceNotFound
 from tests.integration._workspace_seed import seed_workspace
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
@@ -29,7 +28,7 @@ async def pool(session_pool: asyncpg.Pool) -> asyncpg.Pool:
 
 async def test_create_and_list_webhook(pool: asyncpg.Pool) -> None:
     async with pool.acquire() as conn:
-        ws_id = await seed_workspace(conn, name="ws1")
+        await seed_workspace(conn, name="ws1")
 
     created = await create_webhook(
         pool,

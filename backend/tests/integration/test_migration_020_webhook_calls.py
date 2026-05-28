@@ -34,11 +34,14 @@ async def test_migration_020_webhook_calls_table(
         call_id = await conn.fetchval(
             """
             INSERT INTO webhook_calls
-                (workspace_id, webhook_id, job_id, correlation_id, triggered_by, webhook_url, http_status, duration_ms)
+                (workspace_id, webhook_id, job_id,
+                 correlation_id, triggered_by, webhook_url, http_status, duration_ms)
             VALUES ($1, $2, $3, 'corr-123', 'push', 'https://x.com', 200, 42)
             RETURNING id
             """,
-            ws_id, wh_id, job_id,
+            ws_id,
+            wh_id,
+            job_id,
         )
         assert call_id is not None
 

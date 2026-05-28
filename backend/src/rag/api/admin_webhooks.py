@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import asyncpg
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 
@@ -23,10 +25,11 @@ from rag.services.webhooks import (
 
 
 def _config_pool(request: Request) -> asyncpg.Pool:
-    return request.app.state.pools.config_pool  # type: ignore[no-any-return]
+    pool: asyncpg.Pool = request.app.state.pools.config_pool
+    return pool
 
 
-def _resolver(request: Request) -> object:
+def _resolver(request: Request) -> Any:
     return getattr(request.app.state, "resolver", None)
 
 
@@ -44,7 +47,7 @@ def build_webhooks_router() -> APIRouter:
         status_filter: str | None = Query(default=None, alias="status"),
         limit: int = Query(default=50, ge=1, le=500),
         pool: asyncpg.Pool = Depends(_config_pool),  # noqa: B008
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         return await list_webhook_calls(
             pool,
             workspace_name=name,
@@ -66,7 +69,7 @@ def build_webhooks_router() -> APIRouter:
     async def get_webhooks(
         name: str,
         pool: asyncpg.Pool = Depends(_config_pool),  # noqa: B008
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         return await list_webhooks(pool, workspace_name=name)
 
     @router.post("/workspaces/{name}/webhooks", response_model=WebhookOut, status_code=201)
@@ -75,7 +78,7 @@ def build_webhooks_router() -> APIRouter:
         body: WebhookCreateRequest,
         request: Request,
         pool: asyncpg.Pool = Depends(_config_pool),  # noqa: B008
-    ) -> dict:
+    ) -> dict[str, Any]:
         return await create_webhook(
             pool,
             workspace_name=name,
@@ -92,7 +95,7 @@ def build_webhooks_router() -> APIRouter:
         webhook_id: str,
         body: WebhookPatchRequest,
         pool: asyncpg.Pool = Depends(_config_pool),  # noqa: B008
-    ) -> dict:
+    ) -> dict[str, Any]:
         return await patch_webhook(
             pool,
             webhook_id=webhook_id,
@@ -113,7 +116,7 @@ def build_webhooks_router() -> APIRouter:
 
     @router.patch(
         "/workspaces/{name}/webhooks/{webhook_id}/headers/{header_id}",
-        response_model=dict,
+        response_model=dict[str, Any],
     )
     async def update_header(
         name: str,
@@ -122,7 +125,7 @@ def build_webhooks_router() -> APIRouter:
         body: WebhookHeaderPatchRequest,
         request: Request,
         pool: asyncpg.Pool = Depends(_config_pool),  # noqa: B008
-    ) -> dict:
+    ) -> dict[str, Any]:
         return await patch_webhook_header(
             pool,
             webhook_id=webhook_id,

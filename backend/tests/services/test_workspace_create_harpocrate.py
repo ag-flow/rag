@@ -258,22 +258,21 @@ async def test_create_workspace_secret_not_found_raises_ref_not_found_in_vault(
     import types
 
     # Simule harpocrate.exceptions.SecretNotFound sans dépendre du SDK.
-    class _FakeSecretNotFound(Exception):
+    class _FakeSecretNotFoundError(Exception):
         pass
 
     fake_exc_module = types.ModuleType("harpocrate.exceptions")
-    fake_exc_module.SecretNotFound = _FakeSecretNotFound  # type: ignore[attr-defined]
+    fake_exc_module.SecretNotFound = _FakeSecretNotFoundError  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "harpocrate.exceptions", fake_exc_module)
 
-    harpo = _make_harpo_service(vault_exists=True)
     pool = _make_stub_pool()
 
-    # Le resolver lève _FakeSecretNotFound (simule le SDK quand le secret manque).
+    # Le resolver lève _FakeSecretNotFoundError (simule le SDK quand le secret manque).
     from rag.secrets.resolver import SecretResolver
 
     class _FakeVaultClient:
         def get_secret(self, path: str) -> str:
-            raise _FakeSecretNotFound(f"secret missing: {path}")
+            raise _FakeSecretNotFoundError(f"secret missing: {path}")
 
     resolver = SecretResolver(
         harpocrate_clients={"rag": _FakeVaultClient()},
@@ -286,16 +285,9 @@ async def test_create_workspace_secret_not_found_raises_ref_not_found_in_vault(
     # Puisque WorkspaceCreateRequest.indexer utilise IndexerCreateSpec (qui n'a pas api_key_ref),
     # on va mocker resolve_with_retry pour qu'il soit appelé avec une ref calculée.
 
-    # En fait, create_workspace appelle _validate_ref_via_vault SI request.indexer.api_key_ref est présent.
-    # Mais IndexerCreateSpec n'a PAS api_key_ref.
-    # Dans workspaces.py:81, create_workspace ne valide PAS de ref, il en CRÉE une.
-
-    # Rectification: le test test_create_workspace_secret_not_found_raises_ref_not_found_in_vault
-    # semble tester un cas qui n'existe plus dans create_workspace (eager validation d'une ref existante).
-    # C'est patch_workspace qui fait ça.
-
-    # On va tester patch_workspace au lieu de create_workspace pour RefNotFoundInVault
-    from rag.schemas.admin import WorkspacePatchRequest, IndexerPatchSpec
+    # create_workspace ne valide pas de ref, il en CRÉE une (IndexerCreateSpec n'a pas api_key_ref).
+    # C'est patch_workspace qui fait la validation eager. On teste donc patch_workspace ici.
+    from rag.schemas.admin import IndexerPatchSpec, WorkspacePatchRequest
     from rag.services.workspaces import patch_workspace
 
     request = WorkspacePatchRequest(
