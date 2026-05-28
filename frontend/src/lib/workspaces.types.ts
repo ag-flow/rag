@@ -55,11 +55,12 @@ export type Source = {
   config: SourceConfig;
   last_indexed_at: string | null;
   created_at: string;
+  branch_warning?: string | null;
 };
 
 type SourceConfigInput = {
   url: string;
-  branch: string;
+  branch?: string;
   include: string[];
   exclude: string[];
 };
