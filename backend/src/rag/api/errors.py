@@ -143,6 +143,17 @@ class SourceNotFound(AdminError):
         return {"error": "source_not_found", "id": self.source_id}
 
 
+class JobNotFound(AdminError):
+    http_status = 404
+
+    def __init__(self, job_id: str) -> None:
+        super().__init__(job_id)
+        self.job_id = job_id
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "job_not_found", "id": self.job_id}
+
+
 class ChunkingConfigNotFound(AdminError):
     http_status = 404
 

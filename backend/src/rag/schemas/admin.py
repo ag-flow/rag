@@ -167,6 +167,17 @@ class JobResponse(BaseModel):
     duration_ms: int | None
 
 
+class JobFileEntry(BaseModel):
+    path: str
+    change_type: Literal["added", "modified", "deleted"]
+
+
+class JobFilesResponse(BaseModel):
+    files: list[JobFileEntry]
+    total: int
+    limit: int
+
+
 class ModelEntry(BaseModel):
     """Une entrée du registre model_dimensions."""
 
