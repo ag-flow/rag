@@ -3,11 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from rag.schemas.workspace import (
-    PushIndexedResponse,
-    PushRequest,
-    PushSkippedResponse,
-)
+from rag.schemas.workspace import PushRequest
 
 
 def test_push_request_accepts_valid_payload() -> None:
@@ -49,18 +45,3 @@ def test_push_request_counts_utf8_bytes_not_chars_for_size() -> None:
 def test_push_request_rejects_path_above_1024_chars() -> None:
     with pytest.raises(ValidationError):
         PushRequest(path="a" * 1025, content="x")
-
-
-def test_push_indexed_response_serializes_with_status_indexed() -> None:
-    r = PushIndexedResponse(path="x.md", chunks=3, hash="sha256:abc")
-    d = r.model_dump()
-    assert d["status"] == "indexed"
-    assert d["chunks"] == 3
-    assert d["hash"] == "sha256:abc"
-
-
-def test_push_skipped_response_serializes_with_status_skipped() -> None:
-    r = PushSkippedResponse(path="x.md")
-    d = r.model_dump()
-    assert d["status"] == "skipped"
-    assert d["reason"] == "content_unchanged"

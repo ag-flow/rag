@@ -7,11 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ChangeSet(BaseModel):
-    """Résultat d'un diff git filtré (post `include` / `exclude`).
-
-    `added` / `modified` / `deleted` contiennent des chemins relatifs au
-    worktree git, déjà filtrés via les patterns glob de la source.
-    """
+    """Résultat d'un diff git filtré (post `include` / `exclude`)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -51,10 +47,12 @@ class JobToProcess(BaseModel):
     job_id: UUID
     workspace_id: UUID
     workspace_name: str
-    source_id: UUID
-    source_config: dict[str, Any]
+    source_id: UUID | None          # None pour les push jobs
+    source_config: dict[str, Any]   # {} pour les push jobs
     indexer_provider: str
     indexer_model: str
+    triggered_by: str
+    correlation_id: str | None
 
     @property
     def indexer_used(self) -> str:
