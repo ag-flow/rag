@@ -10,6 +10,7 @@ from rag.schemas.admin import (
     ApiKeyRotateResponse,
     ChunkingConfigResponse,
     ChunkingConfigSpec,
+    JobFilesResponse,
     JobResponse,
     ModelEntry,
     ReindexRequest,
@@ -289,6 +290,17 @@ def build_admin_router() -> APIRouter:
 
         rows = await list_jobs(_config_pool(request), workspace_name=name)
         return [JobResponse(**r) for r in rows]
+
+    @router.get("/workspaces/{name}/jobs/{job_id}/files")
+    async def get_job_files(name: str, job_id: str, request: Request) -> JobFilesResponse:
+        from rag.services.jobs import list_job_files
+
+        result = await list_job_files(
+            config_pool=_config_pool(request),
+            workspace_name=name,
+            job_id=job_id,
+        )
+        return JobFilesResponse(**result)
 
     # ─── Models registry ────────────────────────────────────────────────────
 

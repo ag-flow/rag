@@ -9,11 +9,11 @@ from uuid import uuid4
 import asyncpg
 import pytest
 
-from rag.api.errors import WorkspaceNotFound
+from rag.api.errors import JobNotFound, WorkspaceNotFound
 from rag.db.migrations import run_migrations
 from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
 from rag.schemas.harpocrate_vaults import VaultSummary
-from rag.services.jobs import create_pending_job, list_jobs
+from rag.services.jobs import create_pending_job, list_job_files, list_jobs
 from rag.services.workspaces import create_workspace
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
@@ -135,3 +135,56 @@ async def test_list_jobs_ordered_desc(
     jobs = await list_jobs(session_pool, workspace_name="ws_jobs_order")
     assert len(jobs) == 2
     assert jobs[0]["triggered_by"] == "manual"  # plus récent en premier
+
+
+@pytest.mark.asyncio
+async def test_list_job_files_returns_files(
+    pg_container: str, session_pool: asyncpg.Pool, cleanup_ws_dbs: None
+) -> None:
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    async with session_pool.acquire() as conn:
+        ws_id = await conn.fetchval(
+            "INSERT INTO workspaces"
+            " (name, api_key_encrypted, api_key_fingerprint, rag_cnx, rag_base) "
+            "VALUES ('ws_jf', pgp_sym_encrypt('k'::text, 'x'::text)::bytea, 'fp', 'c', 'b') "
+            "RETURNING id"
+        )
+        job_id = await conn.fetchval(
+            "INSERT INTO index_jobs (workspace_id, triggered_by, status) "
+            "VALUES ($1, 'manual', 'done') RETURNING id",
+            ws_id,
+        )
+        await conn.execute(
+            "INSERT INTO index_job_files (job_id, path, change_type) "
+            "VALUES ($1, 'b.md', 'modified'), ($1, 'a.md', 'added')",
+            job_id,
+        )
+
+    result = await list_job_files(
+        config_pool=session_pool, workspace_name="ws_jf", job_id=str(job_id)
+    )
+    assert result["total"] == 2
+    assert result["limit"] == 1000
+    assert {(f["path"], f["change_type"]) for f in result["files"]} == {
+        ("a.md", "added"),
+        ("b.md", "modified"),
+    }
+
+
+@pytest.mark.asyncio
+async def test_list_job_files_unknown_job_raises(
+    pg_container: str, session_pool: asyncpg.Pool, cleanup_ws_dbs: None
+) -> None:
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    async with session_pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO workspaces"
+            " (name, api_key_encrypted, api_key_fingerprint, rag_cnx, rag_base) "
+            "VALUES ('ws_jf2', pgp_sym_encrypt('k'::text, 'x'::text)::bytea, 'fp2', 'c', 'b')"
+        )
+    from uuid import uuid4
+
+    with pytest.raises(JobNotFound):
+        await list_job_files(
+            config_pool=session_pool, workspace_name="ws_jf2", job_id=str(uuid4())
+        )
