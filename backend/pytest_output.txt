@@ -1,0 +1,694 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.0.3, pluggy-1.6.0
+rootdir: /app/backend
+configfile: pyproject.toml
+testpaths: tests
+plugins: asyncio-1.3.0, cov-7.1.0, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=session, asyncio_default_test_loop_scope=session
+collected 792 items / 6 deselected / 786 selected
+
+tests/api/test_admin_harpocrate_vaults.py sssssssssssssss                [  1%]
+tests/api/test_admin_harpocrate_vaults_m5d.py ssssss                     [  2%]
+tests/api/test_admin_models.py sssss                                     [  3%]
+tests/api/test_admin_oidc.py ssssss                                      [  4%]
+tests/api/test_admin_oidc_auth.py ssssss                                 [  4%]
+tests/api/test_admin_reindex_jobs.py ssss                                [  5%]
+tests/api/test_admin_sources.py sssss                                    [  5%]
+tests/api/test_admin_wireup.py sss                                       [  6%]
+tests/api/test_admin_workspaces.py ssssssssss                            [  7%]
+tests/api/test_admin_workspaces_apikey.py sssss                          [  8%]
+tests/api/test_admin_workspaces_chunking.py ssssssss                     [  9%]
+tests/api/test_admin_workspaces_rerank.py ssssss                         [ 10%]
+tests/api/test_auth.py ....                                              [ 10%]
+tests/api/test_auth_errors.py sssssssss                                  [ 11%]
+tests/api/test_auth_flow.py ssssss                                       [ 12%]
+tests/api/test_auth_local.py sssssssss                                   [ 13%]
+tests/api/test_chunking_change_error.py ....                             [ 14%]
+tests/api/test_health.py ...                                             [ 14%]
+tests/api/test_main.py ss                                                [ 14%]
+tests/api/test_mcp_errors.py ssssssss                                    [ 15%]
+tests/api/test_mcp_multi.py sss                                          [ 16%]
+tests/api/test_mcp_single.py sss                                         [ 16%]
+tests/api/test_me_local.py sss                                           [ 16%]
+tests/api/test_sync_wireup.py sss                                        [ 17%]
+tests/api/test_workspace_push_auth.py sssssss                            [ 18%]
+tests/api/test_workspace_push_dedup.py ss                                [ 18%]
+tests/api/test_workspace_push_errors.py sssss                            [ 19%]
+tests/auth/test_admin_dep.py .....                                       [ 19%]
+tests/auth/test_workspace_auth_harpocrate.py .....                       [ 20%]
+tests/integration/test_boot_workspace_migrations.py ss                   [ 20%]
+tests/integration/test_client_provider.py sssss                          [ 21%]
+tests/integration/test_create_workspace_with_chunking.py ss              [ 21%]
+tests/integration/test_git_ops_clone.py ....                             [ 22%]
+tests/integration/test_git_ops_diff.py .                                 [ 22%]
+tests/integration/test_git_ops_list.py ..                                [ 22%]
+tests/integration/test_git_ops_pull.py ....                              [ 22%]
+tests/integration/test_harpocrate_vaults_service_m5d.py sssssss          [ 23%]
+tests/integration/test_harpocrate_vaults_service_reads_create.py sssssss [ 24%]
+s                                                                        [ 24%]
+tests/integration/test_harpocrate_vaults_service_test_connection.py ssss [ 25%]
+ssss                                                                     [ 25%]
+tests/integration/test_harpocrate_vaults_service_writes.py sssssssss     [ 26%]
+tests/integration/test_helpers.py sssss                                  [ 27%]
+tests/integration/test_indexer_noop.py ssss                              [ 28%]
+tests/integration/test_indexer_real.py sssss                             [ 28%]
+tests/integration/test_indexer_real_with_chunking_config.py s            [ 28%]
+tests/integration/test_mcp_rerank_fail_fast.py s                         [ 29%]
+tests/integration/test_mcp_with_rerank.py sss                            [ 29%]
+tests/integration/test_migration_001.py ssss                             [ 29%]
+tests/integration/test_migration_002.py ssss                             [ 30%]
+tests/integration/test_migration_003.py sssss                            [ 31%]
+tests/integration/test_migration_004.py ss                               [ 31%]
+tests/integration/test_migration_005.py ssss                             [ 31%]
+tests/integration/test_migration_006.py s                                [ 31%]
+tests/integration/test_migration_009_harpocrate_vaults.py sss            [ 32%]
+tests/integration/test_migration_010_workspace_apikey.py ssss            [ 32%]
+tests/integration/test_migration_011_rerank_configs.py sss               [ 33%]
+tests/integration/test_migration_012_chunking_configs.py ssssssss        [ 34%]
+tests/integration/test_migration_013_chunking_trigger.py sss             [ 34%]
+tests/integration/test_migration_014_chunking_strategy_markdown.py sss   [ 34%]
+tests/integration/test_migrations.py ssss                                [ 35%]
+tests/integration/test_pool.py sss.                                      [ 36%]
+tests/integration/test_real_indexer_markdown.py s                        [ 36%]
+tests/integration/test_services_chunking_configs.py ssssssssssss         [ 37%]
+tests/integration/test_services_jobs.py ssss                             [ 38%]
+tests/integration/test_services_models.py sssssss                        [ 39%]
+tests/integration/test_services_reindex.py ssss                          [ 39%]
+tests/integration/test_services_rerank_configs.py sssssss                [ 40%]
+tests/integration/test_services_sources.py sssssss                       [ 41%]
+tests/integration/test_services_workspaces_create.py sssss               [ 41%]
+tests/integration/test_services_workspaces_delete.py sss                 [ 42%]
+tests/integration/test_services_workspaces_patch.py sss                  [ 42%]
+tests/integration/test_services_workspaces_read.py ssss                  [ 43%]
+tests/integration/test_services_workspaces_rotate.py sss                 [ 43%]
+tests/integration/test_sync_executor.py sssss                            [ 44%]
+tests/integration/test_sync_picker.py sss                                [ 44%]
+tests/integration/test_sync_recovery.py ss                               [ 44%]
+tests/integration/test_sync_scheduler.py ssss                            [ 45%]
+tests/integration/test_sync_worker.py sss                                [ 45%]
+tests/integration/test_workspace_auth_lookup.py sss                      [ 46%]
+tests/integration/test_workspace_embeddings.py ssssssss                  [ 47%]
+tests/integration/test_workspace_migration_001_embeddings_metadata.py s  [ 47%]
+tests/integration/test_workspace_migrations_runner.py sss                [ 47%]
+tests/integration/test_workspace_schema.py ..ssssss                      [ 48%]
+tests/services/test_apikey_cache.py .....                                [ 49%]
+tests/services/test_local_auth.py ......                                 [ 50%]
+tests/services/test_workspace_create_harpocrate.py FFFFF                 [ 50%]
+tests/services/test_workspace_rotate_apikey.py FFFF                      [ 51%]
+tests/test_boot_no_default_vault.py s                                    [ 51%]
+tests/unit/api/test_oidc_errors.py ..........                            [ 52%]
+tests/unit/api/test_workspace_errors.py .....                            [ 53%]
+tests/unit/auth/test_oidc_dependency.py ............                     [ 54%]
+tests/unit/auth/test_require_workspace_apikey.py ......                  [ 55%]
+tests/unit/auth/test_workspace_auth_cache.py ......                      [ 56%]
+tests/unit/db/test_workspace_search.py .....                             [ 56%]
+tests/unit/indexer/test_chunking_factory.py .........                    [ 58%]
+tests/unit/indexer/test_chunking_markdown.py ..................          [ 60%]
+tests/unit/indexer/test_chunking_paragraph.py .........                  [ 61%]
+tests/unit/indexer/test_providers_embed_query.py ......                  [ 62%]
+tests/unit/rerank/test_cohere.py .....                                   [ 62%]
+tests/unit/rerank/test_factory.py .......                                [ 63%]
+tests/unit/rerank/test_ollama.py .....                                   [ 64%]
+tests/unit/rerank/test_voyage.py .....                                   [ 65%]
+tests/unit/schemas/test_chunking_config_schema.py ..................     [ 67%]
+tests/unit/schemas/test_harpocrate_vaults_dto.py .....................   [ 70%]
+tests/unit/schemas/test_mcp_dto.py ...............                       [ 72%]
+tests/unit/schemas/test_oidc_dto.py ........                             [ 73%]
+tests/unit/schemas/test_workspace_dto.py .........                       [ 74%]
+tests/unit/secrets/test_refs.py .............                            [ 75%]
+tests/unit/services/test_mcp_auth.py ......                              [ 76%]
+tests/unit/services/test_mcp_normalize.py ...                            [ 76%]
+tests/unit/services/test_mcp_search.py .....                             [ 77%]
+tests/unit/services/test_oidc_authorize_url.py ...                       [ 77%]
+tests/unit/services/test_oidc_config_service.py ....                     [ 78%]
+tests/unit/services/test_oidc_discovery.py .....                         [ 79%]
+tests/unit/services/test_oidc_exchange.py .....                          [ 79%]
+tests/unit/services/test_oidc_roles.py ....                              [ 80%]
+tests/unit/services/test_oidc_verify.py .....                            [ 80%]
+tests/unit/services/test_push_path_normalize.py ...........              [ 82%]
+tests/unit/services/test_push_service.py .....                           [ 82%]
+tests/unit/test_admin_router_factory.py ....                             [ 83%]
+tests/unit/test_apikey.py ...                                            [ 83%]
+tests/unit/test_config.py ........                                       [ 84%]
+tests/unit/test_config_session_secret.py ....                            [ 85%]
+tests/unit/test_errors.py ...........                                    [ 86%]
+tests/unit/test_filter_glob.py ....                                      [ 87%]
+tests/unit/test_logging.py ....                                          [ 87%]
+tests/unit/test_provider_factory.py .....                                [ 88%]
+tests/unit/test_provider_ollama.py .........                             [ 89%]
+tests/unit/test_provider_openai.py .........                             [ 90%]
+tests/unit/test_provider_protocol.py .....                               [ 91%]
+tests/unit/test_provider_voyage.py ...........                           [ 92%]
+tests/unit/test_repo_storage.py .....                                    [ 93%]
+tests/unit/test_resolver_cache.py .......                                [ 94%]
+tests/unit/test_resolver_parse_env.py .........                          [ 95%]
+tests/unit/test_resolver_provider_mode.py ...                            [ 95%]
+tests/unit/test_resolver_vault.py ....                                   [ 96%]
+tests/unit/test_schemas_admin.py ...............F..                      [ 98%]
+tests/unit/test_schemas_sync.py ......                                   [ 99%]
+tests/unit/test_settings_harpocrate_dek.py .....                         [100%]
+
+=================================== FAILURES ===================================
+_______ test_create_workspace_with_missing_vault_raises_vault_not_found ________
+
+    @pytest.mark.asyncio
+    async def test_create_workspace_with_missing_vault_raises_vault_not_found() -> None:
+        """Si le coffre n'existe pas, VaultNotFoundForWorkspace levé avant write_secret."""
+        harpo = _make_harpo_service(vault_exists=False)
+        pool = _make_stub_pool()
+        resolver = MagicMock()
+        resolver.resolve_with_retry = AsyncMock(return_value="unused")
+>       request = _make_request(vault="missing-vault")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/services/test_workspace_create_harpocrate.py:83:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'test1', vault = 'missing-vault'
+
+    def _make_request(name: str = "test1", vault: str = "rag") -> WorkspaceCreateRequest:
+        """Construit une requête valide minimale (Ollama, sans api_key_ref)."""
+>       return WorkspaceCreateRequest(
+            name=name,
+            api_key_vault=vault,
+            indexer=IndexerSpec(
+                provider="ollama",
+                model="mxbai-embed-large",
+                api_key_ref=None,
+                base_url="http://ollama:11434",
+            ),
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for WorkspaceCreateRequest
+E       indexer
+E         Input should be a valid dictionary or instance of IndexerCreateSpec [type=model_type, input_value=IndexerSpec(provider='oll...l='http://ollama:11434'), input_type=IndexerSpec]
+E           For further information visit https://errors.pydantic.dev/2.13/v/model_type
+
+tests/services/test_workspace_create_harpocrate.py:21: ValidationError
+_ test_create_workspace_writes_to_harpocrate_under_wsapi_path_returns_full_ref _
+
+    @pytest.mark.asyncio
+    async def test_create_workspace_writes_to_harpocrate_under_wsapi_path_returns_full_ref() -> None:
+        """write_secret est appelé avec path=wsapi_<name>, retour contient api_key_ref."""
+        harpo = _make_harpo_service(vault_exists=True)
+        pool = _make_stub_pool()
+        resolver = MagicMock()
+        resolver.resolve_with_retry = AsyncMock(return_value="unused")
+
+        ws_id = uuid4()
+        fake_row = MagicMock()
+        fake_row.__getitem__ = lambda self, k: ws_id if k == "id" else MagicMock()
+
+        # Stub transaction(config_pool) : context manager qui retourne une conn
+        conn_in_tx = AsyncMock()
+        conn_in_tx.fetchrow = AsyncMock(return_value=fake_row)
+        conn_in_tx.execute = AsyncMock(return_value=None)
+
+        with (
+            patch("rag.services.workspaces.get_dimension_or_raise", new=AsyncMock(return_value=1024)),
+            patch(
+                "rag.services.workspaces.transaction",
+            ) as mock_tx,
+            patch("rag.services.workspaces.create_workspace_database", new=AsyncMock()),
+            patch("rag.services.workspaces.create_embeddings_table", new=AsyncMock()),
+            patch("rag.services.workspaces.apply_pending", new=AsyncMock()),
+        ):
+            mock_tx.return_value.__aenter__ = AsyncMock(return_value=conn_in_tx)
+            mock_tx.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            resp = await create_workspace(
+>               request=_make_request(name="myws", vault="rag"),
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                config_pool=pool,
+                admin_dsn="postgresql://stub",
+                resolver=resolver,
+                harpocrate_vaults_service=harpo,
+            )
+
+tests/services/test_workspace_create_harpocrate.py:135:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'myws', vault = 'rag'
+
+    def _make_request(name: str = "test1", vault: str = "rag") -> WorkspaceCreateRequest:
+        """Construit une requête valide minimale (Ollama, sans api_key_ref)."""
+>       return WorkspaceCreateRequest(
+            name=name,
+            api_key_vault=vault,
+            indexer=IndexerSpec(
+                provider="ollama",
+                model="mxbai-embed-large",
+                api_key_ref=None,
+                base_url="http://ollama:11434",
+            ),
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for WorkspaceCreateRequest
+E       indexer
+E         Input should be a valid dictionary or instance of IndexerCreateSpec [type=model_type, input_value=IndexerSpec(provider='oll...l='http://ollama:11434'), input_type=IndexerSpec]
+E           For further information visit https://errors.pydantic.dev/2.13/v/model_type
+
+tests/services/test_workspace_create_harpocrate.py:21: ValidationError
+_____ test_create_workspace_harpocrate_write_failure_raises_before_insert ______
+
+    @pytest.mark.asyncio
+    async def test_create_workspace_harpocrate_write_failure_raises_before_insert() -> None:
+        """Si write_secret lève HarpocrateWriteFailed, on ne doit pas insérer en DB."""
+        harpo = _make_harpo_service(
+            vault_exists=True,
+            write_raises=HarpocrateWriteFailed("réseau coupé"),
+        )
+        pool = _make_stub_pool()
+        resolver = MagicMock()
+        resolver.resolve_with_retry = AsyncMock(return_value="unused")
+
+        conn_in_tx = AsyncMock()
+        conn_in_tx.fetchrow = AsyncMock(return_value=MagicMock())
+        conn_in_tx.execute = AsyncMock(return_value=None)
+
+        with (
+            patch("rag.services.workspaces.get_dimension_or_raise", new=AsyncMock(return_value=1024)),
+            patch("rag.services.workspaces.transaction") as mock_tx,
+            pytest.raises(HarpocrateWriteFailed),
+        ):
+            mock_tx.return_value.__aenter__ = AsyncMock(return_value=conn_in_tx)
+            mock_tx.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            await create_workspace(
+>               request=_make_request(name="fail-ws", vault="rag"),
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                config_pool=pool,
+                admin_dsn="postgresql://stub",
+                resolver=resolver,
+                harpocrate_vaults_service=harpo,
+            )
+
+tests/services/test_workspace_create_harpocrate.py:187:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'fail-ws', vault = 'rag'
+
+    def _make_request(name: str = "test1", vault: str = "rag") -> WorkspaceCreateRequest:
+        """Construit une requête valide minimale (Ollama, sans api_key_ref)."""
+>       return WorkspaceCreateRequest(
+            name=name,
+            api_key_vault=vault,
+            indexer=IndexerSpec(
+                provider="ollama",
+                model="mxbai-embed-large",
+                api_key_ref=None,
+                base_url="http://ollama:11434",
+            ),
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for WorkspaceCreateRequest
+E       indexer
+E         Input should be a valid dictionary or instance of IndexerCreateSpec [type=model_type, input_value=IndexerSpec(provider='oll...l='http://ollama:11434'), input_type=IndexerSpec]
+E           For further information visit https://errors.pydantic.dev/2.13/v/model_type
+
+tests/services/test_workspace_create_harpocrate.py:21: ValidationError
+______ test_create_workspace_db_failure_triggers_harpocrate_delete_secret ______
+
+    @pytest.mark.asyncio
+    async def test_create_workspace_db_failure_triggers_harpocrate_delete_secret() -> None:
+        """Sur UniqueViolationError en INSERT, delete_secret est appelé (rollback Harpocrate)."""
+        harpo = _make_harpo_service(vault_exists=True)
+        pool = _make_stub_pool()
+        resolver = MagicMock()
+        resolver.resolve_with_retry = AsyncMock(return_value="unused")
+
+        conn_in_tx = AsyncMock()
+        # fetchrow lève UniqueViolationError (= workspace déjà existant)
+        conn_in_tx.fetchrow = AsyncMock(
+            side_effect=asyncpg.UniqueViolationError("duplicate key value violates unique constraint")
+        )
+        conn_in_tx.execute = AsyncMock(return_value=None)
+
+        with (
+            patch("rag.services.workspaces.get_dimension_or_raise", new=AsyncMock(return_value=1024)),
+            patch("rag.services.workspaces.transaction") as mock_tx,
+            pytest.raises(WorkspaceAlreadyExists),
+        ):
+            mock_tx.return_value.__aenter__ = AsyncMock(return_value=conn_in_tx)
+            mock_tx.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            await create_workspace(
+>               request=_make_request(name="existing-ws", vault="rag"),
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                config_pool=pool,
+                admin_dsn="postgresql://stub",
+                resolver=resolver,
+                harpocrate_vaults_service=harpo,
+            )
+
+tests/services/test_workspace_create_harpocrate.py:227:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'existing-ws', vault = 'rag'
+
+    def _make_request(name: str = "test1", vault: str = "rag") -> WorkspaceCreateRequest:
+        """Construit une requête valide minimale (Ollama, sans api_key_ref)."""
+>       return WorkspaceCreateRequest(
+            name=name,
+            api_key_vault=vault,
+            indexer=IndexerSpec(
+                provider="ollama",
+                model="mxbai-embed-large",
+                api_key_ref=None,
+                base_url="http://ollama:11434",
+            ),
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for WorkspaceCreateRequest
+E       indexer
+E         Input should be a valid dictionary or instance of IndexerCreateSpec [type=model_type, input_value=IndexerSpec(provider='oll...l='http://ollama:11434'), input_type=IndexerSpec]
+E           For further information visit https://errors.pydantic.dev/2.13/v/model_type
+
+tests/services/test_workspace_create_harpocrate.py:21: ValidationError
+_____ test_create_workspace_secret_not_found_raises_ref_not_found_in_vault _____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fbe49942bd0>
+
+    @pytest.mark.asyncio
+    async def test_create_workspace_secret_not_found_raises_ref_not_found_in_vault(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Si api_key_ref pointe vers un secret inexistant dans Harpocrate,
+        SecretNotFound (SDK) doit être converti en RefNotFoundInVault (422).
+
+        Régression : avant le fix, SecretNotFound n'était pas catché dans le
+        resolver et remontait en 500 brut.
+        """
+        import sys
+        import types
+
+        # Simule harpocrate.exceptions.SecretNotFound sans dépendre du SDK.
+        class _FakeSecretNotFound(Exception):
+            pass
+
+        fake_exc_module = types.ModuleType("harpocrate.exceptions")
+        fake_exc_module.SecretNotFound = _FakeSecretNotFound  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "harpocrate.exceptions", fake_exc_module)
+
+        harpo = _make_harpo_service(vault_exists=True)
+        pool = _make_stub_pool()
+
+        # Le resolver lève _FakeSecretNotFound (simule le SDK quand le secret manque).
+        from rag.secrets.resolver import SecretResolver
+
+        class _FakeVaultClient:
+            def get_secret(self, path: str) -> str:
+                raise _FakeSecretNotFound(f"secret missing: {path}")
+
+        resolver = SecretResolver(
+            harpocrate_clients={"rag": _FakeVaultClient()},
+            cache_ttl=0,
+        )
+
+>       request = WorkspaceCreateRequest(
+            name="ws-missing-ref",
+            api_key_vault="rag",
+            indexer=IndexerSpec(
+                provider="openai",
+                model="text-embedding-3-small",
+                api_key_ref="openai_embedding_key",
+                base_url=None,
+            ),
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for WorkspaceCreateRequest
+E       indexer
+E         Input should be a valid dictionary or instance of IndexerCreateSpec [type=model_type, input_value=IndexerSpec(provider='ope...ing_key', base_url=None), input_type=IndexerSpec]
+E           For further information visit https://errors.pydantic.dev/2.13/v/model_type
+
+tests/services/test_workspace_create_harpocrate.py:282: ValidationError
+_________ test_rotate_apikey_updates_harpocrate_value_and_fingerprint __________
+
+existing_api_key_ref = '${vault://rag:wsapi_test1}'
+cache_with_old_entry = <rag.auth.workspace_auth.ApiKeyCache object at 0x7fbe49964dd0>
+
+    @pytest.mark.asyncio
+    async def test_rotate_apikey_updates_harpocrate_value_and_fingerprint(
+        existing_api_key_ref: str,
+        cache_with_old_entry: ApiKeyCache,
+    ) -> None:
+        """rotate_apikey : génère nouvelle clé, l'écrit dans Harpocrate sous le
+        même path, met à jour le fingerprint en DB."""
+        pool = _make_pool(existing_api_key_ref)
+
+        harpo = MagicMock()
+        harpo.write_secret = AsyncMock()
+
+>       await rotate_apikey(
+            name="test1",
+            config_pool=pool,
+            harpocrate_vaults_service=harpo,
+            apikey_cache=cache_with_old_entry,
+        )
+
+tests/services/test_workspace_rotate_apikey.py:54:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def rotate_apikey(
+        *,
+        name: str,
+        config_pool: asyncpg.Pool,
+        harpocrate_vaults_service: HarpocrateVaultsService,
+        apikey_cache: ApiKeyCache,
+    ) -> dict[str, str]:
+        """Rotation api_key MCP d'un workspace.
+
+        Étapes :
+          1. Lit le `api_key_ref` actuel du workspace.
+          2. Parse la ref pour obtenir (vault_name, path).
+          3. Génère nouvelle api_key + fingerprint.
+          4. Écrit la nouvelle valeur dans Harpocrate (upsert).
+          5. UPDATE fingerprint en DB.
+          6. Invalide le cache mémoire pour ce ref.
+          7. Retourne la nouvelle api_key en clair (one-shot).
+        """
+        row = await config_pool.fetchrow(
+            "SELECT api_key_ref FROM workspaces WHERE name = $1",
+            name,
+        )
+        if row is None:
+            raise WorkspaceNotFound(name)
+
+        api_key_ref: str = row["api_key_ref"]
+        vault_api_key_id, path = parse_ref(api_key_ref)
+
+        # Retrouve le coffre par api_key_id (identifiant dans la ref) pour write_secret
+        async with config_pool.acquire() as conn:
+>           vault = await harpocrate_vaults_service.get_by_api_key_id(conn, vault_api_key_id)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: object MagicMock can't be used in 'await' expression
+
+src/rag/services/workspaces.py:341: TypeError
+_____________________ test_rotate_apikey_invalidates_cache _____________________
+
+existing_api_key_ref = '${vault://rag:wsapi_test1}'
+cache_with_old_entry = <rag.auth.workspace_auth.ApiKeyCache object at 0x7fbe569bf440>
+
+    @pytest.mark.asyncio
+    async def test_rotate_apikey_invalidates_cache(
+        existing_api_key_ref: str,
+        cache_with_old_entry: ApiKeyCache,
+    ) -> None:
+        """L'ancien clair est évincé du cache après rotation."""
+        pool = _make_pool(existing_api_key_ref)
+        harpo = MagicMock()
+        harpo.write_secret = AsyncMock()
+
+>       await rotate_apikey(
+            name="test1",
+            config_pool=pool,
+            harpocrate_vaults_service=harpo,
+            apikey_cache=cache_with_old_entry,
+        )
+
+tests/services/test_workspace_rotate_apikey.py:87:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def rotate_apikey(
+        *,
+        name: str,
+        config_pool: asyncpg.Pool,
+        harpocrate_vaults_service: HarpocrateVaultsService,
+        apikey_cache: ApiKeyCache,
+    ) -> dict[str, str]:
+        """Rotation api_key MCP d'un workspace.
+
+        Étapes :
+          1. Lit le `api_key_ref` actuel du workspace.
+          2. Parse la ref pour obtenir (vault_name, path).
+          3. Génère nouvelle api_key + fingerprint.
+          4. Écrit la nouvelle valeur dans Harpocrate (upsert).
+          5. UPDATE fingerprint en DB.
+          6. Invalide le cache mémoire pour ce ref.
+          7. Retourne la nouvelle api_key en clair (one-shot).
+        """
+        row = await config_pool.fetchrow(
+            "SELECT api_key_ref FROM workspaces WHERE name = $1",
+            name,
+        )
+        if row is None:
+            raise WorkspaceNotFound(name)
+
+        api_key_ref: str = row["api_key_ref"]
+        vault_api_key_id, path = parse_ref(api_key_ref)
+
+        # Retrouve le coffre par api_key_id (identifiant dans la ref) pour write_secret
+        async with config_pool.acquire() as conn:
+>           vault = await harpocrate_vaults_service.get_by_api_key_id(conn, vault_api_key_id)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: object MagicMock can't be used in 'await' expression
+
+src/rag/services/workspaces.py:341: TypeError
+__________________ test_rotate_apikey_returns_new_clear_value __________________
+
+existing_api_key_ref = '${vault://rag:wsapi_test1}'
+
+    @pytest.mark.asyncio
+    async def test_rotate_apikey_returns_new_clear_value(existing_api_key_ref: str) -> None:
+        """Le retour contient bien la nouvelle api_key en clair."""
+        pool = _make_pool(existing_api_key_ref)
+        harpo = MagicMock()
+        harpo.write_secret = AsyncMock()
+
+>       result = await rotate_apikey(
+            name="test1",
+            config_pool=pool,
+            harpocrate_vaults_service=harpo,
+            apikey_cache=ApiKeyCache(),
+        )
+
+tests/services/test_workspace_rotate_apikey.py:105:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def rotate_apikey(
+        *,
+        name: str,
+        config_pool: asyncpg.Pool,
+        harpocrate_vaults_service: HarpocrateVaultsService,
+        apikey_cache: ApiKeyCache,
+    ) -> dict[str, str]:
+        """Rotation api_key MCP d'un workspace.
+
+        Étapes :
+          1. Lit le `api_key_ref` actuel du workspace.
+          2. Parse la ref pour obtenir (vault_name, path).
+          3. Génère nouvelle api_key + fingerprint.
+          4. Écrit la nouvelle valeur dans Harpocrate (upsert).
+          5. UPDATE fingerprint en DB.
+          6. Invalide le cache mémoire pour ce ref.
+          7. Retourne la nouvelle api_key en clair (one-shot).
+        """
+        row = await config_pool.fetchrow(
+            "SELECT api_key_ref FROM workspaces WHERE name = $1",
+            name,
+        )
+        if row is None:
+            raise WorkspaceNotFound(name)
+
+        api_key_ref: str = row["api_key_ref"]
+        vault_api_key_id, path = parse_ref(api_key_ref)
+
+        # Retrouve le coffre par api_key_id (identifiant dans la ref) pour write_secret
+        async with config_pool.acquire() as conn:
+>           vault = await harpocrate_vaults_service.get_by_api_key_id(conn, vault_api_key_id)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: object MagicMock can't be used in 'await' expression
+
+src/rag/services/workspaces.py:341: TypeError
+___________ test_rotate_apikey_harpocrate_write_failed_no_db_update ____________
+
+existing_api_key_ref = '${vault://rag:wsapi_test1}'
+
+    @pytest.mark.asyncio
+    async def test_rotate_apikey_harpocrate_write_failed_no_db_update(
+        existing_api_key_ref: str,
+    ) -> None:
+        """Si write_secret échoue, pas d'UPDATE en DB, exception propagée."""
+        from rag.api.errors import HarpocrateWriteFailed
+
+        pool = _make_pool(existing_api_key_ref)
+        harpo = MagicMock()
+        harpo.write_secret = AsyncMock(side_effect=HarpocrateWriteFailed("test failure"))
+
+        with pytest.raises(HarpocrateWriteFailed):
+>           await rotate_apikey(
+                name="test1",
+                config_pool=pool,
+                harpocrate_vaults_service=harpo,
+                apikey_cache=ApiKeyCache(),
+            )
+
+tests/services/test_workspace_rotate_apikey.py:128:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def rotate_apikey(
+        *,
+        name: str,
+        config_pool: asyncpg.Pool,
+        harpocrate_vaults_service: HarpocrateVaultsService,
+        apikey_cache: ApiKeyCache,
+    ) -> dict[str, str]:
+        """Rotation api_key MCP d'un workspace.
+
+        Étapes :
+          1. Lit le `api_key_ref` actuel du workspace.
+          2. Parse la ref pour obtenir (vault_name, path).
+          3. Génère nouvelle api_key + fingerprint.
+          4. Écrit la nouvelle valeur dans Harpocrate (upsert).
+          5. UPDATE fingerprint en DB.
+          6. Invalide le cache mémoire pour ce ref.
+          7. Retourne la nouvelle api_key en clair (one-shot).
+        """
+        row = await config_pool.fetchrow(
+            "SELECT api_key_ref FROM workspaces WHERE name = $1",
+            name,
+        )
+        if row is None:
+            raise WorkspaceNotFound(name)
+
+        api_key_ref: str = row["api_key_ref"]
+        vault_api_key_id, path = parse_ref(api_key_ref)
+
+        # Retrouve le coffre par api_key_id (identifiant dans la ref) pour write_secret
+        async with config_pool.acquire() as conn:
+>           vault = await harpocrate_vaults_service.get_by_api_key_id(conn, vault_api_key_id)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: object MagicMock can't be used in 'await' expression
+
+src/rag/services/workspaces.py:341: TypeError
+________________________ test_source_create_git_minimal ________________________
+
+    def test_source_create_git_minimal() -> None:
+>       req = SourceCreateRequest.model_validate(
+            {
+                "type": "git",
+                "config": {
+                    "url": "https://github.com/gael/harpocrate",
+                    "branch": "main",
+                    "auth_ref": "github_token",
+                    "include": ["**/*.md"],
+                    "exclude": [],
+                },
+            }
+        )
+E       pydantic_core._pydantic_core.ValidationError: 2 validation errors for SourceCreateRequest
+E       name
+E         Field required [type=missing, input_value={'type': 'git', 'config':.../*.md'], 'exclude': []}}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.13/v/missing
+E       api_key_vault
+E         Field required [type=missing, input_value={'type': 'git', 'config':.../*.md'], 'exclude': []}}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.13/v/missing
+
+tests/unit/test_schemas_admin.py:196: ValidationError
+=========================== short test summary info ============================
+FAILED tests/services/test_workspace_create_harpocrate.py::test_create_workspace_with_missing_vault_raises_vault_not_found
+FAILED tests/services/test_workspace_create_harpocrate.py::test_create_workspace_writes_to_harpocrate_under_wsapi_path_returns_full_ref
+FAILED tests/services/test_workspace_create_harpocrate.py::test_create_workspace_harpocrate_write_failure_raises_before_insert
+FAILED tests/services/test_workspace_create_harpocrate.py::test_create_workspace_db_failure_triggers_harpocrate_delete_secret
+FAILED tests/services/test_workspace_create_harpocrate.py::test_create_workspace_secret_not_found_raises_ref_not_found_in_vault
+FAILED tests/services/test_workspace_rotate_apikey.py::test_rotate_apikey_updates_harpocrate_value_and_fingerprint
+FAILED tests/services/test_workspace_rotate_apikey.py::test_rotate_apikey_invalidates_cache
+FAILED tests/services/test_workspace_rotate_apikey.py::test_rotate_apikey_returns_new_clear_value
+FAILED tests/services/test_workspace_rotate_apikey.py::test_rotate_apikey_harpocrate_write_failed_no_db_update
+FAILED tests/unit/test_schemas_admin.py::test_source_create_git_minimal - pyd...
+========== 10 failed, 427 passed, 349 skipped, 6 deselected in 5.87s ===========
