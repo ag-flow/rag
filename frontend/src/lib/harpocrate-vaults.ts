@@ -1,5 +1,8 @@
 import { api } from "@/lib/api";
 import type {
+  ProviderApiKey,
+  ProviderApiKeyCreate,
+  ProviderApiKeyUpdate,
   SecretListResponse,
   SecretTypeSummary,
   VaultCreateRequest,
@@ -62,4 +65,16 @@ export const harpocrateVaultsApi = {
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
     return api.get<SecretListResponse>(`${BASE}/${id}/secrets${suffix}`);
   },
+
+  listProviderKeys: (vaultId: string) =>
+    api.get<ProviderApiKey[]>(`${BASE}/${vaultId}/provider-keys`),
+
+  createProviderKey: (vaultId: string, payload: ProviderApiKeyCreate) =>
+    api.post<ProviderApiKey>(`${BASE}/${vaultId}/provider-keys`, payload),
+
+  updateProviderKey: (vaultId: string, keyId: string, payload: ProviderApiKeyUpdate) =>
+    api.patch<ProviderApiKey>(`${BASE}/${vaultId}/provider-keys/${keyId}`, payload),
+
+  deleteProviderKey: (vaultId: string, keyId: string) =>
+    api.delete<void>(`${BASE}/${vaultId}/provider-keys/${keyId}`),
 };

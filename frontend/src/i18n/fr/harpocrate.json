@@ -21,7 +21,8 @@
   "tabs": {
     "detail": "Détail",
     "secrets": "Secrets",
-    "info": "Info wallet"
+    "info": "Info wallet",
+    "apikeys": "Clés API"
   },
   "detail": {
     "name_label": "Nom (immuable)",
@@ -123,6 +124,36 @@
     "retired_toast": "Coffre « {{name}} » retiré",
     "default_conflict_toast": "Désigne un autre coffre par défaut avant de retirer celui-ci.",
     "error_toast": "Erreur lors du retrait du coffre"
+  },
+  "apikeys": {
+    "add": "Ajouter une clé",
+    "empty": "Aucune clé API configurée pour ce coffre.",
+    "col_key_id": "ID",
+    "col_provider": "Provider",
+    "col_label": "Label",
+    "replace_btn": "Remplacer",
+    "delete_btn": "Supprimer",
+    "delete_confirm_title": "Supprimer cette clé ?",
+    "delete_confirm_body": "Cette action supprime le secret dans Harpocrate. Elle est irréversible.",
+    "delete_referenced_error": "Cette clé est référencée par un workspace et ne peut pas être supprimée.",
+    "add_dialog_title": "Nouvelle clé API provider",
+    "field_provider": "Provider",
+    "field_key_id": "ID (slug)",
+    "field_key_id_help": "Lettres, chiffres, - et _ uniquement",
+    "field_label": "Label",
+    "field_value": "Valeur de la clé",
+    "path_preview": "Path Harpocrate :",
+    "replace_dialog_title": "Remplacer la valeur",
+    "replace_dialog_desc": "La nouvelle valeur remplacera le secret dans Harpocrate au même path.",
+    "field_new_value": "Nouvelle valeur",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "replace": "Remplacer",
+    "created_toast": "Clé créée avec succès.",
+    "replaced_toast": "Valeur remplacée.",
+    "deleted_toast": "Clé supprimée.",
+    "error_toast": "Une erreur est survenue.",
+    "error_duplicate": "Un ID identique existe déjà pour ce provider."
   },
   "create_dialog": {
     "title": "Créer un nouveau coffre Harpocrate",

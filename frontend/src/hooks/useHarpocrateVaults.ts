@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { harpocrateVaultsApi } from "@/lib/harpocrate-vaults";
 import type {
+  ProviderApiKeyCreate,
+  ProviderApiKeyUpdate,
   VaultCreateRequest,
   VaultRotateApiKeyRequest,
   VaultTestConnectionResult,
@@ -127,5 +129,47 @@ export function useRevealApiKey(id: string) {
   // Pas de cache : chaque appel = audit log côté backend (vault.reveal dans Loki).
   return useMutation({
     mutationFn: () => harpocrateVaultsApi.revealApiKey(id),
+  });
+}
+
+export function useProviderKeys(vaultId: string | null) {
+  return useQuery({
+    queryKey: [...ROOT_KEY, vaultId, "provider-keys"],
+    queryFn: () => harpocrateVaultsApi.listProviderKeys(vaultId as string),
+    enabled: !!vaultId,
+    staleTime: 30_000,
+  });
+}
+
+export function useCreateProviderKey(vaultId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: ProviderApiKeyCreate) =>
+      harpocrateVaultsApi.createProviderKey(vaultId, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [...ROOT_KEY, vaultId, "provider-keys"] });
+    },
+  });
+}
+
+export function useUpdateProviderKey(vaultId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ keyId, payload }: { keyId: string; payload: ProviderApiKeyUpdate }) =>
+      harpocrateVaultsApi.updateProviderKey(vaultId, keyId, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [...ROOT_KEY, vaultId, "provider-keys"] });
+    },
+  });
+}
+
+export function useDeleteProviderKey(vaultId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (keyId: string) =>
+      harpocrateVaultsApi.deleteProviderKey(vaultId, keyId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [...ROOT_KEY, vaultId, "provider-keys"] });
+    },
   });
 }

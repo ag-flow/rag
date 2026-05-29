@@ -74,3 +74,24 @@ export type SecretListResponse = {
   secrets: SecretListItem[];
   next_cursor: string | null;
 };
+
+export type ProviderApiKey = {
+  id: string;
+  key_id: string;
+  label: string;
+  provider: string;
+  harpo_path: string;
+  created_at: string;
+};
+
+export type ProviderApiKeyCreate = {
+  key_id: string;
+  label: string;
+  provider: string;
+  value: string;
+};
+
+export type ProviderApiKeyUpdate = {
+  label?: string;
+  value?: string;
+};

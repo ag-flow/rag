@@ -21,7 +21,8 @@
   "tabs": {
     "detail": "Detail",
     "secrets": "Secrets",
-    "info": "Wallet info"
+    "info": "Wallet info",
+    "apikeys": "API Keys"
   },
   "detail": {
     "name_label": "Name (immutable)",
@@ -123,6 +124,36 @@
     "retired_toast": "Vault \"{{name}}\" retired",
     "default_conflict_toast": "Set another vault as default before retiring this one.",
     "error_toast": "Failed to retire the vault"
+  },
+  "apikeys": {
+    "add": "Add key",
+    "empty": "No API keys configured for this vault.",
+    "col_key_id": "ID",
+    "col_provider": "Provider",
+    "col_label": "Label",
+    "replace_btn": "Replace",
+    "delete_btn": "Delete",
+    "delete_confirm_title": "Delete this key?",
+    "delete_confirm_body": "This will delete the secret in Harpocrate. This action is irreversible.",
+    "delete_referenced_error": "This key is referenced by a workspace and cannot be deleted.",
+    "add_dialog_title": "New provider API key",
+    "field_provider": "Provider",
+    "field_key_id": "ID (slug)",
+    "field_key_id_help": "Letters, digits, - and _ only",
+    "field_label": "Label",
+    "field_value": "Key value",
+    "path_preview": "Harpocrate path:",
+    "replace_dialog_title": "Replace value",
+    "replace_dialog_desc": "The new value will replace the secret in Harpocrate at the same path.",
+    "field_new_value": "New value",
+    "cancel": "Cancel",
+    "save": "Save",
+    "replace": "Replace",
+    "created_toast": "Key created successfully.",
+    "replaced_toast": "Value replaced.",
+    "deleted_toast": "Key deleted.",
+    "error_toast": "An error occurred.",
+    "error_duplicate": "An identical ID already exists for this provider."
   },
   "create_dialog": {
     "title": "Create a new Harpocrate vault",
