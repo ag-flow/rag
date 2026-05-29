@@ -77,7 +77,7 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
           </TabsContent>
 
           <TabsContent value="apikeys">
-            <VaultApikeysTab vaultId={vault.id} vaultName={vault.name} />
+            <VaultApikeysTab vaultId={vault.id} />
           </TabsContent>
         </Tabs>
       </div>

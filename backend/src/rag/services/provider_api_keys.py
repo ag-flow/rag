@@ -12,6 +12,7 @@ from rag.schemas.provider_api_keys import (
     ProviderApiKeyOut,
     ProviderApiKeyUpdate,
 )
+from rag.secrets.refs import build_ref, parse_ref
 from rag.secrets.vault import HarpocrateVaultClient
 
 log = structlog.get_logger(__name__)
@@ -29,8 +30,14 @@ class ProviderKeyReferencedError(Exception):
     pass
 
 
-def _build_harpo_path(vault_name: str, provider: str, key_id: str) -> str:
-    return f"/{vault_name}/{provider}/{key_id}"
+def _build_secret_path(provider: str, key_id: str) -> str:
+    """Chemin réel dans Harpocrate : /{provider}/{key_id}."""
+    return f"/{provider}/{key_id}"
+
+
+def _build_vault_ref(vault_name: str, provider: str, key_id: str) -> str:
+    """Référence complète stockée en DB : ${vault://vault_name:/provider/key_id}."""
+    return build_ref(vault_name, _build_secret_path(provider, key_id))
 
 
 async def _get_vault_client(
@@ -65,11 +72,12 @@ async def create_provider_key(
     vault_svc: Any,
     req: ProviderApiKeyCreate,
 ) -> ProviderApiKeyOut:
-    harpo_path = _build_harpo_path(vault["name"], req.provider, req.key_id)
+    secret_path = _build_secret_path(req.provider, req.key_id)
+    vault_ref = _build_vault_ref(vault["name"], req.provider, req.key_id)
 
-    # Ecriture dans Harpocrate (SDK sync -> thread)
+    # Ecriture dans Harpocrate (chemin sans nom de vault)
     client = await _get_vault_client(conn, vault, vault_svc)
-    await asyncio.to_thread(client.set_secret, harpo_path, req.value)
+    await asyncio.to_thread(client.set_secret, secret_path, req.value)
 
     try:
         row = await conn.fetchrow(
@@ -80,11 +88,11 @@ async def create_provider_key(
             req.label,
             req.provider,
             vault["id"],
-            harpo_path,
+            vault_ref,          # ${vault://vault_name:/provider/key_id}
         )
     except asyncpg.UniqueViolationError as exc:
         # Rollback Harpocrate best-effort (idempotent)
-        await asyncio.to_thread(client.delete_secret, harpo_path)
+        await asyncio.to_thread(client.delete_secret, secret_path)
         raise DuplicateProviderKeyError(
             f"key_id={req.key_id!r} already exists for provider={req.provider!r}"
         ) from exc
@@ -116,8 +124,10 @@ async def update_provider_key(
         return None
 
     if req.value is not None:
+        # harpo_path est un vault_ref → extraire le chemin réel pour Harpocrate
+        _, secret_path = parse_ref(row["harpo_path"])
         client = await _get_vault_client(conn, vault, vault_svc)
-        await asyncio.to_thread(client.set_secret, row["harpo_path"], req.value)
+        await asyncio.to_thread(client.set_secret, secret_path, req.value)
 
     new_label = req.label if req.label is not None else row["label"]
     updated = await conn.fetchrow(
@@ -156,9 +166,10 @@ async def delete_provider_key(
             f"harpo_path={row['harpo_path']!r} referenced in workspaces"
         )
 
-    # Suppression Harpocrate (best-effort)
+    # Suppression Harpocrate (harpo_path = vault_ref → extraire le chemin réel)
+    _, secret_path = parse_ref(row["harpo_path"])
     client = await _get_vault_client(conn, vault, vault_svc)
-    await asyncio.to_thread(client.delete_secret, row["harpo_path"])
+    await asyncio.to_thread(client.delete_secret, secret_path)
 
     await conn.execute("DELETE FROM provider_api_keys WHERE id = $1::uuid", key_id)
     log.info("provider_key.deleted", id=key_id, harpo_path=row["harpo_path"])

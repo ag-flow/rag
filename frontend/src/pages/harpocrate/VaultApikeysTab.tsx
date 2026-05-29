@@ -29,10 +29,9 @@ import { ReplaceProviderKeyDialog } from "./ReplaceProviderKeyDialog";
 
 interface Props {
   vaultId: string;
-  vaultName: string;
 }
 
-export function VaultApikeysTab({ vaultId, vaultName }: Props) {
+export function VaultApikeysTab({ vaultId }: Props) {
   const { t } = useTranslation("harpocrate");
   const { toast } = useToast();
   const { data: keys = [], isLoading } = useProviderKeys(vaultId);
@@ -121,7 +120,6 @@ export function VaultApikeysTab({ vaultId, vaultName }: Props) {
 
       <AddProviderKeyDialog
         vaultId={vaultId}
-        vaultName={vaultName}
         open={addOpen}
         onOpenChange={setAddOpen}
       />

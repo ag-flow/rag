@@ -26,12 +26,11 @@ const KEY_ID_RE = /^[a-zA-Z0-9_-]+$/;
 
 interface Props {
   vaultId: string;
-  vaultName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function AddProviderKeyDialog({ vaultId, vaultName, open, onOpenChange }: Props) {
+export function AddProviderKeyDialog({ vaultId, open, onOpenChange }: Props) {
   const { t } = useTranslation("harpocrate");
   const { toast } = useToast();
   const { data: models = [] } = useModels();
@@ -47,7 +46,7 @@ export function AddProviderKeyDialog({ vaultId, vaultName, open, onOpenChange }:
   const providers = [...new Set(models.map((m) => m.provider))].sort();
 
   const harpoPath =
-    provider && keyId ? `/${vaultName}/${provider}/${keyId}` : "";
+    provider && keyId ? `/${provider}/${keyId}` : "";
 
   function validateKeyId(v: string) {
     if (v && !KEY_ID_RE.test(v)) {
