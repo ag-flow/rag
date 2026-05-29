@@ -17,6 +17,14 @@
     "hours": "{{count}} h ago",
     "days": "{{count}} d ago"
   },
+  "pricing": {
+    "local": "Local",
+    "per_1m": "${{price}} /1M",
+    "older_model": "deprecated",
+    "pricing_url": "Official pricing",
+    "no_pricing": "",
+    "batch_discount": "Batch -50%"
+  },
   "errors": {
     "duplicate": "This provider/model tuple already exists."
   },

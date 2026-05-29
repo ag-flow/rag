@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     # monté sur /var/lib/rag/repos. En test : `tmp_path` via fixture pytest.
     sync_repos_root: Path = Path("/var/lib/rag/repos")
 
+    pricing_file: Path = Field(
+        default=Path("/app/config/pricing.yml"),
+        description="Chemin du fichier YAML de tarifs providers d'embedding.",
+    )
+
     harpocrate_dek: SecretStr | None = Field(
         default=None,
         description="Passphrase pgcrypto pour chiffrer les api_keys en DB. "

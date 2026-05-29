@@ -37,6 +37,7 @@ vi.mock("@/hooks/useModels", () => ({
   }),
   useCreateModel: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteModel: () => ({ mutate: vi.fn(), isPending: false }),
+  usePricing: () => ({ data: undefined }),
 }));
 
 const testI18n = i18next.createInstance();

@@ -304,6 +304,13 @@ def build_admin_router() -> APIRouter:
 
     # ─── Models registry ────────────────────────────────────────────────────
 
+    @router.get("/models/pricing")
+    async def get_models_pricing(request: Request) -> dict:
+        from rag.services.pricing import load_pricing
+
+        settings = request.app.state.settings
+        return load_pricing(settings.pricing_file)
+
     @router.get("/models")
     async def get_models(request: Request) -> list[ModelEntry]:
         from rag.services.models import list_models
