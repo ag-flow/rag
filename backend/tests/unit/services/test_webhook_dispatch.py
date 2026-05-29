@@ -74,6 +74,9 @@ async def test_dispatch_webhooks_calls_all_enabled() -> None:
     ), patch(
         "rag.services.webhook_dispatch._insert_call",
         new=AsyncMock(),
+    ), patch(
+        "rag.services.webhook_dispatch._async_validate_webhook_url",
+        new=AsyncMock(),  # bypass DNS en test unitaire
     ):
         await dispatch_webhooks(
             config_pool=pool,

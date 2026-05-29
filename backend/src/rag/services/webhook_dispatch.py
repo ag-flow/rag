@@ -11,6 +11,11 @@ import httpx
 import structlog
 
 from rag.db.helpers import fetch_all
+from rag.services.webhook_validation import (
+    validate_header_name,
+    validate_header_value,
+    validate_webhook_url,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -55,8 +60,14 @@ def _build_payload(
     }
 
 
+async def _async_validate_webhook_url(url: str) -> None:
+    """Valide l'URL dans un executor pour ne pas bloquer la boucle asyncio."""
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, validate_webhook_url, url)
+
+
 async def _http_post(url: str, *, headers: dict[str, str], content: bytes) -> httpx.Response:
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=False) as client:
         return await client.post(url, content=content, headers=headers)
 
 
@@ -104,6 +115,26 @@ async def _call_one_webhook(
     wh_id = str(webhook["id"])
     url = webhook["url"]
 
+    # Validation SSRF — re-vérifiée au dispatch (défense en profondeur,
+    # protection contre DNS rebinding entre la sauvegarde et l'appel).
+    try:
+        await _async_validate_webhook_url(url)
+    except ValueError as exc:
+        log.warning("webhook.ssrf_rejected", url=url, wh_id=wh_id, reason=str(exc))
+        await _insert_call(
+            config_pool,
+            workspace_id=workspace_id,
+            webhook_id=wh_id,
+            job_id=job_id,
+            correlation_id=correlation_id,
+            triggered_by=triggered_by,
+            webhook_url=url,
+            http_status=None,
+            error=f"ssrf_rejected: {exc}",
+            duration_ms=0,
+        )
+        return
+
     headers: dict[str, str] = {
         "Content-Type": "application/json",
         "X-Correlation-ID": correlation_id,
@@ -117,19 +148,33 @@ async def _call_one_webhook(
     if git_commit:
         headers["X-Git-Commit"] = git_commit
 
-    # Resolve custom headers
+    # Résout et valide les headers custom
     for h in raw_headers:
         if not h.get("enabled"):
             continue
+        name: str = h["name"]
+        try:
+            validate_header_name(name)
+        except ValueError:
+            log.warning("webhook.invalid_header_name_skipped", name=name, wh_id=wh_id)
+            continue
+
         vault_ref = h.get("vault_ref")
         if vault_ref and resolver is not None:
             try:
                 val = await resolver.resolve_with_retry(vault_ref)
-                headers[h["name"]] = val
+                validate_header_value(val)
+                headers[name] = val
+            except ValueError:
+                log.warning("webhook.invalid_header_value_skipped", name=name, wh_id=wh_id)
             except Exception:
-                log.warning("webhook.header_resolve_failed", name=h["name"], wh_id=wh_id)
+                log.warning("webhook.header_resolve_failed", name=name, wh_id=wh_id)
         elif h.get("value"):
-            headers[h["name"]] = h["value"]
+            try:
+                validate_header_value(h["value"])
+                headers[name] = h["value"]
+            except ValueError:
+                log.warning("webhook.invalid_header_value_skipped", name=name, wh_id=wh_id)
 
     t0 = time.monotonic()
     http_status: int | None = None

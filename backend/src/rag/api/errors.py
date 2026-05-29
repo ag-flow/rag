@@ -165,6 +165,28 @@ class WebhookNotFound(AdminError):
         return {"error": "webhook_not_found", "webhook_id": self.webhook_id}
 
 
+class InvalidWebhookUrl(AdminError):
+    http_status = 422
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "invalid_webhook_url", "reason": self.reason}
+
+
+class InvalidWebhookHeader(AdminError):
+    http_status = 422
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "invalid_webhook_header", "reason": self.reason}
+
+
 class ChunkingConfigNotFound(AdminError):
     http_status = 404
 

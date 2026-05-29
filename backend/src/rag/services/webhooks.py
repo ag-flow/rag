@@ -5,9 +5,20 @@ from typing import Any, Protocol
 import asyncpg
 import structlog
 
-from rag.api.errors import ReservedHeader, WebhookNotFound, WorkspaceNotFound
+from rag.api.errors import (
+    InvalidWebhookHeader,
+    InvalidWebhookUrl,
+    ReservedHeader,
+    WebhookNotFound,
+    WorkspaceNotFound,
+)
 from rag.db.helpers import fetch_all, fetch_one
 from rag.secrets.refs import build_ref
+from rag.services.webhook_validation import (
+    validate_header_name,
+    validate_header_value,
+    validate_webhook_url,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -91,8 +102,23 @@ async def create_webhook(
     headers: list[dict[str, Any]],
     resolver: _ResolverProtocol | None,
 ) -> dict[str, Any]:
+    # Validation SSRF — à la création, avant toute persistance
+    try:
+        validate_webhook_url(url)
+    except ValueError as exc:
+        raise InvalidWebhookUrl(str(exc)) from exc
+
     for h in headers:
         _check_reserved(h["name"])
+        try:
+            validate_header_name(h["name"])
+        except ValueError as exc:
+            raise InvalidWebhookHeader(str(exc)) from exc
+        if h.get("value"):
+            try:
+                validate_header_value(h["value"])
+            except ValueError as exc:
+                raise InvalidWebhookHeader(str(exc)) from exc
 
     ws = await fetch_one(
         config_pool, "SELECT id FROM workspaces WHERE name=$1", workspace_name
@@ -160,6 +186,13 @@ async def patch_webhook(
     url: str | None = None,
     enabled: bool | None = None,
 ) -> dict[str, Any]:
+    # Validation SSRF si l'URL est modifiée
+    if url is not None:
+        try:
+            validate_webhook_url(url)
+        except ValueError as exc:
+            raise InvalidWebhookUrl(str(exc)) from exc
+
     sets = []
     params: list[Any] = []
     idx = 1
@@ -248,6 +281,13 @@ async def patch_webhook_header(
         raise WebhookNotFound(header_id)
 
     _check_reserved(row["name"])
+
+    # Validation injection header — valeur modifiée
+    if value is not None:
+        try:
+            validate_header_value(value)
+        except ValueError as exc:
+            raise InvalidWebhookHeader(str(exc)) from exc
 
     sets = []
     params: list[Any] = []
