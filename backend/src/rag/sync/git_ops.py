@@ -250,6 +250,54 @@ async def detect_default_branch(
     return _parse_symref_head(stdout_b.decode("utf-8", errors="replace"))
 
 
+async def list_remote_branches(
+    *,
+    url: str,
+    token: str | None = None,
+    ssh_key: str | None = None,
+    ssh_username: str | None = None,
+    deadline: float = 10.0,
+) -> list[str]:
+    """`git ls-remote --heads <url>` → liste triée des noms de branches.
+
+    Retourne [] en cas d'erreur (timeout, auth, réseau). Ne lève jamais.
+    """
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+
+    if ssh_key is not None:
+        with _ssh_key_env(ssh_key) as ssh_env:
+            env.update(ssh_env)
+        auth_url = url
+    else:
+        auth_url = _build_authenticated_url(url, token)
+
+    try:
+        async with asyncio.timeout(deadline):
+            proc = await asyncio.create_subprocess_exec(
+                "git",
+                "ls-remote",
+                "--heads",
+                auth_url,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+            )
+            stdout_b, _ = await proc.communicate()
+    except (TimeoutError, FileNotFoundError, NotADirectoryError, OSError):
+        return []
+
+    if proc.returncode != 0:
+        return []
+
+    branches: list[str] = []
+    for line in stdout_b.decode("utf-8", errors="replace").splitlines():
+        if "\trefs/heads/" in line:
+            branch = line.split("\trefs/heads/", 1)[1].strip()
+            if branch:
+                branches.append(branch)
+    return sorted(branches)
+
+
 async def list_all_files(dest: Path) -> list[str]:
     """Retourne tous les fichiers trackés par git (`git ls-files`).
 
