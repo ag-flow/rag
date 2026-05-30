@@ -7,10 +7,12 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from rag.auth.bearer import require_master_key_or_authenticated_admin
+from rag.auth.owner import get_current_owner_id
 from rag.schemas.provider_api_keys import (
     ProviderApiKeyCreate,
     ProviderApiKeyOut,
     ProviderApiKeyUpdate,
+    ProviderApiKeyWithVault,
 )
 from rag.services.provider_api_keys import (
     DuplicateProviderKeyError,
@@ -18,6 +20,7 @@ from rag.services.provider_api_keys import (
     create_provider_key,
     delete_provider_key,
     list_provider_keys,
+    list_provider_keys_by_provider,
     update_provider_key,
 )
 
@@ -28,6 +31,25 @@ router = APIRouter(
     tags=["admin-provider-keys"],
     dependencies=[Depends(require_master_key_or_authenticated_admin)],
 )
+
+
+router_global = APIRouter(
+    prefix="/api/admin/provider-keys",
+    tags=["admin-provider-keys"],
+    dependencies=[Depends(require_master_key_or_authenticated_admin)],
+)
+
+
+@router_global.get("/by-provider", response_model=list[ProviderApiKeyWithVault])
+async def list_by_provider(
+    provider: str,
+    request: Request,
+) -> list[ProviderApiKeyWithVault]:
+    pool = _pool(request)
+    owner_id = get_current_owner_id(request)
+    async with pool.acquire() as conn:
+        rows = await list_provider_keys_by_provider(conn, owner_id=owner_id, provider=provider)
+    return [ProviderApiKeyWithVault.model_validate(r) for r in rows]
 
 
 def _pool(request: Request) -> asyncpg.Pool:

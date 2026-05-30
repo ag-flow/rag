@@ -188,3 +188,27 @@ async def delete_provider_key(
     await conn.execute("DELETE FROM provider_api_keys WHERE id = $1::uuid", key_id)
     log.info("provider_key.deleted", id=key_id, harpo_path=row["harpo_path"])
     return True
+
+
+async def list_provider_keys_by_provider(
+    conn: asyncpg.Connection,
+    *,
+    owner_id: str,
+    provider: str,
+) -> list[dict]:
+    """Retourne les clés pour `provider` des vaults accessibles à `owner_id`.
+
+    Vaults éligibles : is_default = true OU owner_id = $owner_id.
+    """
+    rows = await conn.fetch(
+        "SELECT pk.id, pk.key_id, pk.label, pk.provider, pk.harpo_path, "
+        "pk.created_at, v.name AS vault_name, v.label AS vault_label "
+        "FROM provider_api_keys pk "
+        "JOIN harpocrate_vaults v ON v.id = pk.vault_id "
+        "WHERE pk.provider = $1 "
+        "AND (v.is_default = true OR v.owner_id = $2) "
+        "ORDER BY v.name, pk.key_id",
+        provider,
+        owner_id,
+    )
+    return [dict(r) for r in rows]

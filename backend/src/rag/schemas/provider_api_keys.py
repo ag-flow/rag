@@ -44,3 +44,16 @@ class ProviderApiKeyOut(BaseModel):
     harpo_path: str
     expires_at: datetime | None
     created_at: datetime
+
+
+class ProviderApiKeyWithVault(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    key_id: str
+    label: str
+    provider: str
+    harpo_path: str
+    vault_name: str
+    vault_label: str
+    created_at: datetime
