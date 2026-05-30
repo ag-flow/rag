@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/useToast";
-import { useAddSource, useUpdateSource, useTestSourceConnection } from "@/hooks/useWorkspaces";
+import { useAddSource, useUpdateSource, useTestSourceConnection, useDetectBranches } from "@/hooks/useWorkspaces";
 import {
   useGitCredentialsByHost,
   useSshKeysAll,
@@ -95,6 +95,63 @@ interface Props {
   source?: Source;
 }
 
+// ─── BranchField ─────────────────────────────────────────────────────────────
+
+function BranchField({
+  register,
+  control,
+  t,
+  detectedBranches,
+  isDetecting,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  register: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  control: any;
+  t: (key: string) => string;
+  detectedBranches: string[];
+  isDetecting: boolean;
+}) {
+  return (
+    <div>
+      <label className="text-xs font-medium text-slate-700 flex items-center gap-2">
+        {t("sources.fields.branch")}
+        {isDetecting && (
+          <span className="text-xs text-slate-400 font-normal animate-pulse">
+            {t("sources.fields.branch_detecting")}
+          </span>
+        )}
+      </label>
+      {detectedBranches.length > 0 ? (
+        <Controller
+          name="branch"
+          control={control}
+          render={({ field }) => (
+            <Select value={field.value ?? ""} onValueChange={field.onChange}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder={t("sources.fields.branch_placeholder")} />
+              </SelectTrigger>
+              <SelectContent>
+                {detectedBranches.map((b) => (
+                  <SelectItem key={b} value={b}>
+                    {b}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
+      ) : (
+        <Input
+          {...register("branch")}
+          placeholder={t("sources.fields.branch_placeholder")}
+          className="mt-1"
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Composant ───────────────────────────────────────────────────────────────
 
 export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
@@ -108,6 +165,8 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
     success: boolean;
     message: string | null;
   } | null>(null);
+  const detectBranches = useDetectBranches();
+  const [detectedBranches, setDetectedBranches] = useState<string[]>([]);
 
   // ── Formulaires ──────────────────────────────────────────────────────────
 
@@ -149,6 +208,18 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
   const watchedProvider = isEdit ? editProvider : createProvider;
   const watchedAuthType = isEdit ? editAuthType : createAuthType;
 
+  const createUrl = createForm.watch("url");
+  const editUrl = editForm.watch("url");
+  const watchedUrl = isEdit ? editUrl : createUrl;
+
+  const createCredential = createForm.watch("credential_ref");
+  const editCredential = editForm.watch("credential_ref");
+  const watchedCredential = isEdit ? editCredential : createCredential;
+
+  const createSshUser = createForm.watch("ssh_username");
+  const editSshUser = editForm.watch("ssh_username");
+  const watchedSshUser = isEdit ? editSshUser : createSshUser;
+
   // ── Données Harpocrate ───────────────────────────────────────────────────
 
   const { data: gitTokens = [] } = useGitCredentialsByHost(
@@ -161,6 +232,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
   useEffect(() => {
     if (!open) return;
     setTestResult(null);
+    setDetectedBranches([]);
     if (isEdit && source) {
       const cfg = source.config as Record<string, unknown>;
       editForm.reset({
@@ -198,6 +270,40 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
       createForm.setValue("ssh_username", defaultUser);
     }
   }, [watchedProvider, watchedAuthType, isEdit, createForm, editForm]);
+
+  // Détection de branches — debounce 800ms
+  useEffect(() => {
+    if (!watchedUrl || watchedUrl.length < 10) {
+      setDetectedBranches([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      const authType = watchedAuthType ?? "token";
+      detectBranches.mutate(
+        {
+          url: watchedUrl,
+          auth_ref: authType === "token" ? (watchedCredential || null) : null,
+          ssh_key_ref: authType === "ssh" ? (watchedCredential || null) : null,
+          ssh_username: watchedSshUser || null,
+        },
+        {
+          onSuccess: (data) => {
+            setDetectedBranches(data.branches);
+            if (data.branches.length >= 1) {
+              const target = data.default ?? data.branches[0];
+              if (isEdit) {
+                if (!editForm.getValues("branch")) editForm.setValue("branch", target);
+              } else {
+                if (!createForm.getValues("branch")) createForm.setValue("branch", target);
+              }
+            }
+          },
+          onError: () => setDetectedBranches([]),
+        },
+      );
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [watchedUrl, watchedCredential, watchedAuthType, watchedSshUser]);
 
   // ── Payloads ─────────────────────────────────────────────────────────────
 
@@ -324,15 +430,13 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
             )}
 
             {/* Branche */}
-            <div>
-              <label className="text-xs font-medium text-slate-700">
-                {t("sources.fields.branch")}
-              </label>
-              <Input
-                {...register("branch")}
-                placeholder={t("sources.fields.branch_placeholder")}
-              />
-            </div>
+            <BranchField
+              register={register}
+              control={control}
+              t={t}
+              detectedBranches={detectedBranches}
+              isDetecting={detectBranches.isPending}
+            />
 
             {/* Bloc auth */}
             <AuthBlock
@@ -420,15 +524,13 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
           </div>
 
           {/* Branche */}
-          <div>
-            <label className="text-xs font-medium text-slate-700">
-              {t("sources.fields.branch")}
-            </label>
-            <Input
-              {...register("branch")}
-              placeholder={t("sources.fields.branch_placeholder")}
-            />
-          </div>
+          <BranchField
+            register={register}
+            control={control}
+            t={t}
+            detectedBranches={detectedBranches}
+            isDetecting={detectBranches.isPending}
+          />
 
           {/* Bloc auth */}
           <AuthBlock
