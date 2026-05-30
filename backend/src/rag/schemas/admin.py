@@ -111,8 +111,11 @@ class SourceCreateRequest(BaseModel):
 
     name: str = Field(min_length=1, pattern=r"^[a-z0-9_-]+$")
     type: Literal["git"]
-    api_key_vault: str = Field(min_length=1)
-    auth_value: str | None = None
+    git_provider: str | None = None
+    auth_type: Literal["token", "ssh"] | None = None
+    auth_ref: str | None = None
+    ssh_key_ref: str | None = None
+    ssh_username: str | None = None
     config: dict[str, Any]
 
     @field_validator("config")
@@ -128,16 +131,12 @@ class SourceUpdateRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    api_key_vault: str | None = None
-    auth_value: str | None = None
+    git_provider: str | None = None
+    auth_type: Literal["token", "ssh"] | None = None
+    auth_ref: str | None = None
+    ssh_key_ref: str | None = None
+    ssh_username: str | None = None
     config: dict[str, Any]
-
-    @field_validator("config")
-    @classmethod
-    def config_must_have_url(cls, v: dict[str, Any]) -> dict[str, Any]:
-        if "url" not in v or not v["url"]:
-            raise ValueError("config.url is required for git sources")
-        return v
 
 
 class SourceResponse(BaseModel):
