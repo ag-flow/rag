@@ -8,14 +8,28 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useWorkspaceSources, useTriggerSourceSync } from "@/hooks/useWorkspaces";
+import { useDisableWebhook } from "@/hooks/useSourceWebhooks";
 import { useJobLogs } from "@/hooks/useJobLogs";
 import type { Source } from "@/lib/workspaces.types";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { AddSourceDialog } from "./AddSourceDialog";
 import { DeleteSourceAlert } from "./DeleteSourceAlert";
+import { EnableWebhookDialog } from "./EnableWebhookDialog";
+import { RotateWebhookSecretDialog } from "./RotateWebhookSecretDialog";
 
 interface Props {
   name: string;
@@ -24,11 +38,16 @@ interface Props {
 
 export function WorkspaceSourcesTab({ name, enabled }: Props) {
   const { t } = useTranslation("workspace");
+  const { t: tWh } = useTranslation("git_webhooks");
   const { data, isLoading } = useWorkspaceSources(name, enabled);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [editSource, setEditSource] = useState<Source | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const disableMutation = useDisableWebhook(name);
+  const [webhookEnableTarget, setWebhookEnableTarget] = useState<string | null>(null);
+  const [webhookRotateTarget, setWebhookRotateTarget] = useState<string | null>(null);
+  const [webhookDisableTarget, setWebhookDisableTarget] = useState<string | null>(null);
 
   if (isLoading) return <LoadingSpinner />;
   const sources = data ?? [];
@@ -87,6 +106,15 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
                         ? formatRelativeTime(source.last_indexed_at, t)
                         : t("sources.neverSynced")}
                     </span>
+                    {source.webhook_enabled ? (
+                      <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 shrink-0">
+                        {tWh("badge_webhook")}
+                      </span>
+                    ) : (
+                      <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-slate-100 text-slate-500 shrink-0">
+                        {tWh("badge_schedule")}
+                      </span>
+                    )}
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -103,6 +131,29 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
                       <DropdownMenuItem onSelect={() => setEditSource(source)}>
                         {t("sources.editAction")}
                       </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      {!source.webhook_enabled ? (
+                        <DropdownMenuItem
+                          onSelect={() => setWebhookEnableTarget(source.name ?? source.id)}
+                        >
+                          {tWh("menu_enable")}
+                        </DropdownMenuItem>
+                      ) : (
+                        <>
+                          <DropdownMenuItem
+                            onSelect={() => setWebhookRotateTarget(source.name ?? source.id)}
+                          >
+                            {tWh("menu_rotate")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => setWebhookDisableTarget(source.name ?? source.id)}
+                            className="text-rose-600"
+                          >
+                            {tWh("menu_disable")}
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onSelect={() => setDeleteId(source.id)}
                         className="text-red-600"
@@ -153,6 +204,55 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
         {...(editSource !== null ? { source: editSource } : {})}
       />
       <DeleteSourceAlert name={name} sourceId={deleteId} onClose={() => setDeleteId(null)} />
+
+      {webhookEnableTarget && (
+        <EnableWebhookDialog
+          workspaceName={name}
+          sourceName={webhookEnableTarget}
+          open={!!webhookEnableTarget}
+          onOpenChange={(o) => {
+            if (!o) setWebhookEnableTarget(null);
+          }}
+        />
+      )}
+      {webhookRotateTarget && (
+        <RotateWebhookSecretDialog
+          workspaceName={name}
+          sourceName={webhookRotateTarget}
+          open={!!webhookRotateTarget}
+          onOpenChange={(o) => {
+            if (!o) setWebhookRotateTarget(null);
+          }}
+        />
+      )}
+      <AlertDialog
+        open={!!webhookDisableTarget}
+        onOpenChange={(o) => {
+          if (!o) setWebhookDisableTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tWh("disable_confirm_title")}</AlertDialogTitle>
+            <AlertDialogDescription>{tWh("disable_confirm_body")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{tWh("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (webhookDisableTarget) {
+                  disableMutation.mutate(webhookDisableTarget, {
+                    onSuccess: () => setWebhookDisableTarget(null),
+                  });
+                }
+              }}
+              className="bg-rose-600 hover:bg-rose-700"
+            >
+              {tWh("disable_btn")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
