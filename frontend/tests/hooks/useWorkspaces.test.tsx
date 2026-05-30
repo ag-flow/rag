@@ -55,8 +55,7 @@ describe("useWorkspaces hooks", () => {
     const { result } = renderHook(() => useCreateWorkspace(), { wrapper });
     result.current.mutate({
       name: "ws_a",
-      api_key_vault: "vault1",
-      indexer: { provider: "openai", model: "x", api_key: "sk-test" },
+      indexer: { provider: "openai", model: "x", api_key_ref: null, base_url: null },
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));

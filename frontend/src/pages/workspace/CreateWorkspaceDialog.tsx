@@ -1,7 +1,8 @@
-import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslation } from "react-i18next";
+import { z } from "zod";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -27,19 +27,152 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { z } from "zod";
 import { useCreateWorkspace } from "@/hooks/useWorkspaces";
-import { useVaults } from "@/hooks/useHarpocrateVaults";
-import { workspaceCreateSchema } from "@/lib/validators";
+import { useModels } from "@/hooks/useModels";
+import { useProviderKeysByProvider } from "@/hooks/useHarpocrateVaults";
 import { useToast } from "@/hooks/useToast";
+import { workspaceCreateSchema } from "@/lib/validators";
 
-type WorkspaceFormData = z.infer<typeof workspaceCreateSchema>;
+type FormData = z.infer<typeof workspaceCreateSchema>;
 
-const MODELS_BY_PROVIDER: Record<string, string[]> = {
-  openai: ["text-embedding-3-small", "text-embedding-3-large"],
-  voyage: ["voyage-3", "voyage-3-lite"],
-  ollama: ["nomic-embed-text", "mxbai-embed-large"],
-};
+const BASE_URL_PROVIDERS = ["ollama", "azure-openai"];
+const NO_KEY_PROVIDERS = ["ollama"];
+
+interface ProviderModelBlockProps {
+  prefix: "indexer" | "rerank";
+  label: string;
+  form: ReturnType<typeof useForm<FormData>>;
+  models: { provider: string; model: string }[];
+}
+
+function ProviderModelBlock({ prefix, label, form, models }: ProviderModelBlockProps) {
+  const { t } = useTranslation("workspaces");
+  const provider = useWatch({ control: form.control, name: `${prefix}.provider` as const });
+  const providers = [...new Set(models.map((m) => m.provider))].sort();
+  const filteredModels = models.filter((m) => m.provider === provider).map((m) => m.model);
+  const needsUrl = BASE_URL_PROVIDERS.includes(provider ?? "");
+  const needsKey = !NO_KEY_PROVIDERS.includes(provider ?? "");
+  const { data: keys = [] } = useProviderKeysByProvider(needsKey && provider ? provider : null);
+
+  return (
+    <div className="space-y-3 rounded-md border bg-slate-50 p-4">
+      <div className="text-xs font-bold uppercase tracking-wide text-slate-600">{label}</div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <FormField
+          control={form.control}
+          name={`${prefix}.provider` as const}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("form.provider")}</FormLabel>
+              <Select
+                onValueChange={(v) => {
+                  field.onChange(v);
+                  const firstModel = models.find((m) => m.provider === v)?.model ?? "";
+                  form.setValue(`${prefix}.model` as const, firstModel);
+                  form.setValue(`${prefix}.api_key_ref` as const, null);
+                }}
+                value={field.value ?? ""}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("form.provider")} />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {providers.map((p) => (
+                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name={`${prefix}.model` as const}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("form.model")}</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {filteredModels.map((m) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+
+      {needsUrl && (
+        <FormField
+          control={form.control}
+          name={`${prefix}.base_url` as const}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>
+                {t("form.base_url")}{" "}
+                <span className="font-normal text-slate-400">{t("form.base_url_optional")}</span>
+              </FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="http://192.168.10.80:11434"
+                  {...field}
+                  value={field.value ?? ""}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
+
+      {needsKey && (
+        <FormField
+          control={form.control}
+          name={`${prefix}.api_key_ref` as const}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("form.api_key_ref")}</FormLabel>
+              {keys.length === 0 ? (
+                <p className="text-xs text-amber-600 mt-1">{t("form.api_key_ref_none")}</p>
+              ) : (
+                <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("form.api_key_ref_placeholder")} />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {keys.map((k) => (
+                      <SelectItem key={k.id} value={k.harpo_path}>
+                        <span className="font-medium">{k.label}</span>
+                        <span className="ml-2 text-xs text-slate-400">
+                          {k.vault_label} · {k.key_id}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
+    </div>
+  );
+}
 
 interface Props {
   open: boolean;
@@ -51,57 +184,69 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
   const { t } = useTranslation("workspaces");
   const { toast } = useToast();
   const createMutation = useCreateWorkspace();
-  const { data: vaults = [], isLoading: vaultsLoading } = useVaults();
+  const { data: models = [] } = useModels();
+  const [showRerank, setShowRerank] = useState(false);
 
-  const form = useForm<WorkspaceFormData>({
+  const defaultProvider = [...new Set(models.map((m) => m.provider))].sort()[0] ?? "openai";
+  const defaultModel = models.find((m) => m.provider === defaultProvider)?.model ?? "";
+
+  const form = useForm<FormData>({
     resolver: zodResolver(workspaceCreateSchema),
     defaultValues: {
       name: "",
-      api_key_vault: "",
-      indexer: {
-        provider: "openai",
-        model: "text-embedding-3-small",
-        api_key: "",
-      },
+      indexer: { provider: defaultProvider, model: defaultModel, api_key_ref: null, base_url: null },
+      rerank: null,
     },
   });
 
-  useEffect(() => {
-    const first = vaults[0];
-    if (first && !form.getValues("api_key_vault")) {
-      form.setValue("api_key_vault", first.name);
+  function handleToggleRerank() {
+    if (showRerank) {
+      form.setValue("rerank", null);
+    } else {
+      form.setValue("rerank", {
+        provider: defaultProvider,
+        model: defaultModel,
+        api_key_ref: null,
+        base_url: null,
+        top_k_pre_rerank: 50,
+      });
     }
-  }, [vaults, form]);
+    setShowRerank(!showRerank);
+  }
 
-  const provider = form.watch("indexer.provider");
-  const models = MODELS_BY_PROVIDER[provider] ?? [];
-
-  async function onSubmit(values: WorkspaceFormData) {
+  async function onSubmit(values: FormData) {
     try {
-      const payload = {
-        ...values,
+      const resp = await createMutation.mutateAsync({
+        name: values.name,
         indexer: {
-          ...values.indexer,
-          api_key: values.indexer.api_key ?? null,
+          provider: values.indexer.provider,
+          model: values.indexer.model,
+          api_key_ref: values.indexer.api_key_ref ?? null,
           base_url: values.indexer.base_url ?? null,
         },
-      };
-      const resp = await createMutation.mutateAsync(payload);
+        rerank: values.rerank
+          ? {
+              provider: values.rerank.provider,
+              model: values.rerank.model,
+              api_key_ref: values.rerank.api_key_ref ?? null,
+              base_url: values.rerank.base_url ?? null,
+              top_k_pre_rerank: values.rerank.top_k_pre_rerank,
+            }
+          : undefined,
+      });
       toast({ title: t("toasts.created", { name: resp.name }) });
       onOpenChange(false);
       form.reset();
+      setShowRerank(false);
       onCreated?.({ name: resp.name });
     } catch {
-      toast({
-        title: t("common:errors.generic"),
-        variant: "destructive",
-      });
+      toast({ title: t("common:errors.generic"), variant: "destructive" });
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="sm:max-w-[540px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{t("create")}</DialogTitle>
         </DialogHeader>
@@ -117,149 +262,70 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
                   <FormControl>
                     <Input placeholder="workspace1" {...field} />
                   </FormControl>
-                  <FormDescription>{t("form.name_help")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="api_key_vault"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("form.api_key_vault")}</FormLabel>
-                  {vaults.length === 0 && !vaultsLoading ? (
-                    <p className="text-sm text-amber-600">{t("form.api_key_vault_none")}</p>
-                  ) : (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t("form.api_key_vault")} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {vaults.map((v) => (
-                          <SelectItem key={v.name} value={v.name}>
-                            {v.label} ({v.name})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  <FormDescription>{t("form.api_key_vault_help")}</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
+            <ProviderModelBlock
+              prefix="indexer"
+              label={t("form.indexer_section")}
+              form={form}
+              models={models}
             />
 
-            <div className="border-t pt-4">
-              <div className="text-xs font-bold uppercase tracking-wide text-slate-600 mb-3">
-                {t("form.indexer")}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+            {showRerank && (
+              <>
+                <ProviderModelBlock
+                  prefix="rerank"
+                  label={t("form.rerank_section")}
+                  form={form}
+                  models={models}
+                />
                 <FormField
                   control={form.control}
-                  name="indexer.provider"
+                  name="rerank.top_k_pre_rerank"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("form.provider")}</FormLabel>
-                      <Select
-                        onValueChange={(v) => {
-                          field.onChange(v);
-                          form.setValue("indexer.model", MODELS_BY_PROVIDER[v]?.[0] ?? "");
-                        }}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="openai">openai</SelectItem>
-                          <SelectItem value="voyage">voyage</SelectItem>
-                          <SelectItem value="ollama">ollama</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="indexer.model"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("form.model")}</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {models.map((m) => (
-                            <SelectItem key={m} value={m}>
-                              {m}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {provider !== "ollama" && (
-                <FormField
-                  control={form.control}
-                  name="indexer.api_key"
-                  render={({ field }) => (
-                    <FormItem className="mt-3">
-                      <FormLabel>{t("form.api_key_label")}</FormLabel>
+                      <FormLabel>{t("form.top_k")}</FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="sk-…" {...field} />
+                        <Input
+                          type="number"
+                          min={1}
+                          max={500}
+                          {...field}
+                          value={field.value ?? 50}
+                          onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
+                          className="w-32"
+                        />
                       </FormControl>
-                      <FormDescription>{t("form.api_key_help")}</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleToggleRerank}
+                  className="text-slate-500 text-xs"
+                >
+                  {t("form.rerank_remove")}
+                </Button>
+              </>
+            )}
 
-              {provider === "ollama" && (
-                <FormField
-                  control={form.control}
-                  name="indexer.base_url"
-                  render={({ field }) => (
-                    <FormItem className="mt-3">
-                      <FormLabel>
-                        {t("form.base_url")}{" "}
-                        <span className="text-slate-400 font-normal">
-                          {t("form.base_url_optional")}
-                        </span>
-                      </FormLabel>
-                      <FormControl>
-                        <Input placeholder="http://192.168.10.80:11434" {...field} />
-                      </FormControl>
-                      <FormDescription>{t("form.base_url_help")}</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-            </div>
+            {!showRerank && (
+              <Button type="button" variant="outline" size="sm" onClick={handleToggleRerank}>
+                + {t("form.rerank_section")}
+              </Button>
+            )}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t("common:buttons.cancel")}
               </Button>
-              <Button
-                type="submit"
-                disabled={createMutation.isPending || vaults.length === 0}
-              >
+              <Button type="submit" disabled={createMutation.isPending}>
                 {t("common:buttons.create")}
               </Button>
             </DialogFooter>

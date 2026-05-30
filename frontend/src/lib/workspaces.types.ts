@@ -18,15 +18,23 @@ export type Workspace = {
   created_at: string;
 };
 
+export type RerankSpec = {
+  provider: string;
+  model: string;
+  api_key_ref: string | null;
+  base_url: string | null;
+  top_k_pre_rerank: number;
+};
+
 export type WorkspaceCreate = {
   name: string;
-  api_key_vault: string;
   indexer: {
     provider: string;
     model: string;
-    api_key: string | null;
-    base_url?: string | null;
+    api_key_ref: string | null;
+    base_url: string | null;
   };
+  rerank?: RerankSpec | undefined;
 };
 
 export type WorkspaceCreateResponse = {
