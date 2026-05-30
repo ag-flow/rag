@@ -25,17 +25,30 @@ class IndexerSpec(BaseModel):
 
 
 class IndexerCreateSpec(BaseModel):
-    """Indexeur pour la création d'un workspace — api_key en clair, jamais persistée telle quelle.
+    """Indexeur pour la création d'un workspace.
 
-    Le backend écrit la valeur dans Harpocrate et stocke la ref construite en DB.
+    api_key_ref est le harpo_path d'une provider_api_key existante.
+    Le backend ne stocke rien dans Harpocrate — il référence une clé déjà présente.
     """
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
     provider: str = Field(min_length=1)
     model: str = Field(min_length=1)
-    api_key: str | None = None
+    api_key_ref: str | None = None
     base_url: str | None = None
+
+
+class RerankCreateSpec(BaseModel):
+    """Config reranking à la création d'un workspace (immuable après)."""
+
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    api_key_ref: str | None = None
+    base_url: str | None = None
+    top_k_pre_rerank: int = Field(default=50, gt=0, le=500)
 
 
 class WorkspaceCreateRequest(BaseModel):
@@ -44,13 +57,8 @@ class WorkspaceCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(pattern=_NAME_REGEX, max_length=63)
-    api_key_vault: str = Field(
-        ...,
-        min_length=1,
-        max_length=255,
-        description="Nom du coffre Harpocrate où sera stockée l'api_key MCP de ce workspace",
-    )
     indexer: IndexerCreateSpec
+    rerank: RerankCreateSpec | None = None
 
 
 class IndexerPatchSpec(BaseModel):
