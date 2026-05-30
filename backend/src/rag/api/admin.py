@@ -273,6 +273,14 @@ def build_admin_router() -> APIRouter:
         from rag.secrets.refs import is_vault_ref
         from rag.sync.git_ops import detect_default_branch, list_remote_branches
 
+        # Validation anti-SSRF / argument injection
+        url = payload.url.strip()
+        if url.startswith("-"):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid url")
+        _allowed_schemes = ("https://", "http://", "git@", "ssh://", "git://")
+        if not any(url.startswith(s) for s in _allowed_schemes):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid url scheme")
+
         resolver = _resolver(request)
         token: str | None = None
         ssh_key: str | None = None
