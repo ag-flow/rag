@@ -22,6 +22,7 @@ Accessible aux rôles OIDC `rag-admin` et `rag-viewer`.
 |---|---|
 | **Claude** | claude-sonnet-4-5, claude-opus-4-5 |
 | **OpenAI (Codex)** | gpt-4o, gpt-4o-mini, o1 |
+| **Azure OpenAI** | gpt-4o, gpt-4o-mini (déployés sur l'instance Azure) |
 | **Ollama** | Modèles disponibles sur l'instance configurée |
 
 La config des LLM autorisés par workspace se fait exclusivement via l'IHM (rôle `rag-admin`).
@@ -34,7 +35,7 @@ La config des LLM autorisés par workspace se fait exclusivement via l'IHM (rôl
 CREATE TABLE workspace_llm_configs (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id  UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  provider      TEXT NOT NULL,       -- "claude" | "openai" | "ollama"
+  provider      TEXT NOT NULL,       -- "claude" | "openai" | "azure-openai" | "ollama"
   model         TEXT NOT NULL,       -- ex: "claude-sonnet-4-5"
   base_url      TEXT,                -- null sauf ollama
   api_key_ref   TEXT,                -- clé logique Harpocrate (null pour ollama local)

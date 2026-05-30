@@ -35,6 +35,30 @@ Chaque workspace est associé à un **indexeur fixe** — provider + modèle. La
 }
 ```
 
+---
+
+### Azure OpenAI
+
+```json
+{
+  "provider": "azure-openai",
+  "model": "text-embedding-3-small",
+  "base_url": "https://{resource-name}.openai.azure.com/",
+  "deployment_name": "text-embedding-3-small",
+  "api_key_ref": "azure_openai_api_key"
+}
+```
+
+| Modèle | Dimension | Usage recommandé |
+|---|---|---|
+| text-embedding-3-small | 1536 | Usage général, données dans l'écosystème Azure |
+| text-embedding-3-large | 3072 | Précision maximale, données dans l'écosystème Azure |
+| text-embedding-ada-002 | 1536 | Modèle legacy, compatibilité |
+
+Recommandé pour les workspaces contenant des données internes (colis21, Pickup/DOSI) — les données restent dans l'infrastructure Azure sans transiter vers OpenAI en direct.
+
+Le `deployment_name` est le nom donné au modèle lors de son instanciation dans le portail Azure — il peut différer du nom du modèle.
+
 | Modèle | Dimension | Usage recommandé |
 |---|---|---|
 | voyage-3 | 1024 | Meilleure qualité RAG, spécialisé retrieval |
@@ -72,6 +96,9 @@ Ollama est recommandé pour les workspaces contenant des données sensibles (col
 | openai | text-embedding-3-large | 3072 |
 | voyage | voyage-3 | 1024 |
 | voyage | voyage-code-3 | 1024 |
+| azure-openai | text-embedding-3-small | 1536 |
+| azure-openai | text-embedding-3-large | 3072 |
+| azure-openai | text-embedding-ada-002 | 1536 |
 | ollama | qwen2.5-coder:14b | 4096 |
 | ollama | nomic-embed-text | 768 |
 
@@ -112,4 +139,4 @@ Avec `?confirm=true` :
 | harpocrate | openai/text-embedding-3-small | Doc Markdown, bon rapport qualité/coût |
 | ag-flow-docker | voyage/voyage-code-3 | Corpus mixte code + doc |
 | ag-flow-workflow | voyage/voyage-code-3 | Idem |
-| colis21 | ollama/qwen2.5-coder:14b | Données internes Pickup, pas d'exfiltration |
+| colis21 | azure-openai/text-embedding-3-small | Données Pickup — restent dans l'infra Azure |
