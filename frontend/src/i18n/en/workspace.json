@@ -23,7 +23,8 @@
     "jobs": "Jobs",
     "model": "Model",
     "rerank": "Rerank",
-    "chunking": "Chunking"
+    "chunking": "Chunking",
+    "playground": "Playground"
   },
   "detail": {
     "stats": {

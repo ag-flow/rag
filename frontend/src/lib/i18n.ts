@@ -11,6 +11,7 @@ import frHarpocrate from "@/i18n/fr/harpocrate.json";
 import frModels from "@/i18n/fr/models.json";
 import frOidc from "@/i18n/fr/oidc.json";
 import frLogin from "@/i18n/fr/login.json";
+import frPlayground from "@/i18n/fr/playground.json";
 
 import enCommon from "@/i18n/en/common.json";
 import enAuth from "@/i18n/en/auth.json";
@@ -21,6 +22,7 @@ import enHarpocrate from "@/i18n/en/harpocrate.json";
 import enModels from "@/i18n/en/models.json";
 import enOidc from "@/i18n/en/oidc.json";
 import enLogin from "@/i18n/en/login.json";
+import enPlayground from "@/i18n/en/playground.json";
 
 void i18n
   .use(LanguageDetector)
@@ -38,6 +40,7 @@ void i18n
       "models",
       "oidc",
       "login",
+      "playground",
     ],
     defaultNS: "common",
     resources: {
@@ -51,6 +54,7 @@ void i18n
         models: frModels,
         oidc: frOidc,
         login: frLogin,
+      playground: frPlayground,
       },
       en: {
         common: enCommon,
@@ -62,6 +66,7 @@ void i18n
         models: enModels,
         oidc: enOidc,
         login: enLogin,
+        playground: enPlayground,
       },
     },
     interpolation: { escapeValue: false },

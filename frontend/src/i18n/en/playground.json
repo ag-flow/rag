@@ -1,0 +1,43 @@
+{
+  "tabs": {
+    "config": "LLM Config",
+    "chat": "Chat"
+  },
+  "config": {
+    "title": "LLM Configurations",
+    "add_btn": "Add LLM",
+    "empty": "No LLM configured for this workspace.",
+    "col_provider": "Provider",
+    "col_model": "Model",
+    "col_key": "API Key",
+    "col_enabled": "Enabled",
+    "delete_btn": "Delete",
+    "delete_confirm_title": "Delete this LLM config?",
+    "delete_confirm_body": "This configuration will be deleted. Irreversible.",
+    "deleted_toast": "LLM config deleted.",
+    "add_dialog_title": "Add LLM",
+    "field_provider": "Provider",
+    "field_model": "Model",
+    "field_key": "API Key",
+    "field_key_none": "No key available for this provider",
+    "field_base_url": "Base URL",
+    "field_base_url_placeholder": "http://localhost:11434",
+    "save": "Add",
+    "cancel": "Cancel",
+    "error_toast": "Configuration error.",
+    "error_duplicate": "This model is already configured."
+  },
+  "chat": {
+    "placeholder": "Your message...",
+    "send": "Send",
+    "reset": "Reset",
+    "llm_label": "LLM",
+    "top_k_label": "top_k",
+    "min_score_label": "min score",
+    "no_llm": "No LLM enabled — configure one in the Config tab first.",
+    "chunks_toggle": "Used chunks ({{count}})",
+    "tokens": "Tokens: prompt={{prompt}} / completion={{completion}}",
+    "thinking": "Thinking…",
+    "error_toast": "LLM call failed."
+  }
+}
