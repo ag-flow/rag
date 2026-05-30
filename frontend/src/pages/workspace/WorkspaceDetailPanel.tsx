@@ -13,6 +13,7 @@ import { WorkspaceChunkingTab } from "./WorkspaceChunkingTab";
 import { WorkspaceWebhooksTab } from "./WorkspaceWebhooksTab";
 import { WorkspacePlaygroundTab } from "./WorkspacePlaygroundTab";
 import { WorkspaceTriggersTab } from "./WorkspaceTriggersTab";
+import { WorkspaceApiKeysTab } from "./WorkspaceApiKeysTab";
 import { RevealApiKeyDialog } from "./RevealApiKeyDialog";
 import { RotateApiKeyDialog } from "./RotateApiKeyDialog";
 import { ReindexConfirmDialog } from "./ReindexConfirmDialog";
@@ -60,6 +61,7 @@ export function WorkspaceDetailPanel({ name }: Props) {
           <TabsTrigger value="webhooks">{t("webhooks.tab")}</TabsTrigger>
           <TabsTrigger value="playground">{t("tabs.playground")}</TabsTrigger>
           <TabsTrigger value="triggers">{t("tabs.triggers")}</TabsTrigger>
+          <TabsTrigger value="apikeys">{t("tabs.apikeys")}</TabsTrigger>
         </TabsList>
         <TabsContent value="detail" className="pt-4">
           <WorkspaceDetailTab
@@ -91,6 +93,9 @@ export function WorkspaceDetailPanel({ name }: Props) {
         </TabsContent>
         <TabsContent value="triggers" className="pt-4">
           <WorkspaceTriggersTab workspaceName={ws.name} />
+        </TabsContent>
+        <TabsContent value="apikeys" className="pt-4">
+          <WorkspaceApiKeysTab workspaceName={ws.name} />
         </TabsContent>
       </Tabs>
       <RevealApiKeyDialog
