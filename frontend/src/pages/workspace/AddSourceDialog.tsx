@@ -429,15 +429,6 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
               </div>
             )}
 
-            {/* Branche */}
-            <BranchField
-              register={register}
-              control={control}
-              t={t}
-              detectedBranches={detectedBranches}
-              isDetecting={detectBranches.isPending}
-            />
-
             {/* Bloc auth */}
             <AuthBlock
               control={control}
@@ -447,7 +438,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
               t={t}
             />
 
-            {/* URL — après le provider pour guider le format (HTTPS ou SSH) */}
+            {/* URL */}
             <div>
               <label className="text-xs font-medium text-slate-700">
                 {t("sources.fields.url")}
@@ -459,6 +450,15 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
                 </p>
               )}
             </div>
+
+            {/* Branche — sous l'URL pour détection automatique */}
+            <BranchField
+              register={register}
+              control={control}
+              t={t}
+              detectedBranches={detectedBranches}
+              isDetecting={detectBranches.isPending}
+            />
 
             {/* Include / Exclude */}
             <IncludeExclude register={register} t={t} />
@@ -523,15 +523,6 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
             </p>
           </div>
 
-          {/* Branche */}
-          <BranchField
-            register={register}
-            control={control}
-            t={t}
-            detectedBranches={detectedBranches}
-            isDetecting={detectBranches.isPending}
-          />
-
           {/* Bloc auth */}
           <AuthBlock
             control={control}
@@ -541,7 +532,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
             t={t}
           />
 
-          {/* URL — après le provider pour guider le format (HTTPS ou SSH) */}
+          {/* URL */}
           <div>
             <label className="text-xs font-medium text-slate-700">
               {t("sources.fields.url")}
@@ -553,6 +544,15 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
               </p>
             )}
           </div>
+
+          {/* Branche — sous l'URL pour détection automatique */}
+          <BranchField
+            register={register}
+            control={control}
+            t={t}
+            detectedBranches={detectedBranches}
+            isDetecting={detectBranches.isPending}
+          />
 
           {/* Include / Exclude */}
           <IncludeExclude register={register} t={t} />
