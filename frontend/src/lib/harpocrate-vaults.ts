@@ -1,5 +1,8 @@
 import { api } from "@/lib/api";
 import type {
+  GitCredential,
+  GitCredentialCreate,
+  GitCredentialUpdate,
   ProviderApiKey,
   ProviderApiKeyCreate,
   ProviderApiKeyUpdate,
@@ -77,4 +80,16 @@ export const harpocrateVaultsApi = {
 
   deleteProviderKey: (vaultId: string, keyId: string) =>
     api.delete<void>(`${BASE}/${vaultId}/provider-keys/${keyId}`),
+
+  listGitCredentials: (vaultId: string) =>
+    api.get<GitCredential[]>(`${BASE}/${vaultId}/git-credentials`),
+
+  createGitCredential: (vaultId: string, payload: GitCredentialCreate) =>
+    api.post<GitCredential>(`${BASE}/${vaultId}/git-credentials`, payload),
+
+  updateGitCredential: (vaultId: string, keyId: string, payload: GitCredentialUpdate) =>
+    api.patch<GitCredential>(`${BASE}/${vaultId}/git-credentials/${keyId}`, payload),
+
+  deleteGitCredential: (vaultId: string, keyId: string) =>
+    api.delete<void>(`${BASE}/${vaultId}/git-credentials/${keyId}`),
 };

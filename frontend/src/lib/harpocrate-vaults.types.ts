@@ -95,3 +95,34 @@ export type ProviderApiKeyUpdate = {
   label?: string;
   value?: string;
 };
+
+export type GitHost =
+  | "github"
+  | "gitlab"
+  | "gitea"
+  | "bitbucket"
+  | "azure-devops";
+
+export type GitCredential = {
+  id: string;
+  key_id: string;
+  label: string;
+  host: GitHost;
+  scope_url: string | null;
+  harpo_path: string;
+  created_at: string;
+};
+
+export type GitCredentialCreate = {
+  key_id: string;
+  label: string;
+  host: GitHost;
+  scope_url?: string | null;
+  value: string;
+};
+
+export type GitCredentialUpdate = {
+  label?: string;
+  scope_url?: string | null;
+  value?: string;
+};
