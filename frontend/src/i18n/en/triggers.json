@@ -13,6 +13,8 @@
   "field_extension": "File extension",
   "field_extension_placeholder": ".cs, .py, .ts…",
   "field_extension_help": "With dot, lowercase",
+  "field_extension_other": "Other extension",
+  "field_extension_selected": "Selected extension:",
   "save": "Create",
   "cancel": "Cancel",
   "error_toast": "Creation error.",

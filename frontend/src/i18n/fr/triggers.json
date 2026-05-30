@@ -13,6 +13,8 @@
   "field_extension": "Extension de fichier",
   "field_extension_placeholder": ".cs, .py, .ts…",
   "field_extension_help": "Avec le point, en minuscules",
+  "field_extension_other": "Autre extension",
+  "field_extension_selected": "Extension sélectionnée :",
   "save": "Créer",
   "cancel": "Annuler",
   "error_toast": "Erreur lors de la création.",
