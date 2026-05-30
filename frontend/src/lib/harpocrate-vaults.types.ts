@@ -81,6 +81,7 @@ export type ProviderApiKey = {
   label: string;
   provider: string;
   harpo_path: string;
+  expires_at: string | null;
   created_at: string;
 };
 
@@ -89,11 +90,13 @@ export type ProviderApiKeyCreate = {
   label: string;
   provider: string;
   value: string;
+  valid_days?: number | null;
 };
 
 export type ProviderApiKeyUpdate = {
   label?: string;
   value?: string;
+  valid_days?: number | null;
 };
 
 export type GitHost =
@@ -110,6 +113,7 @@ export type GitCredential = {
   host: GitHost;
   scope_url: string | null;
   harpo_path: string;
+  expires_at: string | null;
   created_at: string;
 };
 
@@ -119,10 +123,12 @@ export type GitCredentialCreate = {
   host: GitHost;
   scope_url?: string | null;
   value: string;
+  valid_days?: number | null;
 };
 
 export type GitCredentialUpdate = {
   label?: string;
   scope_url?: string | null;
   value?: string;
+  valid_days?: number | null;
 };
