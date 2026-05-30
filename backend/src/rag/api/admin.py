@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from uuid import UUID
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -26,6 +27,12 @@ from rag.schemas.admin import (
     WorkspaceCreateResponse,
     WorkspacePatchRequest,
     WorkspaceResponse,
+)
+from rag.schemas.workspace_apikeys import (
+    ApiKeyCreate,
+    ApiKeyCreated,
+    ApiKeyOut,
+    ApiKeyRotated,
 )
 from rag.secrets.refs import parse_ref
 from rag.services.workspaces import (
@@ -561,5 +568,71 @@ def build_admin_router() -> APIRouter:
             status_code=status.HTTP_202_ACCEPTED,
             content=JobResponse(**body).model_dump(mode="json"),
         )
+
+    # ─── Workspace API keys (multi-clés) ────────────────────────────────────
+
+    @router.get("/workspaces/{name}/api-keys", response_model=list[ApiKeyOut])
+    async def list_api_keys(name: str, request: Request) -> list[ApiKeyOut]:
+        from rag.services.workspace_apikeys import list_keys
+
+        async with _config_pool(request).acquire() as conn:
+            return await list_keys(conn, workspace_name=name)
+
+    @router.post("/workspaces/{name}/api-keys", response_model=ApiKeyCreated, status_code=201)
+    async def create_api_key(
+        name: str, body: ApiKeyCreate, request: Request
+    ) -> ApiKeyCreated:
+        from rag.services.workspace_apikeys import create_key
+
+        pool = _config_pool(request)
+        async with pool.acquire() as conn:
+            try:
+                return await create_key(
+                    conn,
+                    workspace_name=name,
+                    req=body,
+                    vault_svc=request.app.state.harpocrate_vaults_service,
+                    client_provider=request.app.state.client_provider,
+                    config_pool=pool,
+                )
+            except ValueError as exc:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+    @router.post(
+        "/workspaces/{name}/api-keys/{key_id}/rotate", response_model=ApiKeyRotated
+    )
+    async def rotate_api_key(
+        name: str, key_id: UUID, request: Request
+    ) -> ApiKeyRotated:
+        from rag.services.workspace_apikeys import rotate_key
+
+        pool = _config_pool(request)
+        async with pool.acquire() as conn:
+            result = await rotate_key(
+                conn,
+                workspace_name=name,
+                key_id=str(key_id),
+                vault_svc=request.app.state.harpocrate_vaults_service,
+                client_provider=request.app.state.client_provider,
+                config_pool=pool,
+            )
+        if result is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "api key not found")
+        return result
+
+    @router.delete("/workspaces/{name}/api-keys/{key_id}", status_code=204)
+    async def revoke_api_key(
+        name: str, key_id: UUID, request: Request
+    ) -> Response:
+        from rag.services.workspace_apikeys import revoke_key
+
+        async with _config_pool(request).acquire() as conn:
+            revoked = await revoke_key(conn, workspace_name=name, key_id=str(key_id))
+        if not revoked:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                "api key not found or already revoked",
+            )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return router
