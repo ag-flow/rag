@@ -35,17 +35,24 @@ export function ReplaceProviderKeyDialog({
   const { toast } = useToast();
   const mutation = useUpdateProviderKey(vaultId);
   const [newValue, setNewValue] = useState("");
+  const [validDays, setValidDays] = useState("");
 
   function handleClose(next: boolean) {
     onOpenChange(next);
-    if (!next) setNewValue("");
+    if (!next) {
+      setNewValue("");
+      setValidDays("");
+    }
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!newValue.trim()) return;
     try {
-      await mutation.mutateAsync({ keyId, payload: { value: newValue } });
+      await mutation.mutateAsync({
+        keyId,
+        payload: { value: newValue, valid_days: validDays ? parseInt(validDays, 10) : null },
+      });
       toast({ title: t("apikeys.replaced_toast") });
       handleClose(false);
     } catch {
@@ -84,6 +91,23 @@ export function ReplaceProviderKeyDialog({
               autoFocus
             />
           </div>
+
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-slate-600">
+              {t("apikeys.field_valid_days")}
+            </Label>
+            <Input
+              type="number"
+              min={1}
+              step={1}
+              value={validDays}
+              onChange={(e) => setValidDays(e.target.value)}
+              placeholder="90"
+              className="mt-1"
+            />
+            <p className="mt-1 text-xs text-slate-400">{t("apikeys.field_valid_days_help")}</p>
+          </div>
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => handleClose(false)}>
               {t("apikeys.cancel")}

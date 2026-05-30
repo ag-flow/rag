@@ -41,6 +41,7 @@ export function AddProviderKeyDialog({ vaultId, open, onOpenChange }: Props) {
   const [label, setLabel] = useState("");
   const [value, setValue] = useState("");
   const [keyIdError, setKeyIdError] = useState("");
+  const [validDays, setValidDays] = useState("");
 
   // Providers distincts depuis model_dimensions
   const providers = [...new Set(models.map((m) => m.provider))].sort();
@@ -64,6 +65,7 @@ export function AddProviderKeyDialog({ vaultId, open, onOpenChange }: Props) {
       setLabel("");
       setValue("");
       setKeyIdError("");
+      setValidDays("");
     }
   }
 
@@ -79,7 +81,13 @@ export function AddProviderKeyDialog({ vaultId, open, onOpenChange }: Props) {
     e.preventDefault();
     if (!canSubmit) return;
     try {
-      await mutation.mutateAsync({ key_id: keyId, label, provider, value });
+      await mutation.mutateAsync({
+        key_id: keyId,
+        label,
+        provider,
+        value,
+        valid_days: validDays ? parseInt(validDays, 10) : null,
+      });
       toast({ title: t("apikeys.created_toast") });
       handleClose(false);
     } catch (err) {
@@ -159,6 +167,22 @@ export function AddProviderKeyDialog({ vaultId, open, onOpenChange }: Props) {
               placeholder="sk-…"
               className="mt-1 font-mono"
             />
+          </div>
+
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-slate-600">
+              {t("apikeys.field_valid_days")}
+            </Label>
+            <Input
+              type="number"
+              min={1}
+              step={1}
+              value={validDays}
+              onChange={(e) => setValidDays(e.target.value)}
+              placeholder="90"
+              className="mt-1"
+            />
+            <p className="mt-1 text-xs text-slate-400">{t("apikeys.field_valid_days_help")}</p>
           </div>
 
           {harpoPath && (
