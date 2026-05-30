@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -246,6 +248,58 @@ def build_admin_router() -> APIRouter:
             resolver=request.app.state.resolver,
         )
         return SourceTestResult(**result)
+
+    # Schémas locaux pour detect-branches
+    from pydantic import BaseModel as _BaseModel
+
+    class _DetectBranchesRequest(_BaseModel):
+        url: str
+        auth_ref: str | None = None
+        ssh_key_ref: str | None = None
+        ssh_username: str | None = None
+
+    class _DetectBranchesResponse(_BaseModel):
+        branches: list[str]
+        default: str | None
+
+    @router.post("/sources/detect-branches", response_model=_DetectBranchesResponse)
+    async def detect_branches(
+        payload: _DetectBranchesRequest,
+        request: Request,
+    ) -> _DetectBranchesResponse:
+        """Détecte les branches disponibles d'un dépôt Git via ls-remote."""
+        import contextlib
+
+        from rag.secrets.refs import is_vault_ref
+        from rag.sync.git_ops import detect_default_branch, list_remote_branches
+
+        resolver = _resolver(request)
+        token: str | None = None
+        ssh_key: str | None = None
+        ssh_username = payload.ssh_username or "git"
+
+        if payload.ssh_key_ref and is_vault_ref(payload.ssh_key_ref):
+            with contextlib.suppress(Exception):
+                ssh_key = await resolver.resolve_with_retry(payload.ssh_key_ref)
+        elif payload.auth_ref and is_vault_ref(payload.auth_ref):
+            with contextlib.suppress(Exception):
+                token = await resolver.resolve_with_retry(payload.auth_ref)
+
+        branches_result, default_result = await asyncio.gather(
+            list_remote_branches(
+                url=payload.url,
+                token=token,
+                ssh_key=ssh_key,
+                ssh_username=ssh_username,
+            ),
+            detect_default_branch(url=payload.url, token=token),
+            return_exceptions=True,
+        )
+
+        branches: list[str] = branches_result if isinstance(branches_result, list) else []
+        default: str | None = default_result if isinstance(default_result, str) else None
+
+        return _DetectBranchesResponse(branches=branches, default=default)
 
     @router.post(
         "/workspaces/{name}/sources/{source_id}/sync",
