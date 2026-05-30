@@ -3,6 +3,7 @@ import type {
   GitCredential,
   GitCredentialCreate,
   GitCredentialUpdate,
+  GitCredentialWithVault,
   ProviderApiKey,
   ProviderApiKeyCreate,
   ProviderApiKeyUpdate,
@@ -12,6 +13,7 @@ import type {
   SshKey,
   SshKeyGenerate,
   SshKeyImport,
+  SshKeyWithVault,
   VaultCreateRequest,
   VaultRevealApiKeyResponse,
   VaultRotateApiKeyRequest,
@@ -113,4 +115,12 @@ export const harpocrateVaultsApi = {
     api.get<ProviderApiKeyWithVault[]>(
       `/api/admin/provider-keys/by-provider?provider=${encodeURIComponent(provider)}`,
     ),
+
+  listGitCredentialsByHost: (host: string) =>
+    api.get<GitCredentialWithVault[]>(
+      `/api/admin/git-credentials/by-host?host=${encodeURIComponent(host)}`,
+    ),
+
+  listSshKeysAll: () =>
+    api.get<SshKeyWithVault[]>(`/api/admin/ssh-keys/all`),
 };

@@ -77,7 +77,16 @@
       "auth_status_set": "authentification configurée",
       "auth_status_none": "aucune authentification",
       "include": "Inclure",
-      "exclude": "Exclure"
+      "exclude": "Exclure",
+      "git_provider": "Provider Git",
+      "auth_type": "Authentification",
+      "auth_type_token": "Token",
+      "auth_type_ssh": "Certificat SSH",
+      "credential": "Credential",
+      "credential_placeholder": "Sélectionner...",
+      "credential_none": "Aucun credential disponible pour ce provider",
+      "ssh_username": "Utilisateur SSH",
+      "ssh_username_placeholder": "git"
     },
     "add": {
       "title": "Ajouter une source git",

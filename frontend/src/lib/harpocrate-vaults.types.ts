@@ -170,3 +170,27 @@ export type ProviderApiKeyWithVault = {
   vault_label: string;
   created_at: string;
 };
+
+export type GitCredentialWithVault = {
+  id: string;
+  key_id: string;
+  label: string;
+  host: string;
+  harpo_path: string;
+  vault_name: string;
+  vault_label: string;
+  created_at: string;
+};
+
+export type SshKeyWithVault = {
+  id: string;
+  key_id: string;
+  name: string;
+  key_type: string;
+  public_key: string;
+  passphrase_protected: boolean;
+  harpo_path: string;
+  vault_name: string;
+  vault_label: string;
+  created_at: string;
+};

@@ -269,3 +269,20 @@ export function useProviderKeysByProvider(provider: string | null) {
     staleTime: 30_000,
   });
 }
+
+export function useGitCredentialsByHost(host: string | null) {
+  return useQuery({
+    queryKey: ["git-credentials-by-host", host],
+    queryFn: () => harpocrateVaultsApi.listGitCredentialsByHost(host!),
+    enabled: !!host,
+    staleTime: 30_000,
+  });
+}
+
+export function useSshKeysAll() {
+  return useQuery({
+    queryKey: ["ssh-keys-all"],
+    queryFn: () => harpocrateVaultsApi.listSshKeysAll(),
+    staleTime: 30_000,
+  });
+}
