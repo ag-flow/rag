@@ -23,6 +23,7 @@ from rag.schemas.admin import (
     SourceResponse,
     SourceTestResult,
     SourceUpdateRequest,
+    WebhookEnableResponse,
     WorkspaceCreateRequest,
     WorkspaceCreateResponse,
     WorkspacePatchRequest,
@@ -568,6 +569,94 @@ def build_admin_router() -> APIRouter:
             status_code=status.HTTP_202_ACCEPTED,
             content=JobResponse(**body).model_dump(mode="json"),
         )
+
+    # ─── Webhooks sources ───────────────────────────────────────────────────
+
+    @router.post(
+        "/workspaces/{name}/sources/{source_name}/webhook/enable",
+        response_model=WebhookEnableResponse,
+    )
+    async def enable_source_webhook(
+        name: str, source_name: str, request: Request
+    ) -> WebhookEnableResponse:
+        from rag.services.source_webhooks import (
+            WebhookAlreadyEnabledError,
+            enable_webhook,
+        )
+
+        try:
+            async with _config_pool(request).acquire() as conn:
+                secret = await enable_webhook(
+                    conn,
+                    workspace_name=name,
+                    source_name=source_name,
+                    vault_svc=request.app.state.harpocrate_vaults_service,
+                    client_provider=request.app.state.client_provider,
+                )
+        except WebhookAlreadyEnabledError as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+        public_url = str(request.app.state.settings.rag_public_url).rstrip("/")
+        webhook_url = f"{public_url}/api/webhooks/git/{name}/{source_name}"
+        return WebhookEnableResponse(
+            source_name=source_name,
+            webhook_url=webhook_url,
+            secret=secret,
+        )
+
+    @router.post(
+        "/workspaces/{name}/sources/{source_name}/webhook/disable",
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
+    async def disable_source_webhook(
+        name: str, source_name: str, request: Request
+    ) -> Response:
+        from rag.services.source_webhooks import (
+            WebhookNotEnabledError,
+            disable_webhook,
+        )
+
+        try:
+            async with _config_pool(request).acquire() as conn:
+                await disable_webhook(
+                    conn,
+                    workspace_name=name,
+                    source_name=source_name,
+                    vault_svc=request.app.state.harpocrate_vaults_service,
+                    client_provider=request.app.state.client_provider,
+                )
+        except WebhookNotEnabledError as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @router.post(
+        "/workspaces/{name}/sources/{source_name}/webhook/rotate-secret",
+    )
+    async def rotate_source_webhook_secret(
+        name: str, source_name: str, request: Request
+    ) -> dict:
+        from rag.services.source_webhooks import (
+            WebhookNotEnabledError,
+            rotate_webhook_secret,
+        )
+
+        try:
+            async with _config_pool(request).acquire() as conn:
+                new_secret = await rotate_webhook_secret(
+                    conn,
+                    workspace_name=name,
+                    source_name=source_name,
+                    vault_svc=request.app.state.harpocrate_vaults_service,
+                    client_provider=request.app.state.client_provider,
+                )
+        except WebhookNotEnabledError as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+        return {"secret": new_secret}
 
     # ─── Workspace API keys (multi-clés) ────────────────────────────────────
 

@@ -163,6 +163,14 @@ class ReindexRequest(BaseModel):
     indexer: IndexerSpec | None = None
 
 
+class WebhookEnableResponse(BaseModel):
+    """Retour de POST /workspaces/{name}/sources/{source}/webhook/enable."""
+
+    source_name: str
+    webhook_url: str
+    secret: str
+
+
 class JobResponse(BaseModel):
     id: UUID
     triggered_by: str
