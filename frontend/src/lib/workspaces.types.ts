@@ -64,6 +64,7 @@ export type Source = {
   last_indexed_at: string | null;
   created_at: string;
   branch_warning?: string | null;
+  webhook_enabled: boolean;
 };
 
 type SourceConfigInput = {
