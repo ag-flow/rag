@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Send, RotateCcw, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,14 @@ export function PlaygroundChatTab({ workspaceName }: Props) {
   const enabledConfigs = configs.filter((c) => c.enabled);
 
   const [selectedLlm, setSelectedLlm] = useState("");
+
+  // Auto-sélectionner le premier LLM activé à l'ouverture
+  useEffect(() => {
+    if (!selectedLlm && enabledConfigs.length > 0) {
+      const first = enabledConfigs[0];
+      if (first) setSelectedLlm(`${first.provider}/${first.model}`);
+    }
+  }, [enabledConfigs, selectedLlm]);
   const [topK, setTopK] = useState(5);
   const [minScore, setMinScore] = useState(0.7);
   const [input, setInput] = useState("");
