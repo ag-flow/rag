@@ -125,3 +125,8 @@ export type JobFilesResponse = {
 export type ApiKeyRotateResponse = {
   api_key: string;
 };
+
+export type DetectBranchesResponse = {
+  branches: string[];
+  default: string | null;
+};

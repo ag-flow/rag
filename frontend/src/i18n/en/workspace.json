@@ -86,7 +86,8 @@
       "credential_placeholder": "Select...",
       "credential_none": "No credential available for this provider",
       "ssh_username": "SSH username",
-      "ssh_username_placeholder": "git"
+      "ssh_username_placeholder": "git",
+      "branch_detecting": "Detecting branches…"
     },
     "add": {
       "title": "Add git source",

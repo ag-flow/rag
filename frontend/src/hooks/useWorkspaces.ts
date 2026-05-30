@@ -160,3 +160,15 @@ export function useTriggerSourceSync(name: string) {
     },
   });
 }
+
+export function useDetectBranches() {
+  return useMutation({
+    mutationFn: (payload: {
+      url: string;
+      auth_ref?: string | null;
+      ssh_key_ref?: string | null;
+      ssh_username?: string | null;
+    }) =>
+      workspacesApi.detectBranches(payload),
+  });
+}
