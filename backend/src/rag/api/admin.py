@@ -34,7 +34,6 @@ from rag.services.workspaces import (
     get_workspace,
     list_workspaces,
     patch_workspace,
-    rotate_apikey,
 )
 
 
@@ -98,6 +97,7 @@ def build_admin_router() -> APIRouter:
             admin_dsn=_admin_dsn(request),
             resolver=_resolver(request),  # type: ignore[arg-type]
             harpocrate_vaults_service=request.app.state.harpocrate_vaults_service,
+            client_provider=request.app.state.client_provider,
         )
         return WorkspaceCreateResponse.model_validate(resp)
 
@@ -113,16 +113,27 @@ def build_admin_router() -> APIRouter:
 
     @router.get("/workspaces/{name}/apikey")
     async def get_apikey_endpoint(name: str, request: Request) -> ApiKeyRotateResponse:
-        """Retourne l'api_key en clair du workspace. Idempotent.
+        """Retourne l'api_key active du workspace. Idempotent.
 
         Conforme spec 08 : sert à `init-rag.sh` côté ag.flow.docker pour
         provisionner `.rag-client.json` au démarrage container.
 
         Résolution via cache process-lifetime → Harpocrate sur miss.
+        Retourne la première clé active (non révoquée, non expirée) par ordre de création.
         """
         pool = _config_pool(request)
         row = await pool.fetchrow(
-            "SELECT api_key_ref FROM workspaces WHERE name = $1", name
+            """
+            SELECT k.api_key_ref
+            FROM workspace_api_keys k
+            JOIN workspaces w ON w.id = k.workspace_id
+            WHERE w.name = $1
+              AND k.revoked_at IS NULL
+              AND (k.rotated_at IS NULL OR k.rotated_at > now() - interval '72 hours')
+            ORDER BY k.created_at ASC
+            LIMIT 1
+            """,
+            name,
         )
         if row is None:
             raise HTTPException(
@@ -158,19 +169,25 @@ def build_admin_router() -> APIRouter:
     @router.delete("/workspaces/{name}", status_code=status.HTTP_204_NO_CONTENT)
     async def delete_workspace_endpoint(name: str, request: Request) -> Response:
         pool = _config_pool(request)
-        # Lire api_key_ref AVANT la suppression DB pour le rollback Harpocrate.
-        ref_row = await pool.fetchrow(
-            "SELECT api_key_ref FROM workspaces WHERE name = $1", name
+        # Lire les api_key_ref actives AVANT suppression pour rollback Harpocrate.
+        key_rows = await pool.fetch(
+            """
+            SELECT k.api_key_ref
+            FROM workspace_api_keys k
+            JOIN workspaces w ON w.id = k.workspace_id
+            WHERE w.name = $1
+            """,
+            name,
         )
         await delete_workspace(
             name=name,
             config_pool=pool,
             admin_dsn=_admin_dsn(request),
         )
-        # Suppression best-effort du secret Harpocrate (idempotent si absent).
-        if ref_row is not None:
+        # Suppression best-effort des secrets Harpocrate (idempotent si absents).
+        for key_row in key_rows:
             try:
-                vault_name, path = parse_ref(ref_row["api_key_ref"])
+                vault_name, path = parse_ref(key_row["api_key_ref"])
                 async with pool.acquire() as conn:
                     await request.app.state.harpocrate_vaults_service.delete_secret(
                         conn, vault_name=vault_name, path=path
@@ -182,16 +199,6 @@ def build_admin_router() -> APIRouter:
                     workspace=name,
                 )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-    @router.post("/workspaces/{name}/rotate-apikey")
-    async def rotate_apikey_endpoint(name: str, request: Request) -> ApiKeyRotateResponse:
-        result = await rotate_apikey(
-            name=name,
-            config_pool=_config_pool(request),
-            harpocrate_vaults_service=request.app.state.harpocrate_vaults_service,
-            apikey_cache=request.app.state.apikey_cache,
-        )
-        return ApiKeyRotateResponse(api_key=result["api_key"])
 
     # ─── Sources ─────────────────────────────────────────────────────────────
 

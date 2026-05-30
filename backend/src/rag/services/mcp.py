@@ -82,11 +82,15 @@ async def _authenticate(
     row = await config_pool.fetchrow(
         """
         SELECT w.id,
-               w.api_key_ref,
+               k.api_key_ref,
                ic.provider || '/' || ic.model AS indexer_used
         FROM workspaces w
+        JOIN workspace_api_keys k ON k.workspace_id = w.id
         JOIN indexer_configs ic ON ic.workspace_id = w.id
-        WHERE w.name = $1 AND w.api_key_fingerprint = $2
+        WHERE w.name = $1
+          AND k.fingerprint = $2
+          AND k.revoked_at IS NULL
+          AND (k.rotated_at IS NULL OR k.rotated_at > now() - interval '72 hours')
         """,
         ref.name,
         fingerprint,
