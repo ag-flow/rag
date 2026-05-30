@@ -20,6 +20,7 @@ class GitCredentialCreate(BaseModel):
     host: GitHost
     scope_url: str | None = Field(default=None, max_length=512)
     value: str = Field(min_length=1, max_length=4096)
+    valid_days: int | None = Field(default=None, ge=1)
 
     @field_validator("key_id")
     @classmethod
@@ -35,6 +36,7 @@ class GitCredentialUpdate(BaseModel):
     label: str | None = Field(default=None, min_length=1, max_length=128)
     scope_url: str | None = Field(default=None, max_length=512)
     value: str | None = Field(default=None, min_length=1, max_length=4096)
+    valid_days: int | None = Field(default=None, ge=1)
 
 
 class GitCredentialOut(BaseModel):
@@ -46,4 +48,5 @@ class GitCredentialOut(BaseModel):
     host: GitHost
     scope_url: str | None
     harpo_path: str
+    expires_at: datetime | None
     created_at: datetime

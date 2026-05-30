@@ -16,6 +16,7 @@ class ProviderApiKeyCreate(BaseModel):
     label: str = Field(min_length=1, max_length=128)
     provider: str = Field(min_length=1, max_length=64)
     value: str = Field(min_length=1, max_length=4096)
+    valid_days: int | None = Field(default=None, ge=1)
 
     @field_validator("key_id")
     @classmethod
@@ -30,6 +31,7 @@ class ProviderApiKeyUpdate(BaseModel):
 
     label: str | None = Field(default=None, min_length=1, max_length=128)
     value: str | None = Field(default=None, min_length=1, max_length=4096)
+    valid_days: int | None = Field(default=None, ge=1)
 
 
 class ProviderApiKeyOut(BaseModel):
@@ -40,4 +42,5 @@ class ProviderApiKeyOut(BaseModel):
     label: str
     provider: str
     harpo_path: str
+    expires_at: datetime | None
     created_at: datetime
