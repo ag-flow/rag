@@ -36,27 +36,27 @@ _DEFAULT_CACHE_TTL_SECONDS = 60
 # fragments SQL : seuls les paramètres ($1, $2, ...) sont bindés.
 _SELECT_ALL = (
     "SELECT id, name, label, base_url, api_key_id, probe_path, "
-    "is_default, created_at, updated_at "
+    "is_default, owner_id, created_at, updated_at "
     "FROM harpocrate_vaults ORDER BY created_at"
 )
 _SELECT_BY_ID = (
     "SELECT id, name, label, base_url, api_key_id, probe_path, "
-    "is_default, created_at, updated_at "
+    "is_default, owner_id, created_at, updated_at "
     "FROM harpocrate_vaults WHERE id = $1"
 )
 _SELECT_BY_NAME = (
     "SELECT id, name, label, base_url, api_key_id, probe_path, "
-    "is_default, created_at, updated_at "
+    "is_default, owner_id, created_at, updated_at "
     "FROM harpocrate_vaults WHERE name = $1"
 )
 _SELECT_BY_API_KEY_ID = (
     "SELECT id, name, label, base_url, api_key_id, probe_path, "
-    "is_default, created_at, updated_at "
+    "is_default, owner_id, created_at, updated_at "
     "FROM harpocrate_vaults WHERE api_key_id = $1"
 )
 _SELECT_DEFAULT = (
     "SELECT id, name, label, base_url, api_key_id, probe_path, "
-    "is_default, created_at, updated_at "
+    "is_default, owner_id, created_at, updated_at "
     "FROM harpocrate_vaults WHERE is_default = true"
 )
 _SELECT_REVEAL = (
@@ -69,10 +69,10 @@ _DEMOTE_DEFAULT = (
 _INSERT_VAULT = (
     "INSERT INTO harpocrate_vaults "
     "(id, name, label, base_url, api_key_id, api_key_encrypted, "
-    "probe_path, is_default) "
-    "VALUES ($1, $2, $3, $4, $5, pgp_sym_encrypt($6::text, $7::text), $8, $9) "
+    "probe_path, is_default, owner_id) "
+    "VALUES ($1, $2, $3, $4, $5, pgp_sym_encrypt($6::text, $7::text), $8, $9, $10) "
     "RETURNING id, name, label, base_url, api_key_id, probe_path, "
-    "is_default, created_at, updated_at"
+    "is_default, owner_id, created_at, updated_at"
 )
 _UPDATE_VAULT_FULL = (
     "UPDATE harpocrate_vaults SET "
@@ -80,7 +80,7 @@ _UPDATE_VAULT_FULL = (
     "updated_at = now() "
     "WHERE id = $1 "
     "RETURNING id, name, label, base_url, api_key_id, probe_path, "
-    "is_default, created_at, updated_at"
+    "is_default, owner_id, created_at, updated_at"
 )
 _UPDATE_ROTATE_API_KEY = (
     "UPDATE harpocrate_vaults SET "
@@ -89,14 +89,14 @@ _UPDATE_ROTATE_API_KEY = (
     "updated_at = now() "
     "WHERE id = $1 "
     "RETURNING id, name, label, base_url, api_key_id, probe_path, "
-    "is_default, created_at, updated_at"
+    "is_default, owner_id, created_at, updated_at"
 )
 _SELECT_DEFAULT_ID = "SELECT id FROM harpocrate_vaults WHERE is_default = true"
 _PROMOTE_DEFAULT = (
     "UPDATE harpocrate_vaults SET is_default = true, updated_at = now() "
     "WHERE id = $1 "
     "RETURNING id, name, label, base_url, api_key_id, probe_path, "
-    "is_default, created_at, updated_at"
+    "is_default, owner_id, created_at, updated_at"
 )
 _DELETE_VAULT = "DELETE FROM harpocrate_vaults WHERE id = $1"
 
@@ -123,6 +123,17 @@ class HarpocrateVaultsService:
 
     async def list_all(self, conn: Connection) -> list[VaultSummary]:
         rows = await conn.fetch(_SELECT_ALL)
+        return [VaultSummary.model_validate(dict(r)) for r in rows]
+
+    async def list_for_owner(self, conn: Connection, owner_id: str) -> list[VaultSummary]:
+        rows = await conn.fetch(
+            "SELECT id, name, label, base_url, api_key_id, probe_path, "
+            "is_default, owner_id, created_at, updated_at "
+            "FROM harpocrate_vaults "
+            "WHERE is_default = true OR owner_id = $1 "
+            "ORDER BY created_at",
+            owner_id,
+        )
         return [VaultSummary.model_validate(dict(r)) for r in rows]
 
     async def get_by_id(
@@ -174,6 +185,7 @@ class HarpocrateVaultsService:
         self,
         conn: Connection,
         req: VaultCreateRequest,
+        owner_id: str = "",
     ) -> VaultSummary:
         dek = self._require_dek()
         vault_id = uuid4()
@@ -193,6 +205,7 @@ class HarpocrateVaultsService:
                 dek,
                 req.probe_path,
                 req.is_default,
+                owner_id,
             )
         except UniqueViolationError as exc:
             raise VaultNameAlreadyExistsError(req.name) from exc
