@@ -281,17 +281,32 @@ def build_admin_router() -> APIRouter:
         if not any(url.startswith(s) for s in _allowed_schemes):
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid url scheme")
 
-        resolver = _resolver(request)
         token: str | None = None
         ssh_key: str | None = None
         ssh_username = payload.ssh_username or "git"
 
+        # Résolution du credential.
+        # Les harpo_path utilisent vault_name dans le ref (pas api_key_id).
+        # On passe par harpocrate_vaults_service.get_by_name pour obtenir
+        # l'api_key_id, puis client_provider.get_client(api_key_id).
+        async def _resolve_secret(ref: str) -> str | None:
+            from rag.secrets.refs import parse_ref as _parse_ref
+            _vault_name, _secret_path = _parse_ref(ref)
+            _pool = _config_pool(request)
+            _svc = request.app.state.harpocrate_vaults_service
+            async with _pool.acquire() as _conn:
+                _vault = await _svc.get_by_name(_conn, _vault_name)
+            if _vault is None:
+                return None
+            _client = await request.app.state.client_provider.get_client(_vault.api_key_id)
+            return await asyncio.to_thread(_client.get_secret, _secret_path)
+
         if payload.ssh_key_ref and is_vault_ref(payload.ssh_key_ref):
             with contextlib.suppress(Exception):
-                ssh_key = await resolver.resolve_with_retry(payload.ssh_key_ref)
+                ssh_key = await _resolve_secret(payload.ssh_key_ref)
         elif payload.auth_ref and is_vault_ref(payload.auth_ref):
             with contextlib.suppress(Exception):
-                token = await resolver.resolve_with_retry(payload.auth_ref)
+                token = await _resolve_secret(payload.auth_ref)
 
         branches_result, default_result = await asyncio.gather(
             list_remote_branches(
