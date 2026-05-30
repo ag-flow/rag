@@ -373,20 +373,38 @@ async def _execute_git_job(
 
     _log("info", f"Démarrage — source : {url} (branche {branch})")
 
-    # 1. Résolution token (lazy). Si auth_ref présent mais pas de coffre
-    # par défaut configuré, on échoue le job proprement.
-    if config.get("auth_ref") and default_vault_name is None:
-        raise RuntimeError("no default Harpocrate vault configured")
-    token = (
-        await _resolve_token(resolver, config, default_vault_name)
-        if default_vault_name is not None
-        else None
-    )
+    # 1. Résolution auth (lazy). Deux cas : SSH ou token/public.
+    auth_type = config.get("auth_type", "token")
+    token: str | None = None
+    ssh_key: str | None = None
+    ssh_username: str | None = config.get("ssh_username") or "git"
 
-    if token:
-        _log("info", "Auth : token résolu.")
+    if auth_type == "ssh":
+        ssh_key_ref = config.get("ssh_key_ref")
+        if ssh_key_ref:
+            if is_vault_ref(ssh_key_ref):
+                ssh_key = await resolver.resolve_with_retry(ssh_key_ref)
+            else:
+                if default_vault_name is None:
+                    raise RuntimeError("no default Harpocrate vault configured")
+                ssh_key = await resolver.resolve_with_retry(
+                    _to_vault_ref(ssh_key_ref, default_vault_name)
+                )
+            _log("info", "Auth : clé SSH résolue.")
+        else:
+            _log("info", "Auth : source publique (SSH sans clé).")
     else:
-        _log("info", "Auth : source publique.")
+        if config.get("auth_ref") and default_vault_name is None:
+            raise RuntimeError("no default Harpocrate vault configured")
+        token = (
+            await _resolve_token(resolver, config, default_vault_name)
+            if default_vault_name is not None
+            else None
+        )
+        if token:
+            _log("info", "Auth : token résolu.")
+        else:
+            _log("info", "Auth : source publique.")
 
     # 2. Path local + clone ou pull
     # source_id est toujours non-None pour les jobs git.
@@ -397,7 +415,7 @@ async def _execute_git_job(
 
     if storage.has_git(workspace_id=job.workspace_id, source_id=job.source_id):
         _log("info", "git pull…")
-        await pull(dest=dest, branch=branch)
+        await pull(dest=dest, branch=branch, ssh_key=ssh_key)
         was_fresh_clone = False
     else:
         # Le ensure_exists a créé un dossier vide. `git clone` exige que la
@@ -410,7 +428,14 @@ async def _execute_git_job(
                     child.unlink()
             dest.rmdir()
         _log("info", f"git clone {url}…")
-        await clone(url=url, branch=branch, token=token, dest=dest)
+        await clone(
+                    url=url,
+                    branch=branch,
+                    token=token,
+                    dest=dest,
+                    ssh_key=ssh_key,
+                    ssh_username=ssh_username,
+                )
         was_fresh_clone = True
 
     current = await head_commit(dest)
