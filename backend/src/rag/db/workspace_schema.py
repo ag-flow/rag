@@ -95,14 +95,12 @@ async def create_embeddings_table(workspace_dsn: str, *, dimension: int) -> None
             )
             """
         )
-        # ivfflat est limité à 2000 dimensions — utiliser hnsw au-delà.
+        # ivfflat et hnsw sont limités à 2000 dimensions dans pgvector.
+        # Au-delà, on omet l'index — les requêtes utilisent le sequential scan,
+        # suffisant pour les corpus limités associés aux modèles haute dimension.
         if dimension <= 2000:
             await conn.execute(
                 "CREATE INDEX ON embeddings USING ivfflat (embedding vector_cosine_ops)"
-            )
-        else:
-            await conn.execute(
-                "CREATE INDEX ON embeddings USING hnsw (embedding vector_cosine_ops)"
             )
         log.info("workspace.embeddings.created", dimension=dimension)
     finally:
