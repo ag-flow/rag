@@ -137,7 +137,7 @@ async def add_source(
             """
             INSERT INTO workspace_sources (workspace_id, name, type, config, next_sync_at)
             VALUES ($1, $2, $3, $4::jsonb, now())
-            RETURNING id, name, type, config, last_indexed_at, created_at
+            RETURNING id, name, type, config, last_indexed_at, created_at, webhook_enabled
             """,
             ws_id,
             request.name,
@@ -158,7 +158,8 @@ async def list_sources(config_pool: asyncpg.Pool, *, workspace_name: str) -> lis
     rows = await fetch_all(
         config_pool,
         """
-        SELECT ws.id, ws.name, ws.type, ws.config, ws.last_indexed_at, ws.created_at
+        SELECT ws.id, ws.name, ws.type, ws.config, ws.last_indexed_at,
+               ws.created_at, ws.webhook_enabled
         FROM workspace_sources ws
         JOIN workspaces w ON w.id = ws.workspace_id
         WHERE w.name = $1
@@ -220,7 +221,7 @@ async def update_source(
             UPDATE workspace_sources
             SET config = $1::jsonb
             WHERE id = $2::uuid AND workspace_id = $3
-            RETURNING id, name, type, config, last_indexed_at, created_at
+            RETURNING id, name, type, config, last_indexed_at, created_at, webhook_enabled
             """,
             json.dumps(config),
             source_id,
@@ -329,6 +330,7 @@ def _source_to_dict(row: asyncpg.Record) -> dict[str, Any]:
         "name": row["name"],
         "type": row["type"],
         "config": config,
+        "webhook_enabled": bool(row["webhook_enabled"]) if "webhook_enabled" in row else False,
         "last_indexed_at": last.isoformat() if last is not None else None,
         "created_at": row["created_at"].isoformat(),
     }

@@ -144,6 +144,7 @@ class SourceResponse(BaseModel):
     name: str | None
     type: str
     config: dict[str, Any]
+    webhook_enabled: bool = False
     last_indexed_at: str | None
     created_at: str
     branch_warning: str | None = None
