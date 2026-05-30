@@ -5,6 +5,7 @@ import asyncio
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel as _PydanticBase
 
 from rag.api.errors import HarpocrateUnreachableForApikey, VaultUnreachable
 from rag.auth.bearer import require_master_key_or_authenticated_admin
@@ -35,6 +36,18 @@ from rag.services.workspaces import (
     patch_workspace,
     rotate_apikey,
 )
+
+
+class DetectBranchesRequest(_PydanticBase):
+    url: str
+    auth_ref: str | None = None
+    ssh_key_ref: str | None = None
+    ssh_username: str | None = None
+
+
+class DetectBranchesResponse(_PydanticBase):
+    branches: list[str]
+    default: str | None
 
 
 def _config_pool(request: Request) -> asyncpg.Pool:
@@ -250,23 +263,11 @@ def build_admin_router() -> APIRouter:
         return SourceTestResult(**result)
 
     # Schémas locaux pour detect-branches
-    from pydantic import BaseModel as _BaseModel
-
-    class _DetectBranchesRequest(_BaseModel):
-        url: str
-        auth_ref: str | None = None
-        ssh_key_ref: str | None = None
-        ssh_username: str | None = None
-
-    class _DetectBranchesResponse(_BaseModel):
-        branches: list[str]
-        default: str | None
-
-    @router.post("/sources/detect-branches", response_model=_DetectBranchesResponse)
+    @router.post("/sources/detect-branches", response_model=DetectBranchesResponse)
     async def detect_branches(
-        payload: _DetectBranchesRequest,
+        payload: DetectBranchesRequest,
         request: Request,
-    ) -> _DetectBranchesResponse:
+    ) -> DetectBranchesResponse:
         """Détecte les branches disponibles d'un dépôt Git via ls-remote."""
         import contextlib
 
@@ -322,7 +323,7 @@ def build_admin_router() -> APIRouter:
         branches: list[str] = branches_result if isinstance(branches_result, list) else []
         default: str | None = default_result if isinstance(default_result, str) else None
 
-        return _DetectBranchesResponse(branches=branches, default=default)
+        return DetectBranchesResponse(branches=branches, default=default)
 
     @router.post(
         "/workspaces/{name}/sources/{source_id}/sync",
