@@ -5,6 +5,8 @@ import type {
   GitCredentialUpdate,
   ProviderApiKeyCreate,
   ProviderApiKeyUpdate,
+  SshKeyGenerate,
+  SshKeyImport,
   VaultCreateRequest,
   VaultRotateApiKeyRequest,
   VaultTestConnectionResult,
@@ -214,6 +216,47 @@ export function useDeleteGitCredential(vaultId: string) {
       harpocrateVaultsApi.deleteGitCredential(vaultId, keyId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: [...ROOT_KEY, vaultId, "git-credentials"] });
+    },
+  });
+}
+
+export function useSshKeys(vaultId: string | null) {
+  return useQuery({
+    queryKey: [...ROOT_KEY, vaultId, "ssh-keys"],
+    queryFn: () => harpocrateVaultsApi.listSshKeys(vaultId as string),
+    enabled: !!vaultId,
+    staleTime: 30_000,
+  });
+}
+
+export function useImportSshKey(vaultId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: SshKeyImport) =>
+      harpocrateVaultsApi.importSshKey(vaultId, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [...ROOT_KEY, vaultId, "ssh-keys"] });
+    },
+  });
+}
+
+export function useGenerateSshKey(vaultId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: SshKeyGenerate) =>
+      harpocrateVaultsApi.generateSshKey(vaultId, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [...ROOT_KEY, vaultId, "ssh-keys"] });
+    },
+  });
+}
+
+export function useDeleteSshKey(vaultId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (keyId: string) => harpocrateVaultsApi.deleteSshKey(vaultId, keyId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [...ROOT_KEY, vaultId, "ssh-keys"] });
     },
   });
 }

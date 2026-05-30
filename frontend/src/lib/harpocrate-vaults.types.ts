@@ -132,3 +132,30 @@ export type GitCredentialUpdate = {
   value?: string;
   valid_days?: number | null;
 };
+
+export type SshKeyType = "ed25519" | "rsa-4096" | "ecdsa-256";
+
+export type SshKey = {
+  id: string;
+  key_id: string;
+  name: string;
+  key_type: string;
+  public_key: string;
+  passphrase_protected: boolean;
+  harpo_path: string;
+  created_at: string;
+};
+
+export type SshKeyImport = {
+  key_id: string;
+  name: string;
+  private_key: string;
+  public_key: string;
+  passphrase?: string | null;
+};
+
+export type SshKeyGenerate = {
+  key_id: string;
+  name: string;
+  key_type: SshKeyType;
+};

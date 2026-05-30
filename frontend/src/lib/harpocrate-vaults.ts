@@ -8,6 +8,9 @@ import type {
   ProviderApiKeyUpdate,
   SecretListResponse,
   SecretTypeSummary,
+  SshKey,
+  SshKeyGenerate,
+  SshKeyImport,
   VaultCreateRequest,
   VaultRevealApiKeyResponse,
   VaultRotateApiKeyRequest,
@@ -92,4 +95,16 @@ export const harpocrateVaultsApi = {
 
   deleteGitCredential: (vaultId: string, keyId: string) =>
     api.delete<void>(`${BASE}/${vaultId}/git-credentials/${keyId}`),
+
+  listSshKeys: (vaultId: string) =>
+    api.get<SshKey[]>(`${BASE}/${vaultId}/ssh-keys`),
+
+  importSshKey: (vaultId: string, payload: SshKeyImport) =>
+    api.post<SshKey>(`${BASE}/${vaultId}/ssh-keys/import`, payload),
+
+  generateSshKey: (vaultId: string, payload: SshKeyGenerate) =>
+    api.post<SshKey>(`${BASE}/${vaultId}/ssh-keys/generate`, payload),
+
+  deleteSshKey: (vaultId: string, keyId: string) =>
+    api.delete<void>(`${BASE}/${vaultId}/ssh-keys/${keyId}`),
 };
