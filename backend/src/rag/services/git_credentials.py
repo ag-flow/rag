@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -57,7 +58,7 @@ async def list_git_credentials(
     vault_id: str,
 ) -> list[GitCredentialOut]:
     rows = await conn.fetch(
-        "SELECT id, key_id, label, host, scope_url, harpo_path, created_at "
+        "SELECT id, key_id, label, host, scope_url, harpo_path, expires_at, created_at "
         "FROM git_credentials WHERE vault_id = $1::uuid "
         "ORDER BY host, key_id",
         vault_id,
@@ -79,18 +80,25 @@ async def create_git_credential(
     client = await _get_vault_client(conn, vault, vault_svc)
     await asyncio.to_thread(client.set_secret, secret_path, req.value)
 
+    expires_at = (
+        datetime.now(UTC) + timedelta(days=req.valid_days)
+        if req.valid_days is not None
+        else None
+    )
+
     try:
         row = await conn.fetchrow(
             "INSERT INTO git_credentials "
-            "(key_id, label, host, scope_url, vault_id, harpo_path) "
-            "VALUES ($1, $2, $3, $4, $5::uuid, $6) "
-            "RETURNING id, key_id, label, host, scope_url, harpo_path, created_at",
+            "(key_id, label, host, scope_url, vault_id, harpo_path, expires_at) "
+            "VALUES ($1, $2, $3, $4, $5::uuid, $6, $7) "
+            "RETURNING id, key_id, label, host, scope_url, harpo_path, expires_at, created_at",
             req.key_id,
             req.label,
             req.host,
             req.scope_url,
             vault["id"],
             vault_ref,
+            expires_at,
         )
     except asyncpg.UniqueViolationError as exc:
         # Rollback Harpocrate best-effort (idempotent)
@@ -117,7 +125,7 @@ async def update_git_credential(
     req: GitCredentialUpdate,
 ) -> GitCredentialOut | None:
     row = await conn.fetchrow(
-        "SELECT id, key_id, label, host, scope_url, harpo_path, created_at "
+        "SELECT id, key_id, label, host, scope_url, harpo_path, expires_at, created_at "
         "FROM git_credentials WHERE id = $1::uuid AND vault_id = $2::uuid",
         key_id,
         vault["id"],
@@ -126,18 +134,24 @@ async def update_git_credential(
         return None
 
     if req.value is not None:
-        # harpo_path est un vault_ref -> extraire le chemin reel pour Harpocrate
         _, secret_path = parse_ref(row["harpo_path"])
         client = await _get_vault_client(conn, vault, vault_svc)
         await asyncio.to_thread(client.set_secret, secret_path, req.value)
 
     new_label = req.label if req.label is not None else row["label"]
     new_scope_url = req.scope_url if req.scope_url is not None else row["scope_url"]
+    new_expires_at = (
+        datetime.now(UTC) + timedelta(days=req.valid_days)
+        if req.valid_days is not None
+        else row["expires_at"]
+    )
     updated = await conn.fetchrow(
-        "UPDATE git_credentials SET label = $1, scope_url = $2 WHERE id = $3::uuid "
-        "RETURNING id, key_id, label, host, scope_url, harpo_path, created_at",
+        "UPDATE git_credentials SET label = $1, scope_url = $2, expires_at = $3 "
+        "WHERE id = $4::uuid "
+        "RETURNING id, key_id, label, host, scope_url, harpo_path, expires_at, created_at",
         new_label,
         new_scope_url,
+        new_expires_at,
         key_id,
     )
     log.info("git_credential.updated", id=key_id)

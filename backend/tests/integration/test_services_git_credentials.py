@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
@@ -187,3 +188,84 @@ async def test_delete_unreferenced(pool: asyncpg.Pool) -> None:
     async with pool.acquire() as conn:
         keys = await list_git_credentials(conn, vault_id=vault["id"])
     assert keys == []
+
+
+async def test_create_with_valid_days_sets_expires_at(pool: asyncpg.Pool) -> None:
+    vault = await _seed_vault(pool, "v6")
+    svc = _mock_vault_svc()
+
+    with patch("rag.services.git_credentials.HarpocrateVaultClient"):
+        async with pool.acquire() as conn:
+            created = await create_git_credential(
+                conn,
+                vault=vault,
+                vault_svc=svc,
+                req=GitCredentialCreate(
+                    key_id="exp-pat",
+                    label="Expiring",
+                    host="github",
+                    value="ghp_x",
+                    valid_days=90,
+                ),
+            )
+
+    assert created.expires_at is not None
+    expected = datetime.now(UTC) + timedelta(days=90)
+    assert abs((created.expires_at - expected).total_seconds()) < 5
+
+
+async def test_create_without_valid_days_expires_at_is_none(pool: asyncpg.Pool) -> None:
+    vault = await _seed_vault(pool, "v7")
+    svc = _mock_vault_svc()
+
+    with patch("rag.services.git_credentials.HarpocrateVaultClient"):
+        async with pool.acquire() as conn:
+            created = await create_git_credential(
+                conn,
+                vault=vault,
+                vault_svc=svc,
+                req=GitCredentialCreate(
+                    key_id="no-exp",
+                    label="No expiry",
+                    host="gitlab",
+                    value="glpat_x",
+                ),
+            )
+
+    assert created.expires_at is None
+
+
+async def test_update_valid_days_recalculates_expires_at(pool: asyncpg.Pool) -> None:
+    vault = await _seed_vault(pool, "v8")
+    svc = _mock_vault_svc()
+
+    with patch("rag.services.git_credentials.HarpocrateVaultClient"):
+        async with pool.acquire() as conn:
+            created = await create_git_credential(
+                conn,
+                vault=vault,
+                vault_svc=svc,
+                req=GitCredentialCreate(
+                    key_id="upd-exp",
+                    label="L",
+                    host="github",
+                    value="ghp_x",
+                ),
+            )
+
+    assert created.expires_at is None
+
+    with patch("rag.services.git_credentials.HarpocrateVaultClient"):
+        async with pool.acquire() as conn:
+            updated = await update_git_credential(
+                conn,
+                key_id=str(created.id),
+                vault=vault,
+                vault_svc=svc,
+                req=GitCredentialUpdate(valid_days=30),
+            )
+
+    assert updated is not None
+    assert updated.expires_at is not None
+    expected = datetime.now(UTC) + timedelta(days=30)
+    assert abs((updated.expires_at - expected).total_seconds()) < 5
