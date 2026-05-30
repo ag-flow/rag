@@ -49,6 +49,7 @@ export function AddGitKeyDialog({ vaultId, open, onOpenChange }: Props) {
   const [scopeUrl, setScopeUrl] = useState("");
   const [value, setValue] = useState("");
   const [keyIdError, setKeyIdError] = useState("");
+  const [validDays, setValidDays] = useState("");
 
   const harpoPath = host && keyId ? `/git/${host}/${keyId}` : "";
 
@@ -69,6 +70,7 @@ export function AddGitKeyDialog({ vaultId, open, onOpenChange }: Props) {
       setScopeUrl("");
       setValue("");
       setKeyIdError("");
+      setValidDays("");
     }
   }
 
@@ -90,6 +92,7 @@ export function AddGitKeyDialog({ vaultId, open, onOpenChange }: Props) {
         host,
         scope_url: scopeUrl.trim() || null,
         value,
+        valid_days: validDays ? parseInt(validDays, 10) : null,
       });
       toast({ title: t("gitkeys.created_toast") });
       handleClose(false);
@@ -182,6 +185,22 @@ export function AddGitKeyDialog({ vaultId, open, onOpenChange }: Props) {
               placeholder="ghp_…"
               className="mt-1 font-mono"
             />
+          </div>
+
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-slate-600">
+              {t("gitkeys.field_valid_days")}
+            </Label>
+            <Input
+              type="number"
+              min={1}
+              step={1}
+              value={validDays}
+              onChange={(e) => setValidDays(e.target.value)}
+              placeholder="90"
+              className="mt-1"
+            />
+            <p className="mt-1 text-xs text-slate-400">{t("gitkeys.field_valid_days_help")}</p>
           </div>
 
           {harpoPath && (
