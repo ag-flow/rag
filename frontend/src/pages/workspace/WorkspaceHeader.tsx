@@ -5,7 +5,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { formatRelativeTime } from "@/lib/relativeTime";
@@ -14,12 +13,10 @@ import type { Workspace } from "@/lib/workspaces.types";
 interface Props {
   workspace: Workspace;
   onReindex: () => void;
-  onReveal: () => void;
-  onRotate: () => void;
   onDelete: () => void;
 }
 
-export function WorkspaceHeader({ workspace, onReindex, onReveal, onRotate, onDelete }: Props) {
+export function WorkspaceHeader({ workspace, onReindex, onDelete }: Props) {
   const { t } = useTranslation("workspace");
   return (
     <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-white sticky top-0 z-10">
@@ -42,9 +39,6 @@ export function WorkspaceHeader({ workspace, onReindex, onReveal, onRotate, onDe
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={onReveal}>{t("header.menu.reveal")}</DropdownMenuItem>
-            <DropdownMenuItem onSelect={onRotate}>{t("header.menu.rotate")}</DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={onDelete} className="text-red-600">
               {t("header.menu.delete")}
             </DropdownMenuItem>

@@ -1,58 +1,21 @@
 import { useTranslation } from "react-i18next";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { AlertTriangle, Eye, Info, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { AlertTriangle, Info } from "lucide-react";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { useToast } from "@/hooks/useToast";
-import { useUpdateApiKeyRef } from "@/hooks/useWorkspaces";
 import { useRerankConfig } from "@/hooks/useRerank";
 import type { Workspace } from "@/lib/workspaces.types";
 import { formatRelativeTime } from "@/lib/relativeTime";
 
-const schema = z.object({
-  api_key_ref: z
-    .string()
-    .min(1)
-    .regex(/^[a-zA-Z0-9_]+$/, "alphanum_underscore_only"),
-});
-
-type FormValues = z.infer<typeof schema>;
-
 interface Props {
   workspace: Workspace;
   enabled: boolean;
-  onReveal: () => void;
-  onRotate: () => void;
 }
 
-export function WorkspaceDetailTab({ workspace, enabled, onReveal, onRotate }: Props) {
+export function WorkspaceDetailTab({ workspace, enabled }: Props) {
   const { t } = useTranslation("workspace");
-  const { toast } = useToast();
-  const updateRef = useUpdateApiKeyRef(workspace.name);
   const { data: rerankData, isLoading: rerankLoading } = useRerankConfig(workspace.name, enabled);
-  const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: { api_key_ref: workspace.indexer.api_key_ref ?? "" },
-  });
-
-  const onSubmit = (values: FormValues) => {
-    updateRef.mutate(
-      { indexer: { api_key_ref: values.api_key_ref } },
-      {
-        onSuccess: () => {
-          toast({ title: t("detail.save.success") });
-          form.reset({ api_key_ref: values.api_key_ref });
-        },
-        onError: () => toast({ title: t("detail.save.error"), variant: "destructive" }),
-      },
-    );
-  };
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+    <div className="space-y-6">
       {/* Section 1 : Stats */}
       <section>
         <h3 className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">
@@ -71,44 +34,7 @@ export function WorkspaceDetailTab({ workspace, enabled, onReveal, onRotate }: P
         </div>
       </section>
 
-      {/* Section 2 : API key workspace */}
-      <section>
-        <h3 className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">
-          {t("detail.apikey.title")}
-        </h3>
-        <div className="flex items-center gap-2">
-          <code className="bg-slate-100 px-3 py-1 rounded text-xs font-mono">
-            ••••••••••••••••••••••••
-          </code>
-          <Button type="button" size="sm" variant="outline" onClick={onReveal}>
-            <Eye className="h-3.5 w-3.5" /> {t("detail.apikey.reveal")}
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={onRotate}>
-            <RefreshCw className="h-3.5 w-3.5" /> {t("detail.apikey.rotate")}
-          </Button>
-        </div>
-      </section>
-
-      {/* Section 3 : api_key_ref éditable */}
-      <section>
-        <h3 className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">
-          {t("detail.apiKeyRef.title")}{" "}
-          <span className="text-emerald-600 normal-case">— {t("detail.apiKeyRef.editable")}</span>
-        </h3>
-        <div className="flex items-center gap-2">
-          <Input {...form.register("api_key_ref")} className="font-mono text-sm flex-1" />
-          <Button type="submit" size="sm" disabled={!form.formState.isDirty || updateRef.isPending}>
-            {t("detail.apiKeyRef.save")}
-          </Button>
-        </div>
-        {form.formState.errors.api_key_ref && (
-          <p className="mt-1 text-xs text-red-600">
-            {t(`detail.apiKeyRef.errors.${form.formState.errors.api_key_ref.message ?? "invalid"}`)}
-          </p>
-        )}
-      </section>
-
-      {/* Section 4 : Identifiants read-only */}
+      {/* Section 2 : Identifiants read-only */}
       <section>
         <h3 className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">
           {t("detail.ids.title")}
@@ -125,7 +51,7 @@ export function WorkspaceDetailTab({ workspace, enabled, onReveal, onRotate }: P
         </div>
       </section>
 
-      {/* Section 5 : Reranking */}
+      {/* Section 3 : Reranking */}
       <section>
         <h3 className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">
           {t("rerank.title")}
@@ -154,7 +80,7 @@ export function WorkspaceDetailTab({ workspace, enabled, onReveal, onRotate }: P
         </div>
       </section>
 
-      {/* Section 6 : Modèle d'indexation (immuable) */}
+      {/* Section 4 : Modèle d'indexation (immuable) */}
       <section>
         <h3 className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">
           {t("model.title")}
@@ -174,6 +100,6 @@ export function WorkspaceDetailTab({ workspace, enabled, onReveal, onRotate }: P
           <p className="text-amber-900">{t("model.immutableNote")}</p>
         </div>
       </section>
-    </form>
+    </div>
   );
 }

@@ -12,8 +12,6 @@ import { WorkspaceWebhooksTab } from "./WorkspaceWebhooksTab";
 import { WorkspacePlaygroundTab } from "./WorkspacePlaygroundTab";
 import { WorkspaceTriggersTab } from "./WorkspaceTriggersTab";
 import { WorkspaceApiKeysTab } from "./WorkspaceApiKeysTab";
-import { RevealApiKeyDialog } from "./RevealApiKeyDialog";
-import { RotateApiKeyDialog } from "./RotateApiKeyDialog";
 import { ReindexConfirmDialog } from "./ReindexConfirmDialog";
 import { DeleteWorkspaceAlert } from "./DeleteWorkspaceAlert";
 
@@ -21,7 +19,7 @@ interface Props {
   name: string;
 }
 
-type DialogKey = "reveal" | "rotate" | "reindex" | "delete" | null;
+type DialogKey = "reindex" | "delete" | null;
 
 export function WorkspaceDetailPanel({ name }: Props) {
   const { t } = useTranslation("workspace");
@@ -42,8 +40,6 @@ export function WorkspaceDetailPanel({ name }: Props) {
       <WorkspaceHeader
         workspace={ws}
         onReindex={() => setOpenDialog("reindex")}
-        onReveal={() => setOpenDialog("reveal")}
-        onRotate={() => setOpenDialog("rotate")}
         onDelete={() => setOpenDialog("delete")}
       />
       <Tabs value={activeTab} onValueChange={setActiveTab} className="px-6 py-4">
@@ -60,12 +56,7 @@ export function WorkspaceDetailPanel({ name }: Props) {
           <TabsTrigger value="apikeys">{t("tabs.apikeys")}</TabsTrigger>
         </TabsList>
         <TabsContent value="detail" className="pt-4">
-          <WorkspaceDetailTab
-            workspace={ws}
-            enabled={activeTab === "detail"}
-            onReveal={() => setOpenDialog("reveal")}
-            onRotate={() => setOpenDialog("rotate")}
-          />
+          <WorkspaceDetailTab workspace={ws} enabled={activeTab === "detail"} />
         </TabsContent>
         <TabsContent value="sources" className="pt-4">
           <WorkspaceSourcesTab name={ws.name} enabled={activeTab === "sources"} />
@@ -89,16 +80,6 @@ export function WorkspaceDetailPanel({ name }: Props) {
           <WorkspaceApiKeysTab workspaceName={ws.name} />
         </TabsContent>
       </Tabs>
-      <RevealApiKeyDialog
-        name={ws.name}
-        open={openDialog === "reveal"}
-        onOpenChange={(o) => !o && setOpenDialog(null)}
-      />
-      <RotateApiKeyDialog
-        name={ws.name}
-        open={openDialog === "rotate"}
-        onOpenChange={(o) => !o && setOpenDialog(null)}
-      />
       <ReindexConfirmDialog
         name={ws.name}
         open={openDialog === "reindex"}
