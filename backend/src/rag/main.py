@@ -26,6 +26,7 @@ from rag.api.enrichments import router_prompts as enrichment_prompts_router
 from rag.api.enrichments import router_triggers as enrichment_triggers_router
 from rag.api.errors import register_error_handlers
 from rag.api.health import build_health_router
+from rag.api.git_webhooks import build_git_webhooks_router
 from rag.api.mcp import build_mcp_router
 from rag.api.playground import router_admin as playground_admin_router
 from rag.api.playground import router_chat as playground_chat_router
@@ -251,6 +252,7 @@ def build_app(
     app.include_router(build_auth_methods_router())
     app.include_router(build_workspace_router())
     app.include_router(build_mcp_router())
+    app.include_router(build_git_webhooks_router())
     app.include_router(ws_router)
     app.include_router(playground_admin_router)
     app.include_router(playground_chat_router)
