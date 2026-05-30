@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Eye, RefreshCw } from "lucide-react";
+import { Eye, Info, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/useToast";
@@ -118,6 +118,27 @@ export function WorkspaceDetailTab({ workspace, onReveal, onRotate }: Props) {
             {t("detail.ids.id")}:{" "}
             <code className="bg-slate-100 px-2 py-0.5 rounded text-xs">{workspace.id}</code>
           </div>
+        </div>
+      </section>
+
+      {/* Section 5 : Modèle d'indexation (immuable) */}
+      <section>
+        <h3 className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">
+          {t("model.title")}
+        </h3>
+        <dl className="grid grid-cols-2 gap-2 text-sm mb-3">
+          <dt className="text-slate-500">{t("model.provider")}</dt>
+          <dd className="font-mono">{workspace.indexer.provider}</dd>
+          <dt className="text-slate-500">{t("model.model")}</dt>
+          <dd className="font-mono">{workspace.indexer.model}</dd>
+          <dt className="text-slate-500">{t("model.base_url")}</dt>
+          <dd className="font-mono">{workspace.indexer.base_url ?? "—"}</dd>
+          <dt className="text-slate-500">{t("model.api_key_ref")}</dt>
+          <dd className="font-mono">{workspace.indexer.api_key_ref ?? "—"}</dd>
+        </dl>
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 flex gap-2 text-sm">
+          <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+          <p className="text-amber-900">{t("model.immutableNote")}</p>
         </div>
       </section>
     </form>

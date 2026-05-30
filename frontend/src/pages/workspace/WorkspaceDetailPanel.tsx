@@ -7,7 +7,6 @@ import { WorkspaceHeader } from "./WorkspaceHeader";
 import { WorkspaceDetailTab } from "./WorkspaceDetailTab";
 import { WorkspaceSourcesTab } from "./WorkspaceSourcesTab";
 import { WorkspaceJobsTab } from "./WorkspaceJobsTab";
-import { WorkspaceModelTab } from "./WorkspaceModelTab";
 import { WorkspaceRerankTab } from "./WorkspaceRerankTab";
 import { WorkspaceChunkingTab } from "./WorkspaceChunkingTab";
 import { WorkspaceWebhooksTab } from "./WorkspaceWebhooksTab";
@@ -55,7 +54,6 @@ export function WorkspaceDetailPanel({ name }: Props) {
             {t("tabs.sources", { count: ws.sources_count })}
           </TabsTrigger>
           <TabsTrigger value="jobs">{t("tabs.jobs")}</TabsTrigger>
-          <TabsTrigger value="model">{t("tabs.model")}</TabsTrigger>
           <TabsTrigger value="rerank">{t("tabs.rerank")}</TabsTrigger>
           <TabsTrigger value="chunking">{t("tabs.chunking")}</TabsTrigger>
           <TabsTrigger value="webhooks">{t("webhooks.tab")}</TabsTrigger>
@@ -75,9 +73,6 @@ export function WorkspaceDetailPanel({ name }: Props) {
         </TabsContent>
         <TabsContent value="jobs" className="pt-4">
           <WorkspaceJobsTab name={ws.name} enabled={activeTab === "jobs"} />
-        </TabsContent>
-        <TabsContent value="model" className="pt-4">
-          <WorkspaceModelTab workspace={ws} />
         </TabsContent>
         <TabsContent value="rerank" className="pt-4">
           <WorkspaceRerankTab workspace={ws} enabled={activeTab === "rerank"} />
