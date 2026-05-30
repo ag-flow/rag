@@ -13,12 +13,11 @@ import structlog
 from rag.api.errors import (
     SourceNotFound,
     SourceTypeNotSupported,
-    VaultNotFoundForWorkspace,
     WorkspaceNotFound,
 )
 from rag.db.helpers import fetch_all, fetch_one
 from rag.schemas.admin import SourceCreateRequest, SourceUpdateRequest
-from rag.secrets.refs import build_ref, is_vault_ref
+from rag.secrets.refs import is_vault_ref
 from rag.services.harpocrate_vaults import HarpocrateVaultsService
 from rag.sync.git_ops import detect_default_branch
 
@@ -69,56 +68,42 @@ async def add_source(
 ) -> dict[str, Any]:
     """Crée une source pour un workspace.
 
-    Si `auth_value` est fourni, stocke la clé dans Harpocrate sous
-    ``<workspace_name>/<source_name>/auth`` et construit la ref dans config.
+    Les champs d'authentification (auth_ref, ssh_key_ref, ssh_username,
+    git_provider, auth_type) sont stockés directement dans le config JSONB.
+    Le credential existe déjà dans Harpocrate ; on ne l'écrit plus ici.
     """
     if request.type != "git":
         raise SourceTypeNotSupported(request.type)
 
     ws_id = await _get_workspace_id_or_raise(config_pool, workspace_name)
-
     config = dict(request.config)
-    auth_path: str | None = None
 
-    if request.auth_value:
-        async with config_pool.acquire() as conn:
-            vault = await harpocrate_vaults_service.get_by_name(conn, request.api_key_vault)
-        if vault is None:
-            raise VaultNotFoundForWorkspace(request.api_key_vault)
-        auth_path = f"{workspace_name}/{request.name}/auth"
-        async with config_pool.acquire() as conn:
-            await harpocrate_vaults_service.write_secret(
-                conn,
-                vault_name=request.api_key_vault,
-                path=auth_path,
-                value=request.auth_value,
-            )
-        config["auth_ref"] = build_ref(vault.api_key_id, auth_path)
+    if request.git_provider:
+        config["git_provider"] = request.git_provider
+    if request.auth_type:
+        config["auth_type"] = request.auth_type
+    if request.auth_ref:
+        config["auth_ref"] = request.auth_ref
+    if request.ssh_key_ref:
+        config["ssh_key_ref"] = request.ssh_key_ref
+    if request.ssh_username:
+        config["ssh_username"] = request.ssh_username
 
-    config, branch_warning = await _resolve_branch_for_write(
-        config, token=request.auth_value
-    )
+    # Pour detect_default_branch : token None si SSH (fallback "main" acceptable)
+    config, branch_warning = await _resolve_branch_for_write(config, token=None)
 
-    try:
-        async with config_pool.acquire() as conn:
-            row = await conn.fetchrow(
-                """
-                INSERT INTO workspace_sources (workspace_id, name, type, config, next_sync_at)
-                VALUES ($1, $2, $3, $4::jsonb, now())
-                RETURNING id, name, type, config, last_indexed_at, created_at
-                """,
-                ws_id,
-                request.name,
-                request.type,
-                json.dumps(config),
-            )
-    except Exception:
-        if auth_path is not None:
-            async with config_pool.acquire() as conn:
-                await harpocrate_vaults_service.delete_secret(
-                    conn, vault_name=request.api_key_vault, path=auth_path
-                )
-        raise
+    async with config_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO workspace_sources (workspace_id, name, type, config, next_sync_at)
+            VALUES ($1, $2, $3, $4::jsonb, now())
+            RETURNING id, name, type, config, last_indexed_at, created_at
+            """,
+            ws_id,
+            request.name,
+            request.type,
+            json.dumps(config),
+        )
 
     if row is None:
         raise RuntimeError("unexpected None from RETURNING")
@@ -155,13 +140,12 @@ async def update_source(
 ) -> dict[str, Any]:
     """Met à jour la config d'une source.
 
+    Les champs d'authentification sont préservés depuis le config actuel si
+    non fournis dans la requête. Aucune écriture dans Harpocrate.
     Lève SourceNotFound si l'id n'appartient pas au workspace.
     """
     ws_id = await _get_workspace_id_or_raise(config_pool, workspace_name)
 
-    config = dict(request.config)
-
-    # Toujours lire le config actuel pour préserver auth_ref si aucun nouveau PAT fourni
     current = await fetch_one(
         config_pool,
         """
@@ -174,58 +158,27 @@ async def update_source(
     )
     if current is None:
         raise SourceNotFound(source_id)
+
     raw = current["config"]
     current_config = json.loads(raw) if isinstance(raw, str) else dict(raw)
-    existing_ref: str | None = current_config.get("auth_ref")
 
-    if request.auth_value:
-        # Détermine le vault : priorité au vault explicitement fourni dans la requête
-        source_name = current["name"] or source_id
-        if request.api_key_vault:
-            vault_name = request.api_key_vault
-            auth_path = f"{workspace_name}/{source_name}/auth"
-            existing_ref = None  # force recalcul de la ref
-        elif existing_ref:
-            from rag.secrets.refs import parse_ref
-            vault_api_key_id, auth_path = parse_ref(existing_ref)
-            async with config_pool.acquire() as conn:
-                vault = await harpocrate_vaults_service.get_by_api_key_id(conn, vault_api_key_id)
-            vault_name = vault.name if vault else None
-        else:
-            vault_name = None
-            auth_path = f"{workspace_name}/{source_name}/auth"
+    config = dict(request.config)
 
-        if vault_name:
-            async with config_pool.acquire() as conn:
-                await harpocrate_vaults_service.write_secret(
-                    conn,
-                    vault_name=vault_name,
-                    path=auth_path,
-                    value=request.auth_value,
-                )
-            if existing_ref:
-                config["auth_ref"] = existing_ref
-            else:
-                async with config_pool.acquire() as conn:
-                    vault_obj = await harpocrate_vaults_service.get_by_name(conn, vault_name)
-                if vault_obj:
-                    config["auth_ref"] = build_ref(vault_obj.api_key_id, auth_path)
-    elif existing_ref:
-        # Pas de nouveau PAT → on préserve la ref existante
-        config["auth_ref"] = existing_ref
+    # Préserver les champs auth existants si non fournis dans la requête
+    for field in ("git_provider", "auth_type", "auth_ref", "ssh_key_ref", "ssh_username"):
+        new_val = getattr(request, field, None)
+        if new_val is not None:
+            config[field] = new_val
+        elif field in current_config:
+            config[field] = current_config[field]
 
-    detect_token: str | None = request.auth_value
-    if not detect_token and existing_ref and is_vault_ref(existing_ref):
-        try:
-            detect_token = await resolver.resolve_with_retry(existing_ref)
-        except Exception:
-            detect_token = None
-    config, branch_warning = await _resolve_branch_for_write(config, token=detect_token)
+    config, branch_warning = await _resolve_branch_for_write(config, token=None)
 
     async with config_pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            UPDATE workspace_sources SET config = $1::jsonb
+            UPDATE workspace_sources
+            SET config = $1::jsonb
             WHERE id = $2::uuid AND workspace_id = $3
             RETURNING id, name, type, config, last_indexed_at, created_at
             """,
@@ -233,6 +186,7 @@ async def update_source(
             source_id,
             ws_id,
         )
+
     if row is None:
         raise SourceNotFound(source_id)
     log.info("source.updated", workspace=workspace_name, source_id=source_id)
