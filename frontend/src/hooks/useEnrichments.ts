@@ -117,3 +117,11 @@ export function useDeleteTriggerPrompt(workspaceName: string, triggerId: string)
       }),
   });
 }
+
+export function useLanguages() {
+  return useQuery({
+    queryKey: ["languages"],
+    queryFn: () => import("@/lib/enrichments").then((m) => m.languagesApi.list()),
+    staleTime: 300_000,
+  });
+}

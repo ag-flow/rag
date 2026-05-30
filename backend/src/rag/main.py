@@ -21,6 +21,7 @@ from rag.api.admin_ssh_keys import router_global as admin_ssh_keys_global_router
 from rag.api.admin_webhooks import build_webhooks_router
 from rag.api.auth import build_auth_router
 from rag.api.auth_methods import build_auth_methods_router
+from rag.api.enrichments import router_languages as enrichment_languages_router
 from rag.api.enrichments import router_prompts as enrichment_prompts_router
 from rag.api.enrichments import router_triggers as enrichment_triggers_router
 from rag.api.errors import register_error_handlers
@@ -253,6 +254,7 @@ def build_app(
     app.include_router(ws_router)
     app.include_router(playground_admin_router)
     app.include_router(playground_chat_router)
+    app.include_router(enrichment_languages_router)
     app.include_router(enrichment_prompts_router)
     app.include_router(enrichment_triggers_router)
     register_error_handlers(app)

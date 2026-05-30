@@ -1,4 +1,6 @@
 import { api } from "@/lib/api";
+
+export type Language = { code: string; label: string; built_in: boolean };
 import type {
   PromptTemplate,
   PromptTemplateCreate,
@@ -61,4 +63,8 @@ export const enrichmentsApi = {
     api.delete<void>(
       `/api/admin/workspaces/${workspaceName}/triggers/${triggerId}/prompts/${promptId}`,
     ),
+};
+
+export const languagesApi = {
+  list: () => api.get<Language[]>("/api/admin/config/languages"),
 };

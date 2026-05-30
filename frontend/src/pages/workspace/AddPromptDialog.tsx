@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useCreatePrompt } from "@/hooks/useEnrichments";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { useCreatePrompt, useLanguages } from "@/hooks/useEnrichments";
 import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/lib/api";
 
@@ -20,6 +23,7 @@ export function AddPromptDialog({ open, onOpenChange }: Props) {
   const { t } = useTranslation("prompts");
   const { toast } = useToast();
   const mutation = useCreatePrompt();
+  const { data: languages = [] } = useLanguages();
 
   const [name, setName] = useState("");
   const [language, setLanguage] = useState("");
@@ -88,12 +92,18 @@ export function AddPromptDialog({ open, onOpenChange }: Props) {
               <Label className="text-xs uppercase tracking-wider text-slate-600">
                 {t("field_language")}
               </Label>
-              <Input
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                placeholder={t("field_language_placeholder")}
-                className="mt-1"
-              />
+              <Select value={language} onValueChange={setLanguage}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder={t("field_language_placeholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {languages.map((l) => (
+                    <SelectItem key={l.code} value={l.code}>
+                      {l.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

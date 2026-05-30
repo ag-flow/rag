@@ -15,7 +15,7 @@
   "add_dialog_title": "New prompt template",
   "field_name": "Name (slug)",
   "field_language": "Language",
-  "field_language_placeholder": "csharp, python, typescript…",
+  "field_language_placeholder": "Select a language…",
   "field_metadata_key": "Metadata key",
   "field_metadata_key_placeholder": "documentation, public_functions…",
   "field_result_type": "Result type",

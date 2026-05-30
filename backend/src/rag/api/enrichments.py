@@ -23,6 +23,24 @@ log = structlog.get_logger(__name__)
 
 _auth = [Depends(require_master_key_or_authenticated_admin)]
 
+# ─── Référentiel des langues ──────────────────────────────────────────────────
+
+router_languages = APIRouter(
+    prefix="/api/admin/config/languages",
+    tags=["config-languages"],
+    dependencies=_auth,
+)
+
+
+@router_languages.get("", response_model=list[dict])
+async def list_languages(request: Request) -> list[dict]:
+    pool: asyncpg.Pool = request.app.state.pools.config_pool
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT code, label, built_in FROM languages ORDER BY code"
+        )
+    return [dict(r) for r in rows]
+
 
 def _pool(request: Request) -> asyncpg.Pool:
     return request.app.state.pools.config_pool  # type: ignore[no-any-return]
