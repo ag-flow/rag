@@ -76,14 +76,20 @@ type SourceConfigInput = {
 export type SourceCreateRequest = {
   name: string;
   type: "git";
-  api_key_vault: string;
-  auth_value: string | null;
+  git_provider?: string;
+  auth_type: "token" | "ssh";
+  auth_ref?: string;
+  ssh_key_ref?: string;
+  ssh_username?: string;
   config: SourceConfigInput;
 };
 
 export type SourceUpdateRequest = {
-  api_key_vault?: string | null;
-  auth_value: string | null;
+  git_provider?: string;
+  auth_type?: "token" | "ssh";
+  auth_ref?: string;
+  ssh_key_ref?: string;
+  ssh_username?: string;
   config: SourceConfigInput;
 };
 
