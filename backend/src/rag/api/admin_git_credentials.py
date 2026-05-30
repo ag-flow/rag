@@ -7,10 +7,12 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from rag.auth.bearer import require_master_key_or_authenticated_admin
+from rag.auth.owner import get_current_owner_id
 from rag.schemas.git_credentials import (
     GitCredentialCreate,
     GitCredentialOut,
     GitCredentialUpdate,
+    GitCredentialWithVault,
 )
 from rag.services.git_credentials import (
     DuplicateGitCredentialError,
@@ -18,6 +20,7 @@ from rag.services.git_credentials import (
     create_git_credential,
     delete_git_credential,
     list_git_credentials,
+    list_git_credentials_by_host,
     update_git_credential,
 )
 
@@ -108,3 +111,22 @@ async def delete_key(
     if not deleted:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "git credential not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+router_global = APIRouter(
+    prefix="/api/admin/git-credentials",
+    tags=["admin-git-credentials"],
+    dependencies=[Depends(require_master_key_or_authenticated_admin)],
+)
+
+
+@router_global.get("/by-host", response_model=list[GitCredentialWithVault])
+async def list_by_host(
+    host: str,
+    request: Request,
+) -> list[GitCredentialWithVault]:
+    pool = _pool(request)
+    owner_id = get_current_owner_id(request)
+    async with pool.acquire() as conn:
+        rows = await list_git_credentials_by_host(conn, owner_id=owner_id, host=host)
+    return [GitCredentialWithVault.model_validate(r) for r in rows]

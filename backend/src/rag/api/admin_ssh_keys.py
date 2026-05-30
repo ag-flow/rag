@@ -7,13 +7,15 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from rag.auth.bearer import require_master_key_or_authenticated_admin
-from rag.schemas.ssh_keys import SshKeyGenerate, SshKeyImport, SshKeyOut
+from rag.auth.owner import get_current_owner_id
+from rag.schemas.ssh_keys import SshKeyGenerate, SshKeyImport, SshKeyOut, SshKeyWithVault
 from rag.services.ssh_keys import (
     DuplicateSshKeyError,
     delete_ssh_key,
     generate_ssh_key,
     import_ssh_key,
     list_ssh_keys,
+    list_ssh_keys_for_owner,
 )
 
 log = structlog.get_logger(__name__)
@@ -97,3 +99,21 @@ async def delete_key(
     if not deleted:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "ssh key not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+router_global = APIRouter(
+    prefix="/api/admin/ssh-keys",
+    tags=["admin-ssh-keys"],
+    dependencies=[Depends(require_master_key_or_authenticated_admin)],
+)
+
+
+@router_global.get("/all", response_model=list[SshKeyWithVault])
+async def list_all_for_owner(
+    request: Request,
+) -> list[SshKeyWithVault]:
+    pool = _pool(request)
+    owner_id = get_current_owner_id(request)
+    async with pool.acquire() as conn:
+        rows = await list_ssh_keys_for_owner(conn, owner_id=owner_id)
+    return [SshKeyWithVault.model_validate(r) for r in rows]
