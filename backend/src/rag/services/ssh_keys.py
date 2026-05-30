@@ -182,3 +182,22 @@ async def delete_ssh_key(
     await conn.execute("DELETE FROM ssh_keys WHERE id = $1::uuid", key_id)
     log.info("ssh_key.deleted", id=key_id, harpo_path=row["harpo_path"])
     return True
+
+
+async def list_ssh_keys_for_owner(
+    conn: asyncpg.Connection,
+    *,
+    owner_id: str,
+) -> list[dict]:
+    """Retourne toutes les ssh_keys des vaults accessibles à `owner_id`."""
+    rows = await conn.fetch(
+        "SELECT sk.id, sk.key_id, sk.name, sk.key_type, sk.public_key, "
+        "sk.passphrase_protected, sk.harpo_path, sk.created_at, "
+        "v.name AS vault_name, v.label AS vault_label "
+        "FROM ssh_keys sk "
+        "JOIN harpocrate_vaults v ON v.id = sk.vault_id "
+        "WHERE v.is_default = true OR v.owner_id = $1 "
+        "ORDER BY v.name, sk.key_id",
+        owner_id,
+    )
+    return [dict(r) for r in rows]

@@ -192,3 +192,24 @@ async def delete_git_credential(
     await conn.execute("DELETE FROM git_credentials WHERE id = $1::uuid", key_id)
     log.info("git_credential.deleted", id=key_id, harpo_path=row["harpo_path"])
     return True
+
+
+async def list_git_credentials_by_host(
+    conn: asyncpg.Connection,
+    *,
+    owner_id: str,
+    host: str,
+) -> list[dict]:
+    """Retourne les git_credentials pour `host` des vaults accessibles à `owner_id`."""
+    rows = await conn.fetch(
+        "SELECT gc.id, gc.key_id, gc.label, gc.host, gc.harpo_path, gc.created_at, "
+        "v.name AS vault_name, v.label AS vault_label "
+        "FROM git_credentials gc "
+        "JOIN harpocrate_vaults v ON v.id = gc.vault_id "
+        "WHERE gc.host = $1 "
+        "AND (v.is_default = true OR v.owner_id = $2) "
+        "ORDER BY v.name, gc.key_id",
+        host,
+        owner_id,
+    )
+    return [dict(r) for r in rows]

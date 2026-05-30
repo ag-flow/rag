@@ -55,3 +55,18 @@ class SshKeyOut(BaseModel):
     passphrase_protected: bool
     harpo_path: str
     created_at: datetime
+
+
+class SshKeyWithVault(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    key_id: str
+    name: str
+    key_type: str
+    public_key: str
+    passphrase_protected: bool
+    harpo_path: str
+    vault_name: str
+    vault_label: str
+    created_at: datetime
