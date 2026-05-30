@@ -45,6 +45,7 @@ def _build_payload(
     duration_ms: int | None,
     finished_at: str | None,
     error_message: str | None,
+    enrichments: list[dict] | None = None,
 ) -> dict[str, Any]:
     return {
         "event": event,
@@ -57,6 +58,7 @@ def _build_payload(
         "duration_ms": duration_ms,
         "finished_at": finished_at,
         "error_message": error_message,
+        "enrichments": enrichments or [],
     }
 
 
@@ -225,6 +227,7 @@ async def dispatch_webhooks(
     git_repo: str | None = None,
     git_branch: str | None = None,
     git_commit: str | None = None,
+    enrichments: list[dict] | None = None,
 ) -> None:
     """Appelle tous les webhooks actives du workspace en parallele. Fire-and-forget."""
     try:
@@ -247,6 +250,7 @@ async def dispatch_webhooks(
             duration_ms=duration_ms,
             finished_at=finished_at,
             error_message=error_message,
+            enrichments=enrichments or [],
         )
         payload_bytes = json.dumps(payload, default=str).encode("utf-8")
 

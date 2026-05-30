@@ -187,6 +187,7 @@ async def _execute_push_job(
     indexer: IndexerProtocol,
     webhook_secret: str | None,
     resolver: _ResolverProtocol | None,
+    client_provider: _ClientProviderProtocol,
 ) -> None:
     jid = str(job.job_id)
     final_status = "error"
@@ -194,6 +195,7 @@ async def _execute_push_job(
     files_skipped = 0
     error_message: str | None = None
     duration_ms: int | None = None
+    enrichment_results: list[dict] = []
 
     try:
         row = await config_pool.fetchrow(
@@ -236,6 +238,27 @@ async def _execute_push_job(
                 content_hash=content_hash,
                 indexer_used=job.indexer_used,
             )
+
+            # Enrichissements LLM post-indexation
+            try:
+                from rag.services.enrichments import run_enrichments
+                async with config_pool.acquire() as _enrich_conn:
+                    _enrichments = await run_enrichments(
+                        conn=_enrich_conn,
+                        indexer=indexer,
+                        workspace_id=str(job.workspace_id),
+                        workspace_name=job.workspace_name,
+                        path=path,
+                        content=content,
+                        content_hash=content_hash,
+                        vault_svc=client_provider,
+                        client_provider=client_provider,
+                        config_pool=config_pool,
+                    )
+                    enrichment_results.extend(_enrichments)
+            except Exception as _exc:
+                log.warning("sync.executor.enrichment_failed", path=path, error=str(_exc))
+
             await config_pool.execute(
                 """
                 UPDATE index_jobs
@@ -288,6 +311,7 @@ async def _execute_push_job(
         error_message=error_message,
         webhook_secret=webhook_secret,
         resolver=resolver,
+        enrichments=enrichment_results,
     )
 
 
@@ -322,6 +346,7 @@ async def execute_next_pending_job(
                 indexer=indexer,
                 webhook_secret=webhook_secret,
                 resolver=resolver,
+                client_provider=client_provider,
             )
         else:
             default_vault_name = await client_provider.get_default_vault_name()
@@ -332,6 +357,7 @@ async def execute_next_pending_job(
                 indexer=indexer,
                 resolver=resolver,
                 default_vault_name=default_vault_name,
+                client_provider=client_provider,
                 job_log_bus=job_log_bus,
                 webhook_secret=webhook_secret,
             )
@@ -354,6 +380,7 @@ async def _execute_git_job(
     indexer: IndexerProtocol,
     resolver: _ResolverProtocol,
     default_vault_name: str | None,
+    client_provider: _ClientProviderProtocol,
     job_log_bus: JobLogBus | None = None,
     webhook_secret: str | None,
 ) -> None:
@@ -472,6 +499,7 @@ async def _execute_git_job(
     files_skipped = 0
     changed_files: list[tuple[str, str]] = []  # (path, change_type)
     added_set = set(changes.added)
+    enrichment_results: list[dict] = []
 
     for path in changes.added + changes.modified:
         full = dest / path
@@ -501,6 +529,26 @@ async def _execute_git_job(
         )
         files_changed += 1
         changed_files.append((path, "added" if path in added_set else "modified"))
+
+        # Enrichissements LLM post-indexation
+        try:
+            from rag.services.enrichments import run_enrichments
+            async with config_pool.acquire() as _enrich_conn:
+                _enrichments = await run_enrichments(
+                    conn=_enrich_conn,
+                    indexer=indexer,
+                    workspace_id=str(job.workspace_id),
+                    workspace_name=job.workspace_name,
+                    path=path,
+                    content=content,
+                    content_hash=content_hash,
+                    vault_svc=client_provider,
+                    client_provider=client_provider,
+                    config_pool=config_pool,
+                )
+                enrichment_results.extend(_enrichments)
+        except Exception as _exc:
+            log.warning("sync.executor.enrichment_failed", path=path, error=str(_exc))
 
     for path in changes.deleted:
         await indexer.delete_file(workspace_id=job.workspace_id, path=path)
@@ -586,4 +634,5 @@ async def _execute_git_job(
         git_repo=url,
         git_branch=branch,
         git_commit=current,
+        enrichments=enrichment_results,
     )
