@@ -260,3 +260,12 @@ export function useDeleteSshKey(vaultId: string) {
     },
   });
 }
+
+export function useProviderKeysByProvider(provider: string | null) {
+  return useQuery({
+    queryKey: ["provider-keys-by-provider", provider],
+    queryFn: () => harpocrateVaultsApi.listProviderKeysByProvider(provider!),
+    enabled: !!provider,
+    staleTime: 30_000,
+  });
+}

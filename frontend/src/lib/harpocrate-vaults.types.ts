@@ -159,3 +159,14 @@ export type SshKeyGenerate = {
   name: string;
   key_type: SshKeyType;
 };
+
+export type ProviderApiKeyWithVault = {
+  id: string;
+  key_id: string;
+  label: string;
+  provider: string;
+  harpo_path: string;
+  vault_name: string;
+  vault_label: string;
+  created_at: string;
+};

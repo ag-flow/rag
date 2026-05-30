@@ -6,6 +6,7 @@ import type {
   ProviderApiKey,
   ProviderApiKeyCreate,
   ProviderApiKeyUpdate,
+  ProviderApiKeyWithVault,
   SecretListResponse,
   SecretTypeSummary,
   SshKey,
@@ -107,4 +108,9 @@ export const harpocrateVaultsApi = {
 
   deleteSshKey: (vaultId: string, keyId: string) =>
     api.delete<void>(`${BASE}/${vaultId}/ssh-keys/${keyId}`),
+
+  listProviderKeysByProvider: (provider: string) =>
+    api.get<ProviderApiKeyWithVault[]>(
+      `/api/admin/provider-keys/by-provider?provider=${encodeURIComponent(provider)}`,
+    ),
 };
