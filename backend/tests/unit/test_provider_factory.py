@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from rag.indexer.providers.azure_openai import AzureOpenAIProvider
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.ollama import OllamaProvider
 from rag.indexer.providers.openai import OpenAIProvider
@@ -54,5 +55,25 @@ def test_make_provider_unknown_raises_value_error() -> None:
             provider="cohere",
             model="x",
             api_key=None,
+            base_url=None,
+        )
+
+
+def test_make_provider_azure_openai_returns_azure_instance() -> None:
+    p = make_provider(
+        provider="azure-openai",
+        model="text-embedding-3-small",
+        api_key="az-key",
+        base_url="https://myresource.openai.azure.com/openai/deployments/text-embedding-3-small",
+    )
+    assert isinstance(p, AzureOpenAIProvider)
+
+
+def test_make_provider_azure_openai_without_base_url_raises() -> None:
+    with pytest.raises(ValueError, match="base_url"):
+        make_provider(
+            provider="azure-openai",
+            model="text-embedding-3-small",
+            api_key="az-key",
             base_url=None,
         )
