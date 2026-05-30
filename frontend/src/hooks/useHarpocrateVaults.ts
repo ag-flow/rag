@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { harpocrateVaultsApi } from "@/lib/harpocrate-vaults";
 import type {
+  GitCredentialCreate,
+  GitCredentialUpdate,
   ProviderApiKeyCreate,
   ProviderApiKeyUpdate,
   VaultCreateRequest,
@@ -170,6 +172,48 @@ export function useDeleteProviderKey(vaultId: string) {
       harpocrateVaultsApi.deleteProviderKey(vaultId, keyId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: [...ROOT_KEY, vaultId, "provider-keys"] });
+    },
+  });
+}
+
+export function useGitCredentials(vaultId: string | null) {
+  return useQuery({
+    queryKey: [...ROOT_KEY, vaultId, "git-credentials"],
+    queryFn: () => harpocrateVaultsApi.listGitCredentials(vaultId as string),
+    enabled: !!vaultId,
+    staleTime: 30_000,
+  });
+}
+
+export function useCreateGitCredential(vaultId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: GitCredentialCreate) =>
+      harpocrateVaultsApi.createGitCredential(vaultId, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [...ROOT_KEY, vaultId, "git-credentials"] });
+    },
+  });
+}
+
+export function useUpdateGitCredential(vaultId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ keyId, payload }: { keyId: string; payload: GitCredentialUpdate }) =>
+      harpocrateVaultsApi.updateGitCredential(vaultId, keyId, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [...ROOT_KEY, vaultId, "git-credentials"] });
+    },
+  });
+}
+
+export function useDeleteGitCredential(vaultId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (keyId: string) =>
+      harpocrateVaultsApi.deleteGitCredential(vaultId, keyId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [...ROOT_KEY, vaultId, "git-credentials"] });
     },
   });
 }
