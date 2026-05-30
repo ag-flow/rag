@@ -24,6 +24,8 @@ from rag.api.auth_methods import build_auth_methods_router
 from rag.api.errors import register_error_handlers
 from rag.api.health import build_health_router
 from rag.api.mcp import build_mcp_router
+from rag.api.playground import router_admin as playground_admin_router
+from rag.api.playground import router_chat as playground_chat_router
 from rag.api.workspace import build_workspace_router
 from rag.api.ws import router as ws_router
 from rag.auth.workspace_auth import ApiKeyCache
@@ -247,6 +249,8 @@ def build_app(
     app.include_router(build_workspace_router())
     app.include_router(build_mcp_router())
     app.include_router(ws_router)
+    app.include_router(playground_admin_router)
+    app.include_router(playground_chat_router)
     register_error_handlers(app)
     return app
 
