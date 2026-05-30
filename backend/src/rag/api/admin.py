@@ -191,6 +191,7 @@ def build_admin_router() -> APIRouter:
     async def post_source(
         name: str, payload: SourceCreateRequest, request: Request
     ) -> SourceResponse:
+        from rag.auth.owner import get_current_owner_id
         from rag.services.sources import add_source  # import retardé : évite cycle au boot
 
         row = await add_source(
@@ -198,6 +199,7 @@ def build_admin_router() -> APIRouter:
             request=payload,
             config_pool=_config_pool(request),
             harpocrate_vaults_service=request.app.state.harpocrate_vaults_service,
+            owner_id=get_current_owner_id(request),
         )
         return SourceResponse(**row)
 

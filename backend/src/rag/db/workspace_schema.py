@@ -95,7 +95,15 @@ async def create_embeddings_table(workspace_dsn: str, *, dimension: int) -> None
             )
             """
         )
-        await conn.execute("CREATE INDEX ON embeddings USING ivfflat (embedding vector_cosine_ops)")
+        # ivfflat est limité à 2000 dimensions — utiliser hnsw au-delà.
+        if dimension <= 2000:
+            await conn.execute(
+                "CREATE INDEX ON embeddings USING ivfflat (embedding vector_cosine_ops)"
+            )
+        else:
+            await conn.execute(
+                "CREATE INDEX ON embeddings USING hnsw (embedding vector_cosine_ops)"
+            )
         log.info("workspace.embeddings.created", dimension=dimension)
     finally:
         await conn.close()

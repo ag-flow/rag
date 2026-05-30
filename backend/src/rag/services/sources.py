@@ -9,6 +9,7 @@ from uuid import UUID
 
 import asyncpg
 import structlog
+from fastapi import HTTPException, status
 
 from rag.api.errors import (
     SourceNotFound,
@@ -59,12 +60,43 @@ async def _resolve_branch_for_write(
     return config, "Branche par défaut non détectée, repli sur 'main'."
 
 
+async def _assert_ref_accessible(
+    conn: asyncpg.Connection,
+    *,
+    harpo_path: str,
+    owner_id: str,
+) -> None:
+    """Vérifie qu'un harpo_path appartient à un vault accessible à owner_id (IDOR guard)."""
+    count = await conn.fetchval(
+        """
+        SELECT count(*) FROM (
+            SELECT v.owner_id, v.is_default FROM git_credentials gc
+            JOIN harpocrate_vaults v ON v.id = gc.vault_id
+            WHERE gc.harpo_path = $1
+            UNION ALL
+            SELECT v.owner_id, v.is_default FROM ssh_keys sk
+            JOIN harpocrate_vaults v ON v.id = sk.vault_id
+            WHERE sk.harpo_path = $1
+        ) creds
+        WHERE is_default = true OR owner_id = $2
+        """,
+        harpo_path,
+        owner_id,
+    )
+    if (count or 0) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="credential not accessible",
+        )
+
+
 async def add_source(
     *,
     workspace_name: str,
     request: SourceCreateRequest,
     config_pool: asyncpg.Pool,
     harpocrate_vaults_service: HarpocrateVaultsService,
+    owner_id: str | None = None,
 ) -> dict[str, Any]:
     """Crée une source pour un workspace.
 
@@ -83,8 +115,16 @@ async def add_source(
     if request.auth_type:
         config["auth_type"] = request.auth_type
     if request.auth_ref:
+        if owner_id:
+            async with config_pool.acquire() as conn:
+                await _assert_ref_accessible(conn, harpo_path=request.auth_ref, owner_id=owner_id)
         config["auth_ref"] = request.auth_ref
     if request.ssh_key_ref:
+        if owner_id:
+            async with config_pool.acquire() as conn:
+                await _assert_ref_accessible(
+                    conn, harpo_path=request.ssh_key_ref, owner_id=owner_id
+                )
         config["ssh_key_ref"] = request.ssh_key_ref
     if request.ssh_username:
         config["ssh_username"] = request.ssh_username

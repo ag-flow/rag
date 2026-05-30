@@ -32,6 +32,10 @@ import { useModels } from "@/hooks/useModels";
 import { useProviderKeysByProvider } from "@/hooks/useHarpocrateVaults";
 import { useToast } from "@/hooks/useToast";
 import { workspaceCreateSchema } from "@/lib/validators";
+import {
+  RERANK_PROVIDERS,
+  MODELS_BY_PROVIDER as RERANK_MODELS_BY_PROVIDER,
+} from "@/pages/workspace/WorkspaceRerankTab.schema";
 
 type FormData = z.infer<typeof workspaceCreateSchema>;
 
@@ -190,6 +194,13 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
   const defaultProvider = [...new Set(models.map((m) => m.provider))].sort()[0] ?? "openai";
   const defaultModel = models.find((m) => m.provider === defaultProvider)?.model ?? "";
 
+  // Modèles pour le bloc reranking — différents des modèles d'embedding
+  const rerankModels = RERANK_PROVIDERS.flatMap((provider) =>
+    RERANK_MODELS_BY_PROVIDER[provider].map((model) => ({ provider, model }))
+  );
+  const defaultRerankProvider = RERANK_PROVIDERS[0] ?? "cohere";
+  const defaultRerankModel = RERANK_MODELS_BY_PROVIDER[defaultRerankProvider]?.[0] ?? "";
+
   const form = useForm<FormData>({
     resolver: zodResolver(workspaceCreateSchema),
     defaultValues: {
@@ -204,8 +215,8 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
       form.setValue("rerank", null);
     } else {
       form.setValue("rerank", {
-        provider: defaultProvider,
-        model: defaultModel,
+        provider: defaultRerankProvider,
+        model: defaultRerankModel,
         api_key_ref: null,
         base_url: null,
         top_k_pre_rerank: 50,
@@ -280,7 +291,7 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
                   prefix="rerank"
                   label={t("form.rerank_section")}
                   form={form}
-                  models={models}
+                  models={rerankModels}
                 />
                 <FormField
                   control={form.control}
