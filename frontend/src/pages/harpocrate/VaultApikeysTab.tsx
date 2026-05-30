@@ -153,7 +153,7 @@ export function VaultApikeysTab({ vaultId }: Props) {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-700">{t("gitkeys.section_title")}</h3>
-          <Button size="sm" variant="outline" onClick={() => setAddGitOpen(true)}>
+          <Button size="sm" onClick={() => setAddGitOpen(true)}>
             {t("gitkeys.add")}
           </Button>
         </div>

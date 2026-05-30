@@ -126,7 +126,7 @@
     "error_toast": "Failed to retire the vault"
   },
   "apikeys": {
-    "add": "Add key",
+    "add": "Add key for LLM model",
     "empty": "No API keys configured for this vault.",
     "col_key_id": "ID",
     "col_provider": "Provider",
@@ -157,7 +157,7 @@
   },
   "gitkeys": {
     "section_title": "Git Tokens",
-    "add": "Add token",
+    "add": "Add token for Git",
     "empty": "No Git tokens configured for this vault.",
     "col_key_id": "ID",
     "col_host": "Host",

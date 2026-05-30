@@ -126,7 +126,7 @@
     "error_toast": "Erreur lors du retrait du coffre"
   },
   "apikeys": {
-    "add": "Ajouter une clé",
+    "add": "Ajouter une clé LLM",
     "empty": "Aucune clé API configurée pour ce coffre.",
     "col_key_id": "ID",
     "col_provider": "Provider",
@@ -157,7 +157,7 @@
   },
   "gitkeys": {
     "section_title": "Tokens Git",
-    "add": "Ajouter un token",
+    "add": "Ajouter un token Git",
     "empty": "Aucun token Git configuré pour ce coffre.",
     "col_key_id": "ID",
     "col_host": "Host",
