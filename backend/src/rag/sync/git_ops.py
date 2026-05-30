@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import re
+import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import structlog
@@ -59,12 +62,37 @@ def _build_authenticated_url(url: str, token: str | None) -> str:
     return url.replace("https://", f"https://x-access-token:{token}@", 1)
 
 
+@contextlib.contextmanager
+def _ssh_key_env(ssh_key: str) -> Iterator[dict[str, str]]:
+    """Écrit la clé SSH dans un fichier temp (chmod 600) et yield l'env GIT_SSH_COMMAND."""
+    tmp_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".pem", delete=False
+        ) as f:
+            f.write(ssh_key)
+            tmp_path = f.name
+        os.chmod(tmp_path, 0o600)
+        yield {
+            "GIT_SSH_COMMAND": (
+                f"ssh -i {tmp_path} "
+                "-o StrictHostKeyChecking=no "
+                "-o BatchMode=yes"
+            ),
+        }
+    finally:
+        if tmp_path is not None:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_path)
+
+
 async def _run_git(
     args: list[str],
     *,
     cwd: Path | None = None,
     error_cls: type[RuntimeError] = RuntimeError,
     error_prefix: str = "git failed",
+    extra_env: dict[str, str] | None = None,
 ) -> tuple[str, str]:
     """Exécute git avec stderr capturé + sanitization.
 
@@ -74,6 +102,8 @@ async def _run_git(
     `GIT_TERMINAL_PROMPT=0` empêche git d'attendre un mot de passe interactif.
     """
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    if extra_env:
+        env.update(extra_env)
     try:
         proc = await asyncio.create_subprocess_exec(
             "git",
@@ -102,19 +132,34 @@ async def clone(
     branch: str,
     token: str | None,
     dest: Path,
+    ssh_key: str | None = None,
+    ssh_username: str | None = None,
 ) -> None:
     """`git clone --branch <branch> <auth_url> <dest>`.
 
     Lève `GitCloneError` (sanitized) si échec.
+    Si `ssh_key` est fourni, l'auth se fait via clé privée temporaire (SSH).
+    Sinon, l'auth se fait via token injecté dans l'URL (HTTPS).
     """
-    auth_url = _build_authenticated_url(url, token)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    log.info("git.clone.start", url=sanitize_git_output(auth_url), dest=str(dest))
-    await _run_git(
-        ["clone", "--branch", branch, auth_url, str(dest)],
-        error_cls=GitCloneError,
-        error_prefix="git clone failed",
-    )
+
+    if ssh_key is not None:
+        with _ssh_key_env(ssh_key) as ssh_env:
+            log.info("git.clone.start", url=sanitize_git_output(url), dest=str(dest))
+            await _run_git(
+                ["clone", "--branch", branch, url, str(dest)],
+                error_cls=GitCloneError,
+                error_prefix="git clone failed",
+                extra_env=ssh_env,
+            )
+    else:
+        auth_url = _build_authenticated_url(url, token)
+        log.info("git.clone.start", url=sanitize_git_output(auth_url), dest=str(dest))
+        await _run_git(
+            ["clone", "--branch", branch, auth_url, str(dest)],
+            error_cls=GitCloneError,
+            error_prefix="git clone failed",
+        )
     log.info("git.clone.done", dest=str(dest))
 
 
@@ -132,26 +177,45 @@ async def head_commit(dest: Path) -> str:
     return stdout.strip()
 
 
-async def pull(*, dest: Path, branch: str) -> None:
+async def pull(*, dest: Path, branch: str, ssh_key: str | None = None) -> None:
     """Fetch + reset --hard pour aligner sur remote/<branch>.
 
     Lève `GitPullError` (sanitized) si fetch ou reset échoue.
     Le `reset --hard` perd les modifs locales — voulu, le worktree est
     contrôlé par le worker uniquement.
+    Si `ssh_key` est fourni, l'auth se fait via clé privée temporaire (SSH).
     """
     log.info("git.pull.start", dest=str(dest), branch=branch)
-    await _run_git(
-        ["fetch", "origin", branch],
-        cwd=dest,
-        error_cls=GitPullError,
-        error_prefix="git fetch failed",
-    )
-    await _run_git(
-        ["reset", "--hard", f"origin/{branch}"],
-        cwd=dest,
-        error_cls=GitPullError,
-        error_prefix="git reset failed",
-    )
+
+    if ssh_key is not None:
+        with _ssh_key_env(ssh_key) as ssh_env:
+            await _run_git(
+                ["fetch", "origin", branch],
+                cwd=dest,
+                error_cls=GitPullError,
+                error_prefix="git fetch failed",
+                extra_env=ssh_env,
+            )
+            await _run_git(
+                ["reset", "--hard", f"origin/{branch}"],
+                cwd=dest,
+                error_cls=GitPullError,
+                error_prefix="git reset failed",
+                extra_env=ssh_env,
+            )
+    else:
+        await _run_git(
+            ["fetch", "origin", branch],
+            cwd=dest,
+            error_cls=GitPullError,
+            error_prefix="git fetch failed",
+        )
+        await _run_git(
+            ["reset", "--hard", f"origin/{branch}"],
+            cwd=dest,
+            error_cls=GitPullError,
+            error_prefix="git reset failed",
+        )
     log.info("git.pull.done", dest=str(dest), branch=branch)
 
 
