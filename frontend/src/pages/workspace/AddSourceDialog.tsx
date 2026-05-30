@@ -52,7 +52,7 @@ const DEFAULT_SSH_USER: Record<GitProvider, string> = {
 
 const createSchema = z.object({
   source_name: z.string().min(1).regex(/^[a-z0-9_-]+$/, "invalid_slug"),
-  url: z.string().url("invalid_url"),
+  url: z.string().min(1, "required"),
   branch: z.string().optional(),
   git_provider: z.string().min(1, "required"),
   auth_type: z.enum(["token", "ssh"]),
@@ -63,7 +63,7 @@ const createSchema = z.object({
 });
 
 const editSchema = z.object({
-  url: z.string().url("invalid_url"),
+  url: z.string().min(1, "required"),
   branch: z.string().optional(),
   git_provider: z.string().optional(),
   auth_type: z.enum(["token", "ssh"]).optional(),
@@ -323,19 +323,6 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
               </div>
             )}
 
-            {/* URL */}
-            <div>
-              <label className="text-xs font-medium text-slate-700">
-                {t("sources.fields.url")}
-              </label>
-              <Input {...register("url")} placeholder="https://github.com/..." />
-              {formState.errors.url && (
-                <p className="text-xs text-red-600">
-                  {t(`sources.add.errors.${formState.errors.url.message ?? "invalid"}`)}
-                </p>
-              )}
-            </div>
-
             {/* Branche */}
             <div>
               <label className="text-xs font-medium text-slate-700">
@@ -355,6 +342,19 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
               credentialItems={credentialItems}
               t={t}
             />
+
+            {/* URL — après le provider pour guider le format (HTTPS ou SSH) */}
+            <div>
+              <label className="text-xs font-medium text-slate-700">
+                {t("sources.fields.url")}
+              </label>
+              <Input {...register("url")} placeholder="https://github.com/org/repo.git" />
+              {formState.errors.url && (
+                <p className="text-xs text-red-600">
+                  {t(`sources.add.errors.${formState.errors.url.message ?? "invalid"}`)}
+                </p>
+              )}
+            </div>
 
             {/* Include / Exclude */}
             <IncludeExclude register={register} t={t} />
@@ -419,19 +419,6 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
             </p>
           </div>
 
-          {/* URL */}
-          <div>
-            <label className="text-xs font-medium text-slate-700">
-              {t("sources.fields.url")}
-            </label>
-            <Input {...register("url")} placeholder="https://github.com/..." />
-            {formState.errors.url && (
-              <p className="text-xs text-red-600">
-                {t(`sources.add.errors.${formState.errors.url.message ?? "invalid"}`)}
-              </p>
-            )}
-          </div>
-
           {/* Branche */}
           <div>
             <label className="text-xs font-medium text-slate-700">
@@ -451,6 +438,19 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
             credentialItems={credentialItems}
             t={t}
           />
+
+          {/* URL — après le provider pour guider le format (HTTPS ou SSH) */}
+          <div>
+            <label className="text-xs font-medium text-slate-700">
+              {t("sources.fields.url")}
+            </label>
+            <Input {...register("url")} placeholder="https://github.com/org/repo.git" />
+            {formState.errors.url && (
+              <p className="text-xs text-red-600">
+                {t(`sources.add.errors.${formState.errors.url.message ?? "invalid"}`)}
+              </p>
+            )}
+          </div>
 
           {/* Include / Exclude */}
           <IncludeExclude register={register} t={t} />
