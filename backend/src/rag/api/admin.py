@@ -634,6 +634,7 @@ def build_admin_router() -> APIRouter:
 
     @router.post(
         "/workspaces/{name}/sources/{source_name}/webhook/rotate-secret",
+        response_model=dict,
     )
     async def rotate_source_webhook_secret(
         name: str, source_name: str, request: Request
