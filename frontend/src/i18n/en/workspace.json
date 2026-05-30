@@ -24,7 +24,8 @@
     "model": "Model",
     "rerank": "Rerank",
     "chunking": "Chunking",
-    "playground": "Playground"
+    "playground": "Playground",
+    "triggers": "Triggers"
   },
   "detail": {
     "stats": {

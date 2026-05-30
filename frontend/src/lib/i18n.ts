@@ -12,6 +12,8 @@ import frModels from "@/i18n/fr/models.json";
 import frOidc from "@/i18n/fr/oidc.json";
 import frLogin from "@/i18n/fr/login.json";
 import frPlayground from "@/i18n/fr/playground.json";
+import frPrompts from "@/i18n/fr/prompts.json";
+import frTriggers from "@/i18n/fr/triggers.json";
 
 import enCommon from "@/i18n/en/common.json";
 import enAuth from "@/i18n/en/auth.json";
@@ -23,6 +25,8 @@ import enModels from "@/i18n/en/models.json";
 import enOidc from "@/i18n/en/oidc.json";
 import enLogin from "@/i18n/en/login.json";
 import enPlayground from "@/i18n/en/playground.json";
+import enPrompts from "@/i18n/en/prompts.json";
+import enTriggers from "@/i18n/en/triggers.json";
 
 void i18n
   .use(LanguageDetector)
@@ -41,6 +45,8 @@ void i18n
       "oidc",
       "login",
       "playground",
+      "prompts",
+      "triggers",
     ],
     defaultNS: "common",
     resources: {
@@ -54,7 +60,9 @@ void i18n
         models: frModels,
         oidc: frOidc,
         login: frLogin,
-      playground: frPlayground,
+        playground: frPlayground,
+        prompts: frPrompts,
+        triggers: frTriggers,
       },
       en: {
         common: enCommon,
@@ -67,6 +75,8 @@ void i18n
         oidc: enOidc,
         login: enLogin,
         playground: enPlayground,
+        prompts: enPrompts,
+        triggers: enTriggers,
       },
     },
     interpolation: { escapeValue: false },

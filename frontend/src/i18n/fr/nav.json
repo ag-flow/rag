@@ -12,6 +12,7 @@
     "push": "Push activity",
     "mcp": "Recherche MCP",
     "harpocrate_vaults": "Coffres Harpocrate",
-    "oidc_config": "Config OIDC"
+    "oidc_config": "Config OIDC",
+    "prompts": "Prompts"
   }
 }
