@@ -25,17 +25,30 @@ class IndexerSpec(BaseModel):
 
 
 class IndexerCreateSpec(BaseModel):
-    """Indexeur pour la création d'un workspace — api_key en clair, jamais persistée telle quelle.
+    """Indexeur pour la création d'un workspace.
 
-    Le backend écrit la valeur dans Harpocrate et stocke la ref construite en DB.
+    api_key_ref est le harpo_path d'une provider_api_key existante.
+    Le backend ne stocke rien dans Harpocrate — il référence une clé déjà présente.
     """
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
     provider: str = Field(min_length=1)
     model: str = Field(min_length=1)
-    api_key: str | None = None
+    api_key_ref: str | None = None
     base_url: str | None = None
+
+
+class RerankCreateSpec(BaseModel):
+    """Config reranking à la création d'un workspace (immuable après)."""
+
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    api_key_ref: str | None = None
+    base_url: str | None = None
+    top_k_pre_rerank: int = Field(default=50, gt=0, le=500)
 
 
 class WorkspaceCreateRequest(BaseModel):
@@ -44,13 +57,8 @@ class WorkspaceCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(pattern=_NAME_REGEX, max_length=63)
-    api_key_vault: str = Field(
-        ...,
-        min_length=1,
-        max_length=255,
-        description="Nom du coffre Harpocrate où sera stockée l'api_key MCP de ce workspace",
-    )
     indexer: IndexerCreateSpec
+    rerank: RerankCreateSpec | None = None
 
 
 class IndexerPatchSpec(BaseModel):
@@ -103,8 +111,11 @@ class SourceCreateRequest(BaseModel):
 
     name: str = Field(min_length=1, pattern=r"^[a-z0-9_-]+$")
     type: Literal["git"]
-    api_key_vault: str = Field(min_length=1)
-    auth_value: str | None = None
+    git_provider: str | None = None
+    auth_type: Literal["token", "ssh"] | None = None
+    auth_ref: str | None = None
+    ssh_key_ref: str | None = None
+    ssh_username: str | None = None
     config: dict[str, Any]
 
     @field_validator("config")
@@ -120,16 +131,12 @@ class SourceUpdateRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    api_key_vault: str | None = None
-    auth_value: str | None = None
+    git_provider: str | None = None
+    auth_type: Literal["token", "ssh"] | None = None
+    auth_ref: str | None = None
+    ssh_key_ref: str | None = None
+    ssh_username: str | None = None
     config: dict[str, Any]
-
-    @field_validator("config")
-    @classmethod
-    def config_must_have_url(cls, v: dict[str, Any]) -> dict[str, Any]:
-        if "url" not in v or not v["url"]:
-            raise ValueError("config.url is required for git sources")
-        return v
 
 
 class SourceResponse(BaseModel):
@@ -139,6 +146,7 @@ class SourceResponse(BaseModel):
     config: dict[str, Any]
     last_indexed_at: str | None
     created_at: str
+    branch_warning: str | None = None
 
 
 class SourceTestResult(BaseModel):
@@ -166,6 +174,17 @@ class JobResponse(BaseModel):
     duration_ms: int | None
 
 
+class JobFileEntry(BaseModel):
+    path: str
+    change_type: Literal["added", "modified", "deleted"]
+
+
+class JobFilesResponse(BaseModel):
+    files: list[JobFileEntry]
+    total: int
+    limit: int
+
+
 class ModelEntry(BaseModel):
     """Une entrée du registre model_dimensions."""
 
@@ -181,7 +200,7 @@ class RerankSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
-    provider: Literal["cohere", "voyage", "ollama"]
+    provider: Literal["cohere", "openai", "voyage", "ollama"]
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
     base_url: str | None = None

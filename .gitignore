@@ -160,6 +160,8 @@ env.bak/
 # token Harpocrate dev partagé hors-ligne. Le template public est versionné
 # sous `scripts/.env.test.rag.example`.
 scripts/.env.test.rag
+# Fichiers de paramètres remote-deploy (REMOTE_PASSWORD en clair) : jamais versionnés.
+scripts/.env.*.remote-deploy
 venv.bak/
 
 # Spyder project settings

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import asyncio
+
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel as _PydanticBase
 
 from rag.api.errors import HarpocrateUnreachableForApikey, VaultUnreachable
 from rag.auth.bearer import require_master_key_or_authenticated_admin
@@ -10,11 +13,11 @@ from rag.schemas.admin import (
     ApiKeyRotateResponse,
     ChunkingConfigResponse,
     ChunkingConfigSpec,
+    JobFilesResponse,
     JobResponse,
     ModelEntry,
     ReindexRequest,
     RerankConfigResponse,
-    RerankSpec,
     SourceCreateRequest,
     SourceResponse,
     SourceTestResult,
@@ -33,6 +36,18 @@ from rag.services.workspaces import (
     patch_workspace,
     rotate_apikey,
 )
+
+
+class DetectBranchesRequest(_PydanticBase):
+    url: str
+    auth_ref: str | None = None
+    ssh_key_ref: str | None = None
+    ssh_username: str | None = None
+
+
+class DetectBranchesResponse(_PydanticBase):
+    branches: list[str]
+    default: str | None
 
 
 def _config_pool(request: Request) -> asyncpg.Pool:
@@ -191,6 +206,7 @@ def build_admin_router() -> APIRouter:
     async def post_source(
         name: str, payload: SourceCreateRequest, request: Request
     ) -> SourceResponse:
+        from rag.auth.owner import get_current_owner_id
         from rag.services.sources import add_source  # import retardé : évite cycle au boot
 
         row = await add_source(
@@ -198,6 +214,7 @@ def build_admin_router() -> APIRouter:
             request=payload,
             config_pool=_config_pool(request),
             harpocrate_vaults_service=request.app.state.harpocrate_vaults_service,
+            owner_id=get_current_owner_id(request),
         )
         return SourceResponse(**row)
 
@@ -213,6 +230,7 @@ def build_admin_router() -> APIRouter:
             request=payload,
             config_pool=_config_pool(request),
             harpocrate_vaults_service=request.app.state.harpocrate_vaults_service,
+            resolver=request.app.state.resolver,
         )
         return SourceResponse(**row)
 
@@ -243,6 +261,69 @@ def build_admin_router() -> APIRouter:
             resolver=request.app.state.resolver,
         )
         return SourceTestResult(**result)
+
+    # Schémas locaux pour detect-branches
+    @router.post("/sources/detect-branches", response_model=DetectBranchesResponse)
+    async def detect_branches(
+        payload: DetectBranchesRequest,
+        request: Request,
+    ) -> DetectBranchesResponse:
+        """Détecte les branches disponibles d'un dépôt Git via ls-remote."""
+        import contextlib
+
+        from rag.secrets.refs import is_vault_ref
+        from rag.sync.git_ops import detect_default_branch, list_remote_branches
+
+        # Validation anti-SSRF / argument injection
+        url = payload.url.strip()
+        if url.startswith("-"):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid url")
+        _allowed_schemes = ("https://", "http://", "git@", "ssh://", "git://")
+        if not any(url.startswith(s) for s in _allowed_schemes):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid url scheme")
+
+        token: str | None = None
+        ssh_key: str | None = None
+        ssh_username = payload.ssh_username or "git"
+
+        # Résolution du credential.
+        # Les harpo_path utilisent vault_name dans le ref (pas api_key_id).
+        # On passe par harpocrate_vaults_service.get_by_name pour obtenir
+        # l'api_key_id, puis client_provider.get_client(api_key_id).
+        async def _resolve_secret(ref: str) -> str | None:
+            from rag.secrets.refs import parse_ref as _parse_ref
+            _vault_name, _secret_path = _parse_ref(ref)
+            _pool = _config_pool(request)
+            _svc = request.app.state.harpocrate_vaults_service
+            async with _pool.acquire() as _conn:
+                _vault = await _svc.get_by_name(_conn, _vault_name)
+            if _vault is None:
+                return None
+            _client = await request.app.state.client_provider.get_client(_vault.api_key_id)
+            return await asyncio.to_thread(_client.get_secret, _secret_path)
+
+        if payload.ssh_key_ref and is_vault_ref(payload.ssh_key_ref):
+            with contextlib.suppress(Exception):
+                ssh_key = await _resolve_secret(payload.ssh_key_ref)
+        elif payload.auth_ref and is_vault_ref(payload.auth_ref):
+            with contextlib.suppress(Exception):
+                token = await _resolve_secret(payload.auth_ref)
+
+        branches_result, default_result = await asyncio.gather(
+            list_remote_branches(
+                url=payload.url,
+                token=token,
+                ssh_key=ssh_key,
+                ssh_username=ssh_username,
+            ),
+            detect_default_branch(url=payload.url, token=token),
+            return_exceptions=True,
+        )
+
+        branches: list[str] = branches_result if isinstance(branches_result, list) else []
+        default: str | None = default_result if isinstance(default_result, str) else None
+
+        return DetectBranchesResponse(branches=branches, default=default)
 
     @router.post(
         "/workspaces/{name}/sources/{source_id}/sync",
@@ -289,7 +370,25 @@ def build_admin_router() -> APIRouter:
         rows = await list_jobs(_config_pool(request), workspace_name=name)
         return [JobResponse(**r) for r in rows]
 
+    @router.get("/workspaces/{name}/jobs/{job_id}/files")
+    async def get_job_files(name: str, job_id: str, request: Request) -> JobFilesResponse:
+        from rag.services.jobs import list_job_files
+
+        result = await list_job_files(
+            config_pool=_config_pool(request),
+            workspace_name=name,
+            job_id=job_id,
+        )
+        return JobFilesResponse(**result)
+
     # ─── Models registry ────────────────────────────────────────────────────
+
+    @router.get("/models/pricing")
+    async def get_models_pricing(request: Request) -> dict:
+        from rag.services.pricing import load_pricing
+
+        settings = request.app.state.settings
+        return load_pricing(settings.pricing_file)
 
     @router.get("/models")
     async def get_models(request: Request) -> list[ModelEntry]:
@@ -368,61 +467,6 @@ def build_admin_router() -> APIRouter:
             updated_at=cfg["updated_at"].isoformat(),
         )
 
-    @router.put("/workspaces/{name}/rerank")
-    async def put_rerank_endpoint(
-        name: str,
-        payload: RerankSpec,
-        request: Request,
-    ) -> RerankConfigResponse:
-        """Upsert la config rerank du workspace. Validation eager api_key_ref."""
-        ws_row = await _config_pool(request).fetchrow(
-            "SELECT id FROM workspaces WHERE name = $1",
-            name,
-        )
-        if ws_row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="workspace_not_found",
-            )
-        from rag.services.rerank_configs import upsert_rerank_config
-
-        cfg = await upsert_rerank_config(
-            workspace_id=ws_row["id"],
-            spec=payload,
-            config_pool=_config_pool(request),
-            resolver=_resolver(request),
-            default_vault_name=await _resolve_default_vault_or_503(request),
-        )
-        return RerankConfigResponse(
-            workspace_id=cfg["workspace_id"],
-            provider=cfg["provider"],
-            model=cfg["model"],
-            api_key_ref=cfg["api_key_ref"],
-            base_url=cfg["base_url"],
-            top_k_pre_rerank=cfg["top_k_pre_rerank"],
-            created_at=cfg["created_at"].isoformat(),
-            updated_at=cfg["updated_at"].isoformat(),
-        )
-
-    @router.delete(
-        "/workspaces/{name}/rerank",
-        status_code=status.HTTP_204_NO_CONTENT,
-    )
-    async def delete_rerank_endpoint(name: str, request: Request) -> Response:
-        """Supprime la config rerank. Idempotent : 204 même si absente."""
-        ws_row = await _config_pool(request).fetchrow(
-            "SELECT id FROM workspaces WHERE name = $1",
-            name,
-        )
-        if ws_row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="workspace_not_found",
-            )
-        from rag.services.rerank_configs import delete_rerank_config
-
-        await delete_rerank_config(ws_row["id"], _config_pool(request))
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     # ─── Chunking config ────────────────────────────────────────────────────
 

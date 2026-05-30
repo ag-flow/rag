@@ -17,6 +17,14 @@
     "hours": "il y a {{count}} h",
     "days": "il y a {{count}} j"
   },
+  "pricing": {
+    "local": "Local",
+    "per_1m": "${{price}} /1M",
+    "older_model": "obsolète",
+    "pricing_url": "Tarifs officiels",
+    "no_pricing": "",
+    "batch_discount": "Batch -50%"
+  },
   "errors": {
     "duplicate": "Ce couple provider/model existe déjà."
   },

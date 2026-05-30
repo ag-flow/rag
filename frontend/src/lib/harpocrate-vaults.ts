@@ -1,7 +1,19 @@
 import { api } from "@/lib/api";
 import type {
+  GitCredential,
+  GitCredentialCreate,
+  GitCredentialUpdate,
+  GitCredentialWithVault,
+  ProviderApiKey,
+  ProviderApiKeyCreate,
+  ProviderApiKeyUpdate,
+  ProviderApiKeyWithVault,
   SecretListResponse,
   SecretTypeSummary,
+  SshKey,
+  SshKeyGenerate,
+  SshKeyImport,
+  SshKeyWithVault,
   VaultCreateRequest,
   VaultRevealApiKeyResponse,
   VaultRotateApiKeyRequest,
@@ -62,4 +74,53 @@ export const harpocrateVaultsApi = {
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
     return api.get<SecretListResponse>(`${BASE}/${id}/secrets${suffix}`);
   },
+
+  listProviderKeys: (vaultId: string) =>
+    api.get<ProviderApiKey[]>(`${BASE}/${vaultId}/provider-keys`),
+
+  createProviderKey: (vaultId: string, payload: ProviderApiKeyCreate) =>
+    api.post<ProviderApiKey>(`${BASE}/${vaultId}/provider-keys`, payload),
+
+  updateProviderKey: (vaultId: string, keyId: string, payload: ProviderApiKeyUpdate) =>
+    api.patch<ProviderApiKey>(`${BASE}/${vaultId}/provider-keys/${keyId}`, payload),
+
+  deleteProviderKey: (vaultId: string, keyId: string) =>
+    api.delete<void>(`${BASE}/${vaultId}/provider-keys/${keyId}`),
+
+  listGitCredentials: (vaultId: string) =>
+    api.get<GitCredential[]>(`${BASE}/${vaultId}/git-credentials`),
+
+  createGitCredential: (vaultId: string, payload: GitCredentialCreate) =>
+    api.post<GitCredential>(`${BASE}/${vaultId}/git-credentials`, payload),
+
+  updateGitCredential: (vaultId: string, keyId: string, payload: GitCredentialUpdate) =>
+    api.patch<GitCredential>(`${BASE}/${vaultId}/git-credentials/${keyId}`, payload),
+
+  deleteGitCredential: (vaultId: string, keyId: string) =>
+    api.delete<void>(`${BASE}/${vaultId}/git-credentials/${keyId}`),
+
+  listSshKeys: (vaultId: string) =>
+    api.get<SshKey[]>(`${BASE}/${vaultId}/ssh-keys`),
+
+  importSshKey: (vaultId: string, payload: SshKeyImport) =>
+    api.post<SshKey>(`${BASE}/${vaultId}/ssh-keys/import`, payload),
+
+  generateSshKey: (vaultId: string, payload: SshKeyGenerate) =>
+    api.post<SshKey>(`${BASE}/${vaultId}/ssh-keys/generate`, payload),
+
+  deleteSshKey: (vaultId: string, keyId: string) =>
+    api.delete<void>(`${BASE}/${vaultId}/ssh-keys/${keyId}`),
+
+  listProviderKeysByProvider: (provider: string) =>
+    api.get<ProviderApiKeyWithVault[]>(
+      `/api/admin/provider-keys/by-provider?provider=${encodeURIComponent(provider)}`,
+    ),
+
+  listGitCredentialsByHost: (host: string) =>
+    api.get<GitCredentialWithVault[]>(
+      `/api/admin/git-credentials/by-host?host=${encodeURIComponent(host)}`,
+    ),
+
+  listSshKeysAll: () =>
+    api.get<SshKeyWithVault[]>(`/api/admin/ssh-keys/all`),
 };

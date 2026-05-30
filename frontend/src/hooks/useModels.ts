@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { modelsApi } from "@/lib/models";
-import type { ModelCreateRequest, ModelEntry } from "@/lib/models.types";
+import type { ModelCreateRequest, ModelEntry, PricingData } from "@/lib/models.types";
 
 export function useModels() {
   return useQuery({
@@ -26,5 +26,13 @@ export function useDeleteModel() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["models"] });
     },
+  });
+}
+
+export function usePricing() {
+  return useQuery<PricingData>({
+    queryKey: ["models-pricing"],
+    queryFn: () => modelsApi.pricing(),
+    staleTime: 5 * 60 * 1000, // 5 min — le fichier ne change pas souvent
   });
 }

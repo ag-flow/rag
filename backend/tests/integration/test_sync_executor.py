@@ -214,6 +214,84 @@ async def test_executor_second_sync_detects_modify_and_delete(
 
 
 @pytest.mark.asyncio
+async def test_executor_persists_changed_files(
+    session_pool: asyncpg.Pool,
+    tmp_path: Path,
+) -> None:
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    bare = make_bare_repo_with_commits(tmp_path, {"a.md": "v1", "b.md": "v1"})
+
+    ws_id = await _make_workspace_with_indexer(session_pool, "ws_exec_files")
+    src_id = await _make_source(session_pool, ws_id, url=f"file://{bare}")
+    await _make_pending_job(session_pool, ws_id, src_id)
+
+    storage = RepoStorage(root=tmp_path / "repos")
+    indexer = NoOpIndexer(session_pool)
+    await execute_next_pending_job(
+        config_pool=session_pool,
+        storage=storage,
+        indexer=indexer,
+        resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
+    )
+
+    work = tmp_path / "work"
+    add_commit(work, files={"b.md": "v2", "c.md": "v1"}, deletes=["a.md"])
+    job2_id = await _make_pending_job(session_pool, ws_id, src_id)
+    await execute_next_pending_job(
+        config_pool=session_pool,
+        storage=storage,
+        indexer=indexer,
+        resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
+    )
+
+    rows = await session_pool.fetch(
+        "SELECT path, change_type FROM index_job_files WHERE job_id=$1 ORDER BY change_type, path",
+        job2_id,
+    )
+    got = {(r["path"], r["change_type"]) for r in rows}
+    assert got == {("c.md", "added"), ("b.md", "modified"), ("a.md", "deleted")}
+
+
+@pytest.mark.asyncio
+async def test_executor_skipped_files_not_persisted(
+    session_pool: asyncpg.Pool,
+    tmp_path: Path,
+) -> None:
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    bare = make_bare_repo_with_commits(tmp_path, {"a.md": "v1"})
+
+    ws_id = await _make_workspace_with_indexer(session_pool, "ws_exec_skip")
+    src_id = await _make_source(session_pool, ws_id, url=f"file://{bare}")
+    await _make_pending_job(session_pool, ws_id, src_id)
+
+    storage = RepoStorage(root=tmp_path / "repos")
+    indexer = NoOpIndexer(session_pool)
+    await execute_next_pending_job(
+        config_pool=session_pool,
+        storage=storage,
+        indexer=indexer,
+        resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
+    )
+
+    job2_id = await _make_pending_job(session_pool, ws_id, src_id)
+    await execute_next_pending_job(
+        config_pool=session_pool,
+        storage=storage,
+        indexer=indexer,
+        resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
+    )
+
+    n = await session_pool.fetchval(
+        "SELECT count(*) FROM index_job_files WHERE job_id=$1", job2_id
+    )
+    assert n == 0
+
+
+@pytest.mark.asyncio
 async def test_executor_failure_on_invalid_url_marks_error(
     session_pool: asyncpg.Pool,
     tmp_path: Path,

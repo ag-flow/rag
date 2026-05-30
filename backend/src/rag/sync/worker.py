@@ -53,6 +53,7 @@ class SyncWorker:
         poll_interval_seconds: int,
         default_sync_interval_seconds: int,
         job_log_bus: JobLogBus | None = None,
+        webhook_secret: str | None = None,
     ) -> None:
         self._config_pool = config_pool
         self._storage = storage
@@ -62,6 +63,7 @@ class SyncWorker:
         self._poll_interval = poll_interval_seconds
         self._default_sync_interval = default_sync_interval_seconds
         self._job_log_bus = job_log_bus
+        self._webhook_secret = webhook_secret
         self._task: asyncio.Task[None] | None = None
         self._stop_event = asyncio.Event()
 
@@ -91,6 +93,8 @@ class SyncWorker:
         """Boucle principale. Catch toutes les exceptions de cycle pour
         ne pas tuer le worker — chaque cycle est isolé.
         """
+        from rag.services.webhooks import purge_old_webhook_calls
+
         while not self._stop_event.is_set():
             try:
                 await schedule_due_sources(
@@ -104,7 +108,12 @@ class SyncWorker:
                     resolver=self._resolver,
                     client_provider=self._client_provider,
                     job_log_bus=self._job_log_bus,
+                    webhook_secret=self._webhook_secret,
                 )
+                try:
+                    await purge_old_webhook_calls(self._config_pool)
+                except Exception:
+                    log.warning("sync.worker.purge_webhook_calls_failed")
             except Exception:
                 log.exception("sync.worker.cycle_error")
 

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Annotated, Literal
-
 from pydantic import BaseModel, Field, field_validator
 
 _PATH_MAX_LEN = 1024
@@ -20,20 +18,6 @@ class PushRequest(BaseModel):
         return v
 
 
-class PushIndexedResponse(BaseModel):
-    path: str
-    status: Literal["indexed"] = "indexed"
-    chunks: int
-    hash: str
-
-
-class PushSkippedResponse(BaseModel):
-    path: str
-    status: Literal["skipped"] = "skipped"
-    reason: Literal["content_unchanged"] = "content_unchanged"
-
-
-PushResponse = Annotated[
-    PushIndexedResponse | PushSkippedResponse,
-    Field(discriminator="status"),
-]
+class PushAsyncResponse(BaseModel):
+    job_id: str
+    status: str = "pending"

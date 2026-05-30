@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     # monté sur /var/lib/rag/repos. En test : `tmp_path` via fixture pytest.
     sync_repos_root: Path = Path("/var/lib/rag/repos")
 
+    pricing_file: Path = Field(
+        default=Path("/app/config/pricing.yml"),
+        description="Chemin du fichier YAML de tarifs providers d'embedding.",
+    )
+
     harpocrate_dek: SecretStr | None = Field(
         default=None,
         description="Passphrase pgcrypto pour chiffrer les api_keys en DB. "
@@ -48,6 +53,7 @@ class Settings(BaseSettings):
     )
 
     rag_bootstrap_admin_username: str = "admin"
+    rag_bootstrap_admin_email: str = "admin@rag.io"
     rag_bootstrap_admin_password_hash: str = ""
     rag_bootstrap_session_ttl_seconds: int = Field(default=28800, ge=60)
 
@@ -56,6 +62,12 @@ class Settings(BaseSettings):
         return bool(self.rag_bootstrap_admin_password_hash.strip())
 
     rag_session_secret: SecretStr = SecretStr("")
+
+    rag_webhook_secret: SecretStr | None = Field(
+        default=None,
+        description="Secret HMAC pour signer les payloads webhook (X-RAG-Signature). "
+        "Optionnel — si absent, la signature est omise (warning au dispatch).",
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -45,6 +45,14 @@ export function useWorkspaceJobs(name: string | null, enabled: boolean) {
   });
 }
 
+export function useWorkspaceJobFiles(name: string, jobId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["workspace", name, "jobs", jobId, "files"],
+    queryFn: () => workspacesApi.listJobFiles(name, jobId),
+    enabled,
+  });
+}
+
 // ─── Mutations ────────────────────────────────────────────────────────────
 
 export function useCreateWorkspace() {
@@ -150,5 +158,17 @@ export function useTriggerSourceSync(name: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["workspace", name, "jobs"] });
     },
+  });
+}
+
+export function useDetectBranches() {
+  return useMutation({
+    mutationFn: (payload: {
+      url: string;
+      auth_ref?: string | null;
+      ssh_key_ref?: string | null;
+      ssh_username?: string | null;
+    }) =>
+      workspacesApi.detectBranches(payload),
   });
 }

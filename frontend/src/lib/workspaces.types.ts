@@ -18,15 +18,23 @@ export type Workspace = {
   created_at: string;
 };
 
+export type RerankSpec = {
+  provider: string;
+  model: string;
+  api_key_ref: string | null;
+  base_url: string | null;
+  top_k_pre_rerank: number;
+};
+
 export type WorkspaceCreate = {
   name: string;
-  api_key_vault: string;
   indexer: {
     provider: string;
     model: string;
-    api_key: string | null;
-    base_url?: string | null;
+    api_key_ref: string | null;
+    base_url: string | null;
   };
+  rerank?: RerankSpec | undefined;
 };
 
 export type WorkspaceCreateResponse = {
@@ -55,11 +63,12 @@ export type Source = {
   config: SourceConfig;
   last_indexed_at: string | null;
   created_at: string;
+  branch_warning?: string | null;
 };
 
 type SourceConfigInput = {
   url: string;
-  branch: string;
+  branch?: string;
   include: string[];
   exclude: string[];
 };
@@ -67,14 +76,20 @@ type SourceConfigInput = {
 export type SourceCreateRequest = {
   name: string;
   type: "git";
-  api_key_vault: string;
-  auth_value: string | null;
+  git_provider?: string;
+  auth_type: "token" | "ssh";
+  auth_ref?: string;
+  ssh_key_ref?: string;
+  ssh_username?: string;
   config: SourceConfigInput;
 };
 
 export type SourceUpdateRequest = {
-  api_key_vault?: string | null;
-  auth_value: string | null;
+  git_provider?: string;
+  auth_type?: "token" | "ssh";
+  auth_ref?: string;
+  ssh_key_ref?: string;
+  ssh_username?: string;
   config: SourceConfigInput;
 };
 
@@ -96,6 +111,22 @@ export type Job = {
   duration_ms: number | null;
 };
 
+export type JobFileEntry = {
+  path: string;
+  change_type: "added" | "modified" | "deleted";
+};
+
+export type JobFilesResponse = {
+  files: JobFileEntry[];
+  total: number;
+  limit: number;
+};
+
 export type ApiKeyRotateResponse = {
   api_key: string;
+};
+
+export type DetectBranchesResponse = {
+  branches: string[];
+  default: string | null;
 };

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, MoreHorizontal, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, MoreHorizontal, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import {
@@ -9,8 +9,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useModels } from "@/hooks/useModels";
-import type { ModelEntry } from "@/lib/models.types";
+import { useModels, usePricing } from "@/hooks/useModels";
+import type { ModelEntry, ModelPricingEntry, ProviderPricing } from "@/lib/models.types";
 import { AddModelDialog } from "@/pages/models/AddModelDialog";
 import { DeleteModelAlert } from "@/pages/models/DeleteModelAlert";
 
@@ -26,10 +26,59 @@ function useRelativeTime() {
   };
 }
 
-export function ModelsPage() {
+function PriceBadge({ pricingEntry }: { pricingEntry: ModelPricingEntry | undefined }) {
   const { t } = useTranslation("models");
+
+  if (pricingEntry === undefined) return null;
+
+  const price = pricingEntry.price_per_1m;
+  if (price === null || price === undefined) return null;
+
+  const isLocal = price === 0;
+  const hasBatch =
+    pricingEntry.price_per_1m_batch !== null && pricingEntry.price_per_1m_batch !== undefined;
+
+  return (
+    <span className="flex items-center gap-1">
+      <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-slate-100 text-slate-600">
+        {isLocal ? t("pricing.local") : t("pricing.per_1m", { price: price.toFixed(2) })}
+      </span>
+      {!isLocal && hasBatch && (
+        <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-blue-50 text-blue-600">
+          {t("pricing.batch_discount")}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function StatutBadge({ statut }: { statut: string | null | undefined }) {
+  const { t } = useTranslation("models");
+
+  if (statut !== "older_model") return null;
+
+  return (
+    <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-orange-100 text-orange-700">
+      {t("pricing.older_model")}
+    </span>
+  );
+}
+
+function TypeBadge({ type }: { type: string | undefined }) {
+  if (!type || type === "embedding") return null;
+
+  return (
+    <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-700">
+      {type}
+    </span>
+  );
+}
+
+export function ModelsPage() {
+  const { t, i18n } = useTranslation("models");
   const formatRel = useRelativeTime();
   const { data, isLoading } = useModels();
+  const { data: pricingData } = usePricing();
   const [addOpen, setAddOpen] = useState(false);
   const [toDelete, setToDelete] = useState<{ provider: string; model: string } | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -68,6 +117,26 @@ export function ModelsPage() {
     });
   };
 
+  const getProviderPricing = (provider: string): ProviderPricing | undefined =>
+    pricingData?.providers?.[provider];
+
+  const getModelPricingEntry = (
+    provider: string,
+    model: string,
+  ): ModelPricingEntry | undefined => {
+    const prov = getProviderPricing(provider);
+    return prov?.models.find((m) => m.name === model);
+  };
+
+  const getLang = (): "fr" | "en" =>
+    i18n.language.startsWith("fr") ? "fr" : "en";
+
+  const getDescription = (pricingEntry: ModelPricingEntry | undefined): string | undefined => {
+    if (!pricingEntry?.description) return undefined;
+    const lang = getLang();
+    return pricingEntry.description[lang] ?? pricingEntry.description.en;
+  };
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -98,6 +167,7 @@ export function ModelsPage() {
         <div className="rounded-md border bg-white divide-y divide-slate-200">
           {grouped.map(([provider, entries]) => {
             const isOpen = expanded.has(provider);
+            const providerPricing = getProviderPricing(provider);
             return (
               <div key={provider}>
                 <button
@@ -116,42 +186,66 @@ export function ModelsPage() {
                       {t("section.count", { count: entries.length })}
                     </span>
                   </span>
+                  {providerPricing?.pricing_url && (
+                    <a
+                      href={providerPricing.pricing_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 mr-2"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      {t("pricing.pricing_url")}
+                    </a>
+                  )}
                 </button>
                 {isOpen && (
                   <ul className="divide-y divide-slate-100 border-t border-slate-100">
-                    {entries.map((entry) => (
-                      <li
-                        key={`${entry.provider}/${entry.model}`}
-                        className="flex items-center justify-between px-4 py-2"
-                      >
-                        <div className="flex items-center gap-3 text-sm">
-                          <code className="font-mono text-slate-800">{entry.model}</code>
-                          <span className="text-slate-500">
-                            {t("row.dim", { dimension: entry.dimension })}
-                          </span>
-                          <span className="text-slate-400 text-xs">
-                            {formatRel(entry.created_at)}
-                          </span>
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button size="sm" variant="ghost" className="px-2">
-                              <MoreHorizontal className="h-3.5 w-3.5" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onSelect={() =>
-                                setToDelete({ provider: entry.provider, model: entry.model })
-                              }
-                              className="text-red-600"
-                            >
-                              {t("row.delete")}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </li>
-                    ))}
+                    {entries.map((entry) => {
+                      const pricingEntry = getModelPricingEntry(entry.provider, entry.model);
+                      const description = getDescription(pricingEntry);
+                      return (
+                        <li
+                          key={`${entry.provider}/${entry.model}`}
+                          className="px-4 py-2"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3 text-sm">
+                              <code className="font-mono text-slate-800">{entry.model}</code>
+                              <span className="text-slate-500">
+                                {t("row.dim", { dimension: entry.dimension })}
+                              </span>
+                              <span className="text-slate-400 text-xs">
+                                {formatRel(entry.created_at)}
+                              </span>
+                              <PriceBadge pricingEntry={pricingEntry} />
+                              <StatutBadge statut={pricingEntry?.statut} />
+                              <TypeBadge type={pricingEntry?.type} />
+                            </div>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button size="sm" variant="ghost" className="px-2">
+                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onSelect={() =>
+                                    setToDelete({ provider: entry.provider, model: entry.model })
+                                  }
+                                  className="text-red-600"
+                                >
+                                  {t("row.delete")}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                          {description && (
+                            <p className="mt-0.5 text-xs text-slate-400 pl-0">{description}</p>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>

@@ -3,36 +3,44 @@ import { screen, fireEvent } from "@testing-library/react";
 import { renderWithProviders } from "./testUtils";
 import { WorkspaceJobsTab } from "@/pages/workspace/WorkspaceJobsTab";
 
-const mockJobs = [
-  {
-    id: "job-1",
-    triggered_by: "manual" as const,
-    status: "done" as const,
-    files_changed: 5,
-    files_skipped: 2,
-    error_message: null,
-    started_at: "2026-01-01T10:00:00Z",
-    finished_at: "2026-01-01T10:01:00Z",
-    duration_ms: 60000,
+const { mockJobsResult, mockJobFilesResult } = vi.hoisted(() => ({
+  mockJobsResult: {
+    data: [
+      {
+        id: "job-1",
+        triggered_by: "manual" as const,
+        status: "done" as const,
+        files_changed: 5,
+        files_skipped: 2,
+        error_message: null,
+        started_at: "2026-01-01T10:00:00Z",
+        finished_at: "2026-01-01T10:01:00Z",
+        duration_ms: 60000,
+      },
+      {
+        id: "job-2",
+        triggered_by: "webhook" as const,
+        status: "error" as const,
+        files_changed: 0,
+        files_skipped: 0,
+        error_message: "Connection refused",
+        started_at: "2026-01-02T10:00:00Z",
+        finished_at: "2026-01-02T10:00:05Z",
+        duration_ms: 5000,
+      },
+    ],
+    isLoading: false,
   },
-  {
-    id: "job-2",
-    triggered_by: "webhook" as const,
-    status: "error" as const,
-    files_changed: 0,
-    files_skipped: 0,
-    error_message: "Connection refused",
-    started_at: "2026-01-02T10:00:00Z",
-    finished_at: "2026-01-02T10:00:05Z",
-    duration_ms: 5000,
+  mockJobFilesResult: {
+    data: { files: [], total: 0, limit: 1000 },
+    isLoading: false,
+    isError: false,
   },
-];
+}));
 
 vi.mock("@/hooks/useWorkspaces", () => ({
-  useWorkspaceJobs: () => ({
-    data: mockJobs,
-    isLoading: false,
-  }),
+  useWorkspaceJobs: () => mockJobsResult,
+  useWorkspaceJobFiles: () => mockJobFilesResult,
 }));
 
 describe("WorkspaceJobsTab", () => {
@@ -66,5 +74,13 @@ describe("WorkspaceJobsTab", () => {
     renderWithProviders(<WorkspaceJobsTab name="my-workspace" enabled={true} />);
     // job-1 : 5 ch / 2 sk
     expect(screen.getByText("5 ch / 2 sk")).toBeInTheDocument();
+  });
+
+  it("un job 'done' est cliquable (pas disabled)", () => {
+    renderWithProviders(<WorkspaceJobsTab name="my-workspace" enabled={true} />);
+    const doneBadge = screen.getByText("done");
+    const row = doneBadge.closest("button");
+    expect(row).not.toBeNull();
+    expect(row).not.toBeDisabled();
   });
 });

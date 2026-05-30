@@ -10,6 +10,8 @@ import { VaultSecretsTab } from "@/pages/harpocrate/VaultSecretsTab";
 import { VaultWalletInfoTab } from "@/pages/harpocrate/VaultWalletInfoTab";
 import { RevealApiKeyDialog } from "@/pages/harpocrate/RevealApiKeyDialog";
 import { RetireVaultDialog } from "@/pages/harpocrate/RetireVaultDialog";
+import { VaultApikeysTab } from "@/pages/harpocrate/VaultApikeysTab";
+import { VaultSshTab } from "@/pages/harpocrate/VaultSshTab";
 
 type DialogKind = "reveal" | "retire" | null;
 
@@ -56,6 +58,8 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
             <TabsTrigger value="detail">{t("tabs.detail")}</TabsTrigger>
             <TabsTrigger value="secrets">{t("tabs.secrets")}</TabsTrigger>
             <TabsTrigger value="info">{t("tabs.info")}</TabsTrigger>
+            <TabsTrigger value="apikeys">{t("tabs.apikeys")}</TabsTrigger>
+            <TabsTrigger value="ssh">{t("ssh.tab")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="detail">
@@ -72,6 +76,14 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
 
           <TabsContent value="info">
             <VaultWalletInfoTab vaultId={vault.id} />
+          </TabsContent>
+
+          <TabsContent value="apikeys">
+            <VaultApikeysTab vaultId={vault.id} />
+          </TabsContent>
+
+          <TabsContent value="ssh">
+            <VaultSshTab vaultId={vault.id} />
           </TabsContent>
         </Tabs>
       </div>

@@ -32,7 +32,13 @@
     "api_key_help": "Valeur de la clé API (ex : sk-…). Elle sera stockée de façon sécurisée dans le coffre sélectionné ci-dessus.",
     "api_key_vault": "Coffre Harpocrate",
     "api_key_vault_help": "Coffre où sera stockée l'api_key MCP du workspace",
-    "api_key_vault_none": "Aucun coffre configuré. Créer d'abord un coffre via Paramètres → Harpocrate."
+    "api_key_vault_none": "Aucun coffre configuré. Créer d'abord un coffre via Paramètres → Harpocrate.",
+    "indexer_section": "Vectorisation",
+    "rerank_section": "Reranking (optionnel)",
+    "api_key_ref_placeholder": "Sélectionner une clé",
+    "api_key_ref_none": "Aucune clé disponible pour ce provider — ajoutez-en une dans un coffre Harpocrate",
+    "top_k": "top_k pré-rerank",
+    "rerank_remove": "Retirer le reranking"
   },
   "actions": {
     "rotate_apikey": "Régénérer l'api_key",

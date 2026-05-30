@@ -7,7 +7,7 @@ import asyncpg
 import structlog
 
 from rag.schemas.admin import RerankSpec
-from rag.secrets.refs import build_ref
+from rag.secrets.refs import build_ref, is_vault_ref
 
 log = structlog.get_logger(__name__)
 
@@ -50,10 +50,14 @@ async def upsert_rerank_config(
     Lève l'exception du resolver si la ref n'est pas résolvable (aucune row écrite).
     """
     if spec.api_key_ref:
-        # Eager validation : si la ref n'est pas résolvable, on lève AVANT d'écrire.
-        await resolver.resolve_with_retry(
-            _to_vault_ref(spec.api_key_ref, default_vault_name)
-        )
+        # Eager validation uniquement pour les clés logiques (ancien format).
+        # Les vault_refs complets (harpo_path de provider_api_keys) utilisent
+        # vault_name comme identifiant, incompatible avec le resolver qui attend
+        # api_key_id — on leur fait confiance (proviennent d'un select filtré).
+        if not is_vault_ref(spec.api_key_ref):
+            await resolver.resolve_with_retry(
+                _to_vault_ref(spec.api_key_ref, default_vault_name)
+            )
 
     row = await config_pool.fetchrow(
         """

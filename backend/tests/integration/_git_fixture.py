@@ -4,14 +4,18 @@ import subprocess
 from pathlib import Path
 
 
-def make_bare_repo_with_commits(tmp_path: Path, files: dict[str, str]) -> Path:
+def make_bare_repo_with_commits(
+    tmp_path: Path, files: dict[str, str], default_branch: str = "main"
+) -> Path:
     """Crée un repo bare avec des commits initialisés depuis un dict
     {path: content}. Retourne le path du repo bare (à utiliser comme URL
     de clone : `file:///tmp/.../bare.git`).
+
+    `default_branch` fixe la branche initiale du bare (HEAD symref).
     """
     bare = tmp_path / "bare.git"
     subprocess.run(
-        ["git", "init", "--bare", "--initial-branch=main", str(bare)],
+        ["git", "init", "--bare", f"--initial-branch={default_branch}", str(bare)],
         check=True,
         capture_output=True,
     )
@@ -43,7 +47,7 @@ def make_bare_repo_with_commits(tmp_path: Path, files: dict[str, str]) -> Path:
         capture_output=True,
     )
     subprocess.run(
-        ["git", "-C", str(work), "push", "origin", "main"],
+        ["git", "-C", str(work), "push", "origin", default_branch],
         check=True,
         capture_output=True,
     )

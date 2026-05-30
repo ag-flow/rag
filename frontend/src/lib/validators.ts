@@ -1,24 +1,25 @@
 import { z } from "zod";
 
-export const workspaceCreateSchema = z
-  .object({
-    name: z
-      .string()
-      .min(1, "name_required")
-      .max(64, "name_too_long")
-      .regex(/^[a-z][a-z0-9_-]{0,62}$/, "name_invalid_format"),
-    api_key_vault: z.string().min(1).max(255),
-    indexer: z.object({
-      provider: z.enum(["openai", "voyage", "ollama"]),
-      model: z.string().min(1, "model_required"),
-      api_key: z.string().min(1).optional(),
-      base_url: z.string().url().optional(),
-    }),
-  })
-  .refine((data) => data.indexer.provider === "ollama" || !!data.indexer.api_key, {
-    message: "api_key_required",
-    path: ["indexer", "api_key"],
-  });
+const indexerSchema = z.object({
+  provider: z.string().min(1),
+  model: z.string().min(1),
+  api_key_ref: z.string().nullable().optional(),
+  base_url: z.string().nullable().optional(),
+});
+
+const rerankSchema = z.object({
+  provider: z.string().min(1),
+  model: z.string().min(1),
+  api_key_ref: z.string().nullable().optional(),
+  base_url: z.string().nullable().optional(),
+  top_k_pre_rerank: z.number().int().min(1).max(500).default(50),
+});
+
+export const workspaceCreateSchema = z.object({
+  name: z.string().regex(/^[a-z][a-z0-9_-]{0,62}$/),
+  indexer: indexerSchema,
+  rerank: rerankSchema.nullable().optional(),
+});
 
 export interface MeResponse {
   sub: string;

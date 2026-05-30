@@ -74,3 +74,123 @@ export type SecretListResponse = {
   secrets: SecretListItem[];
   next_cursor: string | null;
 };
+
+export type ProviderApiKey = {
+  id: string;
+  key_id: string;
+  label: string;
+  provider: string;
+  harpo_path: string;
+  expires_at: string | null;
+  created_at: string;
+};
+
+export type ProviderApiKeyCreate = {
+  key_id: string;
+  label: string;
+  provider: string;
+  value: string;
+  valid_days?: number | null;
+};
+
+export type ProviderApiKeyUpdate = {
+  label?: string;
+  value?: string;
+  valid_days?: number | null;
+};
+
+export type GitHost =
+  | "github"
+  | "gitlab"
+  | "gitea"
+  | "bitbucket"
+  | "azure-devops";
+
+export type GitCredential = {
+  id: string;
+  key_id: string;
+  label: string;
+  host: GitHost;
+  scope_url: string | null;
+  harpo_path: string;
+  expires_at: string | null;
+  created_at: string;
+};
+
+export type GitCredentialCreate = {
+  key_id: string;
+  label: string;
+  host: GitHost;
+  scope_url?: string | null;
+  value: string;
+  valid_days?: number | null;
+};
+
+export type GitCredentialUpdate = {
+  label?: string;
+  scope_url?: string | null;
+  value?: string;
+  valid_days?: number | null;
+};
+
+export type SshKeyType = "ed25519" | "rsa-4096" | "ecdsa-256";
+
+export type SshKey = {
+  id: string;
+  key_id: string;
+  name: string;
+  key_type: string;
+  public_key: string;
+  passphrase_protected: boolean;
+  harpo_path: string;
+  created_at: string;
+};
+
+export type SshKeyImport = {
+  key_id: string;
+  name: string;
+  private_key: string;
+  public_key: string;
+  passphrase?: string | null;
+};
+
+export type SshKeyGenerate = {
+  key_id: string;
+  name: string;
+  key_type: SshKeyType;
+};
+
+export type ProviderApiKeyWithVault = {
+  id: string;
+  key_id: string;
+  label: string;
+  provider: string;
+  harpo_path: string;
+  vault_name: string;
+  vault_label: string;
+  created_at: string;
+};
+
+export type GitCredentialWithVault = {
+  id: string;
+  key_id: string;
+  label: string;
+  host: string;
+  harpo_path: string;
+  vault_name: string;
+  vault_label: string;
+  created_at: string;
+};
+
+export type SshKeyWithVault = {
+  id: string;
+  key_id: string;
+  name: string;
+  key_type: string;
+  public_key: string;
+  passphrase_protected: boolean;
+  harpo_path: string;
+  vault_name: string;
+  vault_label: string;
+  created_at: string;
+};

@@ -195,11 +195,12 @@ def test_workspace_patch_rejects_top_level_extra() -> None:
 def test_source_create_git_minimal() -> None:
     req = SourceCreateRequest.model_validate(
         {
+            "name": "harpocrate",
             "type": "git",
+            "api_key_vault": "rag",
             "config": {
                 "url": "https://github.com/gael/harpocrate",
                 "branch": "main",
-                "auth_ref": "github_token",
                 "include": ["**/*.md"],
                 "exclude": [],
             },
@@ -207,6 +208,8 @@ def test_source_create_git_minimal() -> None:
     )
     assert req.type == "git"
     assert req.config["url"] == "https://github.com/gael/harpocrate"
+    assert req.name == "harpocrate"
+    assert req.api_key_vault == "rag"
 
 
 def test_source_create_rejects_non_git_type() -> None:

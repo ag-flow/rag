@@ -10,13 +10,25 @@ from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 
 from rag.api.admin import build_admin_router
+from rag.api.admin_git_credentials import router as admin_git_credentials_router
+from rag.api.admin_git_credentials import router_global as admin_git_creds_global_router
 from rag.api.admin_harpocrate_vaults import router as admin_harpocrate_vaults_router
 from rag.api.admin_oidc import build_admin_oidc_router
+from rag.api.admin_provider_keys import router as admin_provider_keys_router
+from rag.api.admin_provider_keys import router_global as admin_provider_keys_global_router
+from rag.api.admin_ssh_keys import router as admin_ssh_keys_router
+from rag.api.admin_ssh_keys import router_global as admin_ssh_keys_global_router
+from rag.api.admin_webhooks import build_webhooks_router
 from rag.api.auth import build_auth_router
 from rag.api.auth_methods import build_auth_methods_router
+from rag.api.enrichments import router_languages as enrichment_languages_router
+from rag.api.enrichments import router_prompts as enrichment_prompts_router
+from rag.api.enrichments import router_triggers as enrichment_triggers_router
 from rag.api.errors import register_error_handlers
 from rag.api.health import build_health_router
 from rag.api.mcp import build_mcp_router
+from rag.api.playground import router_admin as playground_admin_router
+from rag.api.playground import router_chat as playground_chat_router
 from rag.api.workspace import build_workspace_router
 from rag.api.ws import router as ws_router
 from rag.auth.workspace_auth import ApiKeyCache
@@ -185,6 +197,11 @@ def build_app(
         app.state.apikey_cache = ApiKeyCache()
         app.state.job_log_bus = JobLogBus()
 
+        webhook_secret: str | None = (
+            settings.rag_webhook_secret.get_secret_value()
+            if settings.rag_webhook_secret
+            else None
+        )
         sync_worker = SyncWorker(
             config_pool=registry.config_pool,
             storage=RepoStorage(root=settings.sync_repos_root),
@@ -194,6 +211,7 @@ def build_app(
             poll_interval_seconds=settings.sync_worker_poll_interval_seconds,
             default_sync_interval_seconds=settings.sync_default_interval_seconds,
             job_log_bus=app.state.job_log_bus,
+            webhook_secret=webhook_secret,
         )
         await sync_worker.start()
         app.state.sync_worker = sync_worker
@@ -222,11 +240,23 @@ def build_app(
     app.include_router(build_admin_router(), prefix="/api/admin")
     app.include_router(build_admin_oidc_router(), prefix="/api/admin")
     app.include_router(admin_harpocrate_vaults_router)
+    app.include_router(admin_provider_keys_router)
+    app.include_router(admin_provider_keys_global_router)
+    app.include_router(admin_git_credentials_router)
+    app.include_router(admin_git_creds_global_router)
+    app.include_router(admin_ssh_keys_router)
+    app.include_router(admin_ssh_keys_global_router)
+    app.include_router(build_webhooks_router(), prefix="/api/admin")
     app.include_router(build_auth_router())
     app.include_router(build_auth_methods_router())
     app.include_router(build_workspace_router())
     app.include_router(build_mcp_router())
     app.include_router(ws_router)
+    app.include_router(playground_admin_router)
+    app.include_router(playground_chat_router)
+    app.include_router(enrichment_languages_router)
+    app.include_router(enrichment_prompts_router)
+    app.include_router(enrichment_triggers_router)
     register_error_handlers(app)
     return app
 

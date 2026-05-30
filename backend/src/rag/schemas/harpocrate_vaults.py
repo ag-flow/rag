@@ -20,6 +20,7 @@ class VaultSummary(BaseModel):
     api_key_id: str
     probe_path: str | None
     is_default: bool
+    owner_id: str = ""
     created_at: datetime
     updated_at: datetime
 

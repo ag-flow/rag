@@ -2,16 +2,7 @@
 import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import {
-  LayoutGrid,
-  GitBranch,
-  Clock,
-  Database,
-  Send,
-  Search,
-  Settings,
-  KeyRound,
-} from "lucide-react";
+import { LayoutGrid, Database, FileCode, Send, Search, Settings, KeyRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NavItemProps {
@@ -78,9 +69,8 @@ export function Sidebar() {
           {t("sections.administration")}
         </div>
         <NavItem to="/workspaces" icon={<LayoutGrid />} label={t("items.workspaces")} />
-        <NavItem to="/sources" icon={<GitBranch />} label={t("items.sources")} disabled />
-        <NavItem to="/jobs" icon={<Clock />} label={t("items.jobs")} disabled />
         <NavItem to="/models" icon={<Database />} label={t("items.models")} />
+        <NavItem to="/prompts" icon={<FileCode />} label={t("items.prompts")} />
 
         <div className="px-5 pt-4 pb-1 text-xs font-bold uppercase tracking-wider text-slate-600">
           {t("sections.usage")}

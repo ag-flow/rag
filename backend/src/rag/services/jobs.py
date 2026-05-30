@@ -9,6 +9,7 @@ import structlog
 from rag.api.errors import (
     ChunkingChangeRequiresReindex,
     IndexerChangeRequiresReindex,
+    JobNotFound,
     RefNotFoundInVault,
     SourceNotFound,
     VaultUnreachable,
@@ -117,6 +118,49 @@ async def list_jobs(config_pool: asyncpg.Pool, *, workspace_name: str) -> list[d
         ws["id"],
     )
     return [_job_to_dict(r) for r in rows]
+
+
+async def list_job_files(
+    config_pool: asyncpg.Pool, *, workspace_name: str, job_id: str, limit: int = 1000
+) -> dict[str, Any]:
+    """Fichiers traités par un job (added/modified/deleted), limités à `limit`.
+
+    Lève JobNotFound si le job n'appartient pas au workspace.
+    """
+    owner = await fetch_one(
+        config_pool,
+        """
+        SELECT j.id FROM index_jobs j
+        JOIN workspaces w ON w.id = j.workspace_id
+        WHERE j.id = $1::uuid AND w.name = $2
+        """,
+        job_id,
+        workspace_name,
+    )
+    if owner is None:
+        raise JobNotFound(job_id)
+
+    files = await fetch_all(
+        config_pool,
+        """
+        SELECT path, change_type FROM index_job_files
+        WHERE job_id = $1::uuid
+        ORDER BY change_type, path
+        LIMIT $2
+        """,
+        job_id,
+        limit,
+    )
+    total = await fetch_one(
+        config_pool,
+        "SELECT count(*) AS n FROM index_job_files WHERE job_id = $1::uuid",
+        job_id,
+    )
+    return {
+        "files": [{"path": r["path"], "change_type": r["change_type"]} for r in files],
+        "total": int(total["n"]),
+        "limit": limit,
+    }
 
 
 def _job_to_dict(row: asyncpg.Record) -> dict[str, Any]:

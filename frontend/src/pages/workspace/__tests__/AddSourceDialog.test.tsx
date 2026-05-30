@@ -1,27 +1,45 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "./testUtils";
 import { AddSourceDialog } from "@/pages/workspace/AddSourceDialog";
 
-const mockMutate = vi.fn();
+const { mockMutate, mockToast, mockAddResponse, mockVaults } = vi.hoisted(() => ({
+  mockMutate: vi.fn(),
+  mockToast: vi.fn(),
+  mockAddResponse: { value: { id: "s1", branch_warning: null as string | null } },
+  // Référence STABLE : useVaults() doit renvoyer le même objet à chaque render.
+  // Un nouvel objet par appel ferait boucler le useEffect (deps: vaults) qui
+  // appelle form.reset() → re-render → OOM du worker vitest.
+  mockVaults: { data: [{ name: "vault-default", label: "Default Vault", api_key_id: "key-1" }] },
+}));
 
 vi.mock("@/hooks/useWorkspaces", () => ({
-  useAddSource: () => ({ mutate: mockMutate, isPending: false }),
+  useAddSource: () => ({
+    mutate: (payload: unknown, opts?: { onSuccess?: (d: unknown) => void }) => {
+      mockMutate(payload);
+      opts?.onSuccess?.(mockAddResponse.value);
+    },
+    isPending: false,
+  }),
   useUpdateSource: () => ({ mutate: vi.fn(), isPending: false }),
   useTestSourceConnection: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock("@/hooks/useHarpocrateVaults", () => ({
-  useVaults: () => ({
-    data: [{ name: "vault-default", label: "Default Vault", api_key_id: "key-1" }],
-  }),
+  useVaults: () => mockVaults,
 }));
 
 vi.mock("@/hooks/useToast", () => ({
-  useToast: () => ({ toast: vi.fn() }),
+  useToast: () => ({ toast: mockToast }),
 }));
 
 describe("AddSourceDialog", () => {
+  beforeEach(() => {
+    mockMutate.mockClear();
+    mockToast.mockClear();
+    mockAddResponse.value = { id: "s1", branch_warning: null };
+  });
+
   it("affiche le titre quand ouvert", () => {
     renderWithProviders(
       <AddSourceDialog name="my-workspace" open={true} onOpenChange={() => {}} />,
@@ -84,5 +102,63 @@ describe("AddSourceDialog", () => {
     const link = screen.getByRole("link", { name: /Générer un token GitHub/i });
     expect(link).toHaveAttribute("href", "https://github.com/settings/tokens/new");
     expect(link).toHaveAttribute("target", "_blank");
+  });
+
+  it("laisse la branche undefined quand le champ est vide", async () => {
+    renderWithProviders(
+      <AddSourceDialog name="my-workspace" open={true} onOpenChange={() => {}} />,
+    );
+    fireEvent.change(screen.getByPlaceholderText(/ex\. mon-repo/), {
+      target: { value: "my-repo" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("https://github.com/..."), {
+      target: { value: "https://github.com/org/repo" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^ajouter$/i }));
+    await waitFor(() => {
+      expect(mockMutate).toHaveBeenCalledOnce();
+    });
+    const payload = mockMutate.mock.calls[0]![0] as { config: { branch?: string } };
+    expect(payload.config.branch).toBeUndefined();
+  });
+
+  it("transmet la branche quand elle est saisie", async () => {
+    renderWithProviders(
+      <AddSourceDialog name="my-workspace" open={true} onOpenChange={() => {}} />,
+    );
+    fireEvent.change(screen.getByPlaceholderText(/ex\. mon-repo/), {
+      target: { value: "my-repo" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("https://github.com/..."), {
+      target: { value: "https://github.com/org/repo" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/branche par défaut/i), {
+      target: { value: "develop" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^ajouter$/i }));
+    await waitFor(() => {
+      expect(mockMutate).toHaveBeenCalledOnce();
+    });
+    const payload = mockMutate.mock.calls[0]![0] as { config: { branch?: string } };
+    expect(payload.config.branch).toBe("develop");
+  });
+
+  it("affiche un toast d'avertissement quand branch_warning est présent", async () => {
+    mockAddResponse.value = { id: "s1", branch_warning: "w" };
+    renderWithProviders(
+      <AddSourceDialog name="my-workspace" open={true} onOpenChange={() => {}} />,
+    );
+    fireEvent.change(screen.getByPlaceholderText(/ex\. mon-repo/), {
+      target: { value: "my-repo" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("https://github.com/..."), {
+      target: { value: "https://github.com/org/repo" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^ajouter$/i }));
+    await waitFor(() => {
+      expect(mockMutate).toHaveBeenCalledOnce();
+    });
+    // deux toasts : avertissement (branch_warning) + succès
+    expect(mockToast).toHaveBeenCalledTimes(2);
   });
 });

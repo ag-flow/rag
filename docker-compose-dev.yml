@@ -40,6 +40,7 @@ services:
       # M3 : clones git persistants entre runs.
       # `dev-deploy.sh --reset` (down -v) purge ce volume au passage.
       - rag_repos:/var/lib/rag/repos
+      - ./embedding_providers_pricing.yml:/app/config/pricing.yml:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s

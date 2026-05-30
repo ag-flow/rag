@@ -36,6 +36,7 @@ class HarpocrateClientProvider:
         self._service = vaults_service
         self._pool = db_pool
         self._clients: dict[str, HarpocrateVaultClient] = {}
+        self._clients_by_name: dict[str, HarpocrateVaultClient] = {}
         self._default_name: str | None = None
         self._loaded_at: float = 0.0
         self._invalidated: bool = True
@@ -45,11 +46,17 @@ class HarpocrateClientProvider:
         self._invalidated = True
 
     async def get_client(self, vault_name: str) -> HarpocrateVaultClient:
+        """Retourne le client pour `vault_name`.
+
+        Essaie d'abord par api_key_id (ancien format des refs), puis par
+        nom du coffre (nouveau format des harpo_path issus de provider_api_keys,
+        git_credentials, ssh_keys).
+        """
         await self._ensure_loaded()
-        try:
-            return self._clients[vault_name]
-        except KeyError as exc:
-            raise VaultNotFoundError(vault_name) from exc
+        client = self._clients.get(vault_name) or self._clients_by_name.get(vault_name)
+        if client is None:
+            raise VaultNotFoundError(vault_name)
+        return client
 
     async def get_default_vault_name(self) -> str | None:
         await self._ensure_loaded()
@@ -77,17 +84,19 @@ class HarpocrateClientProvider:
 
         async with self._pool.acquire() as conn:
             clients: dict[str, HarpocrateVaultClient] = {}
+            clients_by_name: dict[str, HarpocrateVaultClient] = {}
             for v in vaults:
                 api_key = await self._service.reveal_api_key(conn, v.id)
                 if api_key is None:
                     continue
-                # Indexé par api_key_id : c'est l'identifiant du coffre dans les refs
-                # ${vault://<api_key_id>:<path>} → SecretResolver appelle get_client(api_key_id)
-                clients[v.api_key_id] = HarpocrateVaultClient(
-                    url=v.base_url,
-                    token=api_key,
-                )
+                client = HarpocrateVaultClient(url=v.base_url, token=api_key)
+                # Index par api_key_id (ancien format des refs workspace)
+                clients[v.api_key_id] = client
+                # Index par vault_name (nouveau format des harpo_path de provider_api_keys,
+                # git_credentials, ssh_keys : ${vault://<vault_name>:<path>})
+                clients_by_name[v.name] = client
         self._clients = clients
+        self._clients_by_name = clients_by_name
         self._default_name = next(
             (v.api_key_id for v in vaults if v.is_default),
             None,

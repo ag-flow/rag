@@ -1,6 +1,8 @@
-# backend/tests/api/test_workspace_push_dedup.py
 from __future__ import annotations
 
+import asyncio
+
+import asyncpg
 from fastapi.testclient import TestClient
 
 
@@ -22,138 +24,78 @@ def _make_ws(client: TestClient, admin_headers: dict[str, str], name: str) -> st
     return r.json()["api_key"]
 
 
-def test_second_push_same_content_returns_skipped(
+def test_push_returns_202_with_job_id(
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
+    cleanup_ws_dbs_api: None,
+) -> None:
+    api_key = _make_ws(admin_client, admin_headers, "ws_async1")
+    headers = {"Authorization": f"Bearer {api_key}"}
+
+    r = admin_client.post(
+        "/workspaces/ws_async1/index",
+        headers=headers,
+        json={"path": "doc.md", "content": "hello world"},
+    )
+    assert r.status_code == 202
+    body = r.json()
+    assert body["status"] == "pending"
+    assert "job_id" in body
+    assert "X-Correlation-ID" in r.headers
+
+
+def test_push_payload_stored_in_db(
     admin_client: TestClient,
     admin_headers: dict[str, str],
     cleanup_ws_dbs_api: None,
     pg_container: str,
 ) -> None:
-    """Le fake indexer doit écrire le hash dans `indexed_documents` pour
-    que la pré-déduplication du service push voie un hash existant et
-    retourne `skipped` au 2e push."""
-    api_key = _make_ws(admin_client, admin_headers, "ws_dedup1")
-
-    import asyncpg
-
-    pool_dsn = pg_container
-
-    class _DedupFake:
-        def __init__(self) -> None:
-            self.index_calls = 0
-
-        async def index_file(self, **kw):  # type: ignore[no-untyped-def]
-            self.index_calls += 1
-            conn = await asyncpg.connect(pool_dsn)
-            try:
-                await conn.execute(
-                    """
-                    INSERT INTO indexed_documents
-                        (workspace_id, path, content_hash, indexer_used, indexed_at)
-                    VALUES ($1, $2, $3, $4, now())
-                    ON CONFLICT (workspace_id, path) DO UPDATE
-                    SET content_hash=EXCLUDED.content_hash,
-                        indexer_used=EXCLUDED.indexer_used,
-                        indexed_at=EXCLUDED.indexed_at
-                    """,
-                    kw["workspace_id"],
-                    kw["path"],
-                    kw["content_hash"],
-                    kw["indexer_used"],
-                )
-            finally:
-                await conn.close()
-            return 1
-
-        async def delete_file(self, **kw):  # type: ignore[no-untyped-def]
-            pass
-
-    fake = _DedupFake()
-    admin_client.app.state.indexer = fake  # type: ignore[attr-defined]
-
+    api_key = _make_ws(admin_client, admin_headers, "ws_async2")
     headers = {"Authorization": f"Bearer {api_key}"}
 
-    # 1er push
-    r1 = admin_client.post(
-        "/workspaces/ws_dedup1/index",
+    r = admin_client.post(
+        "/workspaces/ws_async2/index",
         headers=headers,
-        json={"path": "doc.md", "content": "stable content"},
+        json={"path": "a.md", "content": "stored content"},
     )
-    assert r1.status_code == 200
-    assert r1.json()["status"] == "indexed"
+    assert r.status_code == 202
+    job_id = r.json()["job_id"]
 
-    # 2e push même contenu
-    r2 = admin_client.post(
-        "/workspaces/ws_dedup1/index",
-        headers=headers,
-        json={"path": "doc.md", "content": "stable content"},
-    )
-    assert r2.status_code == 200
-    body = r2.json()
-    assert body["status"] == "skipped"
-    assert body["reason"] == "content_unchanged"
-    assert fake.index_calls == 1  # pas de 2e appel à index_file
+    async def check() -> None:
+        conn = await asyncpg.connect(pg_container)
+        try:
+            row = await conn.fetchrow(
+                "SELECT path, content FROM push_job_payloads WHERE job_id=$1::uuid", job_id
+            )
+            assert row is not None
+            assert row["path"] == "a.md"
+            assert row["content"] == "stored content"
+        finally:
+            await conn.close()
+
+    asyncio.run(check())
 
 
-def test_push_different_content_same_path_reindexes(
+def test_push_two_requests_create_two_jobs(
     admin_client: TestClient,
     admin_headers: dict[str, str],
     cleanup_ws_dbs_api: None,
-    pg_container: str,
 ) -> None:
-    api_key = _make_ws(admin_client, admin_headers, "ws_dedup2")
-
-    import asyncpg
-
-    pool_dsn = pg_container
-
-    class _DedupFake:
-        def __init__(self) -> None:
-            self.calls = 0
-
-        async def index_file(self, **kw):  # type: ignore[no-untyped-def]
-            self.calls += 1
-            conn = await asyncpg.connect(pool_dsn)
-            try:
-                await conn.execute(
-                    """
-                    INSERT INTO indexed_documents
-                        (workspace_id, path, content_hash, indexer_used, indexed_at)
-                    VALUES ($1, $2, $3, $4, now())
-                    ON CONFLICT (workspace_id, path) DO UPDATE
-                    SET content_hash=EXCLUDED.content_hash, indexed_at=now()
-                    """,
-                    kw["workspace_id"],
-                    kw["path"],
-                    kw["content_hash"],
-                    kw["indexer_used"],
-                )
-            finally:
-                await conn.close()
-            return 1
-
-        async def delete_file(self, **kw):  # type: ignore[no-untyped-def]
-            pass
-
-    fake = _DedupFake()
-    admin_client.app.state.indexer = fake  # type: ignore[attr-defined]
-
+    """Two pushes create two independent jobs (no dedup at endpoint level)."""
+    api_key = _make_ws(admin_client, admin_headers, "ws_async3")
     headers = {"Authorization": f"Bearer {api_key}"}
 
     r1 = admin_client.post(
-        "/workspaces/ws_dedup2/index",
+        "/workspaces/ws_async3/index",
         headers=headers,
-        json={"path": "doc.md", "content": "v1"},
+        json={"path": "doc.md", "content": "same content"},
     )
-    assert r1.status_code == 200
-    assert r1.json()["status"] == "indexed"
-
     r2 = admin_client.post(
-        "/workspaces/ws_dedup2/index",
+        "/workspaces/ws_async3/index",
         headers=headers,
-        json={"path": "doc.md", "content": "v2 different"},
+        json={"path": "doc.md", "content": "same content"},
     )
-    assert r2.status_code == 200
-    body = r2.json()
-    assert body["status"] == "indexed"
-    assert body["hash"] != r1.json()["hash"]
-    assert fake.calls == 2
+    assert r1.status_code == 202
+    assert r2.status_code == 202
+    assert r1.json()["job_id"] != r2.json()["job_id"]
+    assert r1.headers["X-Correlation-ID"] != r2.headers["X-Correlation-ID"]

@@ -30,3 +30,46 @@ def test_filter_glob_empty_changeset() -> None:
     cs = ChangeSet()
     out = filter_glob(cs, include=["**/*"], exclude=[])
     assert out.total_changed == 0
+
+
+def test_filter_glob_exclude_nested_node_modules() -> None:
+    """Régression : **/node_modules/** doit exclure les chemins imbriqués.
+
+    Avant le fix (fnmatch desugaring), `node_modules/*` ne matchait que les
+    chemins commençant par node_modules/ — les chemins comme
+    tools/md2pdf/node_modules/... passaient le filtre.
+    """
+    cs = ChangeSet(
+        added=[
+            "tools/md2pdf/node_modules/smart-buffer/docs/ROADMAP.md",
+            "tools/svg2pptx/node_modules/smart-buffer/docs/ROADMAP.md",
+            "tools/md2pdf/node_modules/moment-mini/locale/locale.js",
+            "docs/README.md",
+            "guides/setup.md",
+        ]
+    )
+    out = filter_glob(
+        cs,
+        include=["**/*.md", "docs/**"],
+        exclude=["**/node_modules/**"],
+    )
+    # Seuls les .md hors node_modules doivent passer
+    assert sorted(out.added) == ["docs/README.md", "guides/setup.md"]
+
+
+def test_filter_glob_docs_pattern_does_not_leak_into_node_modules() -> None:
+    """docs/** ne doit pas matcher tools/.../node_modules/.../docs/ROADMAP.md
+    quand l'exclude **/node_modules/** est actif.
+    """
+    cs = ChangeSet(
+        added=[
+            "tools/md2pdf/node_modules/smart-buffer/docs/ROADMAP.md",
+            "docs/ROADMAP.md",
+        ]
+    )
+    out = filter_glob(
+        cs,
+        include=["docs/**"],
+        exclude=["**/node_modules/**"],
+    )
+    assert out.added == ["docs/ROADMAP.md"]

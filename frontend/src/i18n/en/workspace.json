@@ -23,7 +23,9 @@
     "jobs": "Jobs",
     "model": "Model",
     "rerank": "Rerank",
-    "chunking": "Chunking"
+    "chunking": "Chunking",
+    "playground": "Playground",
+    "triggers": "Triggers"
   },
   "detail": {
     "stats": {
@@ -70,18 +72,30 @@
       "vault_placeholder": "Select a vault…",
       "url": "URL",
       "branch": "Branch",
+      "branch_placeholder": "repository default branch (e.g. main)",
       "auth_value": "GitHub token (PAT)",
       "auth_value_placeholder": "github_pat_…",
       "auth_value_link": "Generate GitHub token",
       "auth_status_set": "authentication configured",
       "auth_status_none": "no authentication",
       "include": "Include",
-      "exclude": "Exclude"
+      "exclude": "Exclude",
+      "git_provider": "Git Provider",
+      "auth_type": "Authentication",
+      "auth_type_token": "Token",
+      "auth_type_ssh": "SSH Certificate",
+      "credential": "Credential",
+      "credential_placeholder": "Select...",
+      "credential_none": "No credential available for this provider",
+      "ssh_username": "SSH username",
+      "ssh_username_placeholder": "git",
+      "branch_detecting": "Detecting branches…"
     },
     "add": {
       "title": "Add git source",
       "submit": "Add",
       "success": "Source added.",
+      "branch_warning": "Default branch not detected, fell back to \"main\". Check if sync fails.",
       "error": "Failed to add source.",
       "errors": {
         "invalid_url": "Invalid URL.",
@@ -119,7 +133,20 @@
   "jobs": {
     "title": "Jobs ({{count}})",
     "empty": "No indexing jobs.",
-    "changes": "{{changed}} ch / {{skipped}} sk"
+    "changes": "{{changed}} ch / {{skipped}} sk",
+    "detail": {
+      "source": "Source",
+      "started": "Started",
+      "finished": "Finished",
+      "files": "Changed files ({{count}})",
+      "added": "added",
+      "modified": "modified",
+      "deleted": "deleted",
+      "more": "+ {{count}} more files",
+      "no_files": "No file detail (job predates this feature).",
+      "loading": "Loading…",
+      "error": "Failed to load files."
+    }
   },
   "model": {
     "title": "Indexer model",
@@ -273,6 +300,42 @@
       "success": "Workspace deleted.",
       "error": "Failed to delete workspace."
     }
+  },
+  "webhooks": {
+    "tab": "Webhooks",
+    "list_title": "Webhooks",
+    "add": "Add",
+    "empty": "No webhooks configured.",
+    "headers_count_one": "{{count}} header",
+    "headers_count_other": "{{count}} headers",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "delete_confirm": "Delete this webhook?",
+    "delete_confirm_description": "This action is irreversible.",
+    "form_title_create": "New webhook",
+    "name": "Name",
+    "url": "URL",
+    "headers": "Headers",
+    "add_header": "Add header",
+    "header_name": "Header name",
+    "header_value": "Value",
+    "reserved_error": "Reserved header — cannot be configured.",
+    "save": "Save",
+    "cancel": "Cancel",
+    "calls_title": "Audit log",
+    "filter_correlation": "Correlation ID",
+    "filter_all": "All",
+    "filter_success": "Success",
+    "filter_error": "Error",
+    "col_date": "Date",
+    "col_webhook": "Webhook",
+    "col_status": "HTTP status",
+    "col_duration": "Duration",
+    "col_correlation": "Correlation",
+    "calls_empty": "No calls recorded.",
+    "purge": "Purge audit",
+    "purge_confirm": "Purge all calls?",
+    "purge_confirm_description": "Deletes calls older than 24h."
   },
   "optional": "optional",
   "time": {

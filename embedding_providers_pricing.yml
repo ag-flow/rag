@@ -1,0 +1,335 @@
+# =============================================================================
+# Synthèse providers Embeddings / Reranking — tarifs & références
+# -----------------------------------------------------------------------------
+# Périmètre : modèles utilisés dans les migrations 005 / 008 / 021 / 022
+# Date du relevé : 2026-05-29
+# Devise : USD HT, par 1 million de tokens (sauf mention contraire)
+# Note : les tarifs bougent tous les 3-6 mois -> "pricing_url" fait foi.
+# Les champs "description" sont bilingues (sous-table par culture : fr / en).
+# =============================================================================
+
+meta:
+  releve_date: "2026-05-29"
+  devise: "USD"
+  unite_defaut: "par 1M tokens (input only pour les embeddings)"
+  avertissement:
+    fr: >
+      Les pages "pricing" officielles priment sur tout chiffre listé ici.
+      Recroiser avant toute décision de coût en production.
+    en: >
+      Official "pricing" pages take precedence over any figure listed here.
+      Cross-check before any production cost decision.
+
+# -----------------------------------------------------------------------------
+providers:
+
+  # ===========================================================================
+  openai:
+    cost_model: per_token
+    pricing_url: "https://platform.openai.com/docs/pricing"
+    description:
+      fr: >
+        Référence canonique = page pricing (et non la page model-docs, qui a
+        déjà affiché des chiffres divergents). Embeddings facturés à l'input
+        uniquement, pas de coût output. Batch API = -50%.
+      en: >
+        Canonical reference = pricing page (not the model-docs page, which has
+        already shown divergent figures). Embeddings billed on input only, no
+        output cost. Batch API = -50%.
+    models:
+      - name: "text-embedding-3-small"
+        dim: 1536
+        migration: "005"
+        price_per_1m: 0.02
+        price_per_1m_batch: 0.01
+        description:
+          fr: >
+            Meilleur ratio qualité/prix/écosystème pour la plupart des RAG.
+            Dimension réductible via le paramètre `dimensions`.
+          en: >
+            Best quality/price/ecosystem ratio for most RAG setups.
+            Dimension reducible via the `dimensions` parameter.
+      - name: "text-embedding-3-large"
+        dim: 3072
+        migration: "005"
+        price_per_1m: 0.13
+        price_per_1m_batch: 0.065
+        description:
+          fr: >
+            6.5x plus cher que le small. Dimension réductible (ex. 1024) via
+            `dimensions` au prix d'une légère perte de précision.
+          en: >
+            6.5x more expensive than small. Dimension reducible (e.g. 1024) via
+            `dimensions` at the cost of a slight precision loss.
+
+  # ===========================================================================
+  voyage:
+    cost_model: per_token
+    pricing_url: "https://docs.voyageai.com/docs/pricing"
+    description:
+      fr: >
+        Facturation au token. Batch API = -33%. Modèles Matryoshka (dimensions
+        tronquables) + quantization int8/binary pour réduire le coût vectorDB.
+        ATTENTION : voyage-3, voyage-3-lite et voyage-multilingual-2 sont
+        désormais classés "older models" par Voyage (plus de tokens gratuits,
+        poussés vers les séries 3.5 / 4). Migration à anticiper.
+      en: >
+        Token-based billing. Batch API = -33%. Matryoshka models (truncatable
+        dimensions) + int8/binary quantization to cut vectorDB cost.
+        WARNING: voyage-3, voyage-3-lite and voyage-multilingual-2 are now
+        classified as "older models" by Voyage (no more free tokens, pushed
+        toward the 3.5 / 4 series). Plan the migration ahead.
+    models:
+      - name: "voyage-3"
+        dim: 1024
+        migration: "005"
+        price_per_1m: 0.06
+        free_tokens: 0
+        statut: "older_model"
+        description:
+          fr: >
+            Classé "older model". Équivalent actuel : voyage-3.5 (même prix
+            0.06) ou voyage-4 (0.06, 200M tokens gratuits). Migration conseillée.
+          en: >
+            Classified "older model". Current equivalent: voyage-3.5 (same
+            0.06 price) or voyage-4 (0.06, 200M free tokens). Migration advised.
+      - name: "voyage-code-3"
+        dim: 1024            # défaut ; Matryoshka 2048/1024/512/256
+        migration: "005"
+        price_per_1m: 0.18
+        free_tokens: 200_000_000
+        statut: "current"
+        description:
+          fr: >
+            Spécialisé code, 300+ langages, contexte 32K. Toujours au catalogue
+            courant. 200M tokens gratuits par compte. Figer la dimension côté
+            API (Matryoshka) plutôt que se fier à un défaut.
+          en: >
+            Code-specialized, 300+ languages, 32K context. Still in the current
+            catalog. 200M free tokens per account. Pin the dimension on the API
+            side (Matryoshka) rather than relying on a default.
+      - name: "voyage-3-lite"
+        dim: 512
+        migration: "021"
+        price_per_1m: 0.02
+        free_tokens: 0
+        statut: "older_model"
+        description:
+          fr: >
+            Classé "older model". Équivalent actuel : voyage-3.5-lite (0.02)
+            ou voyage-4-lite (0.02, 200M tokens gratuits).
+          en: >
+            Classified "older model". Current equivalent: voyage-3.5-lite (0.02)
+            or voyage-4-lite (0.02, 200M free tokens).
+      - name: "voyage-multilingual-2"
+        dim: 1024
+        migration: "021"
+        price_per_1m: 0.12
+        free_tokens: 50_000_000
+        statut: "older_model"
+        description:
+          fr: >
+            Classé "older model" (50M tokens gratuits). Voyage recommande
+            désormais un modèle généraliste (voyage-3.5/4) pour le multilingue.
+          en: >
+            Classified "older model" (50M free tokens). Voyage now recommends a
+            general-purpose model (voyage-3.5/4) for multilingual use.
+
+  # ===========================================================================
+  ollama:
+    cost_model: hybrid          # self_hosted (local) OU subscription (cloud)
+    pricing_url: "https://ollama.com/pricing"
+    description:
+      fr: >
+        Deux régimes de coût pour un même nom de modèle.
+        (1) LOCAL / self-hosted : coût marginal nul (ton infra, ex. RTX 4090 sur
+            LXC 200). Illimité.
+        (2) CLOUD : abonnement à paliers fixes, PAS de facturation au token.
+            Free 0$ / Pro 20$/mois (200$/an) / Max 100$/mois. Quota = temps GPU
+            (limites par session toutes les 5h + hebdo tous les 7j), échelle de
+            difficulté niveau 1 à 4. Modèles cloud suffixés "-cloud".
+        Remarque RAG : le cloud vise surtout les gros modèles de GÉNÉRATION qui
+        ne tiennent pas en local. Pour des embedders légers (nomic, bge-m3) qui
+        tiennent sur le 4090, le cloud a peu de sens -> embeddings en local = 0$.
+      en: >
+        Two cost regimes for the same model name.
+        (1) LOCAL / self-hosted: zero marginal cost (your infra, e.g. RTX 4090 on
+            LXC 200). Unlimited.
+        (2) CLOUD: fixed-tier subscription, NO per-token billing.
+            Free $0 / Pro $20/mo ($200/yr) / Max $100/mo. Quota = GPU time
+            (per-session limits every 5h + weekly every 7d), difficulty scale
+            level 1 to 4. Cloud models suffixed "-cloud".
+        RAG note: cloud mainly targets large GENERATION models that don't fit
+        locally. For light embedders (nomic, bge-m3) that fit on the 4090, cloud
+        makes little sense -> embeddings stay local = $0.
+    cloud_plans:
+      free:  { prix_mois: 0 }
+      pro:   { prix_mois: 20,  prix_an: 200 }
+      max:   { prix_mois: 100 }
+    models:
+      - name: "qwen2.5-coder:14b"
+        dim: 4096
+        migration: "005"
+        price_per_1m: 0.0          # local
+        description:
+          fr: >
+            /!\ Modèle de GÉNÉRATION de code, pas un embedder dédié. Utilisable
+            via /api/embeddings mais qualité de retrieval inférieure à un vrai
+            embedder. Vérifier que c'est un choix délibéré.
+          en: >
+            /!\ Code GENERATION model, not a dedicated embedder. Usable via
+            /api/embeddings but with lower retrieval quality than a true
+            embedder. Confirm this is a deliberate choice.
+      - name: "nomic-embed-text"
+        dim: 768
+        migration: "005"
+        price_per_1m: 0.0
+        description:
+          fr: "Embedder dédié, léger, tient largement en local."
+          en: "Dedicated embedder, lightweight, fits comfortably locally."
+      - name: "mxbai-embed-large"
+        dim: 1024
+        migration: "008"
+        price_per_1m: 0.0
+        description:
+          fr: "Embedder dédié local."
+          en: "Dedicated local embedder."
+      - name: "bge-m3"
+        dim: 1024
+        migration: "021"
+        price_per_1m: 0.0
+        description:
+          fr: "Embedder multilingue dédié, bon choix local."
+          en: "Dedicated multilingual embedder, good local choice."
+      - name: "nomic-embed-text:v1.5"
+        dim: 768
+        migration: "022"
+        price_per_1m: 0.0
+        description:
+          fr: "Version 1.5 ; dimension réductible (Matryoshka)."
+          en: "Version 1.5; reducible dimension (Matryoshka)."
+      - name: "qwen3-embedding-0.6b"
+        dim: 1024
+        migration: "022"
+        price_per_1m: 0.0
+        description:
+          fr: "Embedder dédié léger."
+          en: "Lightweight dedicated embedder."
+      - name: "qwen3-embedding-8b"
+        dim: 4096
+        migration: "022"
+        price_per_1m: 0.0
+        description:
+          fr: >
+            Embedder dédié lourd (8B). Vérifier qu'il tient en VRAM avec le
+            reste de la pile sur le 4090.
+          en: >
+            Heavy dedicated embedder (8B). Check it fits in VRAM alongside the
+            rest of the stack on the 4090.
+
+  # ===========================================================================
+  mistral:
+    cost_model: per_token
+    pricing_url: "https://mistral.ai/pricing/"
+    description:
+      fr: "Format de réponse API identique à OpenAI (drop-in). Batch API = -50%."
+      en: "API response format identical to OpenAI (drop-in). Batch API = -50%."
+    models:
+      - name: "mistral-embed"
+        dim: 1024
+        price_per_1m: 0.10
+        description:
+          fr: "Généraliste texte. Format réponse identique OpenAI."
+          en: "General-purpose text. OpenAI-identical response format."
+      - name: "codestral-embed-2505"
+        dim: 1536           # défaut ; Matryoshka (256/512/1024...)
+        price_per_1m: 0.15
+        price_batch: "-50%"
+        description:
+          fr: >
+            Spécialisé code, Matryoshka. /!\ Ton tableau indique dim 3072 :
+            le défaut documenté est plutôt 1536, et la dimension est tronquable.
+            Figer `output_dimension` côté API pour caler la colonne pgvector.
+          en: >
+            Code-specialized, Matryoshka. /!\ Your table lists dim 3072: the
+            documented default is rather 1536, and the dimension is truncatable.
+            Pin `output_dimension` on the API side to match the pgvector column.
+
+  # ===========================================================================
+  jina:
+    cost_model: token_package    # paquets de tokens prépayés, pas pur per-token
+    pricing_url_embeddings: "https://jina.ai/embeddings/"
+    pricing_url_reranker: "https://jina.ai/reranker/"
+    description:
+      fr: >
+        Une même clé API + un même pool de tokens partagé entre embeddings,
+        reranking, reader, classifier et fine-tuning. 10M tokens gratuits par
+        nouvelle clé, puis achat de paquets. Reranker aligné sur le pricing
+        embeddings.
+      en: >
+        One API key + one shared token pool across embeddings, reranking,
+        reader, classifier and fine-tuning. 10M free tokens per new key, then
+        package purchase. Reranker pricing aligned with embeddings.
+    models:
+      - name: "jina-embeddings-v3"
+        type: embedding
+        dim: 1024
+        price_per_1m: 0.02      # ordre de grandeur paquet ; voir page pricing
+        free_tokens: 10_000_000
+        description:
+          fr: >
+            task=retrieval.passage / retrieval.query, 100+ langues, contexte 8192.
+          en: >
+            task=retrieval.passage / retrieval.query, 100+ languages, 8192 context.
+      - name: "jina-reranker-v2-base-multilingual"
+        type: reranker
+        dim: null
+        price_per_1m: 0.02      # aligné embeddings ; voir page pricing
+        free_tokens: 10_000_000
+        description:
+          fr: >
+            100+ langues, API proche Cohere, contexte 1024 tokens (chunking auto
+            au-delà). Note : v3 et m0 existent désormais (contexte bien plus
+            large) si besoin de monter en gamme.
+          en: >
+            100+ languages, Cohere-like API, 1024-token context (auto chunking
+            beyond). Note: v3 and m0 now exist (much larger context) if you need
+            to move up a tier.
+
+# -----------------------------------------------------------------------------
+# REMARQUES TRANSVERSES (conception dispatcher / schéma migration)
+# -----------------------------------------------------------------------------
+remarques_globales:
+  - fr: >
+      Ne pas stocker les tarifs en dur dans le schéma de migration : ils bougent
+      tous les 3-6 mois. Garder provider+model+dim en migration, déporter le
+      pricing dans cette config rafraîchie séparément.
+    en: >
+      Don't hardcode prices in the migration schema: they change every 3-6
+      months. Keep provider+model+dim in the migration, move pricing to this
+      separately-refreshed config.
+  - fr: >
+      Le champ cost_model est nécessaire : per_token (OpenAI, Voyage, Mistral),
+      token_package (Jina), hybrid/subscription (Ollama cloud), self_hosted
+      (Ollama local). Une logique unique "price_per_token" casse sur Ollama.
+    en: >
+      The cost_model field is required: per_token (OpenAI, Voyage, Mistral),
+      token_package (Jina), hybrid/subscription (Ollama cloud), self_hosted
+      (Ollama local). A single "price_per_token" logic breaks on Ollama.
+  - fr: >
+      Dimensions Matryoshka (Voyage, Mistral codestral, certains Ollama) :
+      figer la dimension côté requête API, ne pas se fier au défaut qui peut
+      changer entre versions et désaligner les colonnes pgvector.
+    en: >
+      Matryoshka dimensions (Voyage, Mistral codestral, some Ollama): pin the
+      dimension on the API request, don't rely on the default which can change
+      between versions and misalign pgvector columns.
+  - fr: >
+      Incohérences relevées dans le tableau source à confirmer :
+      codestral-embed-2505 listé 3072 (défaut documenté ~1536) ;
+      qwen2.5-coder:14b utilisé comme embedder alors que c'est un modèle de
+      génération.
+    en: >
+      Inconsistencies found in the source table to confirm:
+      codestral-embed-2505 listed at 3072 (documented default ~1536);
+      qwen2.5-coder:14b used as an embedder while it's a generation model.
