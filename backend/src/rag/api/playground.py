@@ -7,10 +7,7 @@ import asyncpg
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
-from rag.auth.bearer import (
-    require_master_key_or_authenticated_admin,
-    require_master_key_or_oidc_role,
-)
+from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.schemas.playground import (
     LlmConfigCreate,
     LlmConfigOut,
@@ -90,7 +87,7 @@ async def delete_config(
 router_chat = APIRouter(
     prefix="/api/workspaces",
     tags=["playground-chat"],
-    dependencies=[Depends(require_master_key_or_oidc_role("rag-viewer"))],
+    dependencies=[Depends(require_master_key_or_authenticated_admin)],
 )
 
 
