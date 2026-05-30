@@ -6,6 +6,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from rag.auth.bearer import require_master_key_or_authenticated_admin
+from rag.auth.owner import get_current_owner_id
 from rag.schemas.harpocrate_vaults import (
     SecretListResponse,
     SecretTypeSummary,
@@ -42,12 +43,32 @@ def _actor(request: Request) -> str:
     return "oidc"
 
 
+def _check_vault_access(
+    vault: VaultSummary,
+    owner_id: str,
+    *,
+    write: bool = False,
+) -> None:
+    """Lève 403 si l'owner ne correspond pas.
+
+    Lecture (write=False) : autorisé si is_default OR owner_id match.
+    Écriture (write=True) : owner_id match obligatoire.
+    """
+    if write:
+        if vault.owner_id != owner_id:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "not vault owner")
+    else:
+        if not vault.is_default and vault.owner_id != owner_id:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "not vault owner")
+
+
 @router.get("", response_model=list[VaultSummary])
 async def list_vaults(request: Request) -> list[VaultSummary]:
     svc = request.app.state.harpocrate_vaults_service
     pool = request.app.state.pools.config_pool
+    owner_id = get_current_owner_id(request)
     async with pool.acquire() as conn:
-        return await svc.list_all(conn)
+        return await svc.list_for_owner(conn, owner_id)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=VaultSummary)
@@ -55,10 +76,11 @@ async def create_vault(req: VaultCreateRequest, request: Request) -> VaultSummar
     svc = request.app.state.harpocrate_vaults_service
     pool = request.app.state.pools.config_pool
     actor = _actor(request)
+    owner_id = get_current_owner_id(request)
     async with pool.acquire() as conn:
         try:
             async with conn.transaction():
-                v = await svc.create(conn, req)
+                v = await svc.create(conn, req, owner_id=owner_id)
         except VaultNameAlreadyExistsError as exc:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -76,6 +98,8 @@ async def get_vault(vault_id: UUID, request: Request) -> VaultSummary:
         v = await svc.get_by_id(conn, vault_id)
     if v is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
+    owner_id = get_current_owner_id(request)
+    _check_vault_access(v, owner_id, write=False)
     return v
 
 
@@ -84,7 +108,12 @@ async def update_vault(vault_id: UUID, req: VaultUpdateRequest, request: Request
     svc = request.app.state.harpocrate_vaults_service
     pool = request.app.state.pools.config_pool
     actor = _actor(request)
+    owner_id = get_current_owner_id(request)
     async with pool.acquire() as conn:
+        target = await svc.get_by_id(conn, vault_id)
+        if target is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
+        _check_vault_access(target, owner_id, write=True)
         v = await svc.update(conn, vault_id, req)
     if v is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
@@ -97,10 +126,12 @@ async def delete_vault(vault_id: UUID, request: Request) -> None:
     svc = request.app.state.harpocrate_vaults_service
     pool = request.app.state.pools.config_pool
     actor = _actor(request)
+    owner_id = get_current_owner_id(request)
     async with pool.acquire() as conn:
         target = await svc.get_by_id(conn, vault_id)
         if target is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
+        _check_vault_access(target, owner_id, write=True)
         if target.is_default:
             others = await svc.list_all(conn)
             if len(others) > 1:
@@ -121,7 +152,12 @@ async def rotate_api_key(
     svc = request.app.state.harpocrate_vaults_service
     pool = request.app.state.pools.config_pool
     actor = _actor(request)
+    owner_id = get_current_owner_id(request)
     async with pool.acquire() as conn:
+        target = await svc.get_by_id(conn, vault_id)
+        if target is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
+        _check_vault_access(target, owner_id, write=True)
         v = await svc.rotate_api_key(conn, vault_id, req)
     if v is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
@@ -134,7 +170,12 @@ async def set_default(vault_id: UUID, request: Request) -> VaultSummary:
     svc = request.app.state.harpocrate_vaults_service
     pool = request.app.state.pools.config_pool
     actor = _actor(request)
+    owner_id = get_current_owner_id(request)
     async with pool.acquire() as conn:
+        target = await svc.get_by_id(conn, vault_id)
+        if target is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
+        _check_vault_access(target, owner_id, write=True)
         v = await svc.set_default(conn, vault_id)
     if v is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
@@ -146,7 +187,12 @@ async def set_default(vault_id: UUID, request: Request) -> VaultSummary:
 async def test_connection(vault_id: UUID, request: Request) -> VaultTestConnectionResult:
     svc = request.app.state.harpocrate_vaults_service
     pool = request.app.state.pools.config_pool
+    owner_id = get_current_owner_id(request)
     async with pool.acquire() as conn:
+        v = await svc.get_by_id(conn, vault_id)
+        if v is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
+        _check_vault_access(v, owner_id, write=False)
         try:
             return await svc.test_connection(conn, vault_id)
         except VaultNotFoundError as exc:
@@ -158,10 +204,12 @@ async def reveal_api_key(vault_id: UUID, request: Request) -> VaultRevealApiKeyR
     svc = request.app.state.harpocrate_vaults_service
     pool = request.app.state.pools.config_pool
     actor = _actor(request)
+    owner_id = get_current_owner_id(request)
     async with pool.acquire() as conn:
         v = await svc.get_by_id(conn, vault_id)
         if v is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
+        _check_vault_access(v, owner_id, write=True)
         api_key = await svc.reveal_api_key(conn, vault_id)
     log.warning("vault.reveal", vault_id=str(vault_id), actor=actor)
     return VaultRevealApiKeyResponse(id=v.id, api_key_id=v.api_key_id, api_key=api_key or "")
@@ -174,7 +222,12 @@ async def get_vault_info(
 ) -> WalletInfoResponse:
     svc = request.app.state.harpocrate_vaults_service
     pool = request.app.state.pools.config_pool
+    owner_id = get_current_owner_id(request)
     async with pool.acquire() as conn:
+        v = await svc.get_by_id(conn, vault_id)
+        if v is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
+        _check_vault_access(v, owner_id, write=False)
         try:
             result = await svc.get_wallet_info(conn, vault_id)
         except VaultNotFoundError as exc:
@@ -192,7 +245,12 @@ async def list_vault_types(
 ) -> list[SecretTypeSummary]:
     svc = request.app.state.harpocrate_vaults_service
     pool = request.app.state.pools.config_pool
+    owner_id = get_current_owner_id(request)
     async with pool.acquire() as conn:
+        v = await svc.get_by_id(conn, vault_id)
+        if v is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
+        _check_vault_access(v, owner_id, write=False)
         try:
             return await svc.list_types(
                 conn,
@@ -215,7 +273,12 @@ async def list_vault_secrets(
 ) -> SecretListResponse:
     svc = request.app.state.harpocrate_vaults_service
     pool = request.app.state.pools.config_pool
+    owner_id = get_current_owner_id(request)
     async with pool.acquire() as conn:
+        v = await svc.get_by_id(conn, vault_id)
+        if v is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
+        _check_vault_access(v, owner_id, write=False)
         try:
             return await svc.list_wallet_secrets(
                 conn,
