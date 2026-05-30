@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -57,7 +58,7 @@ async def list_provider_keys(
     vault_id: str,
 ) -> list[ProviderApiKeyOut]:
     rows = await conn.fetch(
-        "SELECT id, key_id, label, provider, harpo_path, created_at "
+        "SELECT id, key_id, label, provider, harpo_path, expires_at, created_at "
         "FROM provider_api_keys WHERE vault_id = $1::uuid "
         "ORDER BY provider, key_id",
         vault_id,
@@ -75,20 +76,28 @@ async def create_provider_key(
     secret_path = _build_secret_path(req.provider, req.key_id)
     vault_ref = _build_vault_ref(vault["name"], req.provider, req.key_id)
 
+    expires_at = (
+        datetime.now(UTC) + timedelta(days=req.valid_days)
+        if req.valid_days is not None
+        else None
+    )
+
     # Ecriture dans Harpocrate (chemin sans nom de vault)
     client = await _get_vault_client(conn, vault, vault_svc)
     await asyncio.to_thread(client.set_secret, secret_path, req.value)
 
     try:
         row = await conn.fetchrow(
-            "INSERT INTO provider_api_keys (key_id, label, provider, vault_id, harpo_path) "
-            "VALUES ($1, $2, $3, $4::uuid, $5) "
-            "RETURNING id, key_id, label, provider, harpo_path, created_at",
+            "INSERT INTO provider_api_keys "
+            "(key_id, label, provider, vault_id, harpo_path, expires_at) "
+            "VALUES ($1, $2, $3, $4::uuid, $5, $6) "
+            "RETURNING id, key_id, label, provider, harpo_path, expires_at, created_at",
             req.key_id,
             req.label,
             req.provider,
             vault["id"],
-            vault_ref,          # ${vault://vault_name:/provider/key_id}
+            vault_ref,
+            expires_at,
         )
     except asyncpg.UniqueViolationError as exc:
         # Rollback Harpocrate best-effort (idempotent)
@@ -115,7 +124,7 @@ async def update_provider_key(
     req: ProviderApiKeyUpdate,
 ) -> ProviderApiKeyOut | None:
     row = await conn.fetchrow(
-        "SELECT id, key_id, label, provider, harpo_path, created_at "
+        "SELECT id, key_id, label, provider, harpo_path, expires_at, created_at "
         "FROM provider_api_keys WHERE id = $1::uuid AND vault_id = $2::uuid",
         key_id,
         vault["id"],
@@ -124,16 +133,21 @@ async def update_provider_key(
         return None
 
     if req.value is not None:
-        # harpo_path est un vault_ref → extraire le chemin réel pour Harpocrate
         _, secret_path = parse_ref(row["harpo_path"])
         client = await _get_vault_client(conn, vault, vault_svc)
         await asyncio.to_thread(client.set_secret, secret_path, req.value)
 
     new_label = req.label if req.label is not None else row["label"]
+    new_expires_at = (
+        datetime.now(UTC) + timedelta(days=req.valid_days)
+        if req.valid_days is not None
+        else row["expires_at"]
+    )
     updated = await conn.fetchrow(
-        "UPDATE provider_api_keys SET label = $1 WHERE id = $2::uuid "
-        "RETURNING id, key_id, label, provider, harpo_path, created_at",
+        "UPDATE provider_api_keys SET label = $1, expires_at = $2 WHERE id = $3::uuid "
+        "RETURNING id, key_id, label, provider, harpo_path, expires_at, created_at",
         new_label,
+        new_expires_at,
         key_id,
     )
     log.info("provider_key.updated", id=key_id)
