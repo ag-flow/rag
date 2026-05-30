@@ -105,7 +105,7 @@ async def playground_chat(
     from rag.services.llm_configs import get_llm_config_for_chat
 
     config_pool: asyncpg.Pool = _pool(request)
-    pool_registry = request.app.state.pool_registry
+    pool_registry = request.app.state.pools
     vault_svc = request.app.state.harpocrate_vaults_service
     client_provider = request.app.state.client_provider
 
