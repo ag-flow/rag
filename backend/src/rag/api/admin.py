@@ -15,7 +15,6 @@ from rag.schemas.admin import (
     ModelEntry,
     ReindexRequest,
     RerankConfigResponse,
-    RerankSpec,
     SourceCreateRequest,
     SourceResponse,
     SourceTestResult,
@@ -388,61 +387,6 @@ def build_admin_router() -> APIRouter:
             updated_at=cfg["updated_at"].isoformat(),
         )
 
-    @router.put("/workspaces/{name}/rerank")
-    async def put_rerank_endpoint(
-        name: str,
-        payload: RerankSpec,
-        request: Request,
-    ) -> RerankConfigResponse:
-        """Upsert la config rerank du workspace. Validation eager api_key_ref."""
-        ws_row = await _config_pool(request).fetchrow(
-            "SELECT id FROM workspaces WHERE name = $1",
-            name,
-        )
-        if ws_row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="workspace_not_found",
-            )
-        from rag.services.rerank_configs import upsert_rerank_config
-
-        cfg = await upsert_rerank_config(
-            workspace_id=ws_row["id"],
-            spec=payload,
-            config_pool=_config_pool(request),
-            resolver=_resolver(request),
-            default_vault_name=await _resolve_default_vault_or_503(request),
-        )
-        return RerankConfigResponse(
-            workspace_id=cfg["workspace_id"],
-            provider=cfg["provider"],
-            model=cfg["model"],
-            api_key_ref=cfg["api_key_ref"],
-            base_url=cfg["base_url"],
-            top_k_pre_rerank=cfg["top_k_pre_rerank"],
-            created_at=cfg["created_at"].isoformat(),
-            updated_at=cfg["updated_at"].isoformat(),
-        )
-
-    @router.delete(
-        "/workspaces/{name}/rerank",
-        status_code=status.HTTP_204_NO_CONTENT,
-    )
-    async def delete_rerank_endpoint(name: str, request: Request) -> Response:
-        """Supprime la config rerank. Idempotent : 204 même si absente."""
-        ws_row = await _config_pool(request).fetchrow(
-            "SELECT id FROM workspaces WHERE name = $1",
-            name,
-        )
-        if ws_row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="workspace_not_found",
-            )
-        from rag.services.rerank_configs import delete_rerank_config
-
-        await delete_rerank_config(ws_row["id"], _config_pool(request))
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     # ─── Chunking config ────────────────────────────────────────────────────
 
