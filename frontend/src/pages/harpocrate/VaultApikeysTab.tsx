@@ -108,6 +108,7 @@ export function VaultApikeysTab({ vaultId }: Props) {
                   <TableHead>{t("apikeys.col_key_id")}</TableHead>
                   <TableHead>{t("apikeys.col_provider")}</TableHead>
                   <TableHead>{t("apikeys.col_label")}</TableHead>
+                  <TableHead>{t("apikeys.col_expires_at")}</TableHead>
                   <TableHead className="w-28" />
                 </TableRow>
               </TableHeader>
@@ -121,6 +122,15 @@ export function VaultApikeysTab({ vaultId }: Props) {
                       </span>
                     </TableCell>
                     <TableCell className="text-sm text-slate-600">{k.label}</TableCell>
+                    <TableCell className="text-xs text-slate-500">
+                      {k.expires_at
+                        ? new Date(k.expires_at).toLocaleDateString("fr-FR", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "—"}
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1 justify-end">
                         <Button
@@ -171,6 +181,7 @@ export function VaultApikeysTab({ vaultId }: Props) {
                   <TableHead>{t("gitkeys.col_host")}</TableHead>
                   <TableHead>{t("gitkeys.col_label")}</TableHead>
                   <TableHead>{t("gitkeys.col_scope_url")}</TableHead>
+                  <TableHead>{t("gitkeys.col_expires_at")}</TableHead>
                   <TableHead className="w-28" />
                 </TableRow>
               </TableHeader>
@@ -186,6 +197,15 @@ export function VaultApikeysTab({ vaultId }: Props) {
                     <TableCell className="text-sm text-slate-600">{k.label}</TableCell>
                     <TableCell className="text-xs text-slate-400 font-mono">
                       {k.scope_url ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-xs text-slate-500">
+                      {k.expires_at
+                        ? new Date(k.expires_at).toLocaleDateString("fr-FR", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "—"}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1 justify-end">
