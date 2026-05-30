@@ -491,3 +491,44 @@ INSERT INTO languages (code, label, built_in) VALUES
     ('ko-KR', '한국어 (대한민국)',                                true),
     ('ar-SA', 'العربية (المملكة العربية السعودية)',              true)
 ON CONFLICT (code) DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- Marquer toutes les migrations comme appliquées
+-- (permet au runner de migrations de démarrer sans réappliquer quoi que ce soit)
+-- ---------------------------------------------------------------------------
+
+INSERT INTO schema_migrations (version) VALUES
+    ('000_schema_migrations'),
+    ('001_init'),
+    ('002_workspace_sources'),
+    ('003_jobs'),
+    ('004_oidc'),
+    ('005_model_dimensions'),
+    ('006_index_jobs_idx'),
+    ('007_index_jobs_reindex_trigger'),
+    ('008_ollama_mxbai_embed_large'),
+    ('009_harpocrate_vaults'),
+    ('010_workspace_apikey_encrypted'),
+    ('011_rerank_configs'),
+    ('012_chunking_configs'),
+    ('013_index_jobs_chunking_change_trigger'),
+    ('014_chunking_strategy_markdown'),
+    ('015_workspaces_apikey_ref'),
+    ('016_workspace_sources_name'),
+    ('017_index_job_files'),
+    ('018_push_job_payloads'),
+    ('019_webhooks'),
+    ('020_webhook_calls'),
+    ('021_embedding_models_2026'),
+    ('022_embedding_models_ollama_qwen'),
+    ('023_embedding_models_mistral_jina'),
+    ('024_provider_api_keys'),
+    ('025_git_credentials'),
+    ('026_azure_openai_models'),
+    ('027_add_expires_at'),
+    ('028_ssh_keys'),
+    ('029_vault_owner'),
+    ('030_workspace_llm_configs'),
+    ('031_enrichment_triggers'),
+    ('032_languages')
+ON CONFLICT (version) DO NOTHING;
