@@ -2,11 +2,13 @@ import { useTranslation } from "react-i18next";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Eye, Info, RefreshCw } from "lucide-react";
+import { AlertTriangle, Eye, Info, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useToast } from "@/hooks/useToast";
 import { useUpdateApiKeyRef } from "@/hooks/useWorkspaces";
+import { useRerankConfig } from "@/hooks/useRerank";
 import type { Workspace } from "@/lib/workspaces.types";
 import { formatRelativeTime } from "@/lib/relativeTime";
 
@@ -21,14 +23,16 @@ type FormValues = z.infer<typeof schema>;
 
 interface Props {
   workspace: Workspace;
+  enabled: boolean;
   onReveal: () => void;
   onRotate: () => void;
 }
 
-export function WorkspaceDetailTab({ workspace, onReveal, onRotate }: Props) {
+export function WorkspaceDetailTab({ workspace, enabled, onReveal, onRotate }: Props) {
   const { t } = useTranslation("workspace");
   const { toast } = useToast();
   const updateRef = useUpdateApiKeyRef(workspace.name);
+  const { data: rerankData, isLoading: rerankLoading } = useRerankConfig(workspace.name, enabled);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { api_key_ref: workspace.indexer.api_key_ref ?? "" },
@@ -121,7 +125,36 @@ export function WorkspaceDetailTab({ workspace, onReveal, onRotate }: Props) {
         </div>
       </section>
 
-      {/* Section 5 : Modèle d'indexation (immuable) */}
+      {/* Section 5 : Reranking */}
+      <section>
+        <h3 className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">
+          {t("rerank.title")}
+        </h3>
+        {rerankLoading ? (
+          <div className="flex h-12 items-center"><LoadingSpinner /></div>
+        ) : !rerankData ? (
+          <p className="text-sm text-slate-500">{t("rerank.description.empty")}</p>
+        ) : (
+          <dl className="grid grid-cols-2 gap-2 text-sm mb-3">
+            <dt className="text-slate-500">{t("rerank.fields.provider")}</dt>
+            <dd className="font-mono">{rerankData.provider}</dd>
+            <dt className="text-slate-500">{t("rerank.fields.model")}</dt>
+            <dd className="font-mono">{rerankData.model}</dd>
+            <dt className="text-slate-500">{t("rerank.fields.baseUrl")}</dt>
+            <dd className="font-mono">{rerankData.base_url ?? "—"}</dd>
+            <dt className="text-slate-500">{t("rerank.fields.apiKeyRef")}</dt>
+            <dd className="font-mono">{rerankData.api_key_ref ?? "—"}</dd>
+            <dt className="text-slate-500">{t("rerank.fields.topK")}</dt>
+            <dd className="font-mono">{rerankData.top_k_pre_rerank}</dd>
+          </dl>
+        )}
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 flex gap-2 text-sm">
+          <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+          <p className="text-amber-900">{t("rerank.warning")}</p>
+        </div>
+      </section>
+
+      {/* Section 6 : Modèle d'indexation (immuable) */}
       <section>
         <h3 className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">
           {t("model.title")}

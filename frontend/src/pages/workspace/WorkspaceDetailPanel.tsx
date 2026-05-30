@@ -7,7 +7,6 @@ import { WorkspaceHeader } from "./WorkspaceHeader";
 import { WorkspaceDetailTab } from "./WorkspaceDetailTab";
 import { WorkspaceSourcesTab } from "./WorkspaceSourcesTab";
 import { WorkspaceJobsTab } from "./WorkspaceJobsTab";
-import { WorkspaceRerankTab } from "./WorkspaceRerankTab";
 import { WorkspaceChunkingTab } from "./WorkspaceChunkingTab";
 import { WorkspaceWebhooksTab } from "./WorkspaceWebhooksTab";
 import { WorkspacePlaygroundTab } from "./WorkspacePlaygroundTab";
@@ -54,7 +53,6 @@ export function WorkspaceDetailPanel({ name }: Props) {
             {t("tabs.sources", { count: ws.sources_count })}
           </TabsTrigger>
           <TabsTrigger value="jobs">{t("tabs.jobs")}</TabsTrigger>
-          <TabsTrigger value="rerank">{t("tabs.rerank")}</TabsTrigger>
           <TabsTrigger value="chunking">{t("tabs.chunking")}</TabsTrigger>
           <TabsTrigger value="webhooks">{t("webhooks.tab")}</TabsTrigger>
           <TabsTrigger value="playground">{t("tabs.playground")}</TabsTrigger>
@@ -64,6 +62,7 @@ export function WorkspaceDetailPanel({ name }: Props) {
         <TabsContent value="detail" className="pt-4">
           <WorkspaceDetailTab
             workspace={ws}
+            enabled={activeTab === "detail"}
             onReveal={() => setOpenDialog("reveal")}
             onRotate={() => setOpenDialog("rotate")}
           />
@@ -73,9 +72,6 @@ export function WorkspaceDetailPanel({ name }: Props) {
         </TabsContent>
         <TabsContent value="jobs" className="pt-4">
           <WorkspaceJobsTab name={ws.name} enabled={activeTab === "jobs"} />
-        </TabsContent>
-        <TabsContent value="rerank" className="pt-4">
-          <WorkspaceRerankTab workspace={ws} enabled={activeTab === "rerank"} />
         </TabsContent>
         <TabsContent value="chunking" className="pt-4">
           <WorkspaceChunkingTab workspace={ws} enabled={activeTab === "chunking"} />
