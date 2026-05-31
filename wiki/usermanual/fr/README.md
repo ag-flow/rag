@@ -11,7 +11,7 @@
 | 01 | [Installation](01-installation.md) | Prérequis, Docker, variables d'environnement, premier démarrage |
 | 02 | [Première configuration](02-premiere-configuration.md) | Bootstrap admin, compte local, OIDC Keycloak |
 | 03 | [Coffres Harpocrate](03-harpocrate.md) | Gestion des secrets, création et test des coffres |
-| 04 | [Workspaces](04-workspaces.md) | Créer, configurer et gérer les workspaces RAG |
+| 04 | [Workspaces](04-workspaces.md) | Créer, configurer, chunking, clés API multi-rotation |
 | 05 | [Sources git](05-sources-git.md) | Ajouter des dépôts, synchronisation, webhooks entrants |
 | 06 | [Service MCP](06-mcp.md) | Connecter Claude Code au service RAG via le protocole MCP |
 | 07 | [Playground](07-playground.md) | Chat RAG ancré sur le corpus |
@@ -19,6 +19,11 @@
 | 09 | [Enrichissement LLM](09-enrichissement.md) | Triggers par extension, prompts templates, métadonnées |
 | 10 | [Authentification OIDC](10-auth-oidc.md) | Keycloak, rôles, configuration SSO |
 | 11 | [Référence API](11-api-reference.md) | Tous les endpoints, paramètres, exemples curl |
+| 12 | [Agents Docker](12-agents-docker.md) | Initialisation automatique des containers ag.flow, `.rag-client.json` |
+| 13 | [Déduplication](13-deduplication.md) | Hash SHA-256, jobs skippés, réindexation forcée |
+| 14 | [Observabilité](14-observabilite.md) | Grafana, Loki, logs structurés, requêtes LogQL |
+| 15 | [API Workspace programmatique](15-api-workspace-programmatique.md) | Indexation depuis une app ou un agent, CI/CD |
+| 16 | [Credentials dans les coffres](16-credentials-coffres.md) | Clés API providers, tokens git, clés SSH |
 
 ---
 

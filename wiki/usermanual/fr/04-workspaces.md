@@ -143,14 +143,65 @@ Cliquez sur un job pour voir les détails : liste des fichiers traités, erreurs
 
 ### Onglet Chunking
 
-Configuration de la segmentation des documents :
+La configuration de chunking détermine comment les documents sont découpés avant l'embedding. Ce paramétrage est **important** : il affecte la qualité des résultats de recherche et ne peut être modifié sans réindexation complète du corpus.
 
-| Paramètre | Défaut | Description |
+#### Stratégies de chunking
+
+| Stratégie | Description | Usage recommandé |
 |---|---|---|
-| **Taille des chunks** | 512 tokens | Taille maximale de chaque segment de texte |
-| **Chevauchement** | 128 tokens | Nombre de tokens partagés entre deux chunks consécutifs |
+| `paragraph` | Découpe par paragraphes, respecte les sauts de ligne doubles | Texte général, code source, logs |
+| `markdown` | Découpe en respectant la structure des titres Markdown | Documentation `.md`, wikis, READMEs |
 
-> **Conseil :** Les valeurs par défaut conviennent pour la plupart des cas. Augmentez la taille pour des documents très structurés, réduisez-la pour des recherches précises.
+#### Paramètres
+
+| Paramètre | Défaut | Contrainte | Description |
+|---|---|---|---|
+| **Taille maximale** (`max_chars`) | 2000 caractères | > 0 | Longueur maximale d'un chunk en caractères |
+| **Taille minimale** (`min_chars`) | 200 caractères | ≥ 0, < max | Chunks plus courts que cette valeur sont fusionnés avec le suivant |
+| **Chevauchement** (`overlap_chars`) | 200 caractères | ≥ 0, < max | Nombre de caractères répétés entre deux chunks consécutifs |
+
+> **Stratégie markdown uniquement :** champ `heading_levels` (dans extras) : liste des niveaux de titres qui déclenchent une coupe (ex : `[1, 2]` = couper sur H1 et H2).
+
+#### Conseils de configuration
+
+| Type de corpus | Stratégie | max_chars | overlap_chars |
+|---|---|---|---|
+| Documentation Markdown | `markdown` | 2000 | 200 |
+| Code source | `paragraph` | 1500 | 150 |
+| Articles / Texte long | `paragraph` | 2500 | 300 |
+| Q&A / FAQ courtes | `paragraph` | 800 | 100 |
+
+**Règles générales :**
+- Plus `max_chars` est grand → chunks plus contextuels, mais recherche moins précise
+- Plus `overlap_chars` est grand → meilleure continuité entre chunks, mais plus de tokens utilisés
+- `min_chars` évite les chunks trop courts qui pollueraient les résultats
+
+#### Modifier la configuration
+
+**Via l'interface :** Onglet Chunking → modifier les valeurs → **Enregistrer**
+
+Si le workspace a déjà des documents indexés, une confirmation est requise (réindexation complète déclenchée automatiquement).
+
+**Via l'API :**
+```bash
+curl -X PUT "https://rag.votre-domaine.fr/api/admin/workspaces/mon-projet/chunking-config" \
+  -H "Authorization: Bearer $RAG_MASTER_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "strategy": "markdown",
+    "max_chars": 2000,
+    "min_chars": 200,
+    "overlap_chars": 200
+  }'
+```
+
+Si des documents existent et que le changement nécessite une réindexation :
+```bash
+# 409 Conflict → forcer avec confirm=true
+curl -X PUT ".../chunking-config?confirm=true" \
+  -H "Authorization: Bearer $RAG_MASTER_KEY" \
+  -d '{"strategy": "markdown", "max_chars": 2000, "min_chars": 200, "overlap_chars": 200}'
+```
 
 ### Onglet Webhooks
 
