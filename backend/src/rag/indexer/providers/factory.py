@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from rag.indexer.providers.azure_openai import AzureOpenAIProvider
+from rag.indexer.providers.dashscope import DashScopeEmbeddingProvider
+from rag.indexer.providers.gemini import GeminiProvider
 from rag.indexer.providers.jina import JinaProvider
 from rag.indexer.providers.mistral import MistralProvider
 from rag.indexer.providers.ollama import OllamaProvider
@@ -46,4 +48,8 @@ def make_provider(
         return MistralProvider(model=model, api_key=api_key)
     if provider == "jina":
         return JinaProvider(model=model, api_key=api_key)
+    if provider == "gemini":
+        return GeminiProvider(model=model, api_key=api_key)
+    if provider == "dashscope":
+        return DashScopeEmbeddingProvider(model=model, api_key=api_key, base_url=base_url)
     raise ValueError(f"Unsupported provider: {provider!r}")
