@@ -25,9 +25,10 @@ from rag.api.enrichments import router_languages as enrichment_languages_router
 from rag.api.enrichments import router_prompts as enrichment_prompts_router
 from rag.api.enrichments import router_triggers as enrichment_triggers_router
 from rag.api.errors import register_error_handlers
-from rag.api.health import build_health_router
 from rag.api.git_webhooks import build_git_webhooks_router
+from rag.api.health import build_health_router
 from rag.api.mcp import build_mcp_router
+from rag.api.mcp_standard import RagMcpDispatcher, build_mcp_asgi
 from rag.api.playground import router_admin as playground_admin_router
 from rag.api.playground import router_chat as playground_chat_router
 from rag.api.workspace import build_workspace_router
@@ -103,6 +104,8 @@ def build_app(
     """
     settings = Settings()  # type: ignore[call-arg]
     setup_logging(settings.log_level, settings.environment)
+
+    _mcp_dispatcher = RagMcpDispatcher(build_mcp_asgi())
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -197,6 +200,7 @@ def build_app(
         app.state.indexer = indexer
         app.state.apikey_cache = ApiKeyCache()
         app.state.job_log_bus = JobLogBus()
+        _mcp_dispatcher.set_app_state(app.state)
 
         webhook_secret: str | None = (
             settings.rag_webhook_secret.get_secret_value()
@@ -252,6 +256,7 @@ def build_app(
     app.include_router(build_auth_methods_router())
     app.include_router(build_workspace_router())
     app.include_router(build_mcp_router())
+    app.mount("/mcp", _mcp_dispatcher)
     app.include_router(build_git_webhooks_router())
     app.include_router(ws_router)
     app.include_router(playground_admin_router)
