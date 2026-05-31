@@ -17,7 +17,7 @@ class _McpRequestBase(BaseModel):
 
     query: str = Field(..., min_length=1, max_length=_QUERY_MAX_LEN)
     top_k: int = Field(default=5, ge=1, le=_TOP_K_MAX)
-    min_score: float = Field(default=0.7, ge=-1.0, le=1.0)
+    min_score: float = Field(default=0.3, ge=-1.0, le=1.0)
 
 
 class SingleWorkspaceRequest(_McpRequestBase):

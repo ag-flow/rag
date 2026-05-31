@@ -7,14 +7,11 @@ import { WorkspaceHeader } from "./WorkspaceHeader";
 import { WorkspaceDetailTab } from "./WorkspaceDetailTab";
 import { WorkspaceSourcesTab } from "./WorkspaceSourcesTab";
 import { WorkspaceJobsTab } from "./WorkspaceJobsTab";
-import { WorkspaceModelTab } from "./WorkspaceModelTab";
-import { WorkspaceRerankTab } from "./WorkspaceRerankTab";
 import { WorkspaceChunkingTab } from "./WorkspaceChunkingTab";
 import { WorkspaceWebhooksTab } from "./WorkspaceWebhooksTab";
 import { WorkspacePlaygroundTab } from "./WorkspacePlaygroundTab";
 import { WorkspaceTriggersTab } from "./WorkspaceTriggersTab";
-import { RevealApiKeyDialog } from "./RevealApiKeyDialog";
-import { RotateApiKeyDialog } from "./RotateApiKeyDialog";
+import { WorkspaceApiKeysTab } from "./WorkspaceApiKeysTab";
 import { ReindexConfirmDialog } from "./ReindexConfirmDialog";
 import { DeleteWorkspaceAlert } from "./DeleteWorkspaceAlert";
 
@@ -22,7 +19,7 @@ interface Props {
   name: string;
 }
 
-type DialogKey = "reveal" | "rotate" | "reindex" | "delete" | null;
+type DialogKey = "reindex" | "delete" | null;
 
 export function WorkspaceDetailPanel({ name }: Props) {
   const { t } = useTranslation("workspace");
@@ -43,8 +40,6 @@ export function WorkspaceDetailPanel({ name }: Props) {
       <WorkspaceHeader
         workspace={ws}
         onReindex={() => setOpenDialog("reindex")}
-        onReveal={() => setOpenDialog("reveal")}
-        onRotate={() => setOpenDialog("rotate")}
         onDelete={() => setOpenDialog("delete")}
       />
       <Tabs value={activeTab} onValueChange={setActiveTab} className="px-6 py-4">
@@ -54,31 +49,20 @@ export function WorkspaceDetailPanel({ name }: Props) {
             {t("tabs.sources", { count: ws.sources_count })}
           </TabsTrigger>
           <TabsTrigger value="jobs">{t("tabs.jobs")}</TabsTrigger>
-          <TabsTrigger value="model">{t("tabs.model")}</TabsTrigger>
-          <TabsTrigger value="rerank">{t("tabs.rerank")}</TabsTrigger>
           <TabsTrigger value="chunking">{t("tabs.chunking")}</TabsTrigger>
           <TabsTrigger value="webhooks">{t("webhooks.tab")}</TabsTrigger>
           <TabsTrigger value="playground">{t("tabs.playground")}</TabsTrigger>
           <TabsTrigger value="triggers">{t("tabs.triggers")}</TabsTrigger>
+          <TabsTrigger value="apikeys">{t("tabs.apikeys")}</TabsTrigger>
         </TabsList>
         <TabsContent value="detail" className="pt-4">
-          <WorkspaceDetailTab
-            workspace={ws}
-            onReveal={() => setOpenDialog("reveal")}
-            onRotate={() => setOpenDialog("rotate")}
-          />
+          <WorkspaceDetailTab workspace={ws} enabled={activeTab === "detail"} />
         </TabsContent>
         <TabsContent value="sources" className="pt-4">
           <WorkspaceSourcesTab name={ws.name} enabled={activeTab === "sources"} />
         </TabsContent>
         <TabsContent value="jobs" className="pt-4">
           <WorkspaceJobsTab name={ws.name} enabled={activeTab === "jobs"} />
-        </TabsContent>
-        <TabsContent value="model" className="pt-4">
-          <WorkspaceModelTab workspace={ws} />
-        </TabsContent>
-        <TabsContent value="rerank" className="pt-4">
-          <WorkspaceRerankTab workspace={ws} enabled={activeTab === "rerank"} />
         </TabsContent>
         <TabsContent value="chunking" className="pt-4">
           <WorkspaceChunkingTab workspace={ws} enabled={activeTab === "chunking"} />
@@ -92,17 +76,10 @@ export function WorkspaceDetailPanel({ name }: Props) {
         <TabsContent value="triggers" className="pt-4">
           <WorkspaceTriggersTab workspaceName={ws.name} />
         </TabsContent>
+        <TabsContent value="apikeys" className="pt-4">
+          <WorkspaceApiKeysTab workspaceName={ws.name} workspaceId={ws.id} />
+        </TabsContent>
       </Tabs>
-      <RevealApiKeyDialog
-        name={ws.name}
-        open={openDialog === "reveal"}
-        onOpenChange={(o) => !o && setOpenDialog(null)}
-      />
-      <RotateApiKeyDialog
-        name={ws.name}
-        open={openDialog === "rotate"}
-        onOpenChange={(o) => !o && setOpenDialog(null)}
-      />
       <ReindexConfirmDialog
         name={ws.name}
         open={openDialog === "reindex"}

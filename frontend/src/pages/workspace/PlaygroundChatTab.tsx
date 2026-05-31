@@ -67,7 +67,7 @@ export function PlaygroundChatTab({ workspaceName }: Props) {
     }
   }, [enabledConfigs, selectedLlm]);
   const [topK, setTopK] = useState(5);
-  const [minScore, setMinScore] = useState(0.7);
+  const [minScore, setMinScore] = useState(0.3);
   const [input, setInput] = useState("");
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const [turns, setTurns] = useState<ConversationTurn[]>([]);

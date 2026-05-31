@@ -25,7 +25,8 @@
     "rerank": "Rerank",
     "chunking": "Chunking",
     "playground": "Playground",
-    "triggers": "Triggers"
+    "triggers": "Triggers",
+    "apikeys": "Api"
   },
   "detail": {
     "stats": {

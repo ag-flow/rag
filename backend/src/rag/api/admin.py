@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from uuid import UUID
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -22,10 +23,17 @@ from rag.schemas.admin import (
     SourceResponse,
     SourceTestResult,
     SourceUpdateRequest,
+    WebhookEnableResponse,
     WorkspaceCreateRequest,
     WorkspaceCreateResponse,
     WorkspacePatchRequest,
     WorkspaceResponse,
+)
+from rag.schemas.workspace_apikeys import (
+    ApiKeyCreate,
+    ApiKeyCreated,
+    ApiKeyOut,
+    ApiKeyRotated,
 )
 from rag.secrets.refs import parse_ref
 from rag.services.workspaces import (
@@ -34,7 +42,6 @@ from rag.services.workspaces import (
     get_workspace,
     list_workspaces,
     patch_workspace,
-    rotate_apikey,
 )
 
 
@@ -98,6 +105,7 @@ def build_admin_router() -> APIRouter:
             admin_dsn=_admin_dsn(request),
             resolver=_resolver(request),  # type: ignore[arg-type]
             harpocrate_vaults_service=request.app.state.harpocrate_vaults_service,
+            client_provider=request.app.state.client_provider,
         )
         return WorkspaceCreateResponse.model_validate(resp)
 
@@ -113,16 +121,27 @@ def build_admin_router() -> APIRouter:
 
     @router.get("/workspaces/{name}/apikey")
     async def get_apikey_endpoint(name: str, request: Request) -> ApiKeyRotateResponse:
-        """Retourne l'api_key en clair du workspace. Idempotent.
+        """Retourne l'api_key active du workspace. Idempotent.
 
         Conforme spec 08 : sert à `init-rag.sh` côté ag.flow.docker pour
         provisionner `.rag-client.json` au démarrage container.
 
         Résolution via cache process-lifetime → Harpocrate sur miss.
+        Retourne la première clé active (non révoquée, non expirée) par ordre de création.
         """
         pool = _config_pool(request)
         row = await pool.fetchrow(
-            "SELECT api_key_ref FROM workspaces WHERE name = $1", name
+            """
+            SELECT k.api_key_ref
+            FROM workspace_api_keys k
+            JOIN workspaces w ON w.id = k.workspace_id
+            WHERE w.name = $1
+              AND k.revoked_at IS NULL
+              AND (k.rotated_at IS NULL OR k.rotated_at > now() - interval '72 hours')
+            ORDER BY k.created_at ASC
+            LIMIT 1
+            """,
+            name,
         )
         if row is None:
             raise HTTPException(
@@ -158,19 +177,25 @@ def build_admin_router() -> APIRouter:
     @router.delete("/workspaces/{name}", status_code=status.HTTP_204_NO_CONTENT)
     async def delete_workspace_endpoint(name: str, request: Request) -> Response:
         pool = _config_pool(request)
-        # Lire api_key_ref AVANT la suppression DB pour le rollback Harpocrate.
-        ref_row = await pool.fetchrow(
-            "SELECT api_key_ref FROM workspaces WHERE name = $1", name
+        # Lire les api_key_ref actives AVANT suppression pour rollback Harpocrate.
+        key_rows = await pool.fetch(
+            """
+            SELECT k.api_key_ref
+            FROM workspace_api_keys k
+            JOIN workspaces w ON w.id = k.workspace_id
+            WHERE w.name = $1
+            """,
+            name,
         )
         await delete_workspace(
             name=name,
             config_pool=pool,
             admin_dsn=_admin_dsn(request),
         )
-        # Suppression best-effort du secret Harpocrate (idempotent si absent).
-        if ref_row is not None:
+        # Suppression best-effort des secrets Harpocrate (idempotent si absents).
+        for key_row in key_rows:
             try:
-                vault_name, path = parse_ref(ref_row["api_key_ref"])
+                vault_name, path = parse_ref(key_row["api_key_ref"])
                 async with pool.acquire() as conn:
                     await request.app.state.harpocrate_vaults_service.delete_secret(
                         conn, vault_name=vault_name, path=path
@@ -182,16 +207,6 @@ def build_admin_router() -> APIRouter:
                     workspace=name,
                 )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-    @router.post("/workspaces/{name}/rotate-apikey")
-    async def rotate_apikey_endpoint(name: str, request: Request) -> ApiKeyRotateResponse:
-        result = await rotate_apikey(
-            name=name,
-            config_pool=_config_pool(request),
-            harpocrate_vaults_service=request.app.state.harpocrate_vaults_service,
-            apikey_cache=request.app.state.apikey_cache,
-        )
-        return ApiKeyRotateResponse(api_key=result["api_key"])
 
     # ─── Sources ─────────────────────────────────────────────────────────────
 
@@ -554,5 +569,160 @@ def build_admin_router() -> APIRouter:
             status_code=status.HTTP_202_ACCEPTED,
             content=JobResponse(**body).model_dump(mode="json"),
         )
+
+    # ─── Webhooks sources ───────────────────────────────────────────────────
+
+    @router.post(
+        "/workspaces/{name}/sources/{source_name}/webhook/enable",
+        response_model=WebhookEnableResponse,
+    )
+    async def enable_source_webhook(
+        name: str, source_name: str, request: Request
+    ) -> WebhookEnableResponse:
+        from rag.services.source_webhooks import (
+            WebhookAlreadyEnabledError,
+            enable_webhook,
+        )
+
+        try:
+            async with _config_pool(request).acquire() as conn:
+                secret = await enable_webhook(
+                    conn,
+                    workspace_name=name,
+                    source_name=source_name,
+                    vault_svc=request.app.state.harpocrate_vaults_service,
+                    client_provider=request.app.state.client_provider,
+                )
+        except WebhookAlreadyEnabledError as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+        public_url = str(request.app.state.settings.rag_public_url).rstrip("/")
+        webhook_url = f"{public_url}/api/webhooks/git/{name}/{source_name}"
+        return WebhookEnableResponse(
+            source_name=source_name,
+            webhook_url=webhook_url,
+            secret=secret,
+        )
+
+    @router.post(
+        "/workspaces/{name}/sources/{source_name}/webhook/disable",
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
+    async def disable_source_webhook(
+        name: str, source_name: str, request: Request
+    ) -> Response:
+        from rag.services.source_webhooks import (
+            WebhookNotEnabledError,
+            disable_webhook,
+        )
+
+        try:
+            async with _config_pool(request).acquire() as conn:
+                await disable_webhook(
+                    conn,
+                    workspace_name=name,
+                    source_name=source_name,
+                    vault_svc=request.app.state.harpocrate_vaults_service,
+                    client_provider=request.app.state.client_provider,
+                )
+        except WebhookNotEnabledError as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @router.post(
+        "/workspaces/{name}/sources/{source_name}/webhook/rotate-secret",
+        response_model=dict,
+    )
+    async def rotate_source_webhook_secret(
+        name: str, source_name: str, request: Request
+    ) -> dict:
+        from rag.services.source_webhooks import (
+            WebhookNotEnabledError,
+            rotate_webhook_secret,
+        )
+
+        try:
+            async with _config_pool(request).acquire() as conn:
+                new_secret = await rotate_webhook_secret(
+                    conn,
+                    workspace_name=name,
+                    source_name=source_name,
+                    vault_svc=request.app.state.harpocrate_vaults_service,
+                    client_provider=request.app.state.client_provider,
+                )
+        except WebhookNotEnabledError as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+        return {"secret": new_secret}
+
+    # ─── Workspace API keys (multi-clés) ────────────────────────────────────
+
+    @router.get("/workspaces/{name}/api-keys", response_model=list[ApiKeyOut])
+    async def list_api_keys(name: str, request: Request) -> list[ApiKeyOut]:
+        from rag.services.workspace_apikeys import list_keys
+
+        async with _config_pool(request).acquire() as conn:
+            return await list_keys(conn, workspace_name=name)
+
+    @router.post("/workspaces/{name}/api-keys", response_model=ApiKeyCreated, status_code=201)
+    async def create_api_key(
+        name: str, body: ApiKeyCreate, request: Request
+    ) -> ApiKeyCreated:
+        from rag.services.workspace_apikeys import create_key
+
+        pool = _config_pool(request)
+        async with pool.acquire() as conn:
+            try:
+                return await create_key(
+                    conn,
+                    workspace_name=name,
+                    req=body,
+                    vault_svc=request.app.state.harpocrate_vaults_service,
+                    client_provider=request.app.state.client_provider,
+                    config_pool=pool,
+                )
+            except ValueError as exc:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+    @router.post(
+        "/workspaces/{name}/api-keys/{key_id}/rotate", response_model=ApiKeyRotated
+    )
+    async def rotate_api_key(
+        name: str, key_id: UUID, request: Request
+    ) -> ApiKeyRotated:
+        from rag.services.workspace_apikeys import rotate_key
+
+        pool = _config_pool(request)
+        async with pool.acquire() as conn:
+            result = await rotate_key(
+                conn,
+                workspace_name=name,
+                key_id=str(key_id),
+                vault_svc=request.app.state.harpocrate_vaults_service,
+                client_provider=request.app.state.client_provider,
+                config_pool=pool,
+            )
+        if result is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "api key not found")
+        return result
+
+    @router.delete("/workspaces/{name}/api-keys/{key_id}", status_code=204)
+    async def revoke_api_key(
+        name: str, key_id: UUID, request: Request
+    ) -> Response:
+        from rag.services.workspace_apikeys import revoke_key
+
+        async with _config_pool(request).acquire() as conn:
+            revoked = await revoke_key(conn, workspace_name=name, key_id=str(key_id))
+        if not revoked:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                "api key not found or already revoked",
+            )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return router

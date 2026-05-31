@@ -56,7 +56,7 @@ class PlaygroundChatRequest(BaseModel):
     history: list[ChatMessage] = Field(default_factory=list)
     llm: ChatLlmSpec
     top_k: int = Field(default=5, ge=1, le=50)
-    min_score: float = Field(default=0.7, ge=0.0, le=1.0)
+    min_score: float = Field(default=0.3, ge=0.0, le=1.0)
 
 
 class ChunkResult(BaseModel):

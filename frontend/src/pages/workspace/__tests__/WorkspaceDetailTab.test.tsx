@@ -35,7 +35,7 @@ const mockWorkspace: Workspace = {
 describe("WorkspaceDetailTab", () => {
   it("affiche les statistiques du workspace", () => {
     renderWithProviders(
-      <WorkspaceDetailTab workspace={mockWorkspace} onReveal={() => {}} onRotate={() => {}} />,
+      <WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />,
     );
     expect(screen.getByText(/3 sources/)).toBeInTheDocument();
     expect(screen.getByText(/150 documents/)).toBeInTheDocument();
@@ -43,7 +43,7 @@ describe("WorkspaceDetailTab", () => {
 
   it("affiche le nom et l'id du workspace", () => {
     renderWithProviders(
-      <WorkspaceDetailTab workspace={mockWorkspace} onReveal={() => {}} onRotate={() => {}} />,
+      <WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />,
     );
     expect(screen.getByText("my-workspace")).toBeInTheDocument();
     expect(screen.getByText("abc-123")).toBeInTheDocument();
@@ -51,7 +51,7 @@ describe("WorkspaceDetailTab", () => {
 
   it("le bouton Enregistrer est désactivé initialement (non-dirty)", () => {
     renderWithProviders(
-      <WorkspaceDetailTab workspace={mockWorkspace} onReveal={() => {}} onRotate={() => {}} />,
+      <WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />,
     );
     const saveBtn = screen.getByRole("button", { name: /enregistrer/i });
     expect(saveBtn).toBeDisabled();
@@ -59,7 +59,7 @@ describe("WorkspaceDetailTab", () => {
 
   it("affiche le champ api_key_ref avec la valeur initiale", () => {
     renderWithProviders(
-      <WorkspaceDetailTab workspace={mockWorkspace} onReveal={() => {}} onRotate={() => {}} />,
+      <WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />,
     );
     const input = screen.getByRole<HTMLInputElement>("textbox");
     expect(input.value).toBe("openai_key");
@@ -68,7 +68,7 @@ describe("WorkspaceDetailTab", () => {
   it("déclenche onReveal au click sur Révéler", () => {
     const onReveal = vi.fn();
     renderWithProviders(
-      <WorkspaceDetailTab workspace={mockWorkspace} onReveal={onReveal} onRotate={() => {}} />,
+      <WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />,
     );
     screen.getByRole("button", { name: /révéler/i }).click();
     expect(onReveal).toHaveBeenCalledOnce();

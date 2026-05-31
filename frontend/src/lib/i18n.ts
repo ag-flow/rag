@@ -14,6 +14,8 @@ import frLogin from "@/i18n/fr/login.json";
 import frPlayground from "@/i18n/fr/playground.json";
 import frPrompts from "@/i18n/fr/prompts.json";
 import frTriggers from "@/i18n/fr/triggers.json";
+import frApikeys from "@/i18n/fr/apikeys.json";
+import frGitWebhooks from "@/i18n/fr/git_webhooks.json";
 
 import enCommon from "@/i18n/en/common.json";
 import enAuth from "@/i18n/en/auth.json";
@@ -27,6 +29,8 @@ import enLogin from "@/i18n/en/login.json";
 import enPlayground from "@/i18n/en/playground.json";
 import enPrompts from "@/i18n/en/prompts.json";
 import enTriggers from "@/i18n/en/triggers.json";
+import enApikeys from "@/i18n/en/apikeys.json";
+import enGitWebhooks from "@/i18n/en/git_webhooks.json";
 
 void i18n
   .use(LanguageDetector)
@@ -47,6 +51,8 @@ void i18n
       "playground",
       "prompts",
       "triggers",
+      "apikeys",
+      "git_webhooks",
     ],
     defaultNS: "common",
     resources: {
@@ -63,6 +69,8 @@ void i18n
         playground: frPlayground,
         prompts: frPrompts,
         triggers: frTriggers,
+        apikeys: frApikeys,
+        git_webhooks: frGitWebhooks,
       },
       en: {
         common: enCommon,
@@ -77,6 +85,8 @@ void i18n
         playground: enPlayground,
         prompts: enPrompts,
         triggers: enTriggers,
+        apikeys: enApikeys,
+        git_webhooks: enGitWebhooks,
       },
     },
     interpolation: { escapeValue: false },

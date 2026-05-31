@@ -30,6 +30,7 @@ async def schedule_due_sources(
             FROM workspace_sources s
             WHERE s.next_sync_at IS NOT NULL
               AND s.next_sync_at <= now()
+              AND s.webhook_enabled = false
               AND NOT EXISTS (
                   SELECT 1 FROM index_jobs j
                   WHERE j.source_id = s.id

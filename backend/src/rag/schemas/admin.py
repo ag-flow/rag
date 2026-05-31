@@ -144,6 +144,7 @@ class SourceResponse(BaseModel):
     name: str | None
     type: str
     config: dict[str, Any]
+    webhook_enabled: bool = False
     last_indexed_at: str | None
     created_at: str
     branch_warning: str | None = None
@@ -160,6 +161,14 @@ class ReindexRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     indexer: IndexerSpec | None = None
+
+
+class WebhookEnableResponse(BaseModel):
+    """Retour de POST /workspaces/{name}/sources/{source}/webhook/enable."""
+
+    source_name: str
+    webhook_url: str
+    secret: str
 
 
 class JobResponse(BaseModel):
