@@ -77,7 +77,7 @@ export function WorkspaceDetailPanel({ name }: Props) {
           <WorkspaceTriggersTab workspaceName={ws.name} />
         </TabsContent>
         <TabsContent value="apikeys" className="pt-4">
-          <WorkspaceApiKeysTab workspaceName={ws.name} />
+          <WorkspaceApiKeysTab workspaceName={ws.name} workspaceId={ws.id} />
         </TabsContent>
       </Tabs>
       <ReindexConfirmDialog

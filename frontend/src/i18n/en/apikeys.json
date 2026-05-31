@@ -30,5 +30,10 @@
   "rotated_new_key_title": "New key — copy it now",
   "grace_info": "Old key expires on {{date}}.",
   "cancel": "Cancel",
-  "error_toast": "An error occurred."
+  "error_toast": "An error occurred.",
+  "mcp_section_title": "MCP Connection",
+  "mcp_url_label": "MCP server URL",
+  "mcp_token_hint": "Access token → use an API key below",
+  "mcp_config_label": "Claude Code config (.claude/mcp.json)",
+  "mcp_copied": "Copied!"
 }
