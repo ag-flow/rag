@@ -296,6 +296,158 @@ providers:
             beyond). Note: v3 and m0 now exist (much larger context) if you need
             to move up a tier.
 
+  # ===========================================================================
+  gemini:
+    cost_model: per_token
+    pricing_url: "https://ai.google.dev/gemini-api/docs/pricing"
+    description:
+      fr: >
+        API Google AI (Gemini) — free tier disponible sur tous les modèles embedding.
+        En production, facturation au token. Batch API = -50% sur gemini-embedding-2.
+        text-embedding-004 et gemini-embedding-exp-03-07 sont arrêtés depuis le
+        14/01/2026 ; migrer vers gemini-embedding-001 ou gemini-embedding-2.
+      en: >
+        Google AI (Gemini) API — free tier available on all embedding models.
+        In production, token-based billing. Batch API = -50% on gemini-embedding-2.
+        text-embedding-004 and gemini-embedding-exp-03-07 shut down since
+        14/01/2026; migrate to gemini-embedding-001 or gemini-embedding-2.
+    models:
+      - name: "gemini-embedding-001"
+        type: embedding
+        dim: 3072              # défaut ; Matryoshka (768 / 1536 / 3072)
+        migration: null
+        price_per_1m: 0.15
+        price_per_1m_batch: 0.075
+        statut: "current"
+        description:
+          fr: >
+            Modèle embedding texte officiel. Matryoshka : dimensions 768 / 1536 / 3072.
+            Contexte max 2 048 tokens. Figer `output_dimensionality` côté API.
+            Batch API = -50%.
+          en: >
+            Official text embedding model. Matryoshka: dimensions 768 / 1536 / 3072.
+            Max context 2,048 tokens. Pin `output_dimensionality` on the API side.
+            Batch API = -50%.
+      - name: "gemini-embedding-2"
+        type: embedding
+        dim: null              # multimodal — texte / image / audio / vidéo / PDF
+        migration: null
+        price_per_1m_text: 0.20
+        price_per_1m_text_batch: 0.10
+        price_per_1m_image: 0.45
+        price_per_1m_image_batch: 0.225
+        price_per_1m_audio: 6.50
+        price_per_1m_audio_batch: 3.25
+        price_per_1m_video: 12.00
+        price_per_1m_video_batch: 6.00
+        statut: "current"
+        description:
+          fr: >
+            Modèle multimodal : texte, image ($0,45/1M), audio ($6,50/1M), vidéo
+            ($12/1M), PDF. Batch API = -50% sur tous les types. Le plus cher mais
+            le seul à couvrir tous les types de contenu.
+          en: >
+            Multimodal model: text, image ($0.45/1M), audio ($6.50/1M), video
+            ($12/1M), PDF. Batch API = -50% on all types. Most expensive but the
+            only one covering all content types.
+      - name: "text-embedding-004"
+        type: embedding
+        dim: 768
+        statut: "shutdown"
+        shutdown_date: "2026-01-14"
+        description:
+          fr: "Arrêté le 14/01/2026. Utiliser gemini-embedding-001 à la place."
+          en: "Shut down 14/01/2026. Use gemini-embedding-001 instead."
+      - name: "gemini-embedding-exp-03-07"
+        type: embedding
+        dim: 3072
+        statut: "shutdown"
+        shutdown_date: "2026-01-14"
+        description:
+          fr: "Arrêté. Remplacé par gemini-embedding-001 (même gamme de dimensions)."
+          en: "Shut down. Replaced by gemini-embedding-001 (same dimension range)."
+
+  # ===========================================================================
+  qwen:
+    cost_model: per_token
+    pricing_url: "https://www.alibabacloud.com/help/en/model-studio/model-pricing"
+    description:
+      fr: >
+        Dashscope (Alibaba Cloud) — endpoint OpenAI-compatible. Une clé API
+        unique couvre embeddings ET reranking. Facturation au token, région
+        Singapore (tarifs USD). Free quota 90 jours à l'activation de Model Studio.
+        Remarque : les modèles qwen3-embedding-* tournent aussi en local via Ollama
+        (voir section ollama pour le coût $0).
+      en: >
+        Dashscope (Alibaba Cloud) — OpenAI-compatible endpoint. A single API key
+        covers both embeddings AND reranking. Token-based billing, Singapore region
+        (USD prices). Free quota 90 days on Model Studio activation.
+        Note: qwen3-embedding-* models also run locally via Ollama (see ollama
+        section for $0 cost).
+    models:
+      - name: "text-embedding-v4"
+        type: embedding
+        dim: 1024              # flexible 64–2048d
+        statut: "current"
+        price_per_1m: 0.07    # région Singapore ; recroiser pricing_url
+        free_tokens: 1_000_000
+        free_tokens_validity: "90 jours après activation Model Studio"
+        description:
+          fr: >
+            Généraliste multilingue (100+ langues), dimensions flexibles 64–2048.
+            Figer `dimensions` côté API pour aligner les colonnes pgvector.
+            1M tokens gratuits à l'activation (90 jours).
+          en: >
+            Multilingual generalist (100+ languages), flexible dims 64–2048.
+            Pin `dimensions` on the API side to align pgvector columns.
+            1M free tokens on activation (90 days).
+      - name: "text-embedding-v3"
+        type: embedding
+        dim: 1024              # défaut ; Matryoshka (1024/768/512/256)
+        statut: "older"
+        price_per_1m: null     # tarif non publié séparément ; voir pricing_url
+        free_tokens: 500_000
+        free_tokens_validity: "90 jours après activation Model Studio"
+        description:
+          fr: >
+            Génération précédente. Tarif non listé explicitement sur la page pricing
+            (probablement inférieur ou égal à text-embedding-v4). Préférer v4 pour
+            les nouveaux projets. 500K tokens gratuits (90 jours).
+          en: >
+            Previous generation. Price not explicitly listed on the pricing page
+            (likely ≤ text-embedding-v4). Prefer v4 for new projects.
+            500K free tokens (90 days).
+      - name: "qwen3-rerank"
+        type: reranker
+        dim: null
+        statut: "current"
+        price_per_1m: 0.10
+        free_tokens: 1_000_000
+        free_tokens_validity: "90 jours après activation Model Studio"
+        description:
+          fr: >
+            Reranker nouvelle génération Qwen3. API proche Cohere. Paramètre
+            `top_n` pour limiter les candidats renvoyés. 1M tokens gratuits (90 jours).
+          en: >
+            Qwen3 next-gen reranker. Cohere-like API. `top_n` parameter to limit
+            returned candidates. 1M free tokens (90 days).
+      - name: "gte-rerank-v2"
+        type: reranker
+        dim: null
+        statut: "current"
+        price_per_1m: 0.115
+        description:
+          fr: "Reranker GTE v2. Plus cher que qwen3-rerank mais interface identique."
+          en: "GTE reranker v2. More expensive than qwen3-rerank, same interface."
+      - name: "gte-rerank"
+        type: reranker
+        dim: null
+        statut: "older"
+        price_per_1m: null    # tarif non retrouvé ; remplacé par gte-rerank-v2
+        description:
+          fr: "Version originale GTE. Tarif non publié ; préférer gte-rerank-v2 ou qwen3-rerank."
+          en: "Original GTE version. Price not published; prefer gte-rerank-v2 or qwen3-rerank."
+
 # -----------------------------------------------------------------------------
 # REMARQUES TRANSVERSES (conception dispatcher / schéma migration)
 # -----------------------------------------------------------------------------
