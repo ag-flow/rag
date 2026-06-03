@@ -26,7 +26,8 @@
     "chunking": "Chunking",
     "playground": "Playground",
     "triggers": "Triggers",
-    "apikeys": "Api"
+    "apikeys": "Api",
+    "index": "Index"
   },
   "detail": {
     "stats": {
@@ -337,6 +338,20 @@
     "purge": "Purger l'audit",
     "purge_confirm": "Purger tous les appels ?",
     "purge_confirm_description": "Supprime les appels de plus de 24h."
+  },
+  "index": {
+    "title": "Clés d'index ({{count}})",
+    "empty": "Aucun fichier indexé.",
+    "search_placeholder": "Filtrer par chemin…",
+    "strategy_replace": "replace",
+    "strategy_append": "append",
+    "badge_file": "via fichier",
+    "toggle_tooltip_file": "Défini par .rag/strategy.yml — modifiable uniquement dans le fichier",
+    "stats": "{{chunks}} chunks · {{versions}} version(s)",
+    "last_indexed": "Indexé {{when}}",
+    "version_label": "Version du {{date}}",
+    "chunk_label": "Chunk #{{index}}",
+    "metadata_label": "Metadata"
   },
   "optional": "optionnel",
   "time": {

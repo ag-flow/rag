@@ -26,7 +26,8 @@
     "chunking": "Chunking",
     "playground": "Playground",
     "triggers": "Triggers",
-    "apikeys": "Api"
+    "apikeys": "Api",
+    "index": "Index"
   },
   "detail": {
     "stats": {
@@ -337,6 +338,20 @@
     "purge": "Purge audit",
     "purge_confirm": "Purge all calls?",
     "purge_confirm_description": "Deletes calls older than 24h."
+  },
+  "index": {
+    "title": "Index keys ({{count}})",
+    "empty": "No indexed files.",
+    "search_placeholder": "Filter by path…",
+    "strategy_replace": "replace",
+    "strategy_append": "append",
+    "badge_file": "from file",
+    "toggle_tooltip_file": "Set by .rag/strategy.yml — edit the file to change",
+    "stats": "{{chunks}} chunks · {{versions}} version(s)",
+    "last_indexed": "Indexed {{when}}",
+    "version_label": "Version from {{date}}",
+    "chunk_label": "Chunk #{{index}}",
+    "metadata_label": "Metadata"
   },
   "optional": "optional",
   "time": {
