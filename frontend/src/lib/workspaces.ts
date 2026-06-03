@@ -2,6 +2,9 @@ import { api } from "@/lib/api";
 import type {
   ApiKeyRotateResponse,
   DetectBranchesResponse,
+  IndexKeysResponse,
+  PathDetailResponse,
+  StrategyPatchRequest,
   Job,
   JobFilesResponse,
   Source,
@@ -65,4 +68,13 @@ export const workspacesApi = {
     ssh_key_ref?: string | null;
     ssh_username?: string | null;
   }) => api.post<DetectBranchesResponse>("/api/admin/sources/detect-branches", payload),
+
+  listIndexKeys: (name: string) =>
+    api.get<IndexKeysResponse>(`${BASE}/${name}/index-keys`),
+
+  getIndexKeyDetail: (name: string, path: string) =>
+    api.get<PathDetailResponse>(`${BASE}/${name}/index-keys/${path}`),
+
+  patchIndexKeyStrategy: (name: string, path: string, payload: StrategyPatchRequest) =>
+    api.patch<void>(`${BASE}/${name}/index-keys/${encodeURIComponent(path)}/strategy`, payload),
 };

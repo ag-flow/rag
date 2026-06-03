@@ -131,3 +131,43 @@ export type DetectBranchesResponse = {
   branches: string[];
   default: string | null;
 };
+
+export type IndexKeyStrategy = "replace" | "append";
+export type IndexKeyUpdatedBy = "ui" | "strategy_file";
+
+export type PathStrategyEntry = {
+  path: string;
+  strategy: IndexKeyStrategy;
+  updated_by: IndexKeyUpdatedBy;
+  chunk_count: number;
+  version_count: number;
+  last_indexed_at: string | null;
+};
+
+export type IndexKeysResponse = {
+  paths: PathStrategyEntry[];
+  total: number;
+};
+
+export type ChunkEntry = {
+  chunk_index: number;
+  content: string;
+  metadata: Record<string, unknown>;
+  indexed_at: string;
+};
+
+export type VersionGroup = {
+  indexed_at: string;
+  chunks: ChunkEntry[];
+};
+
+export type PathDetailResponse = {
+  path: string;
+  strategy: IndexKeyStrategy;
+  updated_by: IndexKeyUpdatedBy;
+  versions: VersionGroup[];
+};
+
+export type StrategyPatchRequest = {
+  strategy: IndexKeyStrategy;
+};
