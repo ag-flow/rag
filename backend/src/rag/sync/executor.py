@@ -10,6 +10,7 @@ from uuid import UUID
 import asyncpg
 import structlog
 
+from rag.db.path_strategies import upsert_strategies_batch
 from rag.indexer.protocol import IndexerProtocol
 from rag.schemas.sync import ChangeSet, JobToProcess
 from rag.secrets.refs import build_ref, is_vault_ref
@@ -28,6 +29,7 @@ from rag.sync.git_ops import (
     sanitize_git_output,
 )
 from rag.sync.repo_storage import RepoStorage
+from rag.sync.strategy_config import parse_strategy_file
 
 log = structlog.get_logger(__name__)
 
@@ -487,6 +489,12 @@ async def _execute_git_job(
             to_commit=current,
         )
     changes = filter_glob(changes, include=include, exclude=exclude)
+
+    # Lit .rag/strategy.yml et UPSERT les stratégies en base (le fichier prime sur l'IHM)
+    file_strategies = parse_strategy_file(dest)
+    if file_strategies:
+        await upsert_strategies_batch(config_pool, job.workspace_id, file_strategies)
+        _log("info", f"Stratégies depuis .rag/strategy.yml : {len(file_strategies)} path(s).")
 
     _log(
         "info",
