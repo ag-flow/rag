@@ -9,6 +9,7 @@ from uuid import UUID
 import asyncpg
 import structlog
 
+from rag.db.path_strategies import get_strategy
 from rag.db.pool import WorkspacePoolRegistry
 from rag.db.workspace_embeddings import delete_path, upsert_chunks
 from rag.indexer.chunking import Chunk, make_chunker
@@ -134,11 +135,13 @@ class RealIndexer:
             ctx["workspace_name"],
             ctx["rag_cnx"],
         )
+        strategy = await get_strategy(self._config_pool, workspace_id, path)
         await upsert_chunks(
             ws_pool,
             path=path,
             chunks=chunks,
             embeddings=embeddings,
+            strategy=strategy,
         )
 
         async with self._config_pool.acquire() as conn:
