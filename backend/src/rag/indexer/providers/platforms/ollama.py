@@ -10,7 +10,7 @@ class OllamaPlatform:
     def auth_headers(self) -> dict[str, str]:
         return {}
 
-    def url(self, path: str) -> str:  # noqa: ARG002 — path ignoré
+    def url(self, path: str) -> str:
         return f"{self._base_url}/api/embed"
 
     def modify_payload(self, payload: dict) -> dict:
