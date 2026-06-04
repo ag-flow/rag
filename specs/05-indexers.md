@@ -68,6 +68,30 @@ Voyage AI est recommandé pour les workspaces contenant principalement du code (
 
 ---
 
+### Azure AI Foundry
+
+```json
+{
+  "service": "voyage",
+  "provider": "azure-foundry",
+  "model": "voyage-4",
+  "base_url": "https://{name}.{region}.models.ai.azure.com/v1",
+  "api_key_ref": "azure_foundry_api_key"
+}
+```
+
+| Modèle | Dimension | Service | Usage recommandé |
+|---|---|---|---|
+| voyage-3.5 | 1024 | voyage | Embeddings Voyage dans l'infra Azure |
+| voyage-4 | 1024 | voyage | Meilleure qualité Voyage dans l'infra Azure |
+| voyage-4-lite | 512 | voyage | Léger, données sensibles dans Azure |
+
+Azure AI Foundry expose une API compatible OpenAI (`Authorization: Bearer`). Le `base_url` est l'endpoint complet du déploiement serverless Azure.
+
+**Différence avec `azure-openai`** : azure-foundry utilise Bearer (pas `api-key`), envoie le champ `model` dans le payload, et ne nécessite pas de `api-version` dans l'URL.
+
+---
+
 ### Ollama (pve2 homelab)
 
 ```json
@@ -99,6 +123,9 @@ Ollama est recommandé pour les workspaces contenant des données sensibles (col
 | azure-openai | text-embedding-3-small | 1536 |
 | azure-openai | text-embedding-3-large | 3072 |
 | azure-openai | text-embedding-ada-002 | 1536 |
+| azure-foundry | voyage-3.5 | 1024 |
+| azure-foundry | voyage-4 | 1024 |
+| azure-foundry | voyage-4-lite | 512 |
 | ollama | qwen2.5-coder:14b | 4096 |
 | ollama | nomic-embed-text | 768 |
 
