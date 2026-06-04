@@ -124,6 +124,7 @@ class RealIndexer:
                 api_key = cached[0]
 
         provider = self._provider_factory(
+            service=ctx["service"],
             provider=ctx["provider"],
             model=ctx["model"],
             api_key=api_key,
@@ -202,6 +203,7 @@ class RealIndexer:
                 ic.model AS model,
                 ic.api_key_ref AS api_key_ref,
                 ic.base_url AS base_url,
+                md.service AS service,
                 cc.strategy AS chunking_strategy,
                 cc.max_chars AS chunking_max_chars,
                 cc.min_chars AS chunking_min_chars,
@@ -209,6 +211,7 @@ class RealIndexer:
                 cc.extras AS chunking_extras
             FROM workspaces w
             JOIN indexer_configs ic ON ic.workspace_id = w.id
+            JOIN model_dimensions md ON md.provider = ic.provider AND md.model = ic.model
             JOIN chunking_configs cc ON cc.workspace_id = w.id
             WHERE w.id = $1
             """,
