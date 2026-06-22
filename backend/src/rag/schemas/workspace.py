@@ -9,6 +9,7 @@ _CONTENT_MAX_BYTES = 5 * 1024 * 1024  # 5 MB UTF-8
 class PushRequest(BaseModel):
     path: str = Field(..., min_length=1, max_length=_PATH_MAX_LEN)
     content: str = Field(..., min_length=1)
+    strategy: str | None = Field(default=None, min_length=1, max_length=63)
 
     @field_validator("content")
     @classmethod

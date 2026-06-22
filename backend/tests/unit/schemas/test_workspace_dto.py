@@ -10,6 +10,17 @@ def test_push_request_accepts_valid_payload() -> None:
     r = PushRequest(path="docs/foo.md", content="# Hello\n")
     assert r.path == "docs/foo.md"
     assert r.content == "# Hello\n"
+    assert r.strategy is None  # override optionnel
+
+
+def test_push_request_accepts_strategy_override() -> None:
+    r = PushRequest(path="data.csv", content="a,b\n1,2", strategy="table")
+    assert r.strategy == "table"
+
+
+def test_push_request_rejects_empty_strategy() -> None:
+    with pytest.raises(ValidationError):
+        PushRequest(path="ok.md", content="x", strategy="")
 
 
 def test_push_request_rejects_empty_path() -> None:

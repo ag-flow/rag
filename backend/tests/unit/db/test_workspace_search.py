@@ -51,9 +51,9 @@ async def test_vector_search_filters_below_min_score(monkeypatch) -> None:
     monkeypatch.setattr(workspace_search, "register_vector", AsyncMock())
 
     rows = [
-        {"path": "a.md", "chunk_index": 0, "content": "hi", "score": 0.95},
-        {"path": "b.md", "chunk_index": 0, "content": "lo", "score": 0.50},
-        {"path": "c.md", "chunk_index": 0, "content": "mid", "score": 0.80},
+        {"path": "a.md", "chunk_index": 0, "content": "hi", "section_id": None, "score": 0.95},
+        {"path": "b.md", "chunk_index": 0, "content": "lo", "section_id": None, "score": 0.50},
+        {"path": "c.md", "chunk_index": 0, "content": "mid", "section_id": None, "score": 0.80},
     ]
     pool = _make_pool_returning(rows)
 
@@ -76,7 +76,13 @@ async def test_vector_search_slices_to_top_k_after_filter(monkeypatch) -> None:
     monkeypatch.setattr(workspace_search, "register_vector", AsyncMock())
 
     rows = [
-        {"path": f"p{i}.md", "chunk_index": 0, "content": "x", "score": 0.9 - i * 0.01}
+        {
+            "path": f"p{i}.md",
+            "chunk_index": 0,
+            "content": "x",
+            "section_id": None,
+            "score": 0.9 - i * 0.01,
+        }
         for i in range(10)
     ]
     pool = _make_pool_returning(rows)
@@ -99,7 +105,9 @@ async def test_vector_search_returns_search_hit_with_workspace_and_indexer(monke
 
     monkeypatch.setattr(workspace_search, "register_vector", AsyncMock())
 
-    rows = [{"path": "x.md", "chunk_index": 7, "content": "blob", "score": 0.88}]
+    rows = [
+        {"path": "x.md", "chunk_index": 7, "content": "blob", "section_id": None, "score": 0.88}
+    ]
     pool = _make_pool_returning(rows)
 
     hits = await vector_search(
@@ -118,6 +126,38 @@ async def test_vector_search_returns_search_hit_with_workspace_and_indexer(monke
     assert h.chunk_index == 7
     assert h.content == "blob"
     assert h.score == 0.88
+
+
+@pytest.mark.asyncio
+async def test_vector_search_dedups_by_section_returning_parent(monkeypatch) -> None:
+    """Small-to-big : plusieurs enfants d'une même section → la section
+    n'apparaît qu'une fois (meilleur score), avec le contenu PARENT."""
+    from rag.db import workspace_search
+
+    monkeypatch.setattr(workspace_search, "register_vector", AsyncMock())
+
+    rows = [
+        {"path": "g.md", "chunk_index": 0, "content": "parent A", "section_id": 1, "score": 0.95},
+        {"path": "g.md", "chunk_index": 1, "content": "parent A", "section_id": 1, "score": 0.90},
+        {"path": "g.md", "chunk_index": 5, "content": "parent B", "section_id": 2, "score": 0.85},
+        {"path": "h.md", "chunk_index": 0, "content": "legacy", "section_id": None, "score": 0.80},
+    ]
+    pool = _make_pool_returning(rows)
+
+    hits = await vector_search(
+        pool,
+        query_vec=[0.1],
+        top_k=10,
+        min_score=0.0,
+        workspace_name="ws",
+        indexer_used="openai/m",
+    )
+    # section 1 dédupliquée (meilleur score 0.95), section 2, puis legacy
+    assert [(h.content, h.score) for h in hits] == [
+        ("parent A", 0.95),
+        ("parent B", 0.85),
+        ("legacy", 0.80),
+    ]
 
 
 @pytest.mark.asyncio

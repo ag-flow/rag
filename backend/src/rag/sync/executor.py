@@ -201,13 +201,14 @@ async def _execute_push_job(
 
     try:
         row = await config_pool.fetchrow(
-            "SELECT path, content FROM push_job_payloads WHERE job_id=$1",
+            "SELECT path, content, strategy_override FROM push_job_payloads WHERE job_id=$1",
             job.job_id,
         )
         if row is None:
             raise RuntimeError(f"push_job_payloads not found for job {jid}")
 
         path, content = row["path"], row["content"]
+        strategy_override = row["strategy_override"]
         content_hash = "sha256:" + sha256(content.encode("utf-8")).hexdigest()
 
         existing = await config_pool.fetchval(
@@ -239,6 +240,7 @@ async def _execute_push_job(
                 content=content,
                 content_hash=content_hash,
                 indexer_used=job.indexer_used,
+                strategy_override=strategy_override,
             )
 
             # Enrichissements LLM post-indexation

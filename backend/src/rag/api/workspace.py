@@ -36,10 +36,12 @@ def build_workspace_router() -> APIRouter:
                 correlation_id,
             )
             await conn.execute(
-                "INSERT INTO push_job_payloads (job_id, path, content) VALUES ($1, $2, $3)",
+                "INSERT INTO push_job_payloads (job_id, path, content, strategy_override) "
+                "VALUES ($1, $2, $3, $4)",
                 job_id,
                 norm_path,
                 payload.content,
+                payload.strategy,
             )
 
         body = PushAsyncResponse(job_id=str(job_id), status="pending")

@@ -20,6 +20,7 @@ class IndexerProtocol(Protocol):
         content: str,
         content_hash: str,
         indexer_used: str,
+        strategy_override: str | None = None,
     ) -> int:
         """Index un fichier. Retourne le nombre de chunks créés.
 
@@ -29,6 +30,8 @@ class IndexerProtocol(Protocol):
         - `content_hash` : `sha256:<hex>` du contenu.
         - `indexer_used` : `<provider>/<model>` au moment de l'indexation
           (sert à invalider les hashes si l'indexeur change).
+        - `strategy_override` : nom de stratégie forcé (ajout ad hoc API) ;
+          prime sur le routage par type. Ignoré en moteur `legacy`.
         """
         ...
 

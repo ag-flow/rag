@@ -12,10 +12,22 @@ import structlog
 from rag.db.path_strategies import get_strategy
 from rag.db.pool import WorkspacePoolRegistry
 from rag.db.workspace_embeddings import delete_path, upsert_chunks
+from rag.db.workspace_structured import (
+    ChildRow,
+    ParentRow,
+    load_existing_chunk_hashes,
+    plan_children,
+    upsert_structured,
+)
 from rag.indexer.chunking import Chunk, make_chunker
+from rag.indexer.chunking.hashing import compute_chunk_hash
+from rag.indexer.chunking.resolution import resolve_strategy_name
+from rag.indexer.chunking.structured_factory import make_structured_chunker
+from rag.indexer.chunking.tokens import HeuristicTokenEstimator
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
 from rag.secrets.refs import build_ref, is_vault_ref
+from rag.services.chunking_routing import load_routing, load_strategy
 
 log = structlog.get_logger(__name__)
 
@@ -46,21 +58,13 @@ class _NoDefaultVaultError(RuntimeError):
 class RealIndexer:
     """Implementation effective de `IndexerProtocol` (M4a).
 
-    Pipeline `index_file` :
-      1. Charge le contexte workspace (provider, model, api_key_ref, base_url,
-         rag_cnx, + chunking_config).
-      2. Chunke le contenu via le chunker construit par `make_chunker` selon la
-         `chunking_config` du workspace.
-      3. Resout l'API key via SecretResolver (lazy, juste avant l'embed).
-      4. Embed les contenus des chunks via le provider configure.
-      5. Upsert pgvector dans `rag_<workspace>.embeddings` (content + embedding
-         + metadata, transaction).
-      6. UPDATE `indexed_documents` (config_pool) - hash, indexer_used.
+    Deux pipelines coexistent derrière le flag `chunking_configs.engine` :
 
-    `delete_file` :
-      1. Charge le contexte workspace (pour le pool).
-      2. DELETE FROM embeddings WHERE path=$1.
-      3. DELETE FROM indexed_documents WHERE workspace_id=$1 AND path=$2.
+    - ``legacy``     : découpe plate char-based (`make_chunker`), upsert
+      `embeddings` en replace/append. Comportement historique inchangé.
+    - ``structured`` : routage par type → stratégie nommée, small-to-big
+      (sections + enfants), bornes en tokens, breadcrumb, et upsert en diff
+      par `chunk_hash` (réutilise les chunks inchangés). Cf. ADR 0001.
     """
 
     def __init__(
@@ -87,9 +91,38 @@ class RealIndexer:
         content: str,
         content_hash: str,
         indexer_used: str,
+        strategy_override: str | None = None,
     ) -> int:
         ctx = await self._load_workspace_context(workspace_id)
+        if ctx["chunking_engine"] == "structured":
+            n_chunks = await self._index_structured(
+                workspace_id=workspace_id,
+                path=path,
+                content=content,
+                ctx=ctx,
+                strategy_override=strategy_override,
+            )
+        else:
+            n_chunks = await self._index_legacy(
+                workspace_id=workspace_id,
+                path=path,
+                content=content,
+                ctx=ctx,
+            )
+        if n_chunks == 0:
+            log.info("real_indexer.empty_content_skipped", path=path)
+            return 0
+        await self._record_indexed_document(workspace_id, path, content_hash, indexer_used)
+        return n_chunks
 
+    async def _index_legacy(
+        self,
+        *,
+        workspace_id: UUID,
+        path: str,
+        content: str,
+        ctx: dict[str, Any],
+    ) -> int:
         chunker = make_chunker(
             strategy=ctx["chunking_strategy"],
             max_chars=ctx["chunking_max_chars"],
@@ -99,37 +132,10 @@ class RealIndexer:
         )
         chunks: list[Chunk] = chunker.chunk(content)
         if not chunks:
-            log.info("real_indexer.empty_content_skipped", path=path)
             return 0
 
-        api_key: str | None = None
-        if ctx["api_key_ref"]:
-            ref = ctx["api_key_ref"]
-            if not is_vault_ref(ref):
-                default_vault_name = await self._client_provider.get_default_vault_name()
-                if default_vault_name is None:
-                    log.warning(
-                        "real_indexer.no_default_vault",
-                        workspace_id=str(workspace_id),
-                        path=path,
-                    )
-                    raise _NoDefaultVaultError()
-                ref = _to_vault_ref(ref, default_vault_name)
-            cached = self._api_key_cache.get(ref)
-            if cached is None or time.monotonic() > cached[1]:
-                api_key = await self._secret_resolver.resolve_with_retry(ref)
-                self._api_key_cache[ref] = (api_key, time.monotonic() + _API_KEY_CACHE_TTL)
-                log.debug("real_indexer.api_key_cache_miss", ref=ref)
-            else:
-                api_key = cached[0]
-
-        provider = self._provider_factory(
-            service=ctx["service"],
-            provider=ctx["provider"],
-            model=ctx["model"],
-            api_key=api_key,
-            base_url=ctx["base_url"],
-        )
+        api_key = await self._resolve_api_key(ctx, workspace_id, path)
+        provider = self._build_provider(ctx, api_key)
         embeddings = await provider.embed_texts([c.content for c in chunks])
 
         ws_pool = await self._pool_registry.get_workspace_pool(
@@ -144,7 +150,129 @@ class RealIndexer:
             embeddings=embeddings,
             strategy=strategy,
         )
+        log.info(
+            "real_indexer.indexed",
+            workspace_id=str(workspace_id),
+            path=path,
+            chunks=len(chunks),
+            chunking_strategy=ctx["chunking_strategy"],
+            engine="legacy",
+        )
+        return len(chunks)
 
+    async def _index_structured(
+        self,
+        *,
+        workspace_id: UUID,
+        path: str,
+        content: str,
+        ctx: dict[str, Any],
+        strategy_override: str | None,
+    ) -> int:
+        routing = await load_routing(self._config_pool, workspace_id)
+        strategy_name = resolve_strategy_name(
+            path=path, override=strategy_override, routing=routing
+        )
+        algo, params = await load_strategy(self._config_pool, workspace_id, strategy_name)
+        estimator = HeuristicTokenEstimator(char_ratio=float(ctx["token_char_ratio"]))
+        chunker = make_structured_chunker(
+            algo=algo,
+            params=params,
+            estimator=estimator,
+            provider_max_input_tokens=int(ctx["max_input_tokens"]),
+        )
+        doc = chunker.chunk(content)
+        ordered = _dedupe_by_hash(doc.children)
+        if not ordered:
+            return 0
+
+        ws_pool = await self._pool_registry.get_workspace_pool(
+            ctx["workspace_name"],
+            ctx["rag_cnx"],
+        )
+        existing = await load_existing_chunk_hashes(ws_pool, path)
+        plan = plan_children(existing, [h for h, _ in ordered])
+        new_set = set(plan.new_hashes)
+
+        to_embed = [(h, child) for h, child in ordered if h in new_set]
+        api_key = await self._resolve_api_key(ctx, workspace_id, path)
+        provider = self._build_provider(ctx, api_key)
+        embeddings = (
+            await provider.embed_texts([c.embed_text for _, c in to_embed]) if to_embed else []
+        )
+        emb_by_hash = {h: emb for (h, _), emb in zip(to_embed, embeddings, strict=True)}
+
+        child_rows = [
+            ChildRow(
+                chunk_hash=h,
+                embed_text=child.embed_text,
+                parent_key=child.parent_key,
+                chunk_index=idx,
+                metadata=child.metadata,
+                embedding=emb_by_hash.get(h),
+            )
+            for idx, (h, child) in enumerate(ordered)
+        ]
+        parent_rows = [
+            ParentRow(section_key=p.section_key, content=p.content, metadata=p.metadata)
+            for p in doc.parents
+        ]
+        result = await upsert_structured(
+            ws_pool, path=path, parents=parent_rows, children=child_rows
+        )
+        log.info(
+            "real_indexer.indexed",
+            workspace_id=str(workspace_id),
+            path=path,
+            engine="structured",
+            strategy=strategy_name,
+            **result,
+        )
+        return len(child_rows)
+
+    async def _resolve_api_key(
+        self,
+        ctx: dict[str, Any],
+        workspace_id: UUID,
+        path: str,
+    ) -> str | None:
+        if not ctx["api_key_ref"]:
+            return None
+        ref = ctx["api_key_ref"]
+        if not is_vault_ref(ref):
+            default_vault_name = await self._client_provider.get_default_vault_name()
+            if default_vault_name is None:
+                log.warning(
+                    "real_indexer.no_default_vault",
+                    workspace_id=str(workspace_id),
+                    path=path,
+                )
+                raise _NoDefaultVaultError()
+            ref = _to_vault_ref(ref, default_vault_name)
+        cached = self._api_key_cache.get(ref)
+        if cached is None or time.monotonic() > cached[1]:
+            api_key = await self._secret_resolver.resolve_with_retry(ref)
+            self._api_key_cache[ref] = (api_key, time.monotonic() + _API_KEY_CACHE_TTL)
+            log.debug("real_indexer.api_key_cache_miss", ref=ref)
+            return api_key
+        return cached[0]
+
+    def _build_provider(self, ctx: dict[str, Any], api_key: str | None) -> EmbeddingProvider:
+        return self._provider_factory(
+            service=ctx["service"],
+            provider=ctx["provider"],
+            model=ctx["model"],
+            api_key=api_key,
+            base_url=ctx["base_url"],
+        )
+
+    async def _record_indexed_document(
+        self,
+        workspace_id: UUID,
+        path: str,
+        content_hash: str,
+        indexer_used: str,
+    ) -> None:
         async with self._config_pool.acquire() as conn:
             await conn.execute(
                 """
@@ -161,15 +289,6 @@ class RealIndexer:
                 content_hash,
                 indexer_used,
             )
-
-        log.info(
-            "real_indexer.indexed",
-            workspace_id=str(workspace_id),
-            path=path,
-            chunks=len(chunks),
-            chunking_strategy=ctx["chunking_strategy"],
-        )
-        return len(chunks)
 
     async def delete_file(self, *, workspace_id: UUID, path: str) -> None:
         ctx = await self._load_workspace_context(workspace_id)
@@ -204,6 +323,9 @@ class RealIndexer:
                 ic.api_key_ref AS api_key_ref,
                 ic.base_url AS base_url,
                 md.service AS service,
+                md.max_input_tokens AS max_input_tokens,
+                md.token_char_ratio AS token_char_ratio,
+                cc.engine AS chunking_engine,
                 cc.strategy AS chunking_strategy,
                 cc.max_chars AS chunking_max_chars,
                 cc.min_chars AS chunking_min_chars,
@@ -224,3 +346,16 @@ class RealIndexer:
         if isinstance(ctx["chunking_extras"], str):
             ctx["chunking_extras"] = json.loads(ctx["chunking_extras"])
         return ctx
+
+
+def _dedupe_by_hash(children: list[Any]) -> list[tuple[str, Any]]:
+    """(hash, child) en ordre doc, dédoublonné par hash (1ʳᵉ occurrence)."""
+    seen: set[str] = set()
+    ordered: list[tuple[str, Any]] = []
+    for child in children:
+        h = compute_chunk_hash(child.embed_text)
+        if h in seen:
+            continue
+        seen.add(h)
+        ordered.append((h, child))
+    return ordered

@@ -27,9 +27,10 @@ class NoOpIndexer:
         content: str,
         content_hash: str,
         indexer_used: str,
+        strategy_override: str | None = None,
     ) -> int:
         """INSERT/UPDATE `indexed_documents` via ON CONFLICT. Retourne 1
-        (1 chunk fictif). `content` est ignoré en M3.
+        (1 chunk fictif). `content` et `strategy_override` ignorés en M3.
         """
         async with self._config_pool.acquire() as conn:
             await conn.execute(
