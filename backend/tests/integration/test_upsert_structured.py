@@ -7,6 +7,7 @@ from rag.db.workspace_migrations import apply_pending
 from rag.db.workspace_structured import (
     ChildRow,
     ParentRow,
+    delete_sections_for_path,
     load_existing_chunk_hashes,
     upsert_structured,
 )
@@ -135,6 +136,33 @@ async def test_partial_edit_only_changes_modified(workspace_test_db: tuple[str, 
     assert result == {"inserted": 1, "kept": 1, "deleted": 1, "sections": 1}
     assert hashes == {"sha256:h1", "sha256:h3"}
     assert section_content == "v2"  # parent mis à jour, id stable
+
+
+@pytest.mark.asyncio
+async def test_delete_sections_for_path_removes_parents_and_children(
+    workspace_test_db: tuple[str, str],
+) -> None:
+    """Fix : delete_file ne doit pas laisser de sections orphelines. La purge
+    des sections cascade sur leurs enfants embeddings."""
+    _, dsn = workspace_test_db
+    await _prepare(dsn)
+    pool = await asyncpg.create_pool(dsn)
+    try:
+        await upsert_structured(
+            pool,
+            path="a.md",
+            parents=[ParentRow("Guide", "# Guide\n\nbody")],
+            children=[_child("sha256:h1", 0)],
+        )
+        removed = await delete_sections_for_path(pool, "a.md")
+        async with pool.acquire() as conn:
+            n_sections = await conn.fetchval("SELECT COUNT(*) FROM sections WHERE path='a.md'")
+            n_children = await conn.fetchval("SELECT COUNT(*) FROM embeddings WHERE path='a.md'")
+    finally:
+        await pool.close()
+    assert removed == 1
+    assert n_sections == 0
+    assert n_children == 0  # cascade FK section_id
 
 
 @pytest.mark.asyncio

@@ -428,3 +428,90 @@ async def apply_chunking_change(
         job_id=str(job_row["id"]),
     )
     return ("reindex_triggered", _job_to_dict(job_row))
+
+
+_VALID_ENGINES = ("legacy", "structured")
+
+
+async def apply_engine_change(
+    *,
+    name: str,
+    engine: str,
+    confirm: bool,
+    config_pool: asyncpg.Pool,
+) -> tuple[str, dict[str, Any]] | str:
+    """Bascule le moteur de chunking d'un workspace (`legacy` ↔ `structured`).
+
+    Le texte embeddé diffère entre moteurs → tout document indexé doit être
+    re-chunké. On invalide donc `indexed_documents` (force le re-chunk au pull
+    suivant — pas de drop de table : l'upsert structuré purge les lignes legacy
+    par path) puis on enquêue un job `reindex_chunking_change`.
+
+    - identique → ``"no_change"``.
+    - 0 doc → bascule immédiate → ``("updated", {...})``.
+    - >0 doc + ``confirm=False`` → lève :class:`ChunkingChangeRequiresReindex`.
+    - >0 doc + ``confirm=True`` → bascule + invalidation + job en une
+      transaction → ``("reindex_triggered", job_dict)``.
+    """
+    if engine not in _VALID_ENGINES:
+        raise ValueError(f"invalid engine {engine!r}, expected one of {_VALID_ENGINES}")
+
+    ws_row = await fetch_one(config_pool, "SELECT id FROM workspaces WHERE name = $1", name)
+    if ws_row is None:
+        raise WorkspaceNotFound(name)
+    workspace_id = ws_row["id"]
+
+    current_engine = await config_pool.fetchval(
+        "SELECT engine FROM chunking_configs WHERE workspace_id = $1", workspace_id
+    )
+    if current_engine == engine:
+        return "no_change"
+
+    docs = await config_pool.fetchval(
+        "SELECT COUNT(*) FROM indexed_documents WHERE workspace_id = $1", workspace_id
+    )
+    if int(docs or 0) == 0:
+        await config_pool.execute(
+            "UPDATE chunking_configs SET engine=$1, updated_at=now() WHERE workspace_id=$2",
+            engine,
+            workspace_id,
+        )
+        log.info("chunking.engine_changed", workspace=name, engine=engine, mode="no_reindex")
+        return ("updated", {"workspace_id": str(workspace_id), "engine": engine})
+
+    if not confirm:
+        raise ChunkingChangeRequiresReindex(
+            workspace=name,
+            current=f"engine={current_engine}",
+            new=f"engine={engine}",
+        )
+
+    async with config_pool.acquire() as conn, conn.transaction():
+        await conn.execute(
+            "UPDATE chunking_configs SET engine=$1, updated_at=now() WHERE workspace_id=$2",
+            engine,
+            workspace_id,
+        )
+        await conn.execute(
+            "DELETE FROM indexed_documents WHERE workspace_id=$1", workspace_id
+        )
+        job_row = await conn.fetchrow(
+            """
+            INSERT INTO index_jobs (workspace_id, triggered_by, status)
+            VALUES ($1, 'reindex_chunking_change', 'pending')
+            RETURNING id, triggered_by, status, files_changed, files_skipped,
+                      error_message, started_at, finished_at, duration_ms
+            """,
+            workspace_id,
+        )
+    if job_row is None:
+        raise RuntimeError("apply_engine_change: INSERT did not RETURN")
+
+    log.info(
+        "chunking.engine_changed",
+        workspace=name,
+        engine=engine,
+        mode="reindex_triggered",
+        job_id=str(job_row["id"]),
+    )
+    return ("reindex_triggered", _job_to_dict(job_row))

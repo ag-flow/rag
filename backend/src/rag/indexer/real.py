@@ -15,6 +15,7 @@ from rag.db.workspace_embeddings import delete_path, upsert_chunks
 from rag.db.workspace_structured import (
     ChildRow,
     ParentRow,
+    delete_sections_for_path,
     load_existing_chunk_hashes,
     plan_children,
     upsert_structured,
@@ -300,6 +301,7 @@ class RealIndexer:
             ctx["rag_cnx"],
         )
         await delete_path(ws_pool, path)
+        await delete_sections_for_path(ws_pool, path)
         async with self._config_pool.acquire() as conn:
             await conn.execute(
                 "DELETE FROM indexed_documents WHERE workspace_id=$1 AND path=$2",

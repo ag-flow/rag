@@ -289,6 +289,21 @@ class ChunkingConfigSpec(BaseModel):
         return v
 
 
+class EngineSpec(BaseModel):
+    """Payload PUT /workspaces/{name}/chunking-config/engine."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    engine: Literal["legacy", "structured"]
+
+
+class EngineResponse(BaseModel):
+    """Réponse bascule moteur sans réindexation (0 doc indexé)."""
+
+    workspace_id: UUID
+    engine: str
+
+
 class ChunkingConfigResponse(BaseModel):
     """Réponse GET /workspaces/{name}/chunking-config."""
 

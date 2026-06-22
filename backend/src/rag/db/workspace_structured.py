@@ -63,6 +63,21 @@ def plan_children(existing_hashes: set[str], doc_hashes: list[str]) -> ChildrenP
     return ChildrenPlan(new_hashes=new, kept_hashes=kept, deleted_hashes=deleted)
 
 
+async def delete_sections_for_path(workspace_pool: asyncpg.Pool, path: str) -> int:
+    """Supprime les sections parentes d'un path (cascade → enfants embeddings).
+
+    Complète `delete_chunks_for_path` côté legacy : sans ça, supprimer un
+    fichier laisserait des `sections` orphelines (le cascade FK va parent→enfant,
+    pas l'inverse). Idempotent. Retourne le nombre de sections supprimées.
+    """
+    async with workspace_pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM sections WHERE path=$1", path)
+    count = int(result.split()[-1])
+    if count > 0:
+        log.info("workspace_structured.sections_deleted", path=path, count=count)
+    return count
+
+
 async def load_existing_chunk_hashes(workspace_pool: asyncpg.Pool, path: str) -> set[str]:
     """Hashes des chunks structurés déjà indexés pour `path`."""
     async with workspace_pool.acquire() as conn:

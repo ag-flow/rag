@@ -14,6 +14,8 @@ from rag.schemas.admin import (
     ApiKeyRotateResponse,
     ChunkingConfigResponse,
     ChunkingConfigSpec,
+    EngineResponse,
+    EngineSpec,
     JobFilesResponse,
     JobResponse,
     ModelEntry,
@@ -565,6 +567,45 @@ def build_admin_router() -> APIRouter:
             )
         # tag == "reindex_triggered" — body est un dict aligné JobResponse,
         # déjà ISO-formaté par jobs._job_to_dict.
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content=JobResponse(**body).model_dump(mode="json"),
+        )
+
+    @router.put("/workspaces/{name}/chunking-config/engine")
+    async def put_chunking_engine_endpoint(
+        name: str,
+        payload: EngineSpec,
+        request: Request,
+        confirm: bool = False,
+    ) -> Response:
+        """Bascule le moteur de chunking (`legacy` ↔ `structured`).
+
+        - 204 si moteur déjà à la valeur demandée.
+        - 200 + EngineResponse si bascule sans documents indexés.
+        - 409 ``chunking_change_requires_reindex`` si bascule + docs > 0 sans
+          ``confirm=true`` (réindexation complète requise).
+        - 202 + JobResponse si bascule + docs > 0 + ``confirm=true``.
+        - 404 si workspace inconnu.
+        """
+        from rag.services.jobs import apply_engine_change
+
+        config_pool = _config_pool(request)
+        result = await apply_engine_change(
+            name=name, engine=payload.engine, confirm=confirm, config_pool=config_pool
+        )
+
+        if result == "no_change":
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+        tag, body = result
+        if tag == "updated":
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content=EngineResponse(
+                    workspace_id=body["workspace_id"], engine=body["engine"]
+                ).model_dump(mode="json"),
+            )
         return JSONResponse(
             status_code=status.HTTP_202_ACCEPTED,
             content=JobResponse(**body).model_dump(mode="json"),
