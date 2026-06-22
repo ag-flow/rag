@@ -20,6 +20,7 @@ def render_chunk_diff(
     legacy_extras: dict[str, Any] | None = None,
     structured_algo: str = "prose",
     structured_params: dict[str, Any] | None = None,
+    structured_language: str | None = None,
     char_ratio: float = 4.0,
     provider_max_input_tokens: int = 8192,
 ) -> str:
@@ -44,6 +45,7 @@ def render_chunk_diff(
         params=structured_params or {},
         estimator=estimator,
         provider_max_input_tokens=provider_max_input_tokens,
+        language=structured_language,
     ).chunk(content)
 
     lines: list[str] = ["# Chunk diff report", ""]

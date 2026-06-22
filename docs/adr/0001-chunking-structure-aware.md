@@ -177,7 +177,7 @@ CREATE INDEX ON embeddings (path);
 ### Découpage en lots
 
 - **Lot 1 (ce chantier)** : infra routage (catalogue + catégories + assignations, résolution global→workspace→override) ; source de vérité tokens ; `TokenEstimator` ; normaliseur en tokens (floor/ceiling/overlap + garde-fou dur) ; breadcrumb injecté ; stratégies `prose` (markdown durci) et `table` ; small-to-big (`sections` + `section_id`) ; hash par chunk + diff ensembliste ; flag `legacy|structured` ; tests + harnais de diff de chunks. La catégorie `code` est **temporairement routée vers `prose`** en Lot 1 (pas de char-split sauvage : le garde-fou tokens s'applique).
-- **Lot 2** : stratégie `code-aware` tree-sitter (grammaires, build, breadcrumb de portée, parent = symbole) + catégorie `data` structurée.
+- **Lot 2 (livré)** : stratégie `code-aware` tree-sitter (`tree-sitter-language-pack`, adaptateur `CodeParser` isolant le binding, découpe par symboles + nesting classe→méthode + breadcrumb de portée, fallback prose si langage non supporté/absent) + catégorie `data` structurée (`DataChunker` JSON/YAML/TOML, clés top-level). Migrations 042 (bascule `code-aware` → algo `code`) et 043 (catégorie `data` → algo `data`).
 
 ---
 

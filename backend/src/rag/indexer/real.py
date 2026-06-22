@@ -21,6 +21,7 @@ from rag.db.workspace_structured import (
 )
 from rag.indexer.chunking import Chunk, make_chunker
 from rag.indexer.chunking.hashing import compute_chunk_hash
+from rag.indexer.chunking.languages import language_for_path
 from rag.indexer.chunking.resolution import resolve_strategy_name
 from rag.indexer.chunking.structured_factory import make_structured_chunker
 from rag.indexer.chunking.tokens import HeuristicTokenEstimator
@@ -175,11 +176,13 @@ class RealIndexer:
         )
         algo, params = await load_strategy(self._config_pool, workspace_id, strategy_name)
         estimator = HeuristicTokenEstimator(char_ratio=float(ctx["token_char_ratio"]))
+        language = language_for_path(path) if algo in ("code", "data") else None
         chunker = make_structured_chunker(
             algo=algo,
             params=params,
             estimator=estimator,
             provider_max_input_tokens=int(ctx["max_input_tokens"]),
+            language=language,
         )
         doc = chunker.chunk(content)
         ordered = _dedupe_by_hash(doc.children)

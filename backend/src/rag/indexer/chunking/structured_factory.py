@@ -3,15 +3,19 @@ from __future__ import annotations
 import math
 from typing import Any
 
+import structlog
+
+from rag.indexer.chunking.code_chunker import CodeChunker
+from rag.indexer.chunking.code_parser import UnsupportedLanguageError
+from rag.indexer.chunking.data_chunker import DataChunker
 from rag.indexer.chunking.markdown_deep import MarkdownDeepChunker
 from rag.indexer.chunking.normalizer import TokenBounds
 from rag.indexer.chunking.structured import StructuredChunkerProtocol
 from rag.indexer.chunking.table import TableChunker
 from rag.indexer.chunking.tokens import TokenEstimator
 
-# Algos structure-aware disponibles en Lot 1. La catégorie 'code' est routée
-# (au niveau résolution) vers une stratégie d'algo 'prose' ; l'algo 'code'
-# (tree-sitter) arrive en Lot 2.
+log = structlog.get_logger(__name__)
+
 _PROSE_KEYS = {
     "child_target_tokens",
     "floor_tokens",
@@ -19,10 +23,13 @@ _PROSE_KEYS = {
     "breadcrumb_depth",
     "heading_levels",
 }
+_CODE_KEYS = {"child_target_tokens", "floor_tokens", "overlap_tokens", "breadcrumb_depth"}
 _TABLE_KEYS = {"child_target_tokens", "max_rows_per_chunk"}
 _ALLOWED: dict[str, set[str]] = {
     "prose": _PROSE_KEYS,
     "markdown": _PROSE_KEYS,
+    "code": _CODE_KEYS,
+    "data": _CODE_KEYS,
     "table": _TABLE_KEYS,
 }
 
@@ -41,14 +48,16 @@ def make_structured_chunker(
     estimator: TokenEstimator,
     provider_max_input_tokens: int,
     safety_factor: float = 0.8,
+    language: str | None = None,
 ) -> StructuredChunkerProtocol:
     """Construit un chunker structure-aware depuis (algo + params nommés).
 
     `provider_max_input_tokens` est la source de vérité (ADR 0001 §3) : le
     plafond dur = ``floor(safety_factor * provider_max_input_tokens)``. Le
-    `child_target_tokens` demandé est clampé sous ce plafond pour rester
-    valide même sur un modèle à faible limite. Lève `ValueError` sur algo ou
-    param inconnu.
+    `child_target_tokens` demandé est clampé sous ce plafond. Pour l'algo
+    `code`, `language` (tree-sitter) est requis ; s'il est absent ou non
+    supporté, on bascule gracieusement vers `prose`. Lève `ValueError` sur algo
+    ou param inconnu.
     """
     if algo not in _ALLOWED:
         raise ValueError(f"unknown chunking algo: {algo!r}")
@@ -64,15 +73,9 @@ def make_structured_chunker(
     target = max(1, min(int(params.get("child_target_tokens", _DEFAULT_TARGET)), hard))
 
     if algo == "table":
-        bounds = TokenBounds(
-            child_target_tokens=target,
-            floor_tokens=0,
-            overlap_tokens=0,
-            hard_ceiling_tokens=hard,
-        )
         return TableChunker(
             estimator=estimator,
-            bounds=bounds,
+            bounds=TokenBounds(target, 0, 0, hard),
             max_rows_per_chunk=int(params.get("max_rows_per_chunk", _DEFAULT_MAX_ROWS)),
         )
 
@@ -82,10 +85,38 @@ def make_structured_chunker(
         overlap_tokens=min(int(params.get("overlap_tokens", _DEFAULT_OVERLAP)), target - 1),
         hard_ceiling_tokens=hard,
     )
+    depth = int(params.get("breadcrumb_depth", _DEFAULT_DEPTH))
+
+    if algo in ("code", "data"):
+        chunker = _try_treesitter_chunker(algo, language, estimator, bounds, depth)
+        if chunker is not None:
+            return chunker
+        # fallback gracieux : langage non supporté → prose (borné en tokens)
+
     heading_levels = tuple(params.get("heading_levels", _DEFAULT_HEADING_LEVELS))
     return MarkdownDeepChunker(
         estimator=estimator,
         bounds=bounds,
-        breadcrumb_depth=int(params.get("breadcrumb_depth", _DEFAULT_DEPTH)),
+        breadcrumb_depth=depth,
         heading_levels=heading_levels,
     )
+
+
+def _try_treesitter_chunker(
+    algo: str,
+    language: str | None,
+    estimator: TokenEstimator,
+    bounds: TokenBounds,
+    depth: int,
+) -> StructuredChunkerProtocol | None:
+    if not language:
+        log.info("structured_factory.no_language_fallback_prose", algo=algo)
+        return None
+    builder = DataChunker if algo == "data" else CodeChunker
+    try:
+        return builder(
+            language=language, estimator=estimator, bounds=bounds, breadcrumb_depth=depth
+        )
+    except UnsupportedLanguageError:
+        log.info("structured_factory.unsupported_fallback_prose", algo=algo, language=language)
+        return None
