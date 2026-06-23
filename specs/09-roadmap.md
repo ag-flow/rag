@@ -35,10 +35,15 @@ Le modèle de données est conçu pour être extensible. Les sources futures s'a
 ✅ Frontend livré en M9b — onglet `Chunking` dans `WorkspaceDetailPanel`, cf. `docs/superpowers/specs/2026-05-19-M9b-frontend-chunking-design.md`.
 ✅ Stratégie sémantique `markdown` livrée en M9c (backend) + M9c-front (IHM) — cf. `docs/superpowers/specs/2026-05-19-M9c-backend-markdown-chunker-design.md` et `docs/superpowers/specs/2026-05-20-M9c-front-markdown-chunking-design.md`. Configurable via le Select Stratégie de l'onglet Chunking du workspace. Par défaut : `heading_levels=[1,2]` ; customisable via API admin (`PUT /chunking-config` avec `extras.heading_levels=[…]`).
 
-Stratégies disponibles : `paragraph` (M4a), `markdown` (M9c + M9c-front).
+✅ Pipeline structure-aware par type de fichier livré en M9d (Lot 1) — cf. `docs/adr/0001-chunking-structure-aware.md`. Routage `ext → catégorie → stratégie nommée` (défauts globaux + surcharge workspace + override ad hoc à l'appel), small-to-big (sections parentes + enfants embeddés), bornes en tokens (source de vérité `model_dimensions`), breadcrumb de portée injecté dans le texte embeddé, dédoublonnage incrémental par `chunk_hash`. Coexiste avec le pipeline legacy derrière le flag `chunking_configs.engine` (défaut `legacy` : aucun changement de comportement). Bascule de moteur → réindexation automatique + purge des sections orphelines. Migrations 039 → 043 + workspace 002.
+
+✅ Chunking code-aware (langage-aware) livré en M9d (Lot 2) — découpe du code par symboles via tree-sitter (`tree-sitter-language-pack`), isolée derrière l'adaptateur `CodeParser` : fonctions/méthodes/classes en unités, nesting classe→méthode (coquille élidée), breadcrumb de portée, enfants bornés en tokens. Fallback gracieux vers prose si le langage est absent/non supporté ; best-effort sur code partiellement invalide. Config curée : python, js, ts, tsx, go, rust, java, c, cpp ; autres langages en mode générique.
+
+✅ Catégorie `data` livrée en M9d (Lot 2) — `DataChunker` découpe JSON/YAML/TOML par clé de premier niveau, fallback `(root)` sinon.
+
+Stratégies disponibles : `paragraph` (M4a), `markdown` (M9c + M9c-front), `code` (M9d, tree-sitter), `data` (M9d, JSON/YAML/TOML).
 
 Stratégies futures (jalons distincts) :
-- Chunking par blocs de code (langage-aware) — jalon M9d ou +
 - Métadonnées enrichies (content_type, language) — quand un usage concret le justifiera
 - Exposition de la metadata via MCP `search()` — quand un client agent en tirera parti
 
