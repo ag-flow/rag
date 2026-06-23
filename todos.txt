@@ -1,0 +1,21 @@
+# TODO — admin-rag (source : specs/09-roadmap.md)
+# Légende : [ ] à faire  [~] en cours  [x] fait
+
+## Chunking (M9d livré)
+[x] Pipeline structure-aware par type de fichier (Lot 1) — routage ext→catégorie→stratégie, small-to-big, flag engine, ADR 0001
+[x] Chunking code-aware tree-sitter (Lot 2) — python/js/ts/tsx/go/rust/java/c/cpp + fallback prose
+[x] Catégorie data (Lot 2) — JSON/YAML/TOML par clé de 1er niveau
+[ ] Exécuter les tests d'intégration/migration sur l'env connecté à la DB (039→043 + workspace 002)
+[ ] Métadonnées enrichies (content_type, language) — quand un usage concret le justifiera
+[ ] Exposition de la metadata via MCP search() — quand un client agent en tirera parti
+
+## Nouvelles sources (workspace_sources.type)
+[ ] url — crawler web / documentation en ligne
+[ ] confluence — pages Confluence Pickup/DOSI
+[ ] notion — pages Notion
+[ ] folder — dossier local monté en volume
+[ ] s3 — bucket S3 ou compatible
+
+## Plateforme
+[ ] SDK Harpocrate phase 2 — sécurisation HARPOCRATE_TOKEN dans le .env
+[ ] Intégration ag.flow — RAG référencé comme ressource d'infra Docker
