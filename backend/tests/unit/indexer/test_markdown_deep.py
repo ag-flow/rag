@@ -96,6 +96,16 @@ class TestBounds:
         assert "a = 1" in fence_children[0].embed_text
         assert "b = 2" in fence_children[0].embed_text
 
+    def test_large_code_fence_not_shredded_by_ceiling(self) -> None:
+        # T1.4 : une fence > child_target reste UN seul child (pas de word-shred).
+        lines = "\n".join(f"line_{i:03d} = {i}" for i in range(60))
+        md = f"# Code\n\n```python\n{lines}\n```\n"
+        doc = _chunker(target=50, overlap=0, hard=8000, depth=0).chunk(md)
+        fence_children = [c for c in doc.children if "```python" in c.embed_text]
+        assert len(fence_children) == 1
+        assert "line_000 = 0" in fence_children[0].embed_text
+        assert "line_059 = 59" in fence_children[0].embed_text
+
     def test_oversized_atomic_unit_raises(self) -> None:
         giant = "x" * 100  # 1 mot insécable de 100 tokens
         chunker = _chunker(target=20, overlap=0, hard=50, depth=0)

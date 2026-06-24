@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
 
+from rag.indexer.chunking.normalizer import Block
+
 
 @dataclass(frozen=True)
 class Section:
@@ -99,25 +101,28 @@ def scan_fences(lines: list[str]) -> list[tuple[int, int]]:
     return ranges
 
 
-def split_blocks(text: str) -> list[str]:
+def split_blocks(text: str) -> list[Block]:
     """Découpe `text` en blocs logiques en préservant les fences de code.
 
-    Les régions hors fence sont découpées sur ligne vide (paragraphes) ; chaque
-    fence est un bloc atomique (jamais shreddé). Blocs vides éliminés.
+    Les régions hors fence sont découpées sur ligne vide (paragraphes, blocs
+    prose) ; chaque fence devient un `Block` **atomique** — jamais fusionné ni
+    shreddé par le normaliseur (ADR 0001 §3). Blocs vides éliminés.
     """
     lines = text.splitlines(keepends=False)
     fence_ranges = scan_fences(lines)
-    blocks: list[str] = []
+    blocks: list[Block] = []
     cursor = 0
     for fence_start, fence_end in fence_ranges:
         if cursor < fence_start:
             blocks.extend(_split_prose("\n".join(lines[cursor:fence_start])))
-        blocks.append("\n".join(lines[fence_start:fence_end]))
+        fence_text = "\n".join(lines[fence_start:fence_end])
+        if fence_text.strip():
+            blocks.append(Block(text=fence_text, atomic=True))
         cursor = fence_end
     if cursor < len(lines):
         blocks.extend(_split_prose("\n".join(lines[cursor:])))
-    return [b for b in blocks if b.strip()]
+    return blocks
 
 
-def _split_prose(text: str) -> list[str]:
-    return [p.strip() for p in text.split("\n\n") if p.strip()]
+def _split_prose(text: str) -> list[Block]:
+    return [Block.prose(p.strip()) for p in text.split("\n\n") if p.strip()]

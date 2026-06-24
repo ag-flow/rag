@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from rag.indexer.chunking.errors import ChunkTooLargeError
@@ -7,6 +8,24 @@ from rag.indexer.chunking.tokens import TokenEstimator
 
 _MERGE_SEP = "\n\n"
 _UNIT_SEP = " "
+
+
+@dataclass(frozen=True)
+class Block:
+    """Bloc logique à normaliser.
+
+    `atomic=True` : unité insécable (ex. fence de code/diagramme) — jamais
+    fusionnée vers le haut (floor) ni découpée sur les mots (ceiling). Si elle
+    dépasse le plafond dur, `ChunkTooLargeError` est levée (ADR 0001 §3).
+    """
+
+    text: str
+    atomic: bool = False
+
+    @staticmethod
+    def prose(text: str) -> Block:
+        """Bloc prose (fusionnable / splittable) — le défaut historique."""
+        return Block(text=text, atomic=False)
 
 
 @dataclass(frozen=True)
@@ -54,33 +73,55 @@ class TokenNormalizer:
         if b.child_target_tokens > b.hard_ceiling_tokens:
             raise ValueError("child_target_tokens must be <= hard_ceiling_tokens")
 
-    def normalize(self, blocks: list[str]) -> list[str]:
-        merged = self._merge_floor([b for b in blocks if b.strip()])
+    def normalize(self, blocks: Sequence[str | Block]) -> list[str]:
+        coerced = [self._coerce(b) for b in blocks if self._coerce(b).text.strip()]
+        merged = self._merge_floor(coerced)
         result: list[str] = []
         for block in merged:
-            if self._est.estimate(block) <= self._b.child_target_tokens:
-                result.append(block)
+            if block.atomic:
+                result.append(self._emit_atomic(block.text))
+            elif self._est.estimate(block.text) <= self._b.child_target_tokens:
+                result.append(block.text)
             else:
-                result.extend(self._split_ceiling(block))
+                result.extend(self._split_ceiling(block.text))
         return result
 
-    def _merge_floor(self, blocks: list[str]) -> list[str]:
-        merged: list[str] = []
+    @staticmethod
+    def _coerce(block: str | Block) -> Block:
+        return block if isinstance(block, Block) else Block.prose(block)
+
+    def _emit_atomic(self, text: str) -> str:
+        estimated = self._est.estimate(text)
+        if estimated > self._b.hard_ceiling_tokens:
+            raise ChunkTooLargeError(
+                estimated_tokens=estimated,
+                hard_ceiling_tokens=self._b.hard_ceiling_tokens,
+            )
+        return text
+
+    def _merge_floor(self, blocks: list[Block]) -> list[Block]:
+        merged: list[Block] = []
         buffer = ""
         for block in blocks:
-            if not buffer:
-                buffer = block
+            if block.atomic:
+                if buffer:
+                    merged.append(Block.prose(buffer))
+                    buffer = ""
+                merged.append(block)
                 continue
-            combined = f"{buffer}{_MERGE_SEP}{block}"
+            if not buffer:
+                buffer = block.text
+                continue
+            combined = f"{buffer}{_MERGE_SEP}{block.text}"
             below_floor = self._est.estimate(buffer) < self._b.floor_tokens
             fits = self._est.estimate(combined) <= self._b.child_target_tokens
             if below_floor and fits:
                 buffer = combined
             else:
-                merged.append(buffer)
-                buffer = block
+                merged.append(Block.prose(buffer))
+                buffer = block.text
         if buffer:
-            merged.append(buffer)
+            merged.append(Block.prose(buffer))
         return merged
 
     def _split_ceiling(self, block: str) -> list[str]:

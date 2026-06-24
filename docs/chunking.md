@@ -107,7 +107,7 @@ unité fine, on retourne la section englobante.
   `javascript`, `typescript`, `tsx`, `go`, `rust`, `java`, `c`, `cpp`. Les
   autres langages reconnus par tree-sitter (`ruby`, `php`, `sql`, `bash`,
   `css`, `scss`…) tournent en **mode générique** (tout nœud nommé = une unité).
-- Tree-sitter étant **tolérant aux erreurs**, le découpage reste best-effort sur
+- Tree-sitter étant **tolérant aux errej nul''nk'k'k le''' lo''klkl'kkk loll'k'j unjj jej j'ai oni kikiijii jeujiknjurs**, le découpage reste best-effort sur
   du code partiellement invalide.
 
 ### `data` — `DataChunker` (tree-sitter)

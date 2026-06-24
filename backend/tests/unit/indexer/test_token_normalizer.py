@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from rag.indexer.chunking.errors import ChunkTooLargeError
-from rag.indexer.chunking.normalizer import TokenBounds, TokenNormalizer
+from rag.indexer.chunking.normalizer import Block, TokenBounds, TokenNormalizer
 from rag.indexer.chunking.tokens import HeuristicTokenEstimator
 
 # ratio=1.0 → 1 token == 1 caractère, math déterministe dans les tests.
@@ -101,3 +101,40 @@ class TestHardGuard:
         n = _norm(target=4, floor=1, overlap=1, hard=5)
         with pytest.raises(ChunkTooLargeError, match="6"):
             n.normalize(["aaaaaa"])  # 6 > hard 5, insécable
+
+
+class TestAtomicBlocks:
+    """Lot 1 — un bloc atomique (ex. fence de code) n'est ni mergé ni splitté."""
+
+    def test_str_input_is_non_atomic_backcompat(self) -> None:
+        # T1.1 : une string brute reste un bloc non-atomique (comportement legacy).
+        n = _norm(target=12, floor=4, overlap=2, hard=30)
+        assert n.normalize(["aaa", "bb"]) == ["aaa\n\nbb"]
+
+    def test_atomic_below_floor_is_a_barrier(self) -> None:
+        # T1.2 : l'atomique ne fusionne pas et bloque la fusion de ses voisins.
+        n = _norm(target=20, floor=8, overlap=2, hard=40)
+        out = n.normalize(
+            [Block.prose("aaa"), Block(text="bb", atomic=True), Block.prose("ccc")]
+        )
+        assert out == ["aaa", "bb", "ccc"]
+
+    def test_atomic_over_target_under_hard_emitted_whole(self) -> None:
+        # T1.3 : > target mais < hard et word-splittable → conservé entier.
+        n = _norm(target=5, floor=1, overlap=1, hard=30)
+        big = "aaaa bbbb cccc dddd"  # 19 chars, splittable mais atomique
+        assert n.normalize([Block(text=big, atomic=True)]) == [big]
+
+    def test_atomic_over_hard_ceiling_raises(self) -> None:
+        # T1.3 : un atomique au-dessus du plafond dur lève l'erreur typée.
+        n = _norm(target=5, floor=1, overlap=1, hard=10)
+        with pytest.raises(ChunkTooLargeError):
+            n.normalize([Block(text="aaaa bbbb cccc", atomic=True)])  # 14 > hard 10
+
+    def test_prose_blocks_still_merge_around_atomic(self) -> None:
+        # Les blocs prose avant/après un atomique gardent leur logique de fusion.
+        n = _norm(target=12, floor=6, overlap=2, hard=30)
+        out = n.normalize(
+            [Block.prose("aa"), Block.prose("bb"), Block(text="XX", atomic=True)]
+        )
+        assert out == ["aa\n\nbb", "XX"]
