@@ -36,3 +36,29 @@ def test_runtime_error_is_permanent() -> None:
 
 def test_value_error_is_permanent() -> None:
     assert classify_indexer_error(ValueError("bad content")) == "permanent"
+
+
+# ---------------------------------------------------------------------------
+# Backoff strategy
+# ---------------------------------------------------------------------------
+from rag.sync.executor import _backoff_delay, _should_retry  # noqa: E402
+
+
+def test_backoff_first_attempt_is_30s() -> None:
+    assert _backoff_delay(0) == 30
+
+
+def test_backoff_doubles_each_time() -> None:
+    assert _backoff_delay(1) == 60
+    assert _backoff_delay(2) == 120
+    assert _backoff_delay(3) == 240
+
+
+def test_should_retry_true_below_4h() -> None:
+    # retry_count=8 -> 30 * 256 = 7680s < 14400s
+    assert _should_retry(8) is True
+
+
+def test_should_retry_false_above_4h() -> None:
+    # retry_count=9 -> 30 * 512 = 15360s > 14400s
+    assert _should_retry(9) is False

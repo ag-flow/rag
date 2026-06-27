@@ -126,13 +126,18 @@ class _ClientProviderProtocol(Protocol):
 
 
 _ERROR_MESSAGE_MAX = 500
-_MAX_RETRIES = 3
-_BACKOFF_SECONDS = [30, 300, 1800]  # 30s → 5min → 30min
+_BACKOFF_BASE_SECONDS = 30
+_BACKOFF_LIMIT_SECONDS = 4 * 3600  # 4 heures
 
 
 def _backoff_delay(retry_count: int) -> int:
-    idx = min(retry_count, len(_BACKOFF_SECONDS) - 1)
-    return _BACKOFF_SECONDS[idx]
+    """30s * 2^retry_count : 30s, 60s, 120s, 240s ... jusqu'a ~4h."""
+    return _BACKOFF_BASE_SECONDS * (2 ** retry_count)
+
+
+def _should_retry(retry_count: int) -> bool:
+    """Retourne False quand le prochain délai dépasserait 4 heures."""
+    return _backoff_delay(retry_count) <= _BACKOFF_LIMIT_SECONDS
 
 
 def _truncate(s: str, n: int = _ERROR_MESSAGE_MAX) -> str:
@@ -332,7 +337,7 @@ async def _execute_push_job(
     except Exception as e:
         error_message = _truncate(str(e))
         family = classify_indexer_error(e)
-        if family == "transient" and job.retry_count < _MAX_RETRIES:
+        if family == "transient" and _should_retry(job.retry_count):
             delay = _backoff_delay(job.retry_count)
             await _reschedule_job(
                 config_pool,
@@ -469,7 +474,7 @@ async def _execute_delete_job(
     except Exception as e:
         error_message = _truncate(str(e))
         family = classify_indexer_error(e)
-        if family == "transient" and job.retry_count < _MAX_RETRIES:
+        if family == "transient" and _should_retry(job.retry_count):
             delay = _backoff_delay(job.retry_count)
             await _reschedule_job(
                 config_pool,

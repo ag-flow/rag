@@ -112,11 +112,11 @@ async def test_transient_error_becomes_error_after_max_retries(
             "VALUES ($1, 'openai', 'text-embedding-3-small', 1536)",
             ws_id,
         )
-        # Job déjà à retry_count=3 (MAX_RETRIES atteint)
+        # retry_count=9 -> delai = 30 * 2^9 = 15360s > 4h -> plus de retry
         job_id = await conn.fetchval(
             "INSERT INTO index_jobs"
             " (workspace_id, triggered_by, status, correlation_id, retry_count)"
-            " VALUES ($1, 'push', 'pending', 'corr-retry-002', 3) RETURNING id",
+            " VALUES ($1, 'push', 'pending', 'corr-retry-002', 9) RETURNING id",
             ws_id,
         )
         await conn.execute(
