@@ -1,0 +1,83 @@
+# ag-flow.rag — Reverse proxy production
+# TLS géré par Cloudflare Tunnel en amont — Caddy tourne en HTTP simple.
+
+{
+    auto_https off
+}
+
+:80 {
+    # API admin et workspace
+    handle /api/* {
+        reverse_proxy backend:8000
+    }
+
+    # Auth OIDC (login, callback, logout, refresh)
+    handle /auth/* {
+        reverse_proxy backend:8000
+    }
+
+    # Endpoint user OIDC
+    handle /me {
+        reverse_proxy backend:8000
+    }
+
+    # WebSocket — streaming logs jobs
+    handle /ws/* {
+        reverse_proxy backend:8000 {
+            transport http {
+                keepalive 86400s
+            }
+        }
+    }
+
+    # Indexation workspace + MCP (gros payloads — timeout étendu)
+    handle /workspaces/* {
+        reverse_proxy backend:8000 {
+            transport http {
+                read_timeout 120s
+                write_timeout 120s
+            }
+        }
+    }
+
+    handle /mcp {
+        reverse_proxy backend:8000
+    }
+
+    # Webhooks git entrants
+    handle /api/webhooks/* {
+        reverse_proxy backend:8000
+    }
+
+    # Santé et version
+    handle /health {
+        reverse_proxy backend:8000
+    }
+
+    handle /version {
+        reverse_proxy backend:8000
+    }
+
+    # Documentation OpenAPI
+    handle /openapi.json {
+        reverse_proxy backend:8000
+    }
+
+    handle /docs* {
+        reverse_proxy backend:8000
+    }
+
+    handle /redoc* {
+        reverse_proxy backend:8000
+    }
+
+    # Frontend (SPA — toutes les routes /ui/* vers Nginx)
+    handle /ui* {
+        reverse_proxy frontend:80
+    }
+
+    # Racine
+    handle {
+        respond "ag-flow.rag — interface : /ui  •  API : /api/*  •  doc : /docs" 200
+    }
+}
