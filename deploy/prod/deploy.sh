@@ -127,7 +127,7 @@ if ! grep -q "^RAG_MASTER_KEY=.\+" "$ENV_FILE" 2>/dev/null; then
     echo "       IMPORTANT : dans .env, écrire \$\$ au lieu de \$ dans le hash bcrypt"
     echo
     echo "  4. Relancer ce script pour builder et démarrer :"
-    echo "       bash $0"
+    echo "       curl -fsSL https://raw.githubusercontent.com/ag-flow/rag/main/deploy/prod/deploy.sh | bash"
     echo
     exit 0
 fi
