@@ -29,16 +29,29 @@ curl -fsSL https://raw.githubusercontent.com/ag-flow/rag/main/deploy/prod/deploy
   | bash
 ```
 
+Si les packages GHCR sont privés, passer un Personal Access Token (scope `read:packages`) :
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ag-flow/rag/main/deploy/prod/deploy.sh \
+  | GHCR_TOKEN=ghp_votre_token bash
+```
+
 Le script :
 - Vérifie que Docker et Docker Compose sont installés
+- S'authentifie sur `ghcr.io` si `GHCR_TOKEN` est fourni
 - Crée le répertoire `/opt/rag`
 - Télécharge `docker-compose.yml`, `Caddyfile`, `pricing.yml`, `.env.example`
 - Crée `/opt/rag/.env` depuis `.env.example` (si inexistant)
 
 > **Répertoire personnalisé** : passer `DEPLOY_DIR=/chemin/voulu` avant la commande.
 > ```bash
-> curl -fsSL ... | DEPLOY_DIR=/srv/rag bash
+> curl -fsSL ... | DEPLOY_DIR=/srv/rag GHCR_TOKEN=ghp_... bash
 > ```
+
+#### Rendre les packages publics (alternative au token)
+
+Dans GitHub → Package `rag-backend` → Package settings → Change visibility → Public.
+Répéter pour `rag-frontend`. Les images peuvent alors être tirées sans authentification.
 
 ---
 
@@ -85,6 +98,13 @@ Variables **obligatoires** à renseigner :
 | `RAG_SESSION_SECRET` | Secret généré à l'étape 2 |
 | `RAG_PUBLIC_URL` | URL externe (`https://rag.example.com`) |
 | `RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH` | Hash bcrypt généré à l'étape 3 |
+
+> **Important — hash bcrypt dans un `.env` Docker** : les `$` du hash doivent être doublés en `$$`.
+> Un hash bcrypt ressemble à `$2b$12$xxx...`. Dans `.env`, écrire :
+> ```
+> RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=$$2b$$12$$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/Lew...
+> ```
+> Cela s'applique uniquement au fichier `.env` lu par Docker Compose — pas en ligne de commande.
 
 Variables **optionnelles** importantes :
 
