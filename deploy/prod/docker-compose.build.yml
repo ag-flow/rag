@@ -1,0 +1,113 @@
+# docker-compose.build.yml — ag-flow.rag
+# Variante BUILD : construit les images depuis le code source téléchargé via curl.
+# Usage : docker compose -f docker-compose.build.yml build
+#         docker compose -f docker-compose.build.yml up -d
+#
+# Requis : BUILD_CONTEXT = chemin vers le dossier source (archive GitHub extraite)
+#   export BUILD_CONTEXT=/tmp/rag-src && docker compose -f docker-compose.build.yml build
+
+services:
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: rag-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    networks: [rag]
+
+  backend:
+    build:
+      context: ${BUILD_CONTEXT}/backend
+      dockerfile: Dockerfile
+    image: rag-backend:local
+    container_name: rag-backend
+    restart: always
+    env_file: .env
+    environment:
+      ENVIRONMENT: prod
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      RAG_POSTGRES_ADMIN_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - rag_repos:/var/lib/rag/repos
+      - ./pricing.yml:/app/config/pricing.yml:ro
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    networks: [rag]
+
+  frontend:
+    build:
+      context: ${BUILD_CONTEXT}/frontend
+      dockerfile: Dockerfile
+    image: rag-frontend:local
+    container_name: rag-frontend
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks: [rag]
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: rag-caddy
+    restart: always
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks: [rag]
+
+volumes:
+  postgres_data:
+  rag_repos:
+  caddy_data:
+  caddy_config:
+
+networks:
+  rag:
+    driver: bridge
