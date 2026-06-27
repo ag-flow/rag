@@ -52,7 +52,7 @@ services:
     container_name: rag-frontend
     restart: always
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:80/healthz"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
       interval: 15s
       timeout: 5s
       retries: 5
