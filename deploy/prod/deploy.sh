@@ -18,6 +18,13 @@ REPO_RAW="https://raw.githubusercontent.com/ag-flow/rag/main"
 REMOTE_DIR="deploy/prod"
 DEPLOY_DIR="${DEPLOY_DIR:-/opt/rag}"
 
+# GHCR_TOKEN : Personal Access Token GitHub (scope : read:packages)
+# Requis si les packages GHCR sont privés.
+# Peut être passé en variable d'environnement :
+#   GHCR_TOKEN=ghp_... bash deploy.sh
+GHCR_TOKEN="${GHCR_TOKEN:-}"
+GHCR_USER="${GHCR_USER:-}"
+
 FILES=(
     "docker-compose.yml"
     "Caddyfile"
@@ -60,6 +67,26 @@ DOCKER_VERSION=$(docker --version | grep -oP '\d+\.\d+' | head -1)
 DOCKER_MAJOR=$(echo "$DOCKER_VERSION" | cut -d. -f1)
 if [ "$DOCKER_MAJOR" -lt 24 ]; then
     warn "Docker $DOCKER_VERSION détecté. Version 24+ recommandée."
+fi
+
+# ─── Authentification GHCR (si packages privés) ──────────────────────────────
+
+if [ -n "$GHCR_TOKEN" ]; then
+    section "Authentification GHCR..."
+    if [ -z "$GHCR_USER" ]; then
+        # Récupérer le login depuis l'API GitHub
+        GHCR_USER=$(curl -fsSL -H "Authorization: Bearer $GHCR_TOKEN" \
+            https://api.github.com/user | python3 -c "import sys,json; print(json.load(sys.stdin)['login'])" 2>/dev/null || echo "")
+        if [ -z "$GHCR_USER" ]; then
+            error "Impossible de récupérer le login GitHub. Vérifier le token ou passer GHCR_USER."
+            exit 1
+        fi
+    fi
+    echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+    info "Connecté à ghcr.io en tant que $GHCR_USER"
+else
+    warn "GHCR_TOKEN non défini — les images doivent être publiques."
+    warn "Si le pull échoue, relancer avec : GHCR_TOKEN=ghp_... bash deploy.sh"
 fi
 
 # ─── Création du répertoire cible ─────────────────────────────────────────────
