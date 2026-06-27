@@ -8,18 +8,18 @@ Avant toute investigation, collecter ces informations :
 
 ```bash
 # État des containers
-docker compose -f docker-compose.prod.yml ps
+cd /opt/rag && docker compose ps
 
 # Santé de l'API
 curl -s http://localhost/health | python3 -m json.tool
 
 # Logs récents (tous les services)
-docker compose -f docker-compose.prod.yml logs --tail=100
+cd /opt/rag && docker compose logs --tail=100
 
 # Logs d'un service spécifique
-docker compose -f docker-compose.prod.yml logs backend --tail=100
-docker compose -f docker-compose.prod.yml logs postgres --tail=50
-docker compose -f docker-compose.prod.yml logs caddy --tail=50
+cd /opt/rag && docker compose logs backend --tail=100
+cd /opt/rag && docker compose logs postgres --tail=50
+cd /opt/rag && docker compose logs caddy --tail=50
 ```
 
 ---
@@ -31,7 +31,7 @@ docker compose -f docker-compose.prod.yml logs caddy --tail=50
 **Symptôme** : `docker compose ps` montre le backend en `Exit 1`.
 
 ```bash
-docker compose -f docker-compose.prod.yml logs backend | grep -i "error\|migration\|fatal"
+cd /opt/rag && docker compose logs backend | grep -i "error\|migration\|fatal"
 ```
 
 **Causes fréquentes** :
@@ -46,7 +46,7 @@ docker compose -f docker-compose.prod.yml logs backend | grep -i "error\|migrati
 ### Le container Postgres ne démarre pas
 
 ```bash
-docker compose -f docker-compose.prod.yml logs postgres
+cd /opt/rag && docker compose logs postgres
 ```
 
 **Cause fréquente** : le volume `rag_postgres_data` existe déjà avec un `POSTGRES_USER` différent.
@@ -56,14 +56,14 @@ docker compose -f docker-compose.prod.yml logs postgres
 docker run --rm -v rag_postgres_data:/data alpine ls /data/global/
 
 # Solution : supprimer le volume (PERTE DE DONNÉES)
-docker compose -f docker-compose.prod.yml down -v
-docker compose -f docker-compose.prod.yml up -d
+cd /opt/rag && docker compose down -v
+cd /opt/rag && docker compose up -d
 ```
 
 ### Caddy ne démarre pas — port 80 occupé
 
 ```bash
-docker compose -f docker-compose.prod.yml logs caddy
+cd /opt/rag && docker compose logs caddy
 # "listen tcp :80: bind: address already in use"
 ```
 
@@ -138,7 +138,7 @@ python3 -c "import bcrypt; print(bcrypt.hashpw(b'nouveau-mdp', bcrypt.gensalt(12
 Mettre à jour `.env` puis redémarrer :
 
 ```bash
-docker compose -f docker-compose.prod.yml restart backend
+cd /opt/rag && docker compose restart backend
 ```
 
 ---
@@ -150,7 +150,7 @@ docker compose -f docker-compose.prod.yml restart backend
 Le worker asynchrone n'est pas en cours d'exécution ou est bloqué.
 
 ```bash
-docker compose -f docker-compose.prod.yml logs backend | grep "sync_worker\|worker"
+cd /opt/rag && docker compose logs backend | grep "sync_worker\|worker"
 ```
 
 **Causes fréquentes** :
@@ -167,7 +167,7 @@ Si `"status": "open"`, le provider d'embedding est en erreur. Voir [Circuit brea
 2. **Worker crashé** : le backend a redémarré et le worker est dans un état incohérent.
 
 ```bash
-docker compose -f docker-compose.prod.yml restart backend
+cd /opt/rag && docker compose restart backend
 ```
 
 3. **`retry_after` dans le futur** : un job transient a été planifié pour un retry différé. C'est le comportement attendu — attendre l'expiration.
@@ -361,7 +361,7 @@ Si la liste est vide, créer un coffre avant de créer des workspaces.
 ### Résolution d'une clé logique échoue
 
 ```bash
-docker compose -f docker-compose.prod.yml logs backend | grep "VaultLookupFailed"
+cd /opt/rag && docker compose logs backend | grep "VaultLookupFailed"
 ```
 
 La clé logique référencée (ex: `openai_embedding_key`) n'existe pas dans le coffre Harpocrate.
@@ -381,11 +381,11 @@ La `logical_name` doit correspondre exactement à la référence utilisée dans 
 
 ```bash
 # Redémarrer uniquement le backend (sans arrêter Postgres)
-docker compose -f docker-compose.prod.yml restart backend
+cd /opt/rag && docker compose restart backend
 
 # Forcer le re-téléchargement des images
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
+cd /opt/rag && docker compose pull
+cd /opt/rag && docker compose up -d
 
 # Accéder à Postgres directement
 docker exec -it rag-postgres psql -U rag -d rag_config

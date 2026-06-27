@@ -155,6 +155,7 @@ if [ -n "$GHCR_TOKEN" ]; then
     docker compose pull
     docker compose up -d
     info "Stack démarrée (mode pull)."
+    COMPOSE_CMD="docker compose"
 
 # ─── Mode BUILD (défaut) ──────────────────────────────────────────────────────
 
@@ -178,6 +179,7 @@ else
     section "Démarrage de la stack..."
     docker compose -f docker-compose.build.yml up -d
     info "Stack démarrée (mode build)."
+    COMPOSE_CMD="docker compose -f docker-compose.build.yml"
 fi
 
 # ─── Résumé final ─────────────────────────────────────────────────────────────
@@ -186,8 +188,10 @@ section "Déploiement terminé."
 echo
 echo -e "  Répertoire : ${BOLD}${DEPLOY_DIR}${RESET}"
 echo
-echo "  Commandes utiles :"
-echo "    docker compose -f $DEPLOY_DIR/docker-compose.build.yml ps"
-echo "    docker compose -f $DEPLOY_DIR/docker-compose.build.yml logs -f backend"
+echo "  Commandes utiles (depuis ${DEPLOY_DIR}) :"
+echo "    cd ${DEPLOY_DIR}"
+echo "    ${COMPOSE_CMD} ps"
+echo "    ${COMPOSE_CMD} logs -f backend"
+echo "    ${COMPOSE_CMD} restart backend"
 echo "    curl http://localhost/health"
 echo
