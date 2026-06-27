@@ -1,32 +1,37 @@
 #!/usr/bin/env bash
 # deploy.sh — ag-flow.rag
-# Télécharge les fichiers de déploiement depuis GitHub et les installe
-# dans le répertoire cible sur la machine de production.
+# Télécharge les fichiers de config depuis GitHub (curl, pas git clone)
+# et démarre la stack via Docker Compose.
 #
-# Usage :
-#   bash deploy.sh                  # installe dans /opt/rag (défaut)
-#   DEPLOY_DIR=/srv/rag bash deploy.sh
+# Deux modes selon la disponibilité de GHCR_TOKEN :
+#
+#   Mode BUILD (défaut) — construit les images localement depuis le code source :
+#     bash deploy.sh
+#     DEPLOY_DIR=/srv/rag bash deploy.sh
+#
+#   Mode PULL — télécharge les images pré-buildées depuis GHCR (packages privés) :
+#     GHCR_TOKEN=ghp_... bash deploy.sh
+#     GHCR_TOKEN=ghp_... GHCR_USER=monlogin bash deploy.sh
 #
 # Ce script est idempotent : il peut être relancé pour mettre à jour
-# les fichiers sans écraser un .env existant.
+# les fichiers de config et les images sans écraser un .env existant.
 
 set -euo pipefail
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 
+REPO="https://github.com/ag-flow/rag"
 REPO_RAW="https://raw.githubusercontent.com/ag-flow/rag/main"
 REMOTE_DIR="deploy/prod"
 DEPLOY_DIR="${DEPLOY_DIR:-/opt/rag}"
 
-# GHCR_TOKEN : Personal Access Token GitHub (scope : read:packages)
-# Requis si les packages GHCR sont privés.
-# Peut être passé en variable d'environnement :
-#   GHCR_TOKEN=ghp_... bash deploy.sh
+# Mode pull GHCR — optionnel
 GHCR_TOKEN="${GHCR_TOKEN:-}"
 GHCR_USER="${GHCR_USER:-}"
 
-FILES=(
+CONFIG_FILES=(
     "docker-compose.yml"
+    "docker-compose.build.yml"
     "Caddyfile"
     "pricing.yml"
     ".env.example"
@@ -49,7 +54,7 @@ section() { echo -e "\n${BOLD}$*${RESET}"; }
 
 section "Vérification des prérequis..."
 
-for cmd in docker curl; do
+for cmd in docker curl python3; do
     if ! command -v "$cmd" &>/dev/null; then
         error "$cmd n'est pas installé."
         exit 1
@@ -69,26 +74,6 @@ if [ "$DOCKER_MAJOR" -lt 24 ]; then
     warn "Docker $DOCKER_VERSION détecté. Version 24+ recommandée."
 fi
 
-# ─── Authentification GHCR (si packages privés) ──────────────────────────────
-
-if [ -n "$GHCR_TOKEN" ]; then
-    section "Authentification GHCR..."
-    if [ -z "$GHCR_USER" ]; then
-        # Récupérer le login depuis l'API GitHub
-        GHCR_USER=$(curl -fsSL -H "Authorization: Bearer $GHCR_TOKEN" \
-            https://api.github.com/user | python3 -c "import sys,json; print(json.load(sys.stdin)['login'])" 2>/dev/null || echo "")
-        if [ -z "$GHCR_USER" ]; then
-            error "Impossible de récupérer le login GitHub. Vérifier le token ou passer GHCR_USER."
-            exit 1
-        fi
-    fi
-    echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-    info "Connecté à ghcr.io en tant que $GHCR_USER"
-else
-    warn "GHCR_TOKEN non défini — les images doivent être publiques."
-    warn "Si le pull échoue, relancer avec : GHCR_TOKEN=ghp_... bash deploy.sh"
-fi
-
 # ─── Création du répertoire cible ─────────────────────────────────────────────
 
 section "Création du répertoire $DEPLOY_DIR..."
@@ -96,14 +81,13 @@ section "Création du répertoire $DEPLOY_DIR..."
 mkdir -p "$DEPLOY_DIR"
 info "Répertoire : $DEPLOY_DIR"
 
-# ─── Téléchargement des fichiers ──────────────────────────────────────────────
+# ─── Téléchargement des fichiers de configuration ─────────────────────────────
 
-section "Téléchargement des fichiers depuis GitHub..."
+section "Téléchargement des fichiers de configuration..."
 
-for file in "${FILES[@]}"; do
+for file in "${CONFIG_FILES[@]}"; do
     url="${REPO_RAW}/${REMOTE_DIR}/${file}"
     dest="${DEPLOY_DIR}/${file}"
-
     curl -fsSL "$url" -o "$dest"
     info "Téléchargé : $file"
 done
@@ -122,44 +106,88 @@ else
     info ".env créé depuis .env.example (chmod 600)."
 fi
 
-# ─── Résumé ───────────────────────────────────────────────────────────────────
-
-section "Installation terminée."
-echo
-echo -e "  Répertoire : ${BOLD}${DEPLOY_DIR}${RESET}"
-echo
-echo -e "  Fichiers installés :"
-for file in "${FILES[@]}" ".env"; do
-    echo "    • ${DEPLOY_DIR}/${file}"
-done
+# ─── Vérifier que .env est rempli ─────────────────────────────────────────────
 
 if ! grep -q "^RAG_MASTER_KEY=.\+" "$ENV_FILE" 2>/dev/null; then
     echo
     warn "Le fichier .env n'est pas encore configuré."
     echo
-    echo "  Étapes suivantes :"
+    echo "  1. Remplir ${BOLD}${ENV_FILE}${RESET} :"
+    echo "       cd ${DEPLOY_DIR} && \$EDITOR .env"
     echo
-    echo -e "  1. Remplir ${BOLD}${ENV_FILE}${RESET} :"
-    echo "       cd ${DEPLOY_DIR}"
-    echo "       \$EDITOR .env"
-    echo
-    echo "  2. Générer les secrets requis :"
+    echo "  2. Générer les secrets :"
     echo "       POSTGRES_PASSWORD : openssl rand -hex 24"
     echo "       RAG_MASTER_KEY    : openssl rand -hex 32"
     echo "       RAG_SESSION_SECRET: openssl rand -hex 32"
     echo "       HARPOCRATE_DEK    : openssl rand -hex 32  (si coffre Harpocrate)"
     echo
-    echo "  3. Générer le hash du mot de passe admin :"
+    echo "  3. Hash bcrypt admin :"
     echo "       python3 -c \"import bcrypt; print(bcrypt.hashpw(b'MON_MDP', bcrypt.gensalt(12)).decode())\""
+    echo "       Coller le résultat dans RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH"
+    echo "       IMPORTANT : dans .env, écrire \$\$ au lieu de \$ dans le hash bcrypt"
     echo
-    echo "  4. Démarrer la stack :"
-    echo "       cd ${DEPLOY_DIR} && docker compose up -d"
-else
+    echo "  4. Relancer ce script pour builder et démarrer :"
+    echo "       bash $0"
     echo
-    info ".env déjà configuré."
-    echo
-    echo "  Pour mettre à jour la stack :"
-    echo "    cd ${DEPLOY_DIR} && docker compose pull && docker compose up -d"
+    exit 0
 fi
 
+# ─── Mode PULL (GHCR_TOKEN fourni) ────────────────────────────────────────────
+
+if [ -n "$GHCR_TOKEN" ]; then
+    section "Mode PULL — authentification GHCR..."
+
+    if [ -z "$GHCR_USER" ]; then
+        GHCR_USER=$(curl -fsSL -H "Authorization: Bearer $GHCR_TOKEN" \
+            https://api.github.com/user \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['login'])" 2>/dev/null || echo "")
+        if [ -z "$GHCR_USER" ]; then
+            error "Impossible de récupérer le login GitHub. Passer GHCR_USER explicitement."
+            exit 1
+        fi
+    fi
+
+    echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+    info "Connecté à ghcr.io en tant que $GHCR_USER"
+
+    section "Téléchargement des images GHCR..."
+    cd "$DEPLOY_DIR"
+    docker compose pull
+    docker compose up -d
+    info "Stack démarrée (mode pull)."
+
+# ─── Mode BUILD (défaut) ──────────────────────────────────────────────────────
+
+else
+    section "Mode BUILD — téléchargement du code source..."
+
+    BUILD_CONTEXT=$(mktemp -d)
+    trap 'rm -rf "$BUILD_CONTEXT"' EXIT
+
+    TARBALL_URL="${REPO}/archive/refs/heads/main.tar.gz"
+    info "Source : $TARBALL_URL"
+    curl -fsSL "$TARBALL_URL" | tar xz -C "$BUILD_CONTEXT" --strip-components=1
+    info "Code extrait dans : $BUILD_CONTEXT"
+
+    section "Build des images Docker..."
+    cd "$DEPLOY_DIR"
+    export BUILD_CONTEXT
+    docker compose -f docker-compose.build.yml build --progress=plain
+    info "Images buildées."
+
+    section "Démarrage de la stack..."
+    docker compose -f docker-compose.build.yml up -d
+    info "Stack démarrée (mode build)."
+fi
+
+# ─── Résumé final ─────────────────────────────────────────────────────────────
+
+section "Déploiement terminé."
+echo
+echo -e "  Répertoire : ${BOLD}${DEPLOY_DIR}${RESET}"
+echo
+echo "  Commandes utiles :"
+echo "    docker compose -f $DEPLOY_DIR/docker-compose.build.yml ps"
+echo "    docker compose -f $DEPLOY_DIR/docker-compose.build.yml logs -f backend"
+echo "    curl http://localhost/health"
 echo
