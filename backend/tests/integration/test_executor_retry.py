@@ -141,3 +141,9 @@ async def test_transient_error_becomes_error_after_max_retries(
             "SELECT status FROM index_jobs WHERE id=$1", job_id
         )
         assert row["status"] == "error"
+
+        # retries épuisés → circuit breaker ouvert
+        circuit = await conn.fetchrow(
+            "SELECT 1 FROM indexer_circuit_breakers WHERE workspace_id=$1", ws_id
+        )
+        assert circuit is not None

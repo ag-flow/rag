@@ -358,7 +358,8 @@ async def _execute_push_job(
                 config_pool, job_id=job.job_id, error_message=error_message
             )
             final_status = "error"
-            if family == "blocking":
+            if family in ("blocking", "transient"):
+                # transient ici = retries épuisés → même traitement que blocking
                 await open_circuit(
                     config_pool,
                     workspace_id=job.workspace_id,
@@ -495,6 +496,14 @@ async def _execute_delete_job(
                 config_pool, job_id=job.job_id, error_message=error_message
             )
             final_status = "error"
+            if family in ("blocking", "transient"):
+                await open_circuit(
+                    config_pool,
+                    workspace_id=job.workspace_id,
+                    provider=job.indexer_provider,
+                    model=job.indexer_model,
+                    error_message=error_message,
+                )
             log.exception("delete_job.error", job_id=jid, family=family)
     finally:
         if final_status != "retrying":
