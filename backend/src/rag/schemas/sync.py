@@ -53,6 +53,7 @@ class JobToProcess(BaseModel):
     indexer_model: str
     triggered_by: str
     correlation_id: str | None
+    retry_count: int = 0
 
     @property
     def indexer_used(self) -> str:

@@ -19,6 +19,10 @@ class EmbeddingRateLimited(EmbeddingProviderError):  # noqa: N818
     """HTTP 429 — le quota a été atteint et le retry interne a échoué."""
 
 
+class EmbeddingQuotaExhausted(EmbeddingProviderError):  # noqa: N818
+    """HTTP 402 ou quota global épuisé — crédits insuffisants."""
+
+
 class EmbeddingProviderUnreachable(EmbeddingProviderError):  # noqa: N818
     """Réseau down, timeout, ou HTTP 503 (provider en panne)."""
 

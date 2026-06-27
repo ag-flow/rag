@@ -60,6 +60,7 @@ def _ctx_row(name: str, provider: str, model: str, api_key_ref: str | None) -> d
         "model": model,
         "api_key_ref": api_key_ref,
         "base_url": None,
+        "service": "openai",
         "rerank_provider": None,
         "rerank_model": None,
         "rerank_api_key_ref": None,

@@ -126,9 +126,11 @@ async def playground_chat(
             """
             SELECT w.rag_cnx, w.name AS ws_name,
                    ic.provider AS idx_provider, ic.model AS idx_model,
-                   ic.api_key_ref AS idx_api_key_ref, ic.base_url AS idx_base_url
+                   ic.api_key_ref AS idx_api_key_ref, ic.base_url AS idx_base_url,
+                   md.service AS idx_service
             FROM workspaces w
             JOIN indexer_configs ic ON ic.workspace_id = w.id
+            JOIN model_dimensions md ON md.provider = ic.provider AND md.model = ic.model
             WHERE w.name = $1
             """,
             workspace_name,
@@ -156,6 +158,7 @@ async def playground_chat(
         indexer_api_key = await _resolve_harpo(ws_row["idx_api_key_ref"])
 
     embedding_provider = make_provider(
+        service=ws_row["idx_service"],
         provider=ws_row["idx_provider"],
         model=ws_row["idx_model"],
         api_key=indexer_api_key,

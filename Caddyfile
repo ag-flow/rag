@@ -33,6 +33,15 @@
     handle /version {
         reverse_proxy backend:8000
     }
+    handle /openapi.json {
+        reverse_proxy backend:8000
+    }
+    handle /docs* {
+        reverse_proxy backend:8000
+    }
+    handle /redoc* {
+        reverse_proxy backend:8000
+    }
     handle /ui* {
         reverse_proxy frontend:80
     }

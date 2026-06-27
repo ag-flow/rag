@@ -23,6 +23,7 @@ log = structlog.get_logger(__name__)
 class _WsCtx:
     workspace_name: str
     rag_cnx: str
+    indexer_service: str
     indexer_provider: str
     indexer_model: str
     indexer_api_key_ref: str | None
@@ -55,6 +56,7 @@ async def rag_search(query: str, top_k: int = 5, min_score: float = 0.3) -> str:
         api_key = await ctx.resolver.resolve_with_retry(ctx.indexer_api_key_ref)
 
     provider = make_provider(
+        service=ctx.indexer_service,
         provider=ctx.indexer_provider,
         model=ctx.indexer_model,
         api_key=api_key,
@@ -190,10 +192,12 @@ class RagMcpDispatcher:
                    k.api_key_ref,
                    ic.provider, ic.model,
                    ic.api_key_ref AS indexer_api_key_ref,
-                   ic.base_url
+                   ic.base_url,
+                   md.service
             FROM workspaces w
             JOIN workspace_api_keys k ON k.workspace_id = w.id
             JOIN indexer_configs ic ON ic.workspace_id = w.id
+            JOIN model_dimensions md ON md.provider = ic.provider AND md.model = ic.model
             WHERE w.id = $1::uuid
               AND k.fingerprint = $2
               AND k.revoked_at IS NULL
@@ -223,6 +227,7 @@ class RagMcpDispatcher:
         return _WsCtx(
             workspace_name=str(row["name"]),
             rag_cnx=str(row["rag_cnx"]),
+            indexer_service=str(row["service"]),
             indexer_provider=str(row["provider"]),
             indexer_model=str(row["model"]),
             indexer_api_key_ref=row["indexer_api_key_ref"],

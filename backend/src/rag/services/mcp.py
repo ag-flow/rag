@@ -153,6 +153,7 @@ async def _load_workspace_context(
             ic.model AS model,
             ic.api_key_ref AS api_key_ref,
             ic.base_url AS base_url,
+            md.service AS service,
             rc.provider AS rerank_provider,
             rc.model AS rerank_model,
             rc.api_key_ref AS rerank_api_key_ref,
@@ -160,6 +161,7 @@ async def _load_workspace_context(
             rc.top_k_pre_rerank AS rerank_top_k_pre_rerank
         FROM workspaces w
         JOIN indexer_configs ic ON ic.workspace_id = w.id
+        JOIN model_dimensions md ON md.provider = ic.provider AND md.model = ic.model
         LEFT JOIN rerank_configs rc ON rc.workspace_id = w.id
         WHERE w.name = $1
         """,
@@ -284,6 +286,7 @@ async def _search_one(
         )
 
     provider = provider_factory(
+        service=ctx["service"],
         provider=ctx["provider"],
         model=ctx["model"],
         api_key=api_key,

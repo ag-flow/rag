@@ -12,6 +12,7 @@ import { WorkspaceWebhooksTab } from "./WorkspaceWebhooksTab";
 import { WorkspacePlaygroundTab } from "./WorkspacePlaygroundTab";
 import { WorkspaceTriggersTab } from "./WorkspaceTriggersTab";
 import { WorkspaceApiKeysTab } from "./WorkspaceApiKeysTab";
+import { WorkspaceIndexTab } from "./WorkspaceIndexTab";
 import { ReindexConfirmDialog } from "./ReindexConfirmDialog";
 import { DeleteWorkspaceAlert } from "./DeleteWorkspaceAlert";
 
@@ -49,6 +50,7 @@ export function WorkspaceDetailPanel({ name }: Props) {
             {t("tabs.sources", { count: ws.sources_count })}
           </TabsTrigger>
           <TabsTrigger value="jobs">{t("tabs.jobs")}</TabsTrigger>
+          <TabsTrigger value="index">{t("tabs.index")}</TabsTrigger>
           <TabsTrigger value="chunking">{t("tabs.chunking")}</TabsTrigger>
           <TabsTrigger value="webhooks">{t("webhooks.tab")}</TabsTrigger>
           <TabsTrigger value="playground">{t("tabs.playground")}</TabsTrigger>
@@ -63,6 +65,9 @@ export function WorkspaceDetailPanel({ name }: Props) {
         </TabsContent>
         <TabsContent value="jobs" className="pt-4">
           <WorkspaceJobsTab name={ws.name} enabled={activeTab === "jobs"} />
+        </TabsContent>
+        <TabsContent value="index" className="pt-4">
+          <WorkspaceIndexTab workspaceName={ws.name} enabled={activeTab === "index"} />
         </TabsContent>
         <TabsContent value="chunking" className="pt-4">
           <WorkspaceChunkingTab workspace={ws} enabled={activeTab === "chunking"} />

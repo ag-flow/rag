@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from rag.rerank.protocol import RerankProvider
 from rag.rerank.providers.cohere import CohereRerankProvider
+from rag.rerank.providers.dashscope import DashScopeRerankProvider
 from rag.rerank.providers.jina import JinaRerankProvider
 from rag.rerank.providers.ollama import OllamaRerankProvider
 from rag.rerank.providers.voyage import VoyageRerankProvider
@@ -31,4 +32,8 @@ def make_rerank_provider(
         if not api_key:
             raise ValueError("jina requires api_key")
         return JinaRerankProvider(model=model, api_key=api_key)
+    if provider == "dashscope":
+        if not api_key:
+            raise ValueError("dashscope requires api_key")
+        return DashScopeRerankProvider(model=model, api_key=api_key, base_url=base_url)
     raise ValueError(f"unknown rerank provider: {provider}")

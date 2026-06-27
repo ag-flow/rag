@@ -82,6 +82,14 @@ async def call_llm(
             model=model, base_url=base_url or "http://localhost:11434",
             system=system_prompt, messages=messages,
         )
+    if provider == "azure-foundry":
+        return await _call_azure_foundry(
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+            system=system_prompt,
+            messages=messages,
+        )
     raise ValueError(f"Unsupported LLM provider: {provider!r}")
 
 
@@ -125,6 +133,22 @@ async def _call_azure_openai(
         azure_endpoint=base_url or "",
         api_version="2024-02-01",
     )
+    full_messages = [{"role": "system", "content": system}, *messages]
+    response = await client.chat.completions.create(model=model, messages=full_messages)
+    return {
+        "answer": response.choices[0].message.content or "",
+        "usage": {
+            "prompt_tokens": response.usage.prompt_tokens,
+            "completion_tokens": response.usage.completion_tokens,
+        },
+    }
+
+
+async def _call_azure_foundry(
+    *, model: str, api_key: str | None, base_url: str | None,
+    system: str, messages: list[dict[str, str]]
+) -> dict[str, Any]:
+    client = openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
     full_messages = [{"role": "system", "content": system}, *messages]
     response = await client.chat.completions.create(model=model, messages=full_messages)
     return {
