@@ -201,13 +201,14 @@ async def _execute_push_job(
 
     try:
         row = await config_pool.fetchrow(
-            "SELECT path, content, strategy_override FROM push_job_payloads WHERE job_id=$1",
+            "SELECT path, content, title, strategy_override FROM push_job_payloads WHERE job_id=$1",
             job.job_id,
         )
         if row is None:
             raise RuntimeError(f"push_job_payloads not found for job {jid}")
 
         path, content = row["path"], row["content"]
+        title = row["title"]
         strategy_override = row["strategy_override"]
         content_hash = "sha256:" + sha256(content.encode("utf-8")).hexdigest()
 
@@ -240,6 +241,7 @@ async def _execute_push_job(
                 content=content,
                 content_hash=content_hash,
                 indexer_used=job.indexer_used,
+                title=title,
                 strategy_override=strategy_override,
             )
 
@@ -319,6 +321,111 @@ async def _execute_push_job(
     )
 
 
+async def _execute_delete_job(
+    *,
+    job: JobToProcess,
+    config_pool: asyncpg.Pool,
+    indexer: IndexerProtocol,
+    webhook_secret: str | None,
+    resolver: _ResolverProtocol | None,
+) -> None:
+    jid = str(job.job_id)
+    final_status = "error"
+    files_changed = 0
+    files_skipped = 0
+    error_message: str | None = None
+    duration_ms: int | None = None
+
+    try:
+        row = await config_pool.fetchrow(
+            "SELECT path FROM delete_job_payloads WHERE job_id=$1",
+            job.job_id,
+        )
+        if row is None:
+            raise RuntimeError(f"delete_job_payloads not found for job {jid}")
+
+        path = row["path"]
+
+        exists = await config_pool.fetchval(
+            "SELECT 1 FROM indexed_documents WHERE workspace_id=$1 AND path=$2",
+            job.workspace_id,
+            path,
+        )
+
+        if not exists:
+            await config_pool.execute(
+                """
+                UPDATE index_jobs
+                SET status='skipped', finished_at=now(),
+                    duration_ms=CASE
+                        WHEN started_at IS NOT NULL THEN
+                            EXTRACT(MILLISECONDS FROM (now() - started_at))::int
+                        ELSE 0
+                    END
+                WHERE id=$1
+                """,
+                job.job_id,
+            )
+            final_status = "skipped"
+            files_skipped = 1
+        else:
+            await indexer.delete_file(workspace_id=job.workspace_id, path=path)
+            await config_pool.execute(
+                """
+                UPDATE index_jobs
+                SET status='done', finished_at=now(), files_changed=1,
+                    duration_ms=CASE
+                        WHEN started_at IS NOT NULL THEN
+                            EXTRACT(MILLISECONDS FROM (now() - started_at))::int
+                        ELSE 0
+                    END
+                WHERE id=$1
+                """,
+                job.job_id,
+            )
+            final_status = "done"
+            files_changed = 1
+
+        log.info(
+            "delete_job.done",
+            job_id=jid,
+            workspace=job.workspace_name,
+            status=final_status,
+        )
+    except Exception as e:
+        error_message = _truncate(str(e))
+        await _mark_job_error(config_pool, job_id=job.job_id, error_message=error_message)
+        final_status = "error"
+        log.exception("delete_job.error", job_id=jid)
+    finally:
+        try:
+            await config_pool.execute(
+                "DELETE FROM delete_job_payloads WHERE job_id=$1", job.job_id
+            )
+        except Exception:
+            log.warning("delete_job.payload_cleanup_failed", job_id=jid)
+
+    finished_at = datetime.datetime.now(datetime.UTC).isoformat()
+    correlation_id = job.correlation_id or jid
+    await dispatch_webhooks(
+        config_pool=config_pool,
+        workspace_id=str(job.workspace_id),
+        workspace_name=job.workspace_name,
+        job_id=jid,
+        correlation_id=correlation_id,
+        triggered_by=job.triggered_by,
+        status=final_status,
+        files_changed=files_changed,
+        files_skipped=files_skipped,
+        duration_ms=duration_ms,
+        finished_at=finished_at,
+        error_message=error_message,
+        webhook_secret=webhook_secret,
+        resolver=resolver,
+        enrichments=[],
+    )
+
+
 async def execute_next_pending_job(
     *,
     config_pool: asyncpg.Pool,
@@ -351,6 +458,14 @@ async def execute_next_pending_job(
                 webhook_secret=webhook_secret,
                 resolver=resolver,
                 client_provider=client_provider,
+            )
+        elif job.triggered_by == "delete":
+            await _execute_delete_job(
+                job=job,
+                config_pool=config_pool,
+                indexer=indexer,
+                webhook_secret=webhook_secret,
+                resolver=resolver,
             )
         else:
             default_vault_name = await client_provider.get_default_vault_name()

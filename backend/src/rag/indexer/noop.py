@@ -27,6 +27,7 @@ class NoOpIndexer:
         content: str,
         content_hash: str,
         indexer_used: str,
+        title: str | None = None,
         strategy_override: str | None = None,
     ) -> int:
         """INSERT/UPDATE `indexed_documents` via ON CONFLICT. Retourne 1
@@ -36,17 +37,19 @@ class NoOpIndexer:
             await conn.execute(
                 """
                 INSERT INTO indexed_documents
-                    (workspace_id, path, content_hash, indexer_used, indexed_at)
-                VALUES ($1, $2, $3, $4, now())
+                    (workspace_id, path, content_hash, indexer_used, title, indexed_at)
+                VALUES ($1, $2, $3, $4, $5, now())
                 ON CONFLICT (workspace_id, path) DO UPDATE
                 SET content_hash = EXCLUDED.content_hash,
                     indexer_used = EXCLUDED.indexer_used,
+                    title        = EXCLUDED.title,
                     indexed_at   = EXCLUDED.indexed_at
                 """,
                 workspace_id,
                 path,
                 content_hash,
                 indexer_used,
+                title,
             )
         log.info(
             "noop_indexer.index_file",

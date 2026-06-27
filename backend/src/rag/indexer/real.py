@@ -93,6 +93,7 @@ class RealIndexer:
         content: str,
         content_hash: str,
         indexer_used: str,
+        title: str | None = None,
         strategy_override: str | None = None,
     ) -> int:
         ctx = await self._load_workspace_context(workspace_id)
@@ -114,7 +115,7 @@ class RealIndexer:
         if n_chunks == 0:
             log.info("real_indexer.empty_content_skipped", path=path)
             return 0
-        await self._record_indexed_document(workspace_id, path, content_hash, indexer_used)
+        await self._record_indexed_document(workspace_id, path, content_hash, indexer_used, title)
         return n_chunks
 
     async def _index_legacy(
@@ -276,22 +277,25 @@ class RealIndexer:
         path: str,
         content_hash: str,
         indexer_used: str,
+        title: str | None = None,
     ) -> None:
         async with self._config_pool.acquire() as conn:
             await conn.execute(
                 """
                 INSERT INTO indexed_documents
-                    (workspace_id, path, content_hash, indexer_used, indexed_at)
-                VALUES ($1, $2, $3, $4, now())
+                    (workspace_id, path, content_hash, indexer_used, title, indexed_at)
+                VALUES ($1, $2, $3, $4, $5, now())
                 ON CONFLICT (workspace_id, path) DO UPDATE
                 SET content_hash=EXCLUDED.content_hash,
                     indexer_used=EXCLUDED.indexer_used,
+                    title=EXCLUDED.title,
                     indexed_at=EXCLUDED.indexed_at
                 """,
                 workspace_id,
                 path,
                 content_hash,
                 indexer_used,
+                title,
             )
 
     async def delete_file(self, *, workspace_id: UUID, path: str) -> None:

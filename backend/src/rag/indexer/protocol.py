@@ -20,6 +20,7 @@ class IndexerProtocol(Protocol):
         content: str,
         content_hash: str,
         indexer_used: str,
+        title: str | None = None,
         strategy_override: str | None = None,
     ) -> int:
         """Index un fichier. Retourne le nombre de chunks créés.
