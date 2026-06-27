@@ -114,6 +114,11 @@ class SyncWorker:
                     await purge_old_webhook_calls(self._config_pool)
                 except Exception:
                     log.warning("sync.worker.purge_webhook_calls_failed")
+                try:
+                    from rag.services.circuit_breaker import auto_close_expired_circuits
+                    await auto_close_expired_circuits(self._config_pool)
+                except Exception:
+                    log.warning("sync.worker.circuit_breaker_cleanup_failed")
             except Exception:
                 log.exception("sync.worker.cycle_error")
 

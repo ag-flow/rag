@@ -15,8 +15,10 @@ from rag.indexer.protocol import IndexerProtocol
 from rag.schemas.sync import ChangeSet, JobToProcess
 from rag.secrets.refs import build_ref, is_vault_ref
 from rag.secrets.resolver import VaultLookupFailed
+from rag.services.circuit_breaker import open_circuit
 from rag.services.job_log_bus import JobLogBus
 from rag.services.webhook_dispatch import dispatch_webhooks
+from rag.sync.error_classifier import classify_indexer_error
 from rag.sync.git_ops import (
     GitCloneError,
     GitPullError,
@@ -49,11 +51,17 @@ async def pick_next_pending_job(
         row = await conn.fetchrow(
             """
             WITH picked AS (
-                SELECT id FROM index_jobs
-                WHERE status = 'pending'
-                ORDER BY id
+                SELECT j.id FROM index_jobs j
+                WHERE j.status = 'pending'
+                  AND (j.retry_after IS NULL OR j.retry_after <= now())
+                  AND NOT EXISTS (
+                      SELECT 1 FROM indexer_circuit_breakers cb
+                      WHERE cb.workspace_id = j.workspace_id
+                        AND (cb.open_until IS NULL OR cb.open_until > now())
+                  )
+                ORDER BY j.id
                 LIMIT 1
-                FOR UPDATE SKIP LOCKED
+                FOR UPDATE OF j SKIP LOCKED
             )
             UPDATE index_jobs j
             SET status='running', started_at=now()
@@ -64,7 +72,8 @@ async def pick_next_pending_job(
                 j.workspace_id,
                 j.source_id,
                 j.triggered_by,
-                j.correlation_id
+                j.correlation_id,
+                j.retry_count
             """
         )
         if row is None:
@@ -104,6 +113,7 @@ async def pick_next_pending_job(
         indexer_model=context["indexer_model"] or "",
         triggered_by=row["triggered_by"],
         correlation_id=str(row["correlation_id"]) if row["correlation_id"] else None,
+        retry_count=row["retry_count"],
     )
 
 
@@ -116,6 +126,13 @@ class _ClientProviderProtocol(Protocol):
 
 
 _ERROR_MESSAGE_MAX = 500
+_MAX_RETRIES = 3
+_BACKOFF_SECONDS = [30, 300, 1800]  # 30s → 5min → 30min
+
+
+def _backoff_delay(retry_count: int) -> int:
+    idx = min(retry_count, len(_BACKOFF_SECONDS) - 1)
+    return _BACKOFF_SECONDS[idx]
 
 
 def _truncate(s: str, n: int = _ERROR_MESSAGE_MAX) -> str:
@@ -180,6 +197,31 @@ async def _mark_job_error(
             error_message,
             job_id,
         )
+
+
+async def _reschedule_job(
+    config_pool: asyncpg.Pool,
+    *,
+    job_id: UUID,
+    retry_count: int,
+    delay_seconds: int,
+) -> None:
+    retry_after = datetime.datetime.now(datetime.UTC) + datetime.timedelta(
+        seconds=delay_seconds
+    )
+    await config_pool.execute(
+        """
+        UPDATE index_jobs
+        SET status='pending',
+            retry_count=$1,
+            retry_after=$2,
+            started_at=NULL
+        WHERE id=$3
+        """,
+        retry_count,
+        retry_after,
+        job_id,
+    )
 
 
 async def _execute_push_job(
@@ -289,16 +331,48 @@ async def _execute_push_job(
         )
     except Exception as e:
         error_message = _truncate(str(e))
-        await _mark_job_error(config_pool, job_id=job.job_id, error_message=error_message)
-        final_status = "error"
-        log.exception("push_job.error", job_id=jid)
-    finally:
-        try:
-            await config_pool.execute(
-                "DELETE FROM push_job_payloads WHERE job_id=$1", job.job_id
+        family = classify_indexer_error(e)
+        if family == "transient" and job.retry_count < _MAX_RETRIES:
+            delay = _backoff_delay(job.retry_count)
+            await _reschedule_job(
+                config_pool,
+                job_id=job.job_id,
+                retry_count=job.retry_count + 1,
+                delay_seconds=delay,
             )
-        except Exception:
-            log.warning("push_job.payload_cleanup_failed", job_id=jid)
+            final_status = "retrying"
+            log.warning(
+                "push_job.transient_error_retry",
+                job_id=jid,
+                retry_count=job.retry_count + 1,
+                delay_seconds=delay,
+                error=error_message,
+            )
+        else:
+            await _mark_job_error(
+                config_pool, job_id=job.job_id, error_message=error_message
+            )
+            final_status = "error"
+            if family == "blocking":
+                await open_circuit(
+                    config_pool,
+                    workspace_id=job.workspace_id,
+                    provider=job.indexer_provider,
+                    model=job.indexer_model,
+                    error_message=error_message,
+                )
+            log.exception("push_job.error", job_id=jid, family=family)
+    finally:
+        if final_status != "retrying":
+            try:
+                await config_pool.execute(
+                    "DELETE FROM push_job_payloads WHERE job_id=$1", job.job_id
+                )
+            except Exception:
+                log.warning("push_job.payload_cleanup_failed", job_id=jid)
+
+    if final_status == "retrying":
+        return
 
     finished_at = datetime.datetime.now(datetime.UTC).isoformat()
     correlation_id = job.correlation_id or jid
@@ -394,16 +468,40 @@ async def _execute_delete_job(
         )
     except Exception as e:
         error_message = _truncate(str(e))
-        await _mark_job_error(config_pool, job_id=job.job_id, error_message=error_message)
-        final_status = "error"
-        log.exception("delete_job.error", job_id=jid)
-    finally:
-        try:
-            await config_pool.execute(
-                "DELETE FROM delete_job_payloads WHERE job_id=$1", job.job_id
+        family = classify_indexer_error(e)
+        if family == "transient" and job.retry_count < _MAX_RETRIES:
+            delay = _backoff_delay(job.retry_count)
+            await _reschedule_job(
+                config_pool,
+                job_id=job.job_id,
+                retry_count=job.retry_count + 1,
+                delay_seconds=delay,
             )
-        except Exception:
-            log.warning("delete_job.payload_cleanup_failed", job_id=jid)
+            final_status = "retrying"
+            log.warning(
+                "delete_job.transient_error_retry",
+                job_id=jid,
+                retry_count=job.retry_count + 1,
+                delay_seconds=delay,
+                error=error_message,
+            )
+        else:
+            await _mark_job_error(
+                config_pool, job_id=job.job_id, error_message=error_message
+            )
+            final_status = "error"
+            log.exception("delete_job.error", job_id=jid, family=family)
+    finally:
+        if final_status != "retrying":
+            try:
+                await config_pool.execute(
+                    "DELETE FROM delete_job_payloads WHERE job_id=$1", job.job_id
+                )
+            except Exception:
+                log.warning("delete_job.payload_cleanup_failed", job_id=jid)
+
+    if final_status == "retrying":
+        return
 
     finished_at = datetime.datetime.now(datetime.UTC).isoformat()
     correlation_id = job.correlation_id or jid

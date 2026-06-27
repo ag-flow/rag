@@ -11,6 +11,7 @@ from rag.indexer.providers.platforms.protocol import EmbeddingPlatform
 from rag.indexer.providers.protocol import (
     EmbeddingAuthError,
     EmbeddingProviderUnreachable,
+    EmbeddingQuotaExhausted,
     EmbeddingRateLimited,
 )
 from rag.indexer.providers.services.protocol import EmbeddingService
@@ -101,6 +102,8 @@ class EmbeddingProviderAdapter:
 
             if response.status_code == 200:
                 return self._service.parse_response(response.json())
+            if response.status_code == 402:
+                raise EmbeddingQuotaExhausted("Quota exhausted: HTTP 402")
             if response.status_code in (401, 403):
                 raise EmbeddingAuthError(f"Auth error: HTTP {response.status_code}")
             if response.status_code in (429, 503):
