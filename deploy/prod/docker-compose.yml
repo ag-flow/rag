@@ -25,6 +25,9 @@ services:
     environment:
       ENVIRONMENT: prod
       GIT_SHA: ${GIT_SHA:-}
+      # Construits ici depuis les variables Postgres — ne pas mettre dans .env
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      RAG_POSTGRES_ADMIN_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/postgres
     depends_on:
       postgres:
         condition: service_healthy
@@ -37,6 +40,11 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
     networks: [rag]
 
   frontend:
@@ -48,6 +56,11 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks: [rag]
 
   caddy:
@@ -65,6 +78,11 @@ services:
         condition: service_healthy
       frontend:
         condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks: [rag]
 
 volumes:
