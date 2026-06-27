@@ -172,7 +172,7 @@ else
     section "Build des images Docker..."
     cd "$DEPLOY_DIR"
     export BUILD_CONTEXT
-    docker compose -f docker-compose.build.yml build --progress=plain
+    docker compose --progress=plain -f docker-compose.build.yml build
     info "Images buildées."
 
     section "Démarrage de la stack..."
