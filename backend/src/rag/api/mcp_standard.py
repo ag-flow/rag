@@ -129,6 +129,27 @@ async def get_enrichment(path: str, key: str) -> str:
     return result
 
 
+@_mcp.tool()
+async def index_status(path: str | None = None) -> str:
+    """Fraîcheur et couverture de l'index du workspace courant.
+
+    Sans argument : agrégats globaux (nb docs, dernière indexation, état sync).
+    Avec path : hash et fraîcheur du document spécifique.
+    """
+    import json as _json
+
+    from rag.db.mcp_tools import get_document_status, get_index_status
+
+    ctx = _ws_ctx.get()
+    if path:
+        data = await get_document_status(ctx.config_pool, workspace_id=ctx.workspace_id, path=path)
+        if data is None:
+            return f"Document '{path}' non trouvé dans l'index."
+        return _json.dumps(data, ensure_ascii=False, indent=2)
+    data = await get_index_status(ctx.config_pool, workspace_id=ctx.workspace_id)
+    return _json.dumps({"workspace": ctx.workspace_name, **data}, ensure_ascii=False, indent=2)
+
+
 def build_mcp_asgi() -> Starlette:
     """Retourne l'app Starlette FastMCP (stateless). Appelé une seule fois."""
     return _mcp.streamable_http_app()
