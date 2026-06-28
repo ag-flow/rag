@@ -218,60 +218,6 @@ ensure_harpocrate_dek() {
   echo "  ✓ HARPOCRATE_DEK généré (48 chars)"
 }
 
-# ─── Bootstrap admin local (init si absent) ─────────────────
-ensure_bootstrap_admin_hash() {
-  local env_file="$1"
-  local current
-  current=$(grep -E '^RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=' "$env_file" 2>/dev/null \
-            | head -1 | cut -d= -f2- || true)
-  if [[ -n "$current" ]]; then
-    echo "  ✓ RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH déjà défini"
-    return 0
-  fi
-
-  # htpasswd (apache2-utils) génère des hashs bcrypt natifs.
-  # NB : openssl ne supporte PAS -bcrypt en upstream — il faut htpasswd.
-  if ! command -v htpasswd >/dev/null 2>&1; then
-    echo "  ℹ htpasswd absent, installation de apache2-utils..."
-    apt-get install -y apache2-utils >/dev/null 2>&1 || {
-      echo "  ✗ Échec installation apache2-utils. Installer manuellement : apt install apache2-utils" >&2
-      return 1
-    }
-  fi
-
-  local plain hash hash_escaped
-  plain=$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-20)
-  hash=$(htpasswd -nbBC 12 "" "$plain" | tr -d ':\n') || {
-    echo "  ✗ htpasswd a échoué — vérifier le paquet apache2-utils." >&2
-    return 1
-  }
-  # docker-compose interprète $ dans les valeurs env_file : on doit doubler pour échapper.
-  # Cf. .env.example : "doubler tout $ en $$ si déposé via env_file".
-  hash_escaped="${hash//\$/\$\$}"
-
-  if grep -qE '^RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=' "$env_file"; then
-    sed -i "s|^RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=.*|RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=${hash_escaped}|" "$env_file"
-  else
-    echo "RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH=${hash_escaped}" >> "$env_file"
-  fi
-
-  # Écrit aussi le pwd en clair dans .env pour commodité dev (dev-only).
-  # Le backend ne lit PAS cette variable — c'est juste un memo pour l'opérateur.
-  if grep -qE '^RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN=' "$env_file"; then
-    sed -i "s|^RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN=.*|RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN=${plain}|" "$env_file"
-  else
-    echo "RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN=${plain}" >> "$env_file"
-  fi
-
-  echo
-  echo "═══════════════════════════════════════════════════════════"
-  echo "  COMPTE ADMIN BOOTSTRAP CRÉÉ"
-  echo "  Username : admin"
-  echo "  Password : ${plain}"
-  echo "  (aussi mémorisé dans .env sous RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN)"
-  echo "═══════════════════════════════════════════════════════════"
-  echo
-}
 
 if [ ! -f ".env" ]; then
   if [ -f ".env.example" ]; then
@@ -304,10 +250,8 @@ else
   sync_new_vars_from_example
 fi
 
-# Hash bcrypt du compte admin bootstrap — généré une seule fois si absent.
 if [ -f ".env" ]; then
   ensure_harpocrate_dek ".env"
-  ensure_bootstrap_admin_hash ".env"
 fi
 
 # ─── 3) Build images locales ────────────────────────────────────────────────
@@ -414,12 +358,7 @@ if [ "$SMOKE_OK" = "1" ]; then
   → pgweb (DB UI)    : http://${IP}:8081/
   → Postgres CLI     : psql postgresql://rag:<POSTGRES_PASSWORD>@${IP}:5432/postgres
 EOF
-# Compte admin bootstrap — affiché uniquement si le mot de passe en clair est présent dans .env.
-_bootstrap_user=$(grep -E '^RAG_BOOTSTRAP_ADMIN_USERNAME=' .env 2>/dev/null | head -1 | cut -d= -f2- || true)
-_bootstrap_plain=$(grep -E '^RAG_BOOTSTRAP_ADMIN_PASSWORD_PLAIN=' .env 2>/dev/null | head -1 | cut -d= -f2- || true)
-if [[ -n "$_bootstrap_plain" ]]; then
-  echo "  → Compte admin     : ${_bootstrap_user:-admin} / ${_bootstrap_plain}  (login local sur ${APP_URL}/ui/login)"
-fi
+echo "  → Compte admin     : créer via ${APP_URL}/ui/login (wizard premier accès)"
 cat <<EOF
 ═════════════════════════════════════════════════════════════════
 EOF
