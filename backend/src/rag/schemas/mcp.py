@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 _QUERY_MAX_LEN = 2000
@@ -62,6 +64,9 @@ class SearchHit(BaseModel):
     chunk_index: int
     content: str
     score: float
+    metadata: dict[str, Any] | None = None
+    enrichment_key: str | None = None
+    source_path: str | None = None
     debug: DebugTrace | None = None
 
 

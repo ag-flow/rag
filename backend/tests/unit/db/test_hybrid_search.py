@@ -104,10 +104,12 @@ class TestLexicalSearch:
             {
                 "path": "a.py", "chunk_index": 0, "chunk_hash": "h1",
                 "section_id": None, "content": "hello world", "lexical_score": 0.8,
+                "metadata": None,
             },
             {
                 "path": "b.py", "chunk_index": 1, "chunk_hash": "h2",
                 "section_id": 5, "content": "parent text", "lexical_score": 0.5,
+                "metadata": None,
             },
         ]
         pool = _make_pool_lex(rows)

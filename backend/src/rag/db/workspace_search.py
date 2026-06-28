@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from typing import Any
 
 import asyncpg
 import structlog
@@ -22,6 +23,7 @@ class _ChildHit:
     section_id: int | None
     content: str
     score: float
+    metadata: dict[str, Any] | None = None
 
     @property
     def identity(self) -> tuple:
@@ -44,6 +46,7 @@ class _FusedHit:
     vector_score: float | None
     lexical_rank: int | None
     lexical_score: float | None
+    metadata: dict[str, Any] | None = None
 
 
 def rrf_fuse(
@@ -90,6 +93,7 @@ def rrf_fuse(
                 vector_score=vr_vs[1] if vr_vs else None,
                 lexical_rank=lr_ls[0] if lr_ls else None,
                 lexical_score=lr_ls[1] if lr_ls else None,
+                metadata=hit.metadata,
             )
         )
     results.sort(key=lambda h: h.rrf_score, reverse=True)
@@ -114,7 +118,8 @@ async def _fetch_vector_children(
                    e.chunk_hash AS chunk_hash,
                    e.section_id AS section_id,
                    COALESCE(s.content, e.content) AS content,
-                   1 - (e.embedding <=> $1::vector) AS score
+                   1 - (e.embedding <=> $1::vector) AS score,
+                   e.metadata AS metadata
             FROM embeddings e
             LEFT JOIN sections s ON s.id = e.section_id
             ORDER BY e.embedding <=> $1::vector
@@ -131,10 +136,18 @@ async def _fetch_vector_children(
             section_id=r["section_id"],
             content=r["content"],
             score=float(r["score"]),
+            metadata=dict(r["metadata"]) if r["metadata"] else None,
         )
         for r in rows
         if float(r["score"]) >= min_score
     ]
+
+
+def _enrich_hit_fields(metadata: dict[str, Any] | None) -> tuple[str | None, str | None]:
+    """Retourne (enrichment_key, source_path) depuis la metadata du chunk."""
+    if not metadata:
+        return None, None
+    return metadata.get("enrichment_key"), metadata.get("source_path")
 
 
 async def vector_search(
@@ -170,6 +183,7 @@ async def vector_search(
             if child.section_id in seen_sections:
                 continue
             seen_sections.add(child.section_id)
+        ek, sp = _enrich_hit_fields(child.metadata)
         hits.append(
             SearchHit(
                 workspace=workspace_name,
@@ -178,6 +192,9 @@ async def vector_search(
                 chunk_index=child.chunk_index,
                 content=child.content,
                 score=child.score,
+                metadata=child.metadata,
+                enrichment_key=ek,
+                source_path=sp,
             )
         )
         if len(hits) >= top_k:
@@ -205,7 +222,8 @@ async def lexical_search(
                    e.chunk_hash AS chunk_hash,
                    e.section_id AS section_id,
                    COALESCE(s.content, e.content) AS content,
-                   ts_rank(e.content_tsv, websearch_to_tsquery($2, $1)) AS lexical_score
+                   ts_rank(e.content_tsv, websearch_to_tsquery($2, $1)) AS lexical_score,
+                   e.metadata AS metadata
             FROM embeddings e
             LEFT JOIN sections s ON s.id = e.section_id
             WHERE e.content_tsv @@ websearch_to_tsquery($2, $1)
@@ -224,6 +242,7 @@ async def lexical_search(
             section_id=r["section_id"],
             content=r["content"],
             score=float(r["lexical_score"]),
+            metadata=dict(r["metadata"]) if r["metadata"] else None,
         )
         for r in rows
     ]
@@ -288,6 +307,7 @@ async def hybrid_search(
                 final_rank=rank,
             )
 
+        ek, sp = _enrich_hit_fields(fh.metadata)
         hits.append(
             SearchHit(
                 workspace=workspace_name,
@@ -296,6 +316,9 @@ async def hybrid_search(
                 chunk_index=fh.chunk_index,
                 content=fh.content,
                 score=fh.rrf_score,
+                metadata=fh.metadata,
+                enrichment_key=ek,
+                source_path=sp,
                 debug=dbg,
             )
         )
