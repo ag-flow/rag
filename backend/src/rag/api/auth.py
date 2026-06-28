@@ -7,7 +7,6 @@ from fastapi import APIRouter, Request, Response, status
 from fastapi.responses import RedirectResponse
 
 from rag.api.errors import (
-    BootstrapDisabled,
     LocalAuthInvalidCredentials,
     LocalSessionExpired,
     OidcNotConfigured,
@@ -15,6 +14,7 @@ from rag.api.errors import (
     OidcSessionMissing,
     OidcStateMismatch,
     OidcStateMissing,
+    SetupRequired,
 )
 from rag.auth.bearer import _LOCAL_SESSION_KEY
 from rag.auth.oidc_dependency import require_oidc_role
@@ -137,12 +137,13 @@ def build_auth_router() -> APIRouter:
     @router.post("/auth/local/login", response_model=LocalLoginResponse)
     async def local_login(payload: LocalLoginRequest, request: Request) -> LocalLoginResponse:
         local_auth = request.app.state.local_auth
-        if not local_auth.enabled:
-            raise BootstrapDisabled()
-        if not local_auth.verify(username=payload.username, password=payload.password):
+        if await local_auth.user_count() == 0:
+            raise SetupRequired()
+        email = await local_auth.verify(username=payload.username, password=payload.password)
+        if email is None:
             log.warning("auth.local.login.failure", username=payload.username)
             raise LocalAuthInvalidCredentials()
-        request.session[_LOCAL_SESSION_KEY] = local_auth.build_session_payload()
+        request.session[_LOCAL_SESSION_KEY] = local_auth.build_session_payload(payload.username, email)
         log.info("auth.local.login.success", username=payload.username)
         return LocalLoginResponse()
 

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from rag.auth.owner import email_to_owner_id, get_current_owner_id
+from rag.auth.owner import _SYSTEM_OWNER_EMAIL, email_to_owner_id, get_current_owner_id
 
 
 def test_email_to_owner_id_is_sha256_lower() -> None:
@@ -17,43 +17,41 @@ def test_email_to_owner_id_lowercases() -> None:
     assert email_to_owner_id("Admin@RAG.io") == email_to_owner_id("admin@rag.io")
 
 
-def test_get_current_owner_id_master_key(monkeypatch) -> None:
-    """Master key auth → bootstrap admin email."""
-    monkeypatch.setenv("RAG_MASTER_KEY", "x" * 64)
-    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/db")
-    monkeypatch.setenv("RAG_POSTGRES_ADMIN_URL", "postgresql://u:p@h:5432/db")
-    monkeypatch.setenv("RAG_PUBLIC_URL", "http://localhost:8000")
-    monkeypatch.setenv("RAG_BOOTSTRAP_ADMIN_EMAIL", "boss@example.com")
-
-    from rag.config import Settings
-    settings = Settings()
-
+def test_get_current_owner_id_master_key_uses_system_owner() -> None:
+    """Master key auth → owner système constant (pas lié à un utilisateur)."""
     request = MagicMock()
     request.headers.get.return_value = "Bearer somekey"
-    request.app.state.settings = settings
 
     result = get_current_owner_id(request)
-    assert result == email_to_owner_id("boss@example.com")
+    assert result == email_to_owner_id(_SYSTEM_OWNER_EMAIL)
 
 
-def test_get_current_owner_id_local_session(monkeypatch) -> None:
-    """Session locale → bootstrap admin email."""
-    monkeypatch.setenv("RAG_MASTER_KEY", "x" * 64)
-    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/db")
-    monkeypatch.setenv("RAG_POSTGRES_ADMIN_URL", "postgresql://u:p@h:5432/db")
-    monkeypatch.setenv("RAG_PUBLIC_URL", "http://localhost:8000")
-    monkeypatch.setenv("RAG_BOOTSTRAP_ADMIN_EMAIL", "boss@example.com")
-
-    from rag.config import Settings
-    settings = Settings()
-
+def test_get_current_owner_id_local_session_uses_session_email() -> None:
+    """Session locale → email stocké dans le payload de session."""
     request = MagicMock()
     request.headers.get.return_value = None
-    request.session = {"_local_session": {"expires_at": 9999999999, "username": "admin"}}
-    request.app.state.settings = settings
+    request.session = {
+        "_local_session": {
+            "expires_at": 9999999999,
+            "username": "admin",
+            "email": "boss@example.com",
+        }
+    }
 
     result = get_current_owner_id(request)
     assert result == email_to_owner_id("boss@example.com")
+
+
+def test_get_current_owner_id_local_session_missing_email_falls_back_to_system() -> None:
+    """Session locale sans email (ancienne session) → owner système."""
+    request = MagicMock()
+    request.headers.get.return_value = None
+    request.session = {
+        "_local_session": {"expires_at": 9999999999, "username": "admin"}
+    }
+
+    result = get_current_owner_id(request)
+    assert result == email_to_owner_id(_SYSTEM_OWNER_EMAIL)
 
 
 def test_get_current_owner_id_oidc_session() -> None:

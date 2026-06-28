@@ -2,19 +2,23 @@ from __future__ import annotations
 
 import time
 
-import bcrypt
 from fastapi.testclient import TestClient
 
 from tests.api._helpers import make_app_client
 
+_USERNAME = "admin"
+_EMAIL = "admin@example.com"
+_PASSWORD = "test-pwd-local"
+
 
 def _logged_local(pg_container: str, ttl_seconds: int = 28800) -> TestClient:
-    """TestClient auto-connecté via POST /auth/local/login."""
-    plain = "test-pwd-local"
-    hash_ = bcrypt.hashpw(plain.encode(), bcrypt.gensalt(rounds=4)).decode()
-    client = make_app_client(pg_container, password_hash=hash_, ttl_seconds=ttl_seconds)
-    resp = client.post("/auth/local/login", json={"username": "admin", "password": plain})
-    assert resp.status_code == 200, f"login failed: {resp.json()}"
+    """TestClient auto-connecté via le wizard init-admin + login."""
+    client = make_app_client(pg_container, ttl_seconds=ttl_seconds)
+    resp = client.post(
+        "/api/setup/init-admin",
+        json={"username": _USERNAME, "email": _EMAIL, "password": _PASSWORD},
+    )
+    assert resp.status_code == 201, f"init-admin failed: {resp.json()}"
     return client
 
 
@@ -22,7 +26,7 @@ def test_me_with_local_session_returns_local_user(pg_container: str) -> None:
     client = _logged_local(pg_container)
     resp = client.get("/me")
     assert resp.status_code == 200
-    assert resp.json() == {"sub": "admin", "email": None, "name": None, "roles": ["rag-admin"]}
+    assert resp.json() == {"sub": _USERNAME, "email": None, "name": None, "roles": ["rag-admin"]}
 
 
 def test_me_with_expired_local_session_returns_401(pg_container: str) -> None:
@@ -35,7 +39,7 @@ def test_me_with_expired_local_session_returns_401(pg_container: str) -> None:
 
 
 def test_me_with_no_session_returns_oidc_session_missing(pg_container: str) -> None:
-    client = make_app_client(pg_container, password_hash="")
+    client = make_app_client(pg_container)
     resp = client.get("/me")
     assert resp.status_code == 401
     assert resp.json()["error"] == "oidc_session_missing"

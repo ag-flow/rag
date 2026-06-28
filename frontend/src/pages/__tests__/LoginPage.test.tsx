@@ -71,44 +71,53 @@ function renderPage() {
 }
 
 describe("LoginPage", () => {
-  it("state 1 (oidc=true, bootstrap=true) → bouton SSO + formulaire visibles", () => {
-    mockMethods({ oidc_configured: true, bootstrap_enabled: true });
+  it("needs_setup=true → formulaire de création admin", () => {
+    mockMethods({ oidc_configured: false, local_auth_enabled: false, needs_setup: true });
+    renderPage();
+    expect(screen.getByText(/Créer le compte administrateur/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Adresse e-mail/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Keycloak/i })).not.toBeInTheDocument();
+  });
+
+  it("oidc=true, local=true → bouton SSO + formulaire login visibles", () => {
+    mockMethods({ oidc_configured: true, local_auth_enabled: true, needs_setup: false });
     renderPage();
     expect(screen.getByRole("button", { name: /Keycloak/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/Username/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Password/i)).toBeInTheDocument();
   });
 
-  it("state 2 (oidc=false, bootstrap=true) → formulaire seul + message info", () => {
-    mockMethods({ oidc_configured: false, bootstrap_enabled: true });
+  it("oidc=false, local=true → formulaire login seul + message info", () => {
+    mockMethods({ oidc_configured: false, local_auth_enabled: true, needs_setup: false });
     renderPage();
     expect(screen.queryByRole("button", { name: /Keycloak/i })).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Username/i)).toBeInTheDocument();
     expect(screen.getByText(/OIDC pas encore configuré/i)).toBeInTheDocument();
   });
 
-  it("state 3 (oidc=true, bootstrap=false) → SSO seul, pas de form", () => {
-    mockMethods({ oidc_configured: true, bootstrap_enabled: false });
+  it("oidc=true, local=false → SSO seul, pas de form login", () => {
+    mockMethods({ oidc_configured: true, local_auth_enabled: false, needs_setup: false });
     renderPage();
     expect(screen.getByRole("button", { name: /Keycloak/i })).toBeInTheDocument();
     expect(screen.queryByLabelText(/Username/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Password/i)).not.toBeInTheDocument();
   });
 
-  it("state 4 (oidc=false, bootstrap=false) → message d'erreur 'no_method'", () => {
-    mockMethods({ oidc_configured: false, bootstrap_enabled: false });
+  it("oidc=false, local=false → message d'erreur 'no_method'", () => {
+    mockMethods({ oidc_configured: false, local_auth_enabled: false, needs_setup: false });
     renderPage();
     expect(screen.getByText(/Aucune méthode d'authentification/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Keycloak/i })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Username/i)).not.toBeInTheDocument();
   });
 
-  it("submit valide → POST /auth/local/login puis redirect vers /ui + next", async () => {
-    mockMethods({ oidc_configured: false, bootstrap_enabled: true });
+  it("submit login valide → POST /auth/local/login puis redirect vers /ui/workspaces", async () => {
+    mockMethods({ oidc_configured: false, local_auth_enabled: true, needs_setup: false });
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
     vi.stubGlobal("fetch", fetchMock);
 
     renderPage();
+    fireEvent.change(screen.getByLabelText(/Username/i), { target: { value: "admin" } });
     fireEvent.change(screen.getByLabelText(/Password/i), { target: { value: "s3cret" } });
     fireEvent.click(screen.getByRole("button", { name: /Se connecter/i }));
 
@@ -121,12 +130,13 @@ describe("LoginPage", () => {
     await waitFor(() => expect(locationStub.href).toBe("/ui/workspaces"));
   });
 
-  it("submit retourne 401 → erreur visible, pas de redirect", async () => {
-    mockMethods({ oidc_configured: false, bootstrap_enabled: true });
+  it("submit login retourne 401 → erreur visible, pas de redirect", async () => {
+    mockMethods({ oidc_configured: false, local_auth_enabled: true, needs_setup: false });
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 401 });
     vi.stubGlobal("fetch", fetchMock);
 
     renderPage();
+    fireEvent.change(screen.getByLabelText(/Username/i), { target: { value: "admin" } });
     fireEvent.change(screen.getByLabelText(/Password/i), { target: { value: "wrong" } });
     fireEvent.click(screen.getByRole("button", { name: /Se connecter/i }));
 
@@ -134,8 +144,36 @@ describe("LoginPage", () => {
     expect(locationStub.href).toBe("");
   });
 
-  it("clic sur le bouton SSO → redirect vers /auth/login?next=...", () => {
-    mockMethods({ oidc_configured: true, bootstrap_enabled: false });
+  it("submit wizard setup → POST /api/setup/init-admin puis redirect", async () => {
+    mockMethods({ oidc_configured: false, local_auth_enabled: false, needs_setup: true });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 201 });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPage();
+    fireEvent.change(screen.getByLabelText(/Nom d'utilisateur/i), { target: { value: "admin" } });
+    fireEvent.change(screen.getByLabelText(/Adresse e-mail/i), {
+      target: { value: "admin@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Mot de passe$/i), { target: { value: "secret123" } });
+    fireEvent.change(screen.getByLabelText(/Confirmer/i), { target: { value: "secret123" } });
+    fireEvent.click(screen.getByRole("button", { name: /Créer le compte/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe("/api/setup/init-admin");
+    expect(init).toMatchObject({ method: "POST" });
+    const body = JSON.parse(init.body);
+    expect(body).toEqual({
+      username: "admin",
+      email: "admin@example.com",
+      password: "secret123",
+    });
+
+    await waitFor(() => expect(locationStub.href).toBe("/ui/workspaces"));
+  });
+
+  it("clic SSO → redirect vers /auth/login?next=...", () => {
+    mockMethods({ oidc_configured: true, local_auth_enabled: false, needs_setup: false });
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: /Keycloak/i }));
     expect(locationStub.href).toBe(`/auth/login?next=${encodeURIComponent("/ui/workspaces")}`);

@@ -10,10 +10,24 @@
     },
     "submit": "Se connecter"
   },
+  "setup": {
+    "title": "Créer le compte administrateur",
+    "subtitle": "Première connexion — configurez votre accès admin.",
+    "fields": {
+      "username": "Nom d'utilisateur",
+      "email": "Adresse e-mail",
+      "password": "Mot de passe",
+      "confirm_password": "Confirmer le mot de passe"
+    },
+    "submit": "Créer le compte",
+    "errors": {
+      "passwords_mismatch": "Les mots de passe ne correspondent pas",
+      "generic": "Erreur lors de la création ({{status}})"
+    }
+  },
   "errors": {
     "invalid_credentials": "Identifiants invalides",
     "no_method": "Aucune méthode d'authentification configurée — contactez l'administrateur",
-    "bootstrap_disabled": "Login local désactivé",
     "generic": "Erreur {{status}}"
   },
   "info": {

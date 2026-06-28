@@ -2,53 +2,55 @@ from __future__ import annotations
 
 import time
 
+import asyncpg
 import bcrypt
 
 
 class LocalAuthService:
-    """Auth locale bootstrap : un seul user `admin`, hash bcrypt en .env.
+    """Auth locale : utilisateurs stockés en base, pas en .env.
 
-    Le service est `enabled` si et seulement si `password_hash` est non vide.
-    `verify` est constant-time grâce à `bcrypt.checkpw`. Aucune validation
-    au boot du format du hash : un hash invalide fait simplement échouer le
-    login (False), pas de fail-fast.
+    `verify` fait un SELECT + bcrypt.checkpw. `user_count` permet au
+    frontend et aux endpoints de savoir si le wizard de premier démarrage
+    doit s'afficher.
     """
 
-    def __init__(
-        self,
-        *,
-        username: str,
-        password_hash: str,
-        ttl_seconds: int,
-    ) -> None:
-        self._username = username
-        self._password_hash = password_hash
+    def __init__(self, *, pool: asyncpg.Pool, ttl_seconds: int) -> None:
+        self._pool = pool
         self._ttl_seconds = ttl_seconds
 
-    @property
-    def enabled(self) -> bool:
-        return bool(self._password_hash.strip())
+    async def user_count(self) -> int:
+        return await self._pool.fetchval("SELECT COUNT(*) FROM users")  # type: ignore[return-value]
 
-    @property
-    def username(self) -> str:
-        return self._username
-
-    def verify(self, *, username: str, password: str) -> bool:
-        if not self.enabled:
-            return False
-        if username != self._username:
-            return False
+    async def verify(self, *, username: str, password: str) -> str | None:
+        """Vérifie les credentials. Retourne l'email si valide, None sinon."""
+        row = await self._pool.fetchrow(
+            "SELECT email, password_hash FROM users WHERE username = $1",
+            username,
+        )
+        if row is None:
+            return None
         try:
-            return bcrypt.checkpw(
+            valid = bcrypt.checkpw(
                 password.encode("utf-8"),
-                self._password_hash.encode("utf-8"),
+                row["password_hash"].encode("utf-8"),
             )
         except ValueError:
-            # Hash malformé — ne crashe pas, simplement login refusé.
-            return False
+            return None
+        return row["email"] if valid else None
 
-    def build_session_payload(self) -> dict[str, int | str]:
+    async def create_user(
+        self, *, username: str, email: str, password_hash: str
+    ) -> None:
+        await self._pool.execute(
+            "INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3)",
+            username,
+            email,
+            password_hash,
+        )
+
+    def build_session_payload(self, username: str, email: str) -> dict[str, int | str]:
         return {
-            "username": self._username,
+            "username": username,
+            "email": email,
             "expires_at": int(time.time()) + self._ttl_seconds,
         }

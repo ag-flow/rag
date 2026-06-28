@@ -384,16 +384,22 @@ class OidcRoleForbidden(AdminError):
         }
 
 
-class BootstrapDisabled(AdminError):
-    """Login local appelé alors que RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH est vide."""
+class SetupAlreadyDone(AdminError):
+    """init-admin appelé alors qu'un utilisateur existe déjà en base."""
+
+    http_status = 409
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "setup_already_done", "message": "Un administrateur existe déjà"}
+
+
+class SetupRequired(AdminError):
+    """Login local tenté alors qu'aucun utilisateur n'existe en base."""
 
     http_status = 503
 
     def to_payload(self) -> dict[str, object]:
-        return {
-            "error": "bootstrap_disabled",
-            "message": "RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH non défini dans la configuration",
-        }
+        return {"error": "setup_required", "message": "Aucun utilisateur — complétez le wizard de premier démarrage"}
 
 
 class LocalAuthInvalidCredentials(AdminError):

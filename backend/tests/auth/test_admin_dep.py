@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import time
 
-import bcrypt
 import pytest
 from fastapi import Depends, FastAPI, Request
 from fastapi.testclient import TestClient
@@ -10,6 +9,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from rag.api.errors import register_error_handlers
 from rag.auth.bearer import _LOCAL_SESSION_KEY, require_master_key_or_authenticated_admin
+from unittest.mock import AsyncMock, MagicMock
+
 from rag.services.local_auth import LocalAuthService
 
 
@@ -28,11 +29,8 @@ def app_with_dep() -> FastAPI:
     app = FastAPI()
     app.add_middleware(SessionMiddleware, secret_key="a" * 32)
     app.state.master_key = "test-master-key-123"
-    app.state.local_auth = LocalAuthService(
-        username="admin",
-        password_hash=bcrypt.hashpw(b"pwd", bcrypt.gensalt(rounds=4)).decode(),
-        ttl_seconds=3600,
-    )
+    stub_pool = MagicMock()
+    app.state.local_auth = LocalAuthService(pool=stub_pool, ttl_seconds=3600)
     app.state.oidc = _StubOidcService()
     register_error_handlers(app)
 

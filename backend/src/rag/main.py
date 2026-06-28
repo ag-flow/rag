@@ -23,6 +23,7 @@ from rag.api.admin_ssh_keys import router_global as admin_ssh_keys_global_router
 from rag.api.admin_webhooks import build_webhooks_router
 from rag.api.auth import build_auth_router
 from rag.api.auth_methods import build_auth_methods_router
+from rag.api.setup import build_setup_router
 from rag.api.enrichments import router_languages as enrichment_languages_router
 from rag.api.enrichments import router_prompts as enrichment_prompts_router
 from rag.api.enrichments import router_triggers as enrichment_triggers_router
@@ -176,9 +177,8 @@ def build_app(
         app.state.public_url = str(settings.rag_public_url).rstrip("/")
 
         app.state.local_auth = LocalAuthService(
-            username=settings.rag_bootstrap_admin_username,
-            password_hash=settings.rag_bootstrap_admin_password_hash,
-            ttl_seconds=settings.rag_bootstrap_session_ttl_seconds,
+            pool=registry.config_pool,
+            ttl_seconds=settings.rag_local_session_ttl_seconds,
         )
 
         # M3 : recovery au boot (jobs running orphelins → error)
@@ -258,6 +258,7 @@ def build_app(
     app.include_router(build_webhooks_router(), prefix="/api/admin")
     app.include_router(build_auth_router())
     app.include_router(build_auth_methods_router())
+    app.include_router(build_setup_router())
     app.include_router(build_workspace_router())
     app.include_router(build_mcp_router())
     app.mount("/mcp", _mcp_dispatcher)
