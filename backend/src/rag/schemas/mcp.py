@@ -43,6 +43,18 @@ class MultiWorkspaceRequest(_McpRequestBase):
 McpRequest = SingleWorkspaceRequest | MultiWorkspaceRequest
 
 
+class DebugTrace(BaseModel):
+    """Trace de debug d'un hit hybride. Peuplée uniquement si debug=True."""
+
+    vector_rank: int | None = None
+    vector_score: float | None = None
+    lexical_rank: int | None = None
+    lexical_score: float | None = None
+    rrf_score: float | None = None
+    rerank_score: float | None = None  # null jusqu'à ce que le reranker expose les scores
+    final_rank: int | None = None
+
+
 class SearchHit(BaseModel):
     workspace: str
     indexer: str
@@ -50,6 +62,7 @@ class SearchHit(BaseModel):
     chunk_index: int
     content: str
     score: float
+    debug: DebugTrace | None = None
 
 
 class McpResponse(BaseModel):

@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel as _PydanticBase
 
 from rag.api.errors import HarpocrateUnreachableForApikey, VaultUnreachable
+from rag.auth.admin_auth import require_admin
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.schemas.admin import (
     ApiKeyRotateResponse,
@@ -16,6 +17,8 @@ from rag.schemas.admin import (
     ChunkingConfigSpec,
     EngineResponse,
     EngineSpec,
+    HybridConfigResponse,
+    HybridConfigSpec,
     JobFilesResponse,
     JobResponse,
     ModelEntry,
@@ -484,6 +487,74 @@ def build_admin_router() -> APIRouter:
             updated_at=cfg["updated_at"].isoformat(),
         )
 
+
+    # ─── Hybrid search config ───────────────────────────────────────────────
+
+    @router.get("/workspaces/{name}/hybrid-config")
+    async def get_hybrid_config(
+        name: str,
+        request: Request,
+        _: None = Depends(require_admin),
+    ) -> HybridConfigResponse:
+        pool: asyncpg.Pool = request.app.state.pools.config_pool
+        ws = await pool.fetchrow("SELECT id FROM workspaces WHERE name = $1", name)
+        if ws is None:
+            raise HTTPException(status_code=404, detail="workspace not found")
+        row = await pool.fetchrow(
+            "SELECT workspace_id, enabled, rrf_k, fts_config, created_at, updated_at "
+            "FROM hybrid_configs WHERE workspace_id = $1",
+            ws["id"],
+        )
+        if row is None:
+            raise HTTPException(status_code=404, detail="hybrid config not found")
+        return HybridConfigResponse(
+            workspace_id=str(row["workspace_id"]),
+            enabled=row["enabled"],
+            rrf_k=row["rrf_k"],
+            fts_config=row["fts_config"],
+            created_at=str(row["created_at"]),
+            updated_at=str(row["updated_at"]),
+        )
+
+    @router.put("/workspaces/{name}/hybrid-config")
+    async def put_hybrid_config(
+        name: str,
+        spec: HybridConfigSpec,
+        request: Request,
+        _: None = Depends(require_admin),
+    ) -> HybridConfigResponse:
+        pool: asyncpg.Pool = request.app.state.pools.config_pool
+        ws = await pool.fetchrow("SELECT id FROM workspaces WHERE name = $1", name)
+        if ws is None:
+            raise HTTPException(status_code=404, detail="workspace not found")
+        await pool.execute(
+            """
+            INSERT INTO hybrid_configs (workspace_id, enabled, rrf_k, fts_config)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (workspace_id) DO UPDATE
+            SET enabled = EXCLUDED.enabled,
+                rrf_k = EXCLUDED.rrf_k,
+                fts_config = EXCLUDED.fts_config,
+                updated_at = now()
+            """,
+            ws["id"],
+            spec.enabled,
+            spec.rrf_k,
+            spec.fts_config,
+        )
+        row = await pool.fetchrow(
+            "SELECT workspace_id, enabled, rrf_k, fts_config, created_at, updated_at "
+            "FROM hybrid_configs WHERE workspace_id = $1",
+            ws["id"],
+        )
+        return HybridConfigResponse(
+            workspace_id=str(row["workspace_id"]),
+            enabled=row["enabled"],
+            rrf_k=row["rrf_k"],
+            fts_config=row["fts_config"],
+            created_at=str(row["created_at"]),
+            updated_at=str(row["updated_at"]),
+        )
 
     # ─── Chunking config ────────────────────────────────────────────────────
 
