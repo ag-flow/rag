@@ -237,8 +237,9 @@ class RealIndexer:
                 section_key=p.section_key,
                 content=p.content,
                 metadata={**extra_metadata, **dict(p.metadata)} if extra_metadata else p.metadata,
+                section_index=idx,
             )
-            for p in doc.parents
+            for idx, p in enumerate(doc.parents)
         ]
         result = await upsert_structured(
             ws_pool, path=path, parents=parent_rows, children=child_rows
