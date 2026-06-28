@@ -10,10 +10,24 @@
     },
     "submit": "Sign in"
   },
+  "setup": {
+    "title": "Create admin account",
+    "subtitle": "First login — set up your admin access.",
+    "fields": {
+      "username": "Username",
+      "email": "Email address",
+      "password": "Password",
+      "confirm_password": "Confirm password"
+    },
+    "submit": "Create account",
+    "errors": {
+      "passwords_mismatch": "Passwords do not match",
+      "generic": "Error creating account ({{status}})"
+    }
+  },
   "errors": {
     "invalid_credentials": "Invalid credentials",
     "no_method": "No authentication method configured — contact the administrator",
-    "bootstrap_disabled": "Local login disabled",
     "generic": "Error {{status}}"
   },
   "info": {

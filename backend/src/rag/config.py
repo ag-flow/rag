@@ -52,14 +52,7 @@ class Settings(BaseSettings):
         "Min 32 chars. Requis dès qu'un coffre est créé.",
     )
 
-    rag_bootstrap_admin_username: str = "admin"
-    rag_bootstrap_admin_email: str = "admin@rag.io"
-    rag_bootstrap_admin_password_hash: str = ""
-    rag_bootstrap_session_ttl_seconds: int = Field(default=28800, ge=60)
-
-    @property
-    def bootstrap_enabled(self) -> bool:
-        return bool(self.rag_bootstrap_admin_password_hash.strip())
+    rag_local_session_ttl_seconds: int = Field(default=28800, ge=60)
 
     rag_session_secret: SecretStr = SecretStr("")
 

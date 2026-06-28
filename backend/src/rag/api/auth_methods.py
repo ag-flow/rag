@@ -16,9 +16,11 @@ def build_auth_methods_router() -> APIRouter:
     async def get_methods(request: Request) -> AuthMethodsResponse:
         oidc_cfg = await request.app.state.oidc.get_config()
         local_auth = request.app.state.local_auth
+        count = await local_auth.user_count()
         return AuthMethodsResponse(
             oidc_configured=oidc_cfg is not None,
-            bootstrap_enabled=local_auth.enabled,
+            local_auth_enabled=count > 0,
+            needs_setup=count == 0,
         )
 
     return router

@@ -121,13 +121,10 @@ if ! grep -q "^RAG_MASTER_KEY=.\+" "$ENV_FILE" 2>/dev/null; then
     echo "       RAG_SESSION_SECRET: openssl rand -hex 32"
     echo "       HARPOCRATE_DEK    : openssl rand -hex 32  (si coffre Harpocrate)"
     echo
-    echo "  3. Hash bcrypt admin :"
-    echo "       python3 -c \"import bcrypt; print(bcrypt.hashpw(b'MON_MDP', bcrypt.gensalt(12)).decode())\""
-    echo "       Coller le résultat dans RAG_BOOTSTRAP_ADMIN_PASSWORD_HASH"
-    echo "       IMPORTANT : dans .env, écrire \$\$ au lieu de \$ dans le hash bcrypt"
-    echo
-    echo "  4. Relancer ce script pour builder et démarrer :"
+    echo "  3. Relancer ce script pour builder et démarrer :"
     echo "       curl -fsSL https://raw.githubusercontent.com/ag-flow/rag/main/deploy/prod/deploy.sh | bash"
+    echo
+    echo "  Le compte administrateur sera créé via l'interface web au premier accès."
     echo
     exit 0
 fi

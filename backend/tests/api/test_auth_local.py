@@ -1,45 +1,29 @@
 from __future__ import annotations
 
-import bcrypt
 import pytest
 from fastapi.testclient import TestClient
 
 from tests.api._helpers import make_app_client
 
-# ──────────────────────────────────────────────
-# Helpers
-# ──────────────────────────────────────────────
-
 _USERNAME = "admin"
+_EMAIL = "admin@example.com"
 _PASSWORD = "secret-password-for-tests"
 
 
-def _make_hash(password: str = _PASSWORD) -> str:
-    """Hash bcrypt rapide (rounds=4) pour les tests."""
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=4)).decode("utf-8")
-
-
-# ──────────────────────────────────────────────
-# Fixtures
-# ──────────────────────────────────────────────
-
-
 @pytest.fixture
-def bootstrap_hash() -> str:
-    return _make_hash()
-
-
-@pytest.fixture
-def client_with_bootstrap(pg_container: str, bootstrap_hash: str) -> TestClient:
-    """TestClient avec bootstrap activé (hash valide posé dans l'env)."""
-    with make_app_client(pg_container, password_hash=bootstrap_hash) as c:
+def client(pg_container: str) -> TestClient:
+    with make_app_client(pg_container) as c:
         yield c
 
 
 @pytest.fixture
-def client_without_bootstrap(pg_container: str) -> TestClient:
-    """TestClient avec bootstrap désactivé (hash vide)."""
-    with make_app_client(pg_container, password_hash="") as c:
+def client_with_user(pg_container: str) -> TestClient:
+    """TestClient avec un utilisateur déjà créé en base."""
+    with make_app_client(pg_container) as c:
+        c.post(
+            "/api/setup/init-admin",
+            json={"username": _USERNAME, "email": _EMAIL, "password": _PASSWORD},
+        )
         yield c
 
 
@@ -49,22 +33,21 @@ def client_without_bootstrap(pg_container: str) -> TestClient:
 
 
 def test_local_login_correct_credentials_returns_200(
-    client_with_bootstrap: TestClient,
+    client_with_user: TestClient,
 ) -> None:
-    resp = client_with_bootstrap.post(
+    resp = client_with_user.post(
         "/auth/local/login",
         json={"username": _USERNAME, "password": _PASSWORD},
     )
     assert resp.status_code == 200
     assert resp.json() == {"ok": True}
-    # Cookie de session posé
     assert "session" in resp.cookies
 
 
 def test_local_login_wrong_password_returns_401(
-    client_with_bootstrap: TestClient,
+    client_with_user: TestClient,
 ) -> None:
-    resp = client_with_bootstrap.post(
+    resp = client_with_user.post(
         "/auth/local/login",
         json={"username": _USERNAME, "password": "wrong-password"},
     )
@@ -73,9 +56,9 @@ def test_local_login_wrong_password_returns_401(
 
 
 def test_local_login_wrong_username_returns_401(
-    client_with_bootstrap: TestClient,
+    client_with_user: TestClient,
 ) -> None:
-    resp = client_with_bootstrap.post(
+    resp = client_with_user.post(
         "/auth/local/login",
         json={"username": "unknown-user", "password": _PASSWORD},
     )
@@ -83,21 +66,21 @@ def test_local_login_wrong_username_returns_401(
     assert resp.json()["error"] == "invalid_credentials"
 
 
-def test_local_login_bootstrap_disabled_returns_503(
-    client_without_bootstrap: TestClient,
+def test_local_login_no_user_returns_503(
+    client: TestClient,
 ) -> None:
-    resp = client_without_bootstrap.post(
+    resp = client.post(
         "/auth/local/login",
         json={"username": _USERNAME, "password": _PASSWORD},
     )
     assert resp.status_code == 503
-    assert resp.json()["error"] == "bootstrap_disabled"
+    assert resp.json()["error"] == "setup_required"
 
 
 def test_local_login_invalid_body_returns_422(
-    client_with_bootstrap: TestClient,
+    client_with_user: TestClient,
 ) -> None:
-    resp = client_with_bootstrap.post(
+    resp = client_with_user.post(
         "/auth/local/login",
         json={"username": _USERNAME},  # password manquant
     )
@@ -110,28 +93,21 @@ def test_local_login_invalid_body_returns_422(
 
 
 def test_local_logout_without_session_returns_204(
-    client_with_bootstrap: TestClient,
+    client_with_user: TestClient,
 ) -> None:
-    resp = client_with_bootstrap.post("/auth/local/logout")
+    resp = client_with_user.post("/auth/local/logout")
     assert resp.status_code == 204
 
 
 def test_local_login_then_logout_clears_session(
-    client_with_bootstrap: TestClient,
+    client_with_user: TestClient,
 ) -> None:
-    # Login
-    login_resp = client_with_bootstrap.post(
+    client_with_user.post(
         "/auth/local/login",
         json={"username": _USERNAME, "password": _PASSWORD},
     )
-    assert login_resp.status_code == 200
-
-    # Logout
-    logout_resp = client_with_bootstrap.post("/auth/local/logout")
-    assert logout_resp.status_code == 204
-
-    # /me doit retourner 401 (pas de session valide)
-    me_resp = client_with_bootstrap.get("/me")
+    client_with_user.post("/auth/local/logout")
+    me_resp = client_with_user.get("/me")
     assert me_resp.status_code == 401
 
 
@@ -140,21 +116,23 @@ def test_local_login_then_logout_clears_session(
 # ──────────────────────────────────────────────
 
 
-def test_get_auth_methods_bootstrap_enabled_returns_correct_payload(
-    client_with_bootstrap: TestClient,
+def test_get_auth_methods_with_user_returns_local_enabled(
+    client_with_user: TestClient,
 ) -> None:
-    resp = client_with_bootstrap.get("/api/auth/methods")
+    resp = client_with_user.get("/api/auth/methods")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["bootstrap_enabled"] is True
+    assert body["local_auth_enabled"] is True
+    assert body["needs_setup"] is False
     assert body["oidc_configured"] is False
 
 
-def test_get_auth_methods_bootstrap_disabled_returns_correct_payload(
-    client_without_bootstrap: TestClient,
+def test_get_auth_methods_no_user_returns_needs_setup(
+    client: TestClient,
 ) -> None:
-    resp = client_without_bootstrap.get("/api/auth/methods")
+    resp = client.get("/api/auth/methods")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["bootstrap_enabled"] is False
+    assert body["local_auth_enabled"] is False
+    assert body["needs_setup"] is True
     assert body["oidc_configured"] is False

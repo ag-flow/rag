@@ -14,15 +14,14 @@ from rag.services.harpocrate_vaults import HarpocrateVaultsService
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 
-def _set_required_env(monkeypatch, email: str = "admin@rag.io") -> None:
-    """Set les 5 champs requis de Settings + une DEK valide pour les tests."""
+def _set_required_env(monkeypatch) -> None:
+    """Set les champs requis de Settings + une DEK valide pour les tests."""
     monkeypatch.setenv("RAG_MASTER_KEY", "x" * 64)
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@localhost:5432/db")
     monkeypatch.setenv("RAG_POSTGRES_ADMIN_URL", "postgresql://u:p@localhost:5432/postgres")
     monkeypatch.setenv("RAG_PUBLIC_URL", "http://localhost:8000")
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
     monkeypatch.setenv("HARPOCRATE_DEK", "passphrase-of-at-least-32-characters-long")
-    monkeypatch.setenv("RAG_BOOTSTRAP_ADMIN_EMAIL", email)
 
 
 def _create_req(name: str, is_default: bool = False, **overrides) -> VaultCreateRequest:
@@ -42,7 +41,7 @@ def _create_req(name: str, is_default: bool = False, **overrides) -> VaultCreate
 @pytest.mark.asyncio
 async def test_create_sets_owner_id(session_pool: asyncpg.Pool, monkeypatch) -> None:
     """Vérifier que create() enregistre l'owner_id fourni."""
-    _set_required_env(monkeypatch, "alice@example.com")
+    _set_required_env(monkeypatch)
     await run_migrations(session_pool, MIGRATIONS_DIR)
     svc = HarpocrateVaultsService(Settings())
     owner_id = email_to_owner_id("alice@example.com")

@@ -2,7 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 
 export type AuthMethods = {
   oidc_configured: boolean;
-  bootstrap_enabled: boolean;
+  local_auth_enabled: boolean;
+  needs_setup: boolean;
 };
 
 export function useAuthMethods() {
