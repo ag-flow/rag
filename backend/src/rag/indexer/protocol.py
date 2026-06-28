@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Protocol
+from collections.abc import Mapping
+from typing import Any, Protocol
 from uuid import UUID
 
 
@@ -22,6 +23,7 @@ class IndexerProtocol(Protocol):
         indexer_used: str,
         title: str | None = None,
         strategy_override: str | None = None,
+        extra_metadata: Mapping[str, Any] | None = None,
     ) -> int:
         """Index un fichier. Retourne le nombre de chunks créés.
 

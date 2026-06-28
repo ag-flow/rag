@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+from typing import Any
 from uuid import UUID
 
 import asyncpg
@@ -29,9 +31,11 @@ class NoOpIndexer:
         indexer_used: str,
         title: str | None = None,
         strategy_override: str | None = None,
+        extra_metadata: Mapping[str, Any] | None = None,
     ) -> int:
         """INSERT/UPDATE `indexed_documents` via ON CONFLICT. Retourne 1
-        (1 chunk fictif). `content` et `strategy_override` ignorés en M3.
+        (1 chunk fictif). `content`, `strategy_override` et `extra_metadata`
+        ignorés en M3.
         """
         async with self._config_pool.acquire() as conn:
             await conn.execute(

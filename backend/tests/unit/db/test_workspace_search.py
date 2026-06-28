@@ -51,9 +51,12 @@ async def test_vector_search_filters_below_min_score(monkeypatch) -> None:
     monkeypatch.setattr(workspace_search, "register_vector", AsyncMock())
 
     rows = [
-        {"path": "a.md", "chunk_index": 0, "content": "hi", "section_id": None, "score": 0.95},
-        {"path": "b.md", "chunk_index": 0, "content": "lo", "section_id": None, "score": 0.50},
-        {"path": "c.md", "chunk_index": 0, "content": "mid", "section_id": None, "score": 0.80},
+        {"path": "a.md", "chunk_index": 0, "chunk_hash": None,
+         "content": "hi", "section_id": None, "score": 0.95, "metadata": None},
+        {"path": "b.md", "chunk_index": 0, "chunk_hash": None,
+         "content": "lo", "section_id": None, "score": 0.50, "metadata": None},
+        {"path": "c.md", "chunk_index": 0, "chunk_hash": None,
+         "content": "mid", "section_id": None, "score": 0.80, "metadata": None},
     ]
     pool = _make_pool_returning(rows)
 
@@ -79,9 +82,11 @@ async def test_vector_search_slices_to_top_k_after_filter(monkeypatch) -> None:
         {
             "path": f"p{i}.md",
             "chunk_index": 0,
+            "chunk_hash": None,
             "content": "x",
             "section_id": None,
             "score": 0.9 - i * 0.01,
+            "metadata": None,
         }
         for i in range(10)
     ]
@@ -106,7 +111,8 @@ async def test_vector_search_returns_search_hit_with_workspace_and_indexer(monke
     monkeypatch.setattr(workspace_search, "register_vector", AsyncMock())
 
     rows = [
-        {"path": "x.md", "chunk_index": 7, "content": "blob", "section_id": None, "score": 0.88}
+        {"path": "x.md", "chunk_index": 7, "chunk_hash": None,
+         "content": "blob", "section_id": None, "score": 0.88, "metadata": None}
     ]
     pool = _make_pool_returning(rows)
 
@@ -137,10 +143,14 @@ async def test_vector_search_dedups_by_section_returning_parent(monkeypatch) -> 
     monkeypatch.setattr(workspace_search, "register_vector", AsyncMock())
 
     rows = [
-        {"path": "g.md", "chunk_index": 0, "content": "parent A", "section_id": 1, "score": 0.95},
-        {"path": "g.md", "chunk_index": 1, "content": "parent A", "section_id": 1, "score": 0.90},
-        {"path": "g.md", "chunk_index": 5, "content": "parent B", "section_id": 2, "score": 0.85},
-        {"path": "h.md", "chunk_index": 0, "content": "legacy", "section_id": None, "score": 0.80},
+        {"path": "g.md", "chunk_index": 0, "chunk_hash": None,
+         "content": "parent A", "section_id": 1, "score": 0.95, "metadata": None},
+        {"path": "g.md", "chunk_index": 1, "chunk_hash": None,
+         "content": "parent A", "section_id": 1, "score": 0.90, "metadata": None},
+        {"path": "g.md", "chunk_index": 5, "chunk_hash": None,
+         "content": "parent B", "section_id": 2, "score": 0.85, "metadata": None},
+        {"path": "h.md", "chunk_index": 0, "chunk_hash": None,
+         "content": "legacy", "section_id": None, "score": 0.80, "metadata": None},
     ]
     pool = _make_pool_returning(rows)
 

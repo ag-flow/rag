@@ -23,6 +23,10 @@
 15. [Enrichissement LLM](#15-enrichissement-llm)
 16. [Référence des providers d'embedding](#16-référence-des-providers-dembedding)
 
+**Annexes techniques**
+
+- [Pipeline de chunking — fonctionnement interne](./annexe-technique-chunking.md)
+
 ---
 
 ## 1. Concepts fondamentaux

@@ -99,8 +99,11 @@ def _pool_for_workspace(
         if call_count == 1:
             # _authenticate fingerprint lookup
             return auth_row
-        # _load_workspace_context
-        return ctx_row
+        if call_count == 2:
+            # _load_workspace_context
+            return ctx_row
+        # _load_hybrid_config et appels ultérieurs → pas de config hybride
+        return None
 
     pool = MagicMock()
     pool.fetchrow = AsyncMock(side_effect=_fetchrow)

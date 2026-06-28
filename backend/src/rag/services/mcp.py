@@ -15,7 +15,7 @@ from fastapi import HTTPException, status
 from rag.api.errors import HarpocrateUnreachableForApikey, VaultUnreachable, WorkspaceNotFound
 from rag.auth.workspace_auth import ApiKeyCache
 from rag.db.pool import WorkspacePoolRegistry
-from rag.db.workspace_search import vector_search
+from rag.db.workspace_search import hybrid_search, vector_search
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
 from rag.rerank.protocol import RerankProvider
@@ -187,6 +187,20 @@ async def _load_workspace_context(
     return ctx
 
 
+async def _load_hybrid_config(
+    config_pool: asyncpg.Pool,
+    workspace_id: object,
+) -> dict[str, object] | None:
+    """Charge la config hybride depuis hybrid_configs. None = vectoriel pur."""
+    row = await config_pool.fetchrow(
+        "SELECT enabled, rrf_k, fts_config FROM hybrid_configs WHERE workspace_id = $1",
+        workspace_id,
+    )
+    if row is None:
+        return None
+    return {"enabled": row["enabled"], "rrf_k": row["rrf_k"], "fts_config": row["fts_config"]}
+
+
 # ---------------------------------------------------------------------------
 # Search orchestration
 # ---------------------------------------------------------------------------
@@ -221,6 +235,8 @@ async def search(
     default_vault_name: str = "rag",
     provider_factory: Callable[..., EmbeddingProvider] | None = None,
     rerank_factory: Callable[..., RerankProvider] | None = None,
+    scope: str = "both",
+    enrichment_keys: list[str] | None = None,
 ) -> list[SearchHit]:
     """Orchestre la recherche MCP multi-workspace.
 
@@ -250,6 +266,8 @@ async def search(
             default_vault_name=default_vault_name,
             provider_factory=factory,
             rerank_factory=rfactory,
+            scope=scope,
+            enrichment_keys=enrichment_keys,
         )
         for r in refs
     ]
@@ -270,6 +288,8 @@ async def _search_one(
     default_vault_name: str,
     provider_factory: Callable[..., EmbeddingProvider],
     rerank_factory: Callable[..., RerankProvider],
+    scope: str = "both",
+    enrichment_keys: list[str] | None = None,
 ) -> _WorkspaceResult:
     auth = await _authenticate(
         ref=ref,
@@ -297,15 +317,35 @@ async def _search_one(
     rerank_cfg = ctx.get("rerank")
     pre_top_k = max(top_k, rerank_cfg["top_k_pre_rerank"]) if rerank_cfg else top_k
 
+    hybrid_cfg = await _load_hybrid_config(config_pool, auth.workspace_id)
     ws_pool = await pool_registry.get_workspace_pool(ref.name, ctx["rag_cnx"])
-    hits = await vector_search(
-        ws_pool,
-        query_vec=query_vec,
-        top_k=pre_top_k,
-        min_score=min_score,
-        workspace_name=ref.name,
-        indexer_used=auth.indexer_used,
-    )
+
+    if hybrid_cfg and hybrid_cfg["enabled"]:
+        hits = await hybrid_search(
+            ws_pool,
+            query_vec=query_vec,
+            query=query,
+            top_k=pre_top_k,
+            min_score=min_score,
+            workspace_name=ref.name,
+            indexer_used=auth.indexer_used,
+            rrf_k=int(hybrid_cfg["rrf_k"]),
+            fts_config=str(hybrid_cfg["fts_config"]),
+            debug=False,
+            scope=scope,
+            enrichment_keys=enrichment_keys,
+        )
+    else:
+        hits = await vector_search(
+            ws_pool,
+            query_vec=query_vec,
+            top_k=pre_top_k,
+            min_score=min_score,
+            workspace_name=ref.name,
+            indexer_used=auth.indexer_used,
+            scope=scope,
+            enrichment_keys=enrichment_keys,
+        )
 
     # Rerank conditionnel : config présente + > 1 hit (singleton skip)
     if rerank_cfg and len(hits) > 1:

@@ -229,6 +229,21 @@ class RerankConfigResponse(BaseModel):
     updated_at: str
 
 
+class HybridConfigSpec(BaseModel):
+    enabled: bool = True
+    rrf_k: int = Field(default=60, gt=0)
+    fts_config: str = Field(default="simple", min_length=1, max_length=63)
+
+
+class HybridConfigResponse(BaseModel):
+    workspace_id: str
+    enabled: bool
+    rrf_k: int
+    fts_config: str
+    created_at: str
+    updated_at: str
+
+
 def _validate_markdown_extras(v: dict[str, Any]) -> dict[str, Any]:
     """Accepte uniquement {heading_levels?: list[int]}. Default si absent."""
     allowed_keys = {"heading_levels"}
