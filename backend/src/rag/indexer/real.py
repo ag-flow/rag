@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -95,6 +95,7 @@ class RealIndexer:
         indexer_used: str,
         title: str | None = None,
         strategy_override: str | None = None,
+        extra_metadata: Mapping[str, Any] | None = None,
     ) -> int:
         ctx = await self._load_workspace_context(workspace_id)
         if ctx["chunking_engine"] == "structured":
@@ -104,6 +105,7 @@ class RealIndexer:
                 content=content,
                 ctx=ctx,
                 strategy_override=strategy_override,
+                extra_metadata=extra_metadata or {},
             )
         else:
             n_chunks = await self._index_legacy(
@@ -111,6 +113,7 @@ class RealIndexer:
                 path=path,
                 content=content,
                 ctx=ctx,
+                extra_metadata=extra_metadata or {},
             )
         if n_chunks == 0:
             log.info("real_indexer.empty_content_skipped", path=path)
@@ -125,6 +128,7 @@ class RealIndexer:
         path: str,
         content: str,
         ctx: dict[str, Any],
+        extra_metadata: Mapping[str, Any] = {},
     ) -> int:
         chunker = make_chunker(
             strategy=ctx["chunking_strategy"],
@@ -134,6 +138,13 @@ class RealIndexer:
             extras=ctx["chunking_extras"],
         )
         chunks: list[Chunk] = chunker.chunk(content)
+        if extra_metadata:
+            import dataclasses
+
+            chunks = [
+                dataclasses.replace(c, metadata={**extra_metadata, **dict(c.metadata)})
+                for c in chunks
+            ]
         if not chunks:
             return 0
 
@@ -171,6 +182,7 @@ class RealIndexer:
         content: str,
         ctx: dict[str, Any],
         strategy_override: str | None,
+        extra_metadata: Mapping[str, Any] = {},
     ) -> int:
         routing = await load_routing(self._config_pool, workspace_id)
         strategy_name = resolve_strategy_name(
@@ -213,13 +225,19 @@ class RealIndexer:
                 embed_text=child.embed_text,
                 parent_key=child.parent_key,
                 chunk_index=idx,
-                metadata=child.metadata,
+                metadata=(
+                    {**extra_metadata, **dict(child.metadata)} if extra_metadata else child.metadata
+                ),
                 embedding=emb_by_hash.get(h),
             )
             for idx, (h, child) in enumerate(ordered)
         ]
         parent_rows = [
-            ParentRow(section_key=p.section_key, content=p.content, metadata=p.metadata)
+            ParentRow(
+                section_key=p.section_key,
+                content=p.content,
+                metadata={**extra_metadata, **dict(p.metadata)} if extra_metadata else p.metadata,
+            )
             for p in doc.parents
         ]
         result = await upsert_structured(
