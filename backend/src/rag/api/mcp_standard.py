@@ -183,6 +183,48 @@ async def search_files(
     return f"**{len(hits)} fichier(s)** contenant '{pattern}' :\n\n" + "\n\n---\n\n".join(parts)
 
 
+@_mcp.tool()
+async def get_document(path: str) -> str:
+    """Retourne le contenu indexé d'un document.
+
+    Reconstruit depuis les sections parentes (ordonnées par section_index). Pour le code,
+    la reconstruction est par symboles (classes/fonctions), pas ligne à ligne — fidèle
+    prose/markdown, approximatif code. Refusé si le workspace est en mode lecture restreinte
+    (allow_full_read=False).
+    """
+    from rag.db.mcp_tools import reconstruct_document
+
+    ctx = _ws_ctx.get()
+
+    # Vérifier le flag allow_full_read
+    allow = await ctx.config_pool.fetchval(
+        "SELECT allow_full_read FROM workspaces WHERE id = $1",
+        ctx.workspace_id,
+    )
+    if allow is False:
+        return (
+            "Lecture complète non autorisée pour ce workspace. "
+            "Utilisez rag_search pour des extraits contextuels."
+        )
+
+    ws_pool = await ctx.pool_registry.get_workspace_pool(ctx.workspace_name, ctx.rag_cnx)
+    result = await reconstruct_document(
+        ws_pool, ctx.config_pool, workspace_id=ctx.workspace_id, path=path
+    )
+
+    if result is None:
+        return f"Document '{path}' non trouvé dans l'index."
+
+    header = f"**{path}** ({result['sections_count']} section(s))"
+    if result["is_code_structured"]:
+        header += " — reconstruction par symboles (pas ligne à ligne)"
+    if result["is_legacy"]:
+        header += " — engine legacy (chunks plats)"
+
+    log.info("mcp_standard.get_document", workspace=ctx.workspace_name, path=path)
+    return f"{header}\n\n{result['content']}"
+
+
 def build_mcp_asgi() -> Starlette:
     """Retourne l'app Starlette FastMCP (stateless). Appelé une seule fois."""
     return _mcp.streamable_http_app()

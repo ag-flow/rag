@@ -137,3 +137,65 @@ async def search_files_in_workspace(
         }
         for r in rows
     ]
+
+
+async def reconstruct_document(
+    ws_pool: asyncpg.Pool,
+    config_pool: asyncpg.Pool,
+    *,
+    workspace_id: UUID,
+    path: str,
+) -> dict[str, Any] | None:
+    """Reconstruit le contenu d'un path depuis les sections (ou fallback embeddings legacy).
+
+    Option A (M18 reco) : sections ordonnées par section_index.
+    Fallback legacy : embeddings sans section_id, ordonnés par chunk_index.
+
+    Note : la reconstruction code est approximative (tree-sitter découpe par symboles,
+    pas ligne à ligne). Le contenu est celui indexé, pas le fichier source original.
+    """
+    async with ws_pool.acquire() as conn:
+        # Tentative 1 : sections structurées
+        sections = await conn.fetch(
+            """
+            SELECT content, section_index, section_key, metadata
+            FROM sections
+            WHERE path = $1
+            ORDER BY section_index NULLS LAST, id
+            """,
+            path,
+        )
+
+        if sections:
+            parts = [r["content"] for r in sections]
+            is_code = any(
+                r["metadata"] and dict(r["metadata"]).get("scope") for r in sections
+            )
+            return {
+                "content": "\n\n".join(parts),
+                "is_legacy": False,
+                "is_code_structured": bool(is_code),
+                "sections_count": len(sections),
+            }
+
+        # Fallback legacy : embeddings sans section_id
+        chunks = await conn.fetch(
+            """
+            SELECT content, chunk_index
+            FROM embeddings
+            WHERE path = $1 AND section_id IS NULL
+            ORDER BY chunk_index
+            """,
+            path,
+        )
+
+    if not chunks:
+        return None
+
+    parts = [r["content"] for r in chunks]
+    return {
+        "content": "\n\n".join(parts),
+        "is_legacy": True,
+        "is_code_structured": False,
+        "sections_count": len(chunks),
+    }

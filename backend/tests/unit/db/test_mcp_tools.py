@@ -134,3 +134,68 @@ class TestSearchFilesInWorkspace:
         conn = pool.acquire.return_value.__aenter__.return_value
         sql = conn.fetch.call_args[0][0]
         assert "content_tsv" in sql or "websearch_to_tsquery" in sql
+
+
+class TestReconstructDocument:
+    def _make_ws_pool_sections(self, rows: list[dict]) -> MagicMock:
+        conn = MagicMock()
+        conn.fetch = AsyncMock(return_value=rows)
+        conn.fetchval = AsyncMock(return_value=None)
+        conn.__aenter__ = AsyncMock(return_value=conn)
+        conn.__aexit__ = AsyncMock(return_value=False)
+        pool = MagicMock()
+        pool.acquire = MagicMock(return_value=conn)
+        return pool
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_path_not_found(self):
+        from rag.db.mcp_tools import reconstruct_document
+
+        ws_pool = self._make_ws_pool_sections([])
+        # second fetch (fallback legacy) → also empty
+        conn = ws_pool.acquire.return_value.__aenter__.return_value
+        conn.fetch = AsyncMock(side_effect=[[], []])
+        config_pool = MagicMock()
+        result = await reconstruct_document(ws_pool, config_pool, workspace_id=uuid4(), path="a.py")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_reconstructs_from_sections(self):
+        from rag.db.mcp_tools import reconstruct_document
+
+        rows = [
+            {"content": "# Section 1\nHello", "section_index": 0, "section_key": "s1", "metadata": None},
+            {"content": "# Section 2\nWorld", "section_index": 1, "section_key": "s2", "metadata": None},
+        ]
+        ws_pool = self._make_ws_pool_sections(rows)
+        config_pool = MagicMock()
+        result = await reconstruct_document(ws_pool, config_pool, workspace_id=uuid4(), path="doc.md")
+        assert result is not None
+        assert "Section 1" in result["content"]
+        assert "Section 2" in result["content"]
+        assert result["is_legacy"] is False
+        assert result["sections_count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_legacy_fallback_when_no_sections(self):
+        from rag.db.mcp_tools import reconstruct_document
+
+        conn = MagicMock()
+        # First fetch (sections) → []
+        # Second fetch (legacy embeddings) → rows
+        legacy_rows = [
+            {"content": "chunk 0 text", "chunk_index": 0},
+            {"content": "chunk 1 text", "chunk_index": 1},
+        ]
+        conn.fetch = AsyncMock(side_effect=[[], legacy_rows])
+        conn.fetchval = AsyncMock(return_value=None)
+        conn.__aenter__ = AsyncMock(return_value=conn)
+        conn.__aexit__ = AsyncMock(return_value=False)
+        ws_pool = MagicMock()
+        ws_pool.acquire = MagicMock(return_value=conn)
+
+        config_pool = MagicMock()
+        result = await reconstruct_document(ws_pool, config_pool, workspace_id=uuid4(), path="legacy.py")
+        assert result is not None
+        assert result["is_legacy"] is True
+        assert "chunk 0 text" in result["content"]
