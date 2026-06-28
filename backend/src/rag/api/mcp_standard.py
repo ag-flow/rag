@@ -14,6 +14,11 @@ from mcp.server.fastmcp import FastMCP
 from starlette.applications import Starlette
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from rag.db.enrichment_lookup import get_enrichment as get_enrichment_db
+from rag.db.workspace_search import vector_search
+from rag.indexer.providers.factory import make_provider
+from rag.secrets.refs import is_vault_ref
+
 log = structlog.get_logger(__name__)
 
 # ── Context workspace propagé par requête ────────────────────────────────────
@@ -30,6 +35,8 @@ class _WsCtx:
     indexer_base_url: str | None
     pool_registry: Any
     resolver: Any
+    workspace_id: UUID
+    config_pool: asyncpg.Pool
 
 
 _ws_ctx: ContextVar[_WsCtx] = ContextVar("mcp_ws_ctx")
@@ -40,15 +47,20 @@ _mcp = FastMCP("rag", stateless_http=True)
 
 
 @_mcp.tool()
-async def rag_search(query: str, top_k: int = 5, min_score: float = 0.3) -> str:
+async def rag_search(
+    query: str,
+    top_k: int = 5,
+    min_score: float = 0.3,
+    enrichment_keys: list[str] | None = None,
+    scope: str = "both",
+) -> str:
     """Recherche sémantique dans le corpus RAG du workspace courant.
 
+    scope: 'both' (défaut), 'raw_only' (code brut uniquement),
+           'enriched_only' (métadonnées d'enrichissement uniquement).
+    enrichment_keys: liste de clés à inclure (ex. ['public_functions']).
     Retourne les chunks pertinents au format markdown, triés par score décroissant.
     """
-    from rag.db.workspace_search import vector_search
-    from rag.indexer.providers.factory import make_provider
-    from rag.secrets.refs import is_vault_ref
-
     ctx = _ws_ctx.get()
 
     api_key: str | None = None
@@ -72,17 +84,49 @@ async def rag_search(query: str, top_k: int = 5, min_score: float = 0.3) -> str:
         min_score=min_score,
         workspace_name=ctx.workspace_name,
         indexer_used=f"{ctx.indexer_provider}/{ctx.indexer_model}",
+        scope=scope,
+        enrichment_keys=enrichment_keys,
     )
 
     if not hits:
         return "Aucun résultat pertinent trouvé dans le corpus."
 
-    parts = [
-        f"[{h.path} — chunk {h.chunk_index} — score {h.score:.3f}]\n{h.content}"
-        for h in hits
-    ]
-    log.info("mcp_standard.search", workspace=ctx.workspace_name, hits=len(hits))
+    parts = []
+    for h in hits:
+        label = h.path
+        if h.enrichment_key:
+            label = f"{h.source_path or h.path} [{h.enrichment_key}]"
+        parts.append(f"[{label} — chunk {h.chunk_index} — score {h.score:.3f}]\n{h.content}")
+
+    log.info("mcp_standard.search", workspace=ctx.workspace_name, hits=len(hits), scope=scope)
     return "\n\n---\n\n".join(parts)
+
+
+@_mcp.tool()
+async def get_enrichment(path: str, key: str) -> str:
+    """Retourne le résultat d'enrichissement canonique pour un fichier et une clé.
+
+    Exemple : get_enrichment("src/dedup.py", "public_functions")
+    Si result_type=json, retourne le JSON formaté (indent=2).
+    """
+    import json as _json
+
+    ctx = _ws_ctx.get()
+    data = await get_enrichment_db(
+        ctx.config_pool,
+        workspace_id=ctx.workspace_id,
+        path=path,
+        key=key,
+    )
+    if data is None:
+        return f"Aucun enrichissement '{key}' trouvé pour '{path}'."
+    result = data["result"]
+    if data["result_type"] == "json":
+        try:
+            return _json.dumps(_json.loads(result), ensure_ascii=False, indent=2)
+        except _json.JSONDecodeError:
+            return result
+    return result
 
 
 def build_mcp_asgi() -> Starlette:
@@ -234,6 +278,8 @@ class RagMcpDispatcher:
             indexer_base_url=row["base_url"],
             pool_registry=self._pool_registry,
             resolver=self._resolver,
+            workspace_id=UUID(workspace_id),
+            config_pool=self._config_pool,
         )
 
 
