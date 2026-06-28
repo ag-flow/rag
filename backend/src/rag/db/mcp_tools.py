@@ -68,3 +68,72 @@ async def get_document_status(
         "indexer_used": row["indexer_used"],
         "title": row["title"],
     }
+
+
+async def search_files_in_workspace(
+    ws_pool: asyncpg.Pool,
+    *,
+    pattern: str,
+    mode: str = "exact",
+    top_k: int = 20,
+) -> list[dict[str, Any]]:
+    """Recherche littérale dans le contenu indexé (embeddings).
+
+    Modes :
+    - exact      : content_tsv @@ websearch_to_tsquery (token, sans stemming)
+    - substring  : ILIKE '%pattern%'
+    - regex      : content ~ pattern (seq scan)
+
+    Résultats dédupliqués par path (un path → extrait du meilleur chunk).
+    """
+    async with ws_pool.acquire() as conn:
+        if mode == "exact":
+            rows = await conn.fetch(
+                """
+                SELECT DISTINCT ON (path) path, content, chunk_index, metadata
+                FROM embeddings
+                WHERE content_tsv @@ websearch_to_tsquery('simple', $1)
+                ORDER BY path, chunk_index
+                LIMIT $2
+                """,
+                pattern,
+                top_k,
+            )
+        elif mode == "regex":
+            rows = await conn.fetch(
+                """
+                SELECT DISTINCT ON (path) path, content, chunk_index, metadata
+                FROM embeddings
+                WHERE content ~ $1
+                ORDER BY path, chunk_index
+                LIMIT $2
+                """,
+                pattern,
+                top_k,
+            )
+        else:  # substring
+            rows = await conn.fetch(
+                """
+                SELECT DISTINCT ON (path) path, content, chunk_index, metadata
+                FROM embeddings
+                WHERE content ILIKE '%' || $1 || '%'
+                ORDER BY path, chunk_index
+                LIMIT $2
+                """,
+                pattern,
+                top_k,
+            )
+    return [
+        {
+            "path": r["path"],
+            "chunk_index": r["chunk_index"],
+            "content": r["content"],
+            "enrichment_key": (
+                dict(r["metadata"]).get("enrichment_key") if r["metadata"] else None
+            ),
+            "source_path": (
+                dict(r["metadata"]).get("source_path") if r["metadata"] else None
+            ),
+        }
+        for r in rows
+    ]

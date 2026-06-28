@@ -150,6 +150,39 @@ async def index_status(path: str | None = None) -> str:
     return _json.dumps({"workspace": ctx.workspace_name, **data}, ensure_ascii=False, indent=2)
 
 
+@_mcp.tool()
+async def search_files(
+    pattern: str,
+    mode: str = "exact",
+    top_k: int = 20,
+) -> str:
+    """Recherche littérale dans le corpus indexé du workspace.
+
+    mode: 'exact' (token, via content_tsv — recommandé pour identifiants),
+          'substring' (ILIKE, sous-chaîne),
+          'regex' (opérateur ~ Postgres — lent sur gros corpus).
+    top_k : max de paths retournés (dédup par path).
+    """
+    from rag.db.mcp_tools import search_files_in_workspace
+
+    ctx = _ws_ctx.get()
+    ws_pool = await ctx.pool_registry.get_workspace_pool(ctx.workspace_name, ctx.rag_cnx)
+    hits = await search_files_in_workspace(ws_pool, pattern=pattern, mode=mode, top_k=top_k)
+
+    if not hits:
+        return f"Aucune occurrence de '{pattern}' trouvée (mode={mode})."
+
+    parts = []
+    for h in hits:
+        label = h["path"]
+        if h.get("enrichment_key"):
+            label = f"{h.get('source_path') or h['path']} [{h['enrichment_key']}]"
+        parts.append(f"[{label} — chunk {h['chunk_index']}]\n{h['content']}")
+
+    log.info("mcp_standard.search_files", workspace=ctx.workspace_name, hits=len(hits), mode=mode)
+    return f"**{len(hits)} fichier(s)** contenant '{pattern}' :\n\n" + "\n\n---\n\n".join(parts)
+
+
 def build_mcp_asgi() -> Starlette:
     """Retourne l'app Starlette FastMCP (stateless). Appelé une seule fois."""
     return _mcp.streamable_http_app()

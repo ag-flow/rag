@@ -85,3 +85,52 @@ class TestGetIndexStatus:
         assert result is not None
         assert result["path"] == "a.py"
         assert result["content_hash"] == "sha256:abc"
+
+
+class TestSearchFilesInWorkspace:
+    def _make_ws_pool(self, rows: list[dict]) -> MagicMock:
+        conn = MagicMock()
+        conn.fetch = AsyncMock(return_value=rows)
+        conn.__aenter__ = AsyncMock(return_value=conn)
+        conn.__aexit__ = AsyncMock(return_value=False)
+        pool = MagicMock()
+        pool.acquire = MagicMock(return_value=conn)
+        return pool
+
+    @pytest.mark.asyncio
+    async def test_exact_mode_returns_hits(self):
+        from rag.db.mcp_tools import search_files_in_workspace
+
+        rows = [{"path": "a.py", "content": "RAG_MASTER_KEY env var", "chunk_index": 0, "metadata": None}]
+        pool = self._make_ws_pool(rows)
+        hits = await search_files_in_workspace(pool, pattern="RAG_MASTER_KEY", mode="exact", top_k=10)
+        assert len(hits) == 1
+        assert hits[0]["path"] == "a.py"
+
+    @pytest.mark.asyncio
+    async def test_empty_result_returns_empty_list(self):
+        from rag.db.mcp_tools import search_files_in_workspace
+
+        pool = self._make_ws_pool([])
+        hits = await search_files_in_workspace(pool, pattern="notfound", mode="substring", top_k=5)
+        assert hits == []
+
+    @pytest.mark.asyncio
+    async def test_regex_mode_uses_tilde_operator(self):
+        from rag.db.mcp_tools import search_files_in_workspace
+
+        pool = self._make_ws_pool([])
+        await search_files_in_workspace(pool, pattern="def .+:", mode="regex", top_k=5)
+        conn = pool.acquire.return_value.__aenter__.return_value
+        sql = conn.fetch.call_args[0][0]
+        assert "~" in sql
+
+    @pytest.mark.asyncio
+    async def test_exact_mode_uses_content_tsv(self):
+        from rag.db.mcp_tools import search_files_in_workspace
+
+        pool = self._make_ws_pool([])
+        await search_files_in_workspace(pool, pattern="mytoken", mode="exact", top_k=5)
+        conn = pool.acquire.return_value.__aenter__.return_value
+        sql = conn.fetch.call_args[0][0]
+        assert "content_tsv" in sql or "websearch_to_tsquery" in sql
