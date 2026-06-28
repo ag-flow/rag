@@ -143,6 +143,7 @@ async def run_enrichments(
             content=answer,
             content_hash=f"sha256:{sha256(answer.encode()).hexdigest()}",
             indexer_used=f"{row['llm_provider']}/{row['llm_model']}",
+            extra_metadata={"enrichment_key": metadata_key, "source_path": path},
         )
 
         await conn.execute(
