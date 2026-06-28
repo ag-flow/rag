@@ -150,6 +150,52 @@ def _enrich_hit_fields(metadata: dict[str, Any] | None) -> tuple[str | None, str
     return metadata.get("enrichment_key"), metadata.get("source_path")
 
 
+def _apply_enrichment_filter(
+    children: list[_ChildHit],
+    *,
+    scope: str,
+    enrichment_keys: list[str] | None,
+) -> list[_ChildHit]:
+    """Filtre par scope (both/raw_only/enriched_only) et par enrichment_keys.
+
+    Les raw (sans enrichment_key) passent toujours sauf si scope='enriched_only'.
+    Les enrichissements passent sauf si scope='raw_only' ou filtrés par enrichment_keys.
+    """
+    result = []
+    for h in children:
+        ek = h.metadata.get("enrichment_key") if h.metadata else None
+        is_enriched = bool(ek)
+        if scope == "raw_only" and is_enriched:
+            continue
+        if scope == "enriched_only" and not is_enriched:
+            continue
+        if enrichment_keys and is_enriched and ek not in enrichment_keys:
+            continue
+        result.append(h)
+    return result
+
+
+def _apply_enrichment_filter_fused(
+    fused: list[_FusedHit],
+    *,
+    scope: str,
+    enrichment_keys: list[str] | None,
+) -> list[_FusedHit]:
+    """Même logique que _apply_enrichment_filter mais pour _FusedHit."""
+    result = []
+    for fh in fused:
+        ek = fh.metadata.get("enrichment_key") if fh.metadata else None
+        is_enriched = bool(ek)
+        if scope == "raw_only" and is_enriched:
+            continue
+        if scope == "enriched_only" and not is_enriched:
+            continue
+        if enrichment_keys and is_enriched and ek not in enrichment_keys:
+            continue
+        result.append(fh)
+    return result
+
+
 async def vector_search(
     workspace_pool: asyncpg.Pool,
     *,
@@ -158,6 +204,8 @@ async def vector_search(
     min_score: float,
     workspace_name: str,
     indexer_used: str,
+    scope: str = "both",
+    enrichment_keys: list[str] | None = None,
 ) -> list[SearchHit]:
     """Top-k résultats pgvector avec score cosine >= min_score.
 
@@ -176,6 +224,7 @@ async def vector_search(
         top_k_fetch=top_k * 4,
         min_score=min_score,
     )
+    children = _apply_enrichment_filter(children, scope=scope, enrichment_keys=enrichment_keys)
     hits: list[SearchHit] = []
     seen_sections: set[int] = set()
     for child in children:
@@ -260,6 +309,8 @@ async def hybrid_search(
     rrf_k: int = 60,
     fts_config: str = "simple",
     debug: bool = False,
+    scope: str = "both",
+    enrichment_keys: list[str] | None = None,
 ) -> list[SearchHit]:
     """Recherche hybride : vectorielle + lexicale, fusionnées par RRF.
 
@@ -285,6 +336,7 @@ async def hybrid_search(
     )
 
     fused = rrf_fuse(vector_children, lexical_children, k=rrf_k)
+    fused = _apply_enrichment_filter_fused(fused, scope=scope, enrichment_keys=enrichment_keys)
 
     hits: list[SearchHit] = []
     seen_sections: set[int] = set()

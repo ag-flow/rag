@@ -235,6 +235,8 @@ async def search(
     default_vault_name: str = "rag",
     provider_factory: Callable[..., EmbeddingProvider] | None = None,
     rerank_factory: Callable[..., RerankProvider] | None = None,
+    scope: str = "both",
+    enrichment_keys: list[str] | None = None,
 ) -> list[SearchHit]:
     """Orchestre la recherche MCP multi-workspace.
 
@@ -264,6 +266,8 @@ async def search(
             default_vault_name=default_vault_name,
             provider_factory=factory,
             rerank_factory=rfactory,
+            scope=scope,
+            enrichment_keys=enrichment_keys,
         )
         for r in refs
     ]
@@ -284,6 +288,8 @@ async def _search_one(
     default_vault_name: str,
     provider_factory: Callable[..., EmbeddingProvider],
     rerank_factory: Callable[..., RerankProvider],
+    scope: str = "both",
+    enrichment_keys: list[str] | None = None,
 ) -> _WorkspaceResult:
     auth = await _authenticate(
         ref=ref,
@@ -326,6 +332,8 @@ async def _search_one(
             rrf_k=int(hybrid_cfg["rrf_k"]),
             fts_config=str(hybrid_cfg["fts_config"]),
             debug=False,
+            scope=scope,
+            enrichment_keys=enrichment_keys,
         )
     else:
         hits = await vector_search(
@@ -335,6 +343,8 @@ async def _search_one(
             min_score=min_score,
             workspace_name=ref.name,
             indexer_used=auth.indexer_used,
+            scope=scope,
+            enrichment_keys=enrichment_keys,
         )
 
     # Rerank conditionnel : config présente + > 1 hit (singleton skip)
