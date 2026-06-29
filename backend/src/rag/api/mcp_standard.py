@@ -54,12 +54,28 @@ async def rag_search(
     enrichment_keys: list[str] | None = None,
     scope: str = "both",
 ) -> str:
-    """Recherche sémantique dans le corpus RAG du workspace courant.
+    """Recherche par similarité sémantique (embeddings) dans le corpus indexé du workspace.
 
-    scope: 'both' (défaut), 'raw_only' (code brut uniquement),
-           'enriched_only' (métadonnées d'enrichissement uniquement).
-    enrichment_keys: liste de clés à inclure (ex. ['public_functions']).
-    Retourne les chunks pertinents au format markdown, triés par score décroissant.
+    Trouve les passages dont le SENS est proche de la requête, même si les mots exacts
+    n'apparaissent pas. Idéal pour des questions en langue naturelle, des concepts, des
+    intentions. Ne fait PAS de correspondance littérale — utiliser search_files pour ça.
+
+    Paramètres :
+    - query     : la question ou le concept (texte libre, n'importe quelle langue)
+    - top_k     : nombre de passages à retourner (défaut 5 ; au-delà de 20 le ratio
+                  signal/bruit baisse)
+    - min_score : seuil de similarité cosinus [0-1] ; en dessous, le résultat est écarté.
+                  0.3 (défaut) = seuil permissif. Monter à 0.5-0.7 pour les questions
+                  précises où seuls les passages très proches ont de la valeur.
+    - scope     : 'both' (défaut) — code source + enrichissements ;
+                  'raw_only'      — code source uniquement (ignore les métadonnées) ;
+                  'enriched_only' — enrichissements uniquement (résumés, listes de
+                                   fonctions, graphes de dépendances…)
+    - enrichment_keys : restreint aux enrichissements de ces types précis
+                        (ex. ['public_functions', 'summary']). Ignoré si scope='raw_only'.
+
+    Sortie : passages triés par score décroissant, format [path — chunk N — score 0.XXX]
+    suivi du texte. Lecture seule, n'accède qu'au contenu indexé (pas aux fichiers live).
     """
     ctx = _ws_ctx.get()
 
@@ -104,10 +120,24 @@ async def rag_search(
 
 @_mcp.tool()
 async def get_enrichment(path: str, key: str) -> str:
-    """Retourne le résultat d'enrichissement canonique pour un fichier et une clé.
+    """Retourne le résultat d'analyse pré-calculée associé à un fichier et à une clé.
 
-    Exemple : get_enrichment("src/dedup.py", "public_functions")
-    Si result_type=json, retourne le JSON formaté (indent=2).
+    Les enrichissements sont des métadonnées structurées générées sur chaque fichier
+    lors de l'indexation : listes de fonctions publiques, résumés, signatures de classes,
+    graphes de dépendances, imports, etc. Chaque type d'analyse a une clé distincte.
+
+    Workflow recommandé :
+    1. Appeler rag_search avec scope='enriched_only' pour découvrir quels fichiers ont
+       des enrichissements et quelles clés existent.
+    2. Appeler get_enrichment(path, key) pour lire le détail d'un enrichissement précis.
+
+    Paramètres :
+    - path : chemin exact du fichier tel qu'indexé (ex. "src/auth/middleware.py")
+    - key  : clé de l'enrichissement (ex. "public_functions", "summary", "imports")
+
+    Sortie : contenu brut si result_type=text, JSON indenté si result_type=json.
+    Retourne un message d'erreur (pas d'exception) si le fichier ou la clé est introuvable.
+    Lecture seule. Accède à la base config, pas à la base workspace.
     """
     import json as _json
 
@@ -131,10 +161,27 @@ async def get_enrichment(path: str, key: str) -> str:
 
 @_mcp.tool()
 async def index_status(path: str | None = None) -> str:
-    """Fraîcheur et couverture de l'index du workspace courant.
+    """Vérifie si l'index du workspace est à jour et opérationnel.
 
-    Sans argument : agrégats globaux (nb docs, dernière indexation, état sync).
-    Avec path : hash et fraîcheur du document spécifique.
+    Appeler cet outil avant rag_search ou get_document pour s'assurer que les données
+    sont fraîches. Un index en erreur ou vide produira des résultats incomplets ou absents.
+
+    Sans argument — état global du workspace :
+    - documents_count   : nombre de fichiers actuellement indexés
+    - last_indexed_at   : horodatage de la dernière indexation (null = index vide)
+    - sync.healthy      : false si le dernier job s'est terminé en erreur ; true sinon
+                          (y compris si aucun job n'a encore tourné)
+    - sync.last_job_status : 'done' | 'error' | 'skipped' | null
+    - sync.next_sync_at : prochaine indexation planifiée (null si sync manuel)
+
+    Avec path (ex. index_status("src/auth.py")) — état d'un fichier précis :
+    - indexed_at   : quand ce fichier a été indexé pour la dernière fois
+    - content_hash : SHA256 du contenu indexé (comparer avec le fichier source pour
+                     détecter une dérive entre l'index et la réalité)
+    - indexer_used : modèle d'embedding utilisé pour ce fichier
+
+    Retourne un message d'erreur si le fichier n'est pas dans l'index.
+    Lecture seule. Requête sur la base config, pas la base workspace.
     """
     import json as _json
 
@@ -156,12 +203,28 @@ async def search_files(
     mode: str = "exact",
     top_k: int = 20,
 ) -> str:
-    """Recherche littérale dans le corpus indexé du workspace.
+    """Recherche exhaustive par correspondance littérale dans le corpus indexé.
 
-    mode: 'exact' (token, via content_tsv — recommandé pour identifiants),
-          'substring' (ILIKE, sous-chaîne),
-          'regex' (opérateur ~ Postgres — lent sur gros corpus).
-    top_k : max de paths retournés (dédup par path).
+    Contrairement à rag_search (sémantique), cette recherche est déterministe :
+    elle trouve TOUTES les occurrences d'un motif exact. Utiliser pour retrouver
+    un identifiant précis, un nom de variable, une constante, une chaîne littérale.
+
+    Modes :
+    - 'exact'     (défaut) : tokenisation FTS — trouve le token exact, sans stemming ni
+                  troncature. Rapide (index GIN). Recommandé pour les identifiants comme
+                  RAG_MASTER_KEY ou nom_de_fonction. ATTENTION : ne trouve pas les
+                  sous-chaînes partielles ("MASTER" ne retrouve pas "RAG_MASTER_KEY").
+    - 'substring' : ILIKE '%motif%' — trouve toute sous-chaîne, insensible à la casse.
+                  Utile quand le motif est un fragment de token. Plus lent que 'exact'.
+    - 'regex'     : opérateur Postgres ~ — expressions régulières complètes.
+                  Très lent sur grand corpus (scan séquentiel, pas d'index).
+                  Réserver aux cas où exact et substring ne suffisent pas.
+
+    top_k : nombre maximum de FICHIERS DISTINCTS retournés. Un seul extrait de chunk
+    est retourné par fichier, même si plusieurs chunks contiennent le motif.
+
+    Sortie : [path — chunk N] + extrait du chunk correspondant, séparés par ---.
+    Recherche dans le contenu INDEXÉ uniquement, pas sur le disque. Lecture seule.
     """
     from rag.db.mcp_tools import search_files_in_workspace
 
@@ -185,12 +248,27 @@ async def search_files(
 
 @_mcp.tool()
 async def get_document(path: str) -> str:
-    """Retourne le contenu indexé d'un document.
+    """Retourne le contenu complet d'un document depuis l'index (sans accès au disque).
 
-    Reconstruit depuis les sections parentes (ordonnées par section_index). Pour le code,
-    la reconstruction est par symboles (classes/fonctions), pas ligne à ligne — fidèle
-    prose/markdown, approximatif code. Refusé si le workspace est en mode lecture restreinte
-    (allow_full_read=False).
+    Utile pour lire un fichier entier quand le filesystem n'est pas disponible (agent cloud,
+    conteneur sans montage). Le document est RECONSTRUIT depuis les sections stockées en base —
+    ce n'est pas le fichier source original, mais sa représentation indexée.
+
+    Comportement selon le type de fichier :
+    - Prose / Markdown / Data : reconstruction fidèle dans l'ordre des sections déclarées.
+    - Code (analysé par tree-sitter) : reconstruction par symboles (fonctions, classes, blocs).
+      L'ordre est correct mais le contenu entre symboles (imports isolés, commentaires flottants)
+      peut être incomplet. NE PAS utiliser pour obtenir des numéros de ligne exacts.
+
+    Cas particuliers :
+    - Workspace en mode restreint (allow_full_read=False) : appel refusé avec un message
+      explicite — utiliser rag_search pour des extraits contextuels à la place.
+    - Fichier indexé avec l'ancien engine (legacy, sans sections) : reconstruction depuis
+      les chunks plats dans leur ordre d'indexation. Mentionné dans la sortie.
+    - Fichier absent de l'index : message d'erreur, pas d'exception.
+
+    Pour vérifier qu'un fichier est indexé avant d'appeler : index_status(path).
+    Lecture seule. Ne modifie pas l'index.
     """
     from rag.db.mcp_tools import reconstruct_document
 
