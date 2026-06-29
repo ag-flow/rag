@@ -10,10 +10,17 @@ from rag.schemas.admin import ModelEntry
 async def list_models(config_pool: asyncpg.Pool) -> list[ModelEntry]:
     rows = await fetch_all(
         config_pool,
-        "SELECT provider, model, dimension FROM model_dimensions ORDER BY provider, model",
+        "SELECT provider, model, dimension, created_at"
+        " FROM model_dimensions ORDER BY provider, model",
     )
     return [
-        ModelEntry(provider=r["provider"], model=r["model"], dimension=r["dimension"]) for r in rows
+        ModelEntry(
+            provider=r["provider"],
+            model=r["model"],
+            dimension=r["dimension"],
+            created_at=r["created_at"].isoformat() if r["created_at"] else None,
+        )
+        for r in rows
     ]
 
 

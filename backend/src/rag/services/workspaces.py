@@ -88,6 +88,14 @@ async def create_workspace(
         config_pool, provider=request.indexer.provider, model=request.indexer.model
     )
 
+    # 1b. Vérifier qu'un coffre Harpocrate par défaut existe AVANT tout DDL.
+    # Sans coffre, la création de la première API key échouerait après la création
+    # de la DB workspace (rollback impossible sur DDL Postgres) → workspace fantôme.
+    async with config_pool.acquire() as _vault_check_conn:
+        _default_vault = await harpocrate_vaults_service.get_default(_vault_check_conn)
+    if _default_vault is None:
+        raise VaultNotFoundForWorkspace("default")
+
     # api_key_ref indexeur : référence directe fournie par le client
     indexer_api_key_ref: str | None = request.indexer.api_key_ref
 

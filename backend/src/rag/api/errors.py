@@ -291,7 +291,7 @@ class EmbeddingProviderUnavailable(AdminError):
 
 
 class OidcNotConfigured(AdminError):
-    http_status = 503
+    http_status = 404
 
     def to_payload(self) -> dict[str, object]:
         return {
