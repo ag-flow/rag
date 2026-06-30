@@ -120,3 +120,60 @@ def test_make_chunker_markdown_immutable_levels() -> None:
     assert isinstance(chunker, MarkdownChunker)
     # Acces au champ prive pour verifier le type immutable
     assert isinstance(chunker._heading_levels, tuple)
+
+
+# ── Tests du paramètre clean_content dans make_structured_chunker ────────────
+
+
+def _make_structured(algo: str, params: dict) -> object:
+    from rag.indexer.chunking.structured_factory import make_structured_chunker
+    from rag.indexer.chunking.tokens import HeuristicTokenEstimator
+
+    return make_structured_chunker(
+        algo=algo,
+        params=params,
+        estimator=HeuristicTokenEstimator(),
+        provider_max_input_tokens=8192,
+    )
+
+
+class TestCleanContentParam:
+    def test_clean_content_absent_returns_plain_chunker(self) -> None:
+        from rag.indexer.chunking.cleaner import CleaningChunkerWrapper
+
+        chunker = _make_structured("prose", {})
+        assert not isinstance(chunker, CleaningChunkerWrapper)
+
+    def test_clean_content_false_returns_plain_chunker(self) -> None:
+        from rag.indexer.chunking.cleaner import CleaningChunkerWrapper
+
+        chunker = _make_structured("prose", {"clean_content": False})
+        assert not isinstance(chunker, CleaningChunkerWrapper)
+
+    def test_clean_content_true_prose_returns_wrapper(self) -> None:
+        from rag.indexer.chunking.cleaner import CleaningChunkerWrapper
+
+        chunker = _make_structured("prose", {"clean_content": True})
+        assert isinstance(chunker, CleaningChunkerWrapper)
+
+    def test_clean_content_true_code_returns_wrapper(self) -> None:
+        from rag.indexer.chunking.cleaner import CleaningChunkerWrapper
+
+        chunker = _make_structured("code", {"clean_content": True})
+        assert isinstance(chunker, CleaningChunkerWrapper)
+
+    def test_clean_content_true_data_returns_wrapper(self) -> None:
+        from rag.indexer.chunking.cleaner import CleaningChunkerWrapper
+
+        chunker = _make_structured("data", {"clean_content": True})
+        assert isinstance(chunker, CleaningChunkerWrapper)
+
+    def test_clean_content_true_table_returns_wrapper(self) -> None:
+        from rag.indexer.chunking.cleaner import CleaningChunkerWrapper
+
+        chunker = _make_structured("table", {"clean_content": True})
+        assert isinstance(chunker, CleaningChunkerWrapper)
+
+    def test_unknown_param_still_raises(self) -> None:
+        with pytest.raises(ValueError, match="unknown params"):
+            _make_structured("prose", {"typo_param": True})
