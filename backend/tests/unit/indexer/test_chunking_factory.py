@@ -177,3 +177,58 @@ class TestCleanContentParam:
     def test_unknown_param_still_raises(self) -> None:
         with pytest.raises(ValueError, match="unknown params"):
             _make_structured("prose", {"typo_param": True})
+
+
+class TestCleaningParams:
+    """strip_separators / strip_boilerplate / strip_html — activables indépendamment."""
+
+    def test_strip_separators_true_returns_wrapper(self) -> None:
+        from rag.indexer.chunking.cleaner import CleaningChunkerWrapper
+
+        chunker = _make_structured("prose", {"strip_separators": True})
+        assert isinstance(chunker, CleaningChunkerWrapper)
+
+    def test_strip_html_true_returns_wrapper(self) -> None:
+        from rag.indexer.chunking.cleaner import CleaningChunkerWrapper
+
+        chunker = _make_structured("prose", {"strip_html": True})
+        assert isinstance(chunker, CleaningChunkerWrapper)
+
+    def test_strip_boilerplate_true_returns_wrapper(self) -> None:
+        from rag.indexer.chunking.cleaner import CleaningChunkerWrapper
+
+        chunker = _make_structured("prose", {"strip_boilerplate": True})
+        assert isinstance(chunker, CleaningChunkerWrapper)
+
+    def test_strip_separators_code_algo(self) -> None:
+        from rag.indexer.chunking.cleaner import CleaningChunkerWrapper
+
+        chunker = _make_structured("code", {"strip_separators": True})
+        assert isinstance(chunker, CleaningChunkerWrapper)
+
+    def test_strip_html_table_algo(self) -> None:
+        from rag.indexer.chunking.cleaner import CleaningChunkerWrapper
+
+        chunker = _make_structured("table", {"strip_html": True})
+        assert isinstance(chunker, CleaningChunkerWrapper)
+
+    def test_all_three_false_no_wrapper(self) -> None:
+        from rag.indexer.chunking.cleaner import CleaningChunkerWrapper
+
+        chunker = _make_structured("prose", {
+            "strip_separators": False,
+            "strip_boilerplate": False,
+            "strip_html": False,
+        })
+        assert not isinstance(chunker, CleaningChunkerWrapper)
+
+    def test_options_forwarded_to_wrapper(self) -> None:
+        from rag.indexer.chunking.cleaner import CleaningChunkerWrapper
+
+        chunker = _make_structured("prose", {"strip_separators": True, "strip_html": True})
+        assert isinstance(chunker, CleaningChunkerWrapper)
+        opts = chunker._options
+        assert opts.strip_separators is True
+        assert opts.strip_html is True
+        assert opts.clean_content is False
+        assert opts.strip_boilerplate is False

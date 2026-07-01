@@ -5,7 +5,7 @@ from typing import Any
 
 import structlog
 
-from rag.indexer.chunking.cleaner import CleaningChunkerWrapper
+from rag.indexer.chunking.cleaner import CleaningChunkerWrapper, CleaningOptions
 from rag.indexer.chunking.code_chunker import CodeChunker
 from rag.indexer.chunking.code_parser import UnsupportedLanguageError
 from rag.indexer.chunking.data_chunker import DataChunker
@@ -17,25 +17,26 @@ from rag.indexer.chunking.tokens import TokenEstimator
 
 log = structlog.get_logger(__name__)
 
+_CLEANING_KEYS = {"clean_content", "strip_separators", "strip_boilerplate", "strip_html"}
 _PROSE_KEYS = {
     "child_target_tokens",
     "floor_tokens",
     "overlap_tokens",
     "breadcrumb_depth",
     "heading_levels",
-    "clean_content",
+    *_CLEANING_KEYS,
 }
 _CODE_KEYS = {
     "child_target_tokens",
     "floor_tokens",
     "overlap_tokens",
     "breadcrumb_depth",
-    "clean_content",
+    *_CLEANING_KEYS,
 }
 _TABLE_KEYS = {
     "child_target_tokens",
     "max_rows_per_chunk",
-    "clean_content",
+    *_CLEANING_KEYS,
 }
 _ALLOWED: dict[str, set[str]] = {
     "prose": _PROSE_KEYS,
@@ -71,11 +72,10 @@ def make_structured_chunker(
     supporté, on bascule gracieusement vers `prose`. Lève `ValueError` sur algo
     ou param inconnu.
 
-    Si ``params["clean_content"] == True``, le chunker retourné est enveloppé
-    dans un `CleaningChunkerWrapper` qui nettoie le contenu avant découpe
-    (unicode NFKC, CRLF→LF, trailing whitespace, max 2 lignes vides). Par
-    défaut ``False`` — aucun changement de comportement pour les stratégies
-    existantes.
+    Chaque option de nettoyage est indépendante et activable via `params` :
+    ``clean_content``, ``strip_separators``, ``strip_boilerplate``, ``strip_html``.
+    Toutes à ``False`` par défaut — aucun changement de comportement pour les
+    stratégies existantes. Le wrapper est posé si au moins une option est activée.
     """
     if algo not in _ALLOWED:
         raise ValueError(f"unknown chunking algo: {algo!r}")
@@ -87,7 +87,12 @@ def make_structured_chunker(
     if not 0 < safety_factor <= 1:
         raise ValueError("safety_factor must be in (0, 1]")
 
-    clean = bool(params.get("clean_content", False))
+    opts = CleaningOptions(
+        clean_content=bool(params.get("clean_content", False)),
+        strip_separators=bool(params.get("strip_separators", False)),
+        strip_boilerplate=bool(params.get("strip_boilerplate", False)),
+        strip_html=bool(params.get("strip_html", False)),
+    )
 
     hard = max(1, math.floor(safety_factor * provider_max_input_tokens))
     target = max(1, min(int(params.get("child_target_tokens", _DEFAULT_TARGET)), hard))
@@ -98,7 +103,7 @@ def make_structured_chunker(
             bounds=TokenBounds(target, 0, 0, hard),
             max_rows_per_chunk=int(params.get("max_rows_per_chunk", _DEFAULT_MAX_ROWS)),
         )
-        return CleaningChunkerWrapper(chunker) if clean else chunker
+        return CleaningChunkerWrapper(chunker, opts) if opts.any_enabled else chunker
 
     bounds = TokenBounds(
         child_target_tokens=target,
@@ -111,7 +116,7 @@ def make_structured_chunker(
     if algo in ("code", "data"):
         inner = _try_treesitter_chunker(algo, language, estimator, bounds, depth)
         if inner is not None:
-            return CleaningChunkerWrapper(inner) if clean else inner
+            return CleaningChunkerWrapper(inner, opts) if opts.any_enabled else inner
         # fallback gracieux : langage non supporté → prose (borné en tokens)
 
     heading_levels = tuple(params.get("heading_levels", _DEFAULT_HEADING_LEVELS))
@@ -121,7 +126,7 @@ def make_structured_chunker(
         breadcrumb_depth=depth,
         heading_levels=heading_levels,
     )
-    return CleaningChunkerWrapper(prose_chunker) if clean else prose_chunker
+    return CleaningChunkerWrapper(prose_chunker, opts) if opts.any_enabled else prose_chunker
 
 
 def _try_treesitter_chunker(
