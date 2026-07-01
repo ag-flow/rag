@@ -171,3 +171,23 @@ export type PathDetailResponse = {
 export type StrategyPatchRequest = {
   strategy: IndexKeyStrategy;
 };
+
+export type EmbedChunkEntry = {
+  chunk_index: number;
+  embed_text: string;
+  metadata: Record<string, unknown>;
+};
+
+export type SectionEntry = {
+  section_index: number;
+  section_key: string;
+  content: string;
+  metadata: Record<string, unknown>;
+  chunks: EmbedChunkEntry[];
+};
+
+export type DocumentViewResponse = {
+  path: string;
+  sections: SectionEntry[];
+  is_legacy: boolean;
+};

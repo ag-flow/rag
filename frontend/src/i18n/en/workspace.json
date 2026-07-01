@@ -262,7 +262,29 @@
         "actions": { "cancel": "Cancel", "confirm": "Reindex now" }
       }
     },
-    "lastModified": "Last modified: {{when}}"
+    "lastModified": "Last modified: {{when}}",
+    "cleaning": {
+      "title": "Content cleaning",
+      "description": "Applied to each document before chunking. Disabled by default — each option is independent.",
+      "options": {
+        "clean_content": {
+          "label": "Text normalisation",
+          "description": "Fixes unicode (ligatures, non-breaking spaces), normalises line endings (CRLF → LF) and removes trailing whitespace."
+        },
+        "strip_separators": {
+          "label": "Remove decorative separators",
+          "description": "Removes lines made entirely of dashes, equals or asterisks (---, ===, *** …). Underlined Markdown headings (Title\\n-----) are preserved."
+        },
+        "strip_boilerplate": {
+          "label": "Remove boilerplate headers",
+          "description": "Removes licence lines (SPDX, copyright), auto-generated / do-not-edit markers, and page footers repeated identically 5 or more times in the same document."
+        },
+        "strip_html": {
+          "label": "Remove HTML tags",
+          "description": "Strips tags (<p>, <div>…) and decodes HTML entities (&amp; → &, &lt; → <…). Useful for web exports or scraped sources."
+        }
+      }
+    }
   },
   "dialog": {
     "cancel": "Cancel",
@@ -351,7 +373,18 @@
     "last_indexed": "Indexed {{when}}",
     "version_label": "Version from {{date}}",
     "chunk_label": "Chunk #{{index}}",
-    "metadata_label": "Metadata"
+    "metadata_label": "Metadata",
+    "view_chunks": "Chunks",
+    "view_document": "Document",
+    "document_view": {
+      "legacy_notice": "Legacy pipeline — structured sections not available. Raw embeddings are shown.",
+      "chunks_count_one": "{{count}} chunk",
+      "chunks_count_other": "{{count}} chunks",
+      "chunks_count": "{{count}} chunk(s)",
+      "embed_chunks_title": "Embedded chunks ({{count}})",
+      "embed_chunk_label": "#{{index}}",
+      "error": "Failed to load document view."
+    }
   },
   "optional": "optional",
   "time": {

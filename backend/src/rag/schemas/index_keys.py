@@ -41,3 +41,23 @@ class PathDetailResponse(BaseModel):
 
 class StrategyPatchRequest(BaseModel):
     strategy: Literal["replace", "append"]
+
+
+class EmbedChunkEntry(BaseModel):
+    chunk_index: int
+    embed_text: str
+    metadata: dict[str, Any]
+
+
+class SectionEntry(BaseModel):
+    section_index: int
+    section_key: str
+    content: str
+    metadata: dict[str, Any]
+    chunks: list[EmbedChunkEntry]
+
+
+class DocumentViewResponse(BaseModel):
+    path: str
+    sections: list[SectionEntry]
+    is_legacy: bool

@@ -8,14 +8,17 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from rag.auth.bearer import require_master_key_or_authenticated_admin
-from rag.db.index_keys import get_path_chunks, list_paths_aggregate
+from rag.db.index_keys import get_document_sections, get_path_chunks, list_paths_aggregate
 from rag.db.path_strategies import get_all_for_workspace, upsert_strategy
 from rag.db.pool import WorkspacePoolRegistry
 from rag.schemas.index_keys import (
     ChunkEntry,
+    DocumentViewResponse,
+    EmbedChunkEntry,
     IndexKeysResponse,
     PathDetailResponse,
     PathStrategyEntry,
+    SectionEntry,
     StrategyPatchRequest,
     VersionGroup,
 )
@@ -38,6 +41,40 @@ def build_index_keys_router() -> APIRouter:
         if row is None:
             raise HTTPException(status_code=404, detail="workspace_not_found")
         return row["id"], row["rag_cnx"]
+
+    @router.get(
+        "/workspaces/{name}/document-view",
+        response_model=DocumentViewResponse,
+    )
+    async def get_document_view(
+        name: str,
+        path: str,
+        request: Request,
+    ) -> DocumentViewResponse:
+        registry: WorkspacePoolRegistry = request.app.state.pools
+        config_pool: asyncpg.Pool = registry.config_pool
+        _, rag_cnx = await _workspace_context(config_pool, name)
+        ws_pool = await registry.get_workspace_pool(name, rag_cnx)
+        sections_raw, is_legacy = await get_document_sections(ws_pool, path)
+
+        sections = [
+            SectionEntry(
+                section_index=s["section_index"],
+                section_key=s["section_key"],
+                content=s["content"],
+                metadata=s["metadata"],
+                chunks=[
+                    EmbedChunkEntry(
+                        chunk_index=c["chunk_index"],
+                        embed_text=c["embed_text"],
+                        metadata=c["metadata"],
+                    )
+                    for c in s["chunks"]
+                ],
+            )
+            for s in sections_raw
+        ]
+        return DocumentViewResponse(path=path, sections=sections, is_legacy=is_legacy)
 
     @router.get("/workspaces/{name}/index-keys", response_model=IndexKeysResponse)
     async def get_index_keys(name: str, request: Request) -> IndexKeysResponse:
