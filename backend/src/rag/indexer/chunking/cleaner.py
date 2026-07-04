@@ -102,8 +102,12 @@ def strip_html_tags(text: str) -> str:
 
     Les régions fencées (```/~~~) sont préservées telles quelles : le nettoyage
     HTML ne doit pas corrompre des échantillons de code.
+
+    Note : `html.unescape` décode `&nbsp;` en U+00A0 (espace insécable) ; on le
+    normalise en espace ordinaire pour ne pas casser la correspondance de mots
+    en aval (recherche lexicale, embeddings).
     """
-    text = html.unescape(text)
+    text = html.unescape(text).replace("\u00a0", " ")
     lines = text.splitlines(keepends=False)
     fence_ranges = scan_fences(lines)
     fenced_line_idx: set[int] = set()
