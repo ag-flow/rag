@@ -264,38 +264,40 @@ async def list_remote_branches(
     """
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
 
+    async def _do_ls_remote(auth_url: str) -> list[str]:
+        try:
+            async with asyncio.timeout(deadline):
+                proc = await asyncio.create_subprocess_exec(
+                    "git",
+                    "ls-remote",
+                    "--heads",
+                    auth_url,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    env=env,
+                )
+                stdout_b, _ = await proc.communicate()
+        except (TimeoutError, FileNotFoundError, NotADirectoryError, OSError):
+            return []
+
+        if proc.returncode != 0:
+            return []
+
+        branches: list[str] = []
+        for line in stdout_b.decode("utf-8", errors="replace").splitlines():
+            if "\trefs/heads/" in line:
+                branch = line.split("\trefs/heads/", 1)[1].strip()
+                if branch:
+                    branches.append(branch)
+        return sorted(branches)
+
     if ssh_key is not None:
         with _ssh_key_env(ssh_key) as ssh_env:
             env.update(ssh_env)
-        auth_url = url
+            return await _do_ls_remote(url)
     else:
         auth_url = _build_authenticated_url(url, token)
-
-    try:
-        async with asyncio.timeout(deadline):
-            proc = await asyncio.create_subprocess_exec(
-                "git",
-                "ls-remote",
-                "--heads",
-                auth_url,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=env,
-            )
-            stdout_b, _ = await proc.communicate()
-    except (TimeoutError, FileNotFoundError, NotADirectoryError, OSError):
-        return []
-
-    if proc.returncode != 0:
-        return []
-
-    branches: list[str] = []
-    for line in stdout_b.decode("utf-8", errors="replace").splitlines():
-        if "\trefs/heads/" in line:
-            branch = line.split("\trefs/heads/", 1)[1].strip()
-            if branch:
-                branches.append(branch)
-    return sorted(branches)
+        return await _do_ls_remote(auth_url)
 
 
 async def list_all_files(dest: Path) -> list[str]:

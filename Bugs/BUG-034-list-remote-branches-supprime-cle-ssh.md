@@ -1,6 +1,6 @@
 # BUG-034 — `list_remote_branches` supprime la clé SSH temporaire avant l'exécution de git
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / sync/git_ops
 - **Sévérité** : moyenne
