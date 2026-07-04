@@ -1,6 +1,6 @@
 # BUG-090 — `frontend/Dockerfile` : pas de `.dockerignore` — `COPY . .` peut écraser `node_modules` installé par `npm ci`
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : infra / frontend/Dockerfile
 - **Sévérité** : moyenne
