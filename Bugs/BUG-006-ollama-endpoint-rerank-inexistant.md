@@ -1,6 +1,6 @@
 # BUG-006 — L'endpoint `/api/rerank` n'existe pas dans Ollama upstream : le provider ne peut jamais fonctionner contre un Ollama standard
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / rerank
 - **Sévérité** : moyenne
