@@ -36,6 +36,25 @@ async def _get_workspace_id_or_raise(config_pool: asyncpg.Pool, name: str) -> UU
     return UUID(str(row["id"]))
 
 
+async def _resolve_branch_token(
+    config: dict[str, Any], *, resolver: _ResolverProtocol | None
+) -> str | None:
+    """Résout le token HTTPS depuis `auth_ref` pour la détection de branche.
+
+    SSH (pas d'auth_ref, ssh_key_ref à la place) → None, cohérent avec
+    detect_default_branch qui repose sur une URL HTTPS authentifiée.
+    Sans resolver disponible ou auth_ref legacy (non-vault) → None (le
+    fallback "main" de _resolve_branch_for_write reste acceptable).
+    """
+    auth_ref: str | None = config.get("auth_ref")
+    if not auth_ref or resolver is None:
+        return None
+    if not is_vault_ref(auth_ref):
+        log.warning("branch_detect.legacy_auth_ref")
+        return None
+    return await resolver.resolve_with_retry(auth_ref)
+
+
 async def _resolve_branch_for_write(
     config: dict[str, Any], *, token: str | None
 ) -> tuple[dict[str, Any], str | None]:
@@ -97,6 +116,7 @@ async def add_source(
     config_pool: asyncpg.Pool,
     harpocrate_vaults_service: HarpocrateVaultsService,
     owner_id: str | None = None,
+    resolver: _ResolverProtocol | None = None,
 ) -> dict[str, Any]:
     """Crée une source pour un workspace.
 
@@ -129,8 +149,11 @@ async def add_source(
     if request.ssh_username:
         config["ssh_username"] = request.ssh_username
 
-    # Pour detect_default_branch : token None si SSH (fallback "main" acceptable)
-    config, branch_warning = await _resolve_branch_for_write(config, token=None)
+    # Résout le token HTTPS (auth_ref) si disponible : nécessaire pour détecter
+    # la branche par défaut d'un repo privé (BUG-066). SSH → None naturellement
+    # (pas d'auth_ref), fallback "main" géré par _resolve_branch_for_write.
+    branch_token = await _resolve_branch_token(config, resolver=resolver)
+    config, branch_warning = await _resolve_branch_for_write(config, token=branch_token)
 
     async with config_pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -216,7 +239,10 @@ async def update_source(
         elif field in current_config:
             config[field] = current_config[field]
 
-    config, branch_warning = await _resolve_branch_for_write(config, token=None)
+    # Résout le token HTTPS (auth_ref) si disponible : nécessaire pour détecter
+    # la branche par défaut d'un repo privé (BUG-066).
+    branch_token = await _resolve_branch_token(config, resolver=resolver)
+    config, branch_warning = await _resolve_branch_for_write(config, token=branch_token)
 
     async with config_pool.acquire() as conn:
         row = await conn.fetchrow(

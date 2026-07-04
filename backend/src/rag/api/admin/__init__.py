@@ -239,6 +239,7 @@ def build_admin_router() -> APIRouter:
             config_pool=_config_pool(request),
             harpocrate_vaults_service=request.app.state.harpocrate_vaults_service,
             owner_id=get_current_owner_id(request),
+            resolver=request.app.state.resolver,
         )
         return SourceResponse(**row)
 
