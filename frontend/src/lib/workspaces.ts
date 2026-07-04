@@ -71,7 +71,7 @@ export const workspacesApi = {
     api.get<IndexKeysResponse>(`${BASE}/${name}/index-keys`),
 
   getIndexKeyDetail: (name: string, path: string) =>
-    api.get<PathDetailResponse>(`${BASE}/${name}/index-keys/${path}`),
+    api.get<PathDetailResponse>(`${BASE}/${name}/index-keys/${encodeURIComponent(path)}`),
 
   patchIndexKeyStrategy: (name: string, path: string, payload: StrategyPatchRequest) =>
     api.patch<void>(`${BASE}/${name}/index-keys/${encodeURIComponent(path)}/strategy`, payload),

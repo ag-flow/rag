@@ -1,6 +1,6 @@
 # BUG-015 — `getIndexKeyDetail` n'encode pas le path du document (le PATCH voisin, si)
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / lib
 - **Sévérité** : moyenne
