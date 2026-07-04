@@ -1,6 +1,6 @@
 # BUG-094 — `fetch-harpocrate-sdk.sh` obsolète : télécharge un wheel 0.4.0 que plus rien ne consomme (SDK vendoré en source)
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : infra / backend/scripts
 - **Sévérité** : basse
@@ -27,3 +27,15 @@ curl -fsSL "$HARPOCRATE_URL/v1/sdk/python-wheel" -o "$VENDOR_DIR/$WHEEL_NAME"
 ## Piste de correction
 
 Supprimer le script ou le reconvertir en « refresh du vendored source » ; au minimum corriger l'en-tête et la version.
+
+## Correction appliquée
+
+Suppression du script (`backend/scripts/fetch-harpocrate-sdk.sh`) plutôt qu'une
+réécriture : le SDK est désormais entièrement vendoré en source
+(`backend/vendor/harpocrate-sdk/`, install éditable via `[tool.uv.sources]`),
+consommé uniquement par `uv sync` — aucun code (Dockerfile, CI, pyproject) ne
+télécharge plus de wheel. Réécrire le script en « refresh du vendored source »
+aurait signifié inventer un nouveau workflow de synchronisation non spécifié
+et sans consommateur, ce qui dépasse le fix documenté ici. La seule référence
+vivante restante (`backend/README.md`) a été corrigée pour refléter le flux
+réel (`uv sync` seul).
