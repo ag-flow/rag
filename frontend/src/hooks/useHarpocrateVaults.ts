@@ -124,9 +124,15 @@ export function useTestConnection(id: string) {
 }
 
 export function useLastTestResult(id: string | null): VaultTestConnectionResult | null {
-  const qc = useQueryClient();
-  if (!id) return null;
-  return qc.getQueryData<VaultTestConnectionResult>([...ROOT_KEY, id, "lastTest"]) ?? null;
+  const { data } = useQuery<VaultTestConnectionResult>({
+    queryKey: [...ROOT_KEY, id, "lastTest"],
+    // Query cache-only : jamais fetchée, uniquement alimentée par
+    // useTestConnection().onSuccess via qc.setQueryData. enabled: false
+    // désactive le fetch mais conserve la souscription réactive au cache.
+    queryFn: () => Promise.reject(new Error("useLastTestResult ne doit jamais fetcher")),
+    enabled: false,
+  });
+  return data ?? null;
 }
 
 export function useRevealApiKey(id: string) {
