@@ -17,6 +17,9 @@
       "delete": "Supprimer le workspace"
     }
   },
+  "panel": {
+    "load_error": "Erreur lors du chargement du workspace."
+  },
   "tabs": {
     "detail": "Détail",
     "sources": "Sources git ({{count}})",
