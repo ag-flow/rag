@@ -99,7 +99,12 @@ class HarpocrateClientProvider:
         self._clients = clients
         self._clients_by_name = clients_by_name
         self._default_name = next(
-            (v.api_key_id for v in vaults if v.is_default),
+            # Nom du coffre (pas l'api_key_id) : c'est ce que promet le nom de la
+            # méthode `get_default_vault_name`, et ce dont `source_webhooks` a besoin
+            # pour `get_by_name`. Les consommateurs qui bâtissent des refs via
+            # `build_ref` → `get_client` restent OK car `get_client` est indexé sur
+            # le nom du coffre autant que sur l'api_key_id.
+            (v.name for v in vaults if v.is_default),
             None,
         )
         if self._default_name is None:
