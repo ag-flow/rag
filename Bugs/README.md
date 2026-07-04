@@ -2,7 +2,10 @@
 
 Audit complet de l'application (backend, frontend, infra) mené le **2026-07-03**. Chaque bug est documenté dans une fiche `BUG-NNN-*.md` : sévérité, complexité, fichiers concernés, scénario de défaillance concret, code fautif, piste de correction, et **modèle Claude recommandé** pour la correction.
 
-**Les bugs ne sont pas corrigés ici — uniquement documentés.**
+## Organisation des fichiers
+
+- `Bugs/BUG-NNN-*.md` — bugs encore ouverts (`🔴 à corriger`).
+- `Bugs/fixed/BUG-NNN-*.md` — bugs déjà corrigés et fusionnés dans `dev` (`🟢 corrigé`).
 
 ## Convention modèle de correction
 
@@ -13,11 +16,13 @@ Audit complet de l'application (backend, frontend, infra) mené le **2026-07-03*
 
 ## Statut
 
-Chaque fiche porte un champ `**Statut : 🔴 à corriger**` en tête. Une fois corrigée, la fiche est marquée `🟢 corrigé`.
+Chaque fiche porte un champ `**Statut**` en tête. Une fois corrigée, la fiche est marquée `🟢 corrigé` et déplacée dans `Bugs/fixed/`.
 
 ## Récapitulatif
 
 - **Total : 97 bugs** — 68 recommandés Sonnet, 29 recommandés Opus
+- **68/68 bugs Sonnet corrigés** (2026-07-04) — voir `Bugs/fixed/`
+- **29 bugs Opus encore ouverts** — voir la liste ci-dessous
 - Critiques : 4 (BUG-020, BUG-049, BUG-050, BUG-084)
 
 ## Index
