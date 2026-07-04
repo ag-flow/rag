@@ -1,6 +1,6 @@
 # BUG-055 — Contournement SSRF via des littéraux IPv6 mappés-IPv4 dans la validation d'URL webhook
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / services/webhook_validation
 - **Sévérité** : haute (sécurité — SSRF)
