@@ -354,10 +354,10 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
   const onSubmitCreate = (v: CreateValues) => {
     add.mutate(buildCreatePayload(v), {
       onSuccess: (created) => {
-        if (created.branch_warning) {
-          toast({ title: t("sources.add.branch_warning") });
-        }
-        toast({ title: t("sources.add.success") });
+        toast({
+          title: t("sources.add.success"),
+          ...(created.branch_warning && { description: t("sources.add.branch_warning") }),
+        });
         createForm.reset();
         onOpenChange(false);
       },
