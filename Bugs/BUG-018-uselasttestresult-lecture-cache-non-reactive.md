@@ -1,6 +1,6 @@
 # BUG-018 — `useLastTestResult` lit le cache React Query de façon non réactive
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / hooks (harpocrate)
 - **Sévérité** : basse

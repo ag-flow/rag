@@ -1,6 +1,6 @@
 # BUG-007 — Échec du lifespan au démarrage : les pools Postgres fuient (cleanup uniquement autour du yield)
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / main.py (lifespan)
 - **Sévérité** : basse

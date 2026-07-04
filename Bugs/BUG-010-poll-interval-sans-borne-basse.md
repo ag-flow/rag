@@ -1,6 +1,6 @@
 # BUG-010 — `sync_worker_poll_interval_seconds` sans borne basse : 0/négatif = busy loop
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / config + sync worker
 - **Sévérité** : basse

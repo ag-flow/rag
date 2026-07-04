@@ -1,6 +1,6 @@
 # BUG-008 — `run_backfill` : le paramètre `workspace_dsn_map` est documenté mais totalement ignoré
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / maintenance
 - **Sévérité** : moyenne

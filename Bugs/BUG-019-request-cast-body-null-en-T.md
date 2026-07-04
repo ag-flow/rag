@@ -1,6 +1,6 @@
 # BUG-019 — `request()` caste un body 2xx manquant/non-JSON en `T` : des null cachés derrière des types non-nullables
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / lib/api
 - **Sévérité** : basse

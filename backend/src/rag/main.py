@@ -124,104 +124,112 @@ def build_app(
             config_dsn=str(settings.database_url),
             admin_dsn=str(settings.rag_postgres_admin_url),
         )
-        await registry.start()
-        app.state.pools = registry
-        app.state.admin_dsn = str(settings.rag_postgres_admin_url)
+        sync_worker = None
+        try:
+            await registry.start()
+            app.state.pools = registry
+            app.state.admin_dsn = str(settings.rag_postgres_admin_url)
 
-        target_dir = migrations_dir or _default_migrations_dir()
-        await run_migrations(registry.config_pool, target_dir)
+            target_dir = migrations_dir or _default_migrations_dir()
+            await run_migrations(registry.config_pool, target_dir)
 
-        # Boot guard : si des workspaces existent en BDD, au moins un coffre
-        # Harpocrate doit être configuré (sinon impossible de résoudre les
-        # api_key_ref — service incohérent dès la première requête MCP).
-        async with registry.config_pool.acquire() as conn:
-            workspaces_count = await conn.fetchval("SELECT COUNT(*) FROM workspaces")
-            vault_count = await conn.fetchval("SELECT COUNT(*) FROM harpocrate_vaults")
-        if workspaces_count > 0 and vault_count == 0:
-            raise RuntimeError(
-                f"Incohérence : {workspaces_count} workspace(s) présent(s) mais "
-                "aucun coffre Harpocrate configuré. Recréer un coffre via "
-                "/ui/settings/harpocrate-vaults ou supprimer les workspaces."
+            # Boot guard : si des workspaces existent en BDD, au moins un coffre
+            # Harpocrate doit être configuré (sinon impossible de résoudre les
+            # api_key_ref — service incohérent dès la première requête MCP).
+            async with registry.config_pool.acquire() as conn:
+                workspaces_count = await conn.fetchval("SELECT COUNT(*) FROM workspaces")
+                vault_count = await conn.fetchval("SELECT COUNT(*) FROM harpocrate_vaults")
+            if workspaces_count > 0 and vault_count == 0:
+                raise RuntimeError(
+                    f"Incohérence : {workspaces_count} workspace(s) présent(s) mais "
+                    "aucun coffre Harpocrate configuré. Recréer un coffre via "
+                    "/ui/settings/harpocrate-vaults ou supprimer les workspaces."
+                )
+
+            # M9-T9 : boot scan — applique les migrations workspace manquantes sur
+            # toutes les bases référencées dans la table `workspaces`. Fail-fast :
+            # si une base est inaccessible ou si une migration plante, le lifespan
+            # remonte l'exception et le service refuse de démarrer. Les logs
+            # indiquent quel workspace a échoué (cf. apply_pending_for_all_workspaces).
+            await apply_pending_for_all_workspaces(registry.config_pool)
+
+            # Le service Harpocrate est créé ici (et non dans la factory) pour que
+            # les tests qui injectent un `resolver_factory` stub bénéficient quand
+            # même du service + du seed env (rétrocompat).
+            app.state.harpocrate_vaults_service = HarpocrateVaultsService(settings)
+
+            # Le `HarpocrateClientProvider` est branché en `app.state` AVANT le
+            # resolver_factory pour que tous les sites (routers, worker, OidcService)
+            # puissent appeler `await app.state.client_provider.get_default_vault_name()`,
+            # même quand un test injecte un `resolver_factory` stub.
+            app.state.client_provider = _build_client_provider(settings, app)
+
+            # La factory par défaut retourne un `SecretResolver` qui consomme
+            # `app.state.client_provider`. Les factories stub (tests) peuvent
+            # retourner un resolver arbitraire ; `client_provider` reste attaché
+            # à `app.state` indépendamment.
+            app.state.resolver = resolver_factory(settings, app)
+
+            app.state.oidc = OidcService(
+                config_pool=registry.config_pool,
+                secret_resolver=app.state.resolver,
+                client_provider=app.state.client_provider,
+                public_url=str(settings.rag_public_url).rstrip("/"),
+            )
+            app.state.public_url = str(settings.rag_public_url).rstrip("/")
+
+            app.state.local_auth = LocalAuthService(
+                pool=registry.config_pool,
+                ttl_seconds=settings.rag_local_session_ttl_seconds,
             )
 
-        # M9-T9 : boot scan — applique les migrations workspace manquantes sur
-        # toutes les bases référencées dans la table `workspaces`. Fail-fast :
-        # si une base est inaccessible ou si une migration plante, le lifespan
-        # remonte l'exception et le service refuse de démarrer. Les logs
-        # indiquent quel workspace a échoué (cf. apply_pending_for_all_workspaces).
-        await apply_pending_for_all_workspaces(registry.config_pool)
+            # M3 : recovery au boot (jobs running orphelins → error)
+            from rag.sync.recovery import reset_stale_running_jobs
 
-        # Le service Harpocrate est créé ici (et non dans la factory) pour que
-        # les tests qui injectent un `resolver_factory` stub bénéficient quand
-        # même du service + du seed env (rétrocompat).
-        app.state.harpocrate_vaults_service = HarpocrateVaultsService(settings)
+            await reset_stale_running_jobs(registry.config_pool)
 
-        # Le `HarpocrateClientProvider` est branché en `app.state` AVANT le
-        # resolver_factory pour que tous les sites (routers, worker, OidcService)
-        # puissent appeler `await app.state.client_provider.get_default_vault_name()`,
-        # même quand un test injecte un `resolver_factory` stub.
-        app.state.client_provider = _build_client_provider(settings, app)
+            # M4a : démarre le sync worker avec RealIndexer (remplace NoOpIndexer)
+            # M4b : indexer aussi exposé sur app.state pour le router push synchrone
+            from rag.indexer.real import RealIndexer
+            from rag.services.job_log_bus import JobLogBus
+            from rag.sync.repo_storage import RepoStorage
+            from rag.sync.worker import SyncWorker
 
-        # La factory par défaut retourne un `SecretResolver` qui consomme
-        # `app.state.client_provider`. Les factories stub (tests) peuvent
-        # retourner un resolver arbitraire ; `client_provider` reste attaché
-        # à `app.state` indépendamment.
-        app.state.resolver = resolver_factory(settings, app)
+            indexer = RealIndexer(
+                config_pool=registry.config_pool,
+                pool_registry=registry,
+                secret_resolver=app.state.resolver,
+                client_provider=app.state.client_provider,
+            )
+            app.state.indexer = indexer
+            app.state.apikey_cache = ApiKeyCache()
+            app.state.job_log_bus = JobLogBus()
+            _mcp_dispatcher.set_app_state(app.state)
 
-        app.state.oidc = OidcService(
-            config_pool=registry.config_pool,
-            secret_resolver=app.state.resolver,
-            client_provider=app.state.client_provider,
-            public_url=str(settings.rag_public_url).rstrip("/"),
-        )
-        app.state.public_url = str(settings.rag_public_url).rstrip("/")
-
-        app.state.local_auth = LocalAuthService(
-            pool=registry.config_pool,
-            ttl_seconds=settings.rag_local_session_ttl_seconds,
-        )
-
-        # M3 : recovery au boot (jobs running orphelins → error)
-        from rag.sync.recovery import reset_stale_running_jobs
-
-        await reset_stale_running_jobs(registry.config_pool)
-
-        # M4a : démarre le sync worker avec RealIndexer (remplace NoOpIndexer)
-        # M4b : indexer aussi exposé sur app.state pour le router push synchrone
-        from rag.indexer.real import RealIndexer
-        from rag.services.job_log_bus import JobLogBus
-        from rag.sync.repo_storage import RepoStorage
-        from rag.sync.worker import SyncWorker
-
-        indexer = RealIndexer(
-            config_pool=registry.config_pool,
-            pool_registry=registry,
-            secret_resolver=app.state.resolver,
-            client_provider=app.state.client_provider,
-        )
-        app.state.indexer = indexer
-        app.state.apikey_cache = ApiKeyCache()
-        app.state.job_log_bus = JobLogBus()
-        _mcp_dispatcher.set_app_state(app.state)
-
-        webhook_secret: str | None = (
-            settings.rag_webhook_secret.get_secret_value()
-            if settings.rag_webhook_secret
-            else None
-        )
-        sync_worker = SyncWorker(
-            config_pool=registry.config_pool,
-            storage=RepoStorage(root=settings.sync_repos_root),
-            indexer=indexer,
-            resolver=app.state.resolver,
-            client_provider=app.state.client_provider,
-            poll_interval_seconds=settings.sync_worker_poll_interval_seconds,
-            default_sync_interval_seconds=settings.sync_default_interval_seconds,
-            job_log_bus=app.state.job_log_bus,
-            webhook_secret=webhook_secret,
-        )
-        await sync_worker.start()
-        app.state.sync_worker = sync_worker
+            webhook_secret: str | None = (
+                settings.rag_webhook_secret.get_secret_value()
+                if settings.rag_webhook_secret
+                else None
+            )
+            sync_worker = SyncWorker(
+                config_pool=registry.config_pool,
+                storage=RepoStorage(root=settings.sync_repos_root),
+                indexer=indexer,
+                resolver=app.state.resolver,
+                client_provider=app.state.client_provider,
+                poll_interval_seconds=settings.sync_worker_poll_interval_seconds,
+                default_sync_interval_seconds=settings.sync_default_interval_seconds,
+                job_log_bus=app.state.job_log_bus,
+                webhook_secret=webhook_secret,
+            )
+            await sync_worker.start()
+            app.state.sync_worker = sync_worker
+        except BaseException:
+            log.error("app.lifespan.startup_failed", exc_info=True)
+            if sync_worker is not None:
+                await sync_worker.stop()
+            await registry.close_all()
+            raise
 
         log.info("app.lifespan.ready")
         try:

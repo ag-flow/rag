@@ -1,6 +1,6 @@
 # BUG-016 — `useJobLogs` ne gère jamais la fermeture du WebSocket : statut de job bloqué sur « running » à jamais
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / hooks
 - **Sévérité** : moyenne
