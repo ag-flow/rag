@@ -21,9 +21,11 @@ Chaque fiche porte un champ `**Statut**` en tête. Une fois corrigée, la fiche 
 ## Récapitulatif
 
 - **Total : 97 bugs** — 68 recommandés Sonnet, 29 recommandés Opus
-- **68/68 bugs Sonnet corrigés** (2026-07-04) — voir `Bugs/fixed/`
-- **29 bugs Opus encore ouverts** — voir la liste ci-dessous
-- Critiques : 4 (BUG-020, BUG-049, BUG-050, BUG-084)
+- **96/97 corrigés** (2026-07-04) — voir `Bugs/fixed/`
+  - 68/68 Sonnet ✅
+  - 28/29 Opus ✅
+- **1 bug encore ouvert** : **BUG-082** (`CleaningOptionsPanel` jamais monté) — non corrigé volontairement : câbler le panneau provoquerait un 422 à chaque sauvegarde (le backend `_validate_extras` interdit ces clés pour les stratégies `paragraph`/`markdown`, et les options de nettoyage ne sont lues que par le moteur `structured` via une table `chunking_strategies.params` sans endpoint admin d'écriture). Débloquer nécessite une évolution backend (étendre la validation ou exposer un endpoint de params structured).
+- Critiques : 4, tous corrigés (BUG-020, BUG-049, BUG-050, BUG-084)
 
 ## Index
 
