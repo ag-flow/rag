@@ -1,6 +1,6 @@
 # BUG-048 — La récupération au crash orpheline les lignes de payload push/delete et perd silencieusement les documents pushés
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / sync/recovery + sync/executor
 - **Sévérité** : basse
