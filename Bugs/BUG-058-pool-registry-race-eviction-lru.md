@@ -1,6 +1,6 @@
 # BUG-058 — `WorkspacePoolRegistry.get_workspace_pool` : race check-then-create fuit des pools ; l'éviction LRU peut fermer un pool en usage actif
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / db/pool
 - **Sévérité** : moyenne

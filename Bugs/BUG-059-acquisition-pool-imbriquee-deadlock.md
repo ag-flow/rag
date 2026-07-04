@@ -1,6 +1,6 @@
 # BUG-059 — Acquisition de pool imbriquée en tenant une connexion → deadlock par épuisement de pool
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / services/workspace_apikeys
 - **Sévérité** : moyenne

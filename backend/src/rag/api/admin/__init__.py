@@ -146,6 +146,7 @@ def build_admin_router() -> APIRouter:
             JOIN workspaces w ON w.id = k.workspace_id
             WHERE w.name = $1
               AND k.revoked_at IS NULL
+              AND k.api_key_ref <> 'pending'
               AND (k.rotated_at IS NULL OR k.rotated_at > now() - interval '72 hours')
             ORDER BY (k.rotated_at IS NOT NULL), k.created_at DESC
             LIMIT 1
@@ -800,7 +801,6 @@ def build_admin_router() -> APIRouter:
                     req=body,
                     vault_svc=request.app.state.harpocrate_vaults_service,
                     client_provider=request.app.state.client_provider,
-                    config_pool=pool,
                 )
             except ValueError as exc:
                 raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
@@ -821,7 +821,6 @@ def build_admin_router() -> APIRouter:
                 key_id=str(key_id),
                 vault_svc=request.app.state.harpocrate_vaults_service,
                 client_provider=request.app.state.client_provider,
-                config_pool=pool,
             )
         if result is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "api key not found")
