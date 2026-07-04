@@ -35,8 +35,8 @@ async def get_index_status(
         workspace_id,
     )
     src = await config_pool.fetchrow(
-        "SELECT last_indexed_at, next_sync_at FROM workspace_sources "
-        "WHERE workspace_id = $1 LIMIT 1",
+        "SELECT MAX(last_indexed_at) AS last_indexed_at, MIN(next_sync_at) AS next_sync_at "
+        "FROM workspace_sources WHERE workspace_id = $1",
         workspace_id,
     )
     job = await config_pool.fetchrow(
