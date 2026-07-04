@@ -31,9 +31,6 @@ export const workspacesApi = {
 
   delete: (name: string) => api.delete<void>(`${BASE}/${name}`),
 
-  rotateApiKey: (name: string) =>
-    api.post<ApiKeyRotateResponse>(`${BASE}/${name}/rotate-apikey`, {}),
-
   revealApiKey: (name: string) => api.get<ApiKeyRotateResponse>(`${BASE}/${name}/apikey`),
 
   reindex: (name: string) => api.post<void>(`${BASE}/${name}/reindex?confirm=true`, {}),

@@ -1,6 +1,6 @@
 # BUG-014 — `rotateApiKey` appelle un endpoint backend qui n'existe pas
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / lib + hooks (code latent)
 - **Sévérité** : moyenne
