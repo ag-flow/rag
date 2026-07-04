@@ -40,7 +40,7 @@
         }
     }
 
-    handle /mcp {
+    handle /mcp* {
         reverse_proxy backend:8000
     }
 
