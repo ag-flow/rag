@@ -1,6 +1,6 @@
 # BUG-035 — Une ref vault explicite pour `auth_ref` exige à tort un vault par défaut
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / sync/executor
 - **Sévérité** : moyenne
