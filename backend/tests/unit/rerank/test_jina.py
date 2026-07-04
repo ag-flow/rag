@@ -40,8 +40,8 @@ async def test_jina_returns_sorted_indices() -> None:
         api_key="test-key",
         transport=_mock_transport(handler),
     )
-    indices = await provider.rerank(query="q", documents=["a", "b", "c"], top_k=3)
-    assert indices == [2, 0, 1]
+    results = await provider.rerank(query="q", documents=["a", "b", "c"], top_k=3)
+    assert results == [(2, 0.99), (0, 0.50), (1, 0.10)]
 
 
 @pytest.mark.asyncio
@@ -54,8 +54,8 @@ async def test_jina_empty_documents() -> None:
         api_key="test-key",
         transport=_mock_transport(handler),
     )
-    indices = await provider.rerank(query="q", documents=[], top_k=5)
-    assert indices == []
+    results = await provider.rerank(query="q", documents=[], top_k=5)
+    assert results == []
 
 
 @pytest.mark.asyncio
@@ -78,8 +78,8 @@ async def test_jina_respects_top_n() -> None:
         api_key="test-key",
         transport=_mock_transport(handler),
     )
-    indices = await provider.rerank(query="q", documents=["a", "b", "c"], top_k=2)
-    assert indices == [1, 0]
+    results = await provider.rerank(query="q", documents=["a", "b", "c"], top_k=2)
+    assert results == [(1, 0.99), (0, 0.50)]
 
 
 @pytest.mark.asyncio

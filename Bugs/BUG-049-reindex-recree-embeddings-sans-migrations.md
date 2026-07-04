@@ -1,6 +1,6 @@
 # BUG-049 — Reindex (changement d'indexeur) recrée `embeddings` sans les migrations workspace → schéma définitivement divergent
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / services/jobs + db
 - **Sévérité** : **critique**

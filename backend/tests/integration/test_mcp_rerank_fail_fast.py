@@ -1,8 +1,9 @@
-"""E2E tests : fail-fast MCP search quand le reranker est injoignable.
+"""E2E tests : fallback dégradé MCP search quand le reranker est injoignable.
 
-Vérifie que `RerankProviderUnreachable` se propage jusqu'à l'appelant sans
-être absorbée par `_search_one` ou `search()`. Conforme au contrat fail-fast
-défini dans le plan M8.
+Vérifie que `RerankProviderError` (ici `RerankProviderUnreachable`) N'EST PAS
+propagée jusqu'à l'appelant : `_search_one` retombe sur l'ordre vector/RRF non
+reranké et la recherche reste disponible (BUG-002). Remplace l'ancien contrat
+fail-fast du plan M8, invalidé par BUG-002.
 """
 from __future__ import annotations
 
@@ -60,12 +61,12 @@ class _StubResolver:
 
 
 @pytest.mark.asyncio
-async def test_rerank_provider_unreachable_propagates(
+async def test_rerank_provider_unreachable_falls_back_to_base_order(
     migrated: asyncpg.Pool,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Quand le reranker lève RerankProviderUnreachable, l'exception est
-    propagée jusqu'à l'appelant — pas d'absorption silencieuse."""
+    """Quand le reranker lève RerankProviderUnreachable, la recherche ne plante
+    pas : elle retombe sur l'ordre vector/RRF non reranké (BUG-002)."""
     async with migrated.acquire() as conn:
         ws_id: UUID = await seed_workspace(
             conn,
@@ -113,19 +114,21 @@ async def test_rerank_provider_unreachable_propagates(
     )
     rerank_factory: Any = MagicMock(return_value=failing_reranker)
 
-    with pytest.raises(RerankProviderUnreachable, match="cohere 503"):
-        await search(
-            refs=[McpWorkspaceRef(name=_WS_NAME, api_key=_API_KEY)],
-            query="test query",
-            top_k=2,
-            min_score=0.0,
-            config_pool=migrated,
-            pool_registry=registry,
-            apikey_cache=ApiKeyCache(),
-            secret_resolver=_StubResolver(),
-            provider_factory=provider_factory,
-            rerank_factory=rerank_factory,
-        )
+    hits = await search(
+        refs=[McpWorkspaceRef(name=_WS_NAME, api_key=_API_KEY)],
+        query="test query",
+        top_k=2,
+        min_score=0.0,
+        config_pool=migrated,
+        pool_registry=registry,
+        apikey_cache=ApiKeyCache(),
+        secret_resolver=_StubResolver(),
+        provider_factory=provider_factory,
+        rerank_factory=rerank_factory,
+    )
 
     # Vérifie que rerank() a bien été appelé (pas skippé)
     failing_reranker.rerank.assert_called_once()
+
+    # Fallback : les hits sont renvoyés dans l'ordre vector/RRF d'origine.
+    assert [h.path for h in hits] == ["doc_a.md", "doc_b.md"]

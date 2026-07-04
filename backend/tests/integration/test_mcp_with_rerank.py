@@ -71,10 +71,13 @@ def _make_embedding_provider_factory() -> Callable[..., Any]:
     return lambda **_: stub
 
 
-def _make_rerank_factory(indices: list[int]) -> tuple[Callable[..., Any], MagicMock]:
-    """Retourne (factory, stub_reranker) — stub_reranker.rerank() retourne `indices`."""
+def _make_rerank_factory(
+    results: list[tuple[int, float]],
+) -> tuple[Callable[..., Any], MagicMock]:
+    """Retourne (factory, stub_reranker) — stub_reranker.rerank() retourne les
+    paires (index, relevance_score) `results`."""
     stub = MagicMock(spec=RerankProvider)
-    stub.rerank = AsyncMock(return_value=indices)
+    stub.rerank = AsyncMock(return_value=results)
     factory = MagicMock(return_value=stub)
     return factory, stub
 
@@ -163,8 +166,9 @@ async def test_rerank_changes_order_when_configured(
     ws_with_rerank: tuple[asyncpg.Pool, UUID, WorkspacePoolRegistry],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Quand rerank_config est présente, l'ordre des hits suit les indices retournés
-    par le reranker — ici [2, 0, 1] → Content C, Content A, Content B."""
+    """Quand rerank_config est présente, l'ordre des hits suit les paires
+    retournées par le reranker — ici (2,·),(0,·),(1,·) → Content C, Content A,
+    Content B — et `score` porte le relevance_score du reranker (BUG-012)."""
     config_pool, _ws_id, registry = ws_with_rerank
 
     monkeypatch.setattr(
@@ -172,8 +176,8 @@ async def test_rerank_changes_order_when_configured(
         AsyncMock(return_value=list(_FAKE_HITS)),
     )
 
-    # reranker retourne [2, 0, 1] → doc_c, doc_a, doc_b
-    rerank_factory, stub_reranker = _make_rerank_factory([2, 0, 1])
+    # reranker retourne (2,0.95),(0,0.80),(1,0.10) → doc_c, doc_a, doc_b
+    rerank_factory, stub_reranker = _make_rerank_factory([(2, 0.95), (0, 0.80), (1, 0.10)])
 
     hits = await search(
         refs=[McpWorkspaceRef(name=_WS_NAME, api_key=_API_KEY)],
@@ -192,6 +196,8 @@ async def test_rerank_changes_order_when_configured(
     assert hits[0].path == "doc_c.md", f"expected doc_c.md first, got {hits[0].path}"
     assert hits[1].path == "doc_a.md", f"expected doc_a.md second, got {hits[1].path}"
     assert hits[2].path == "doc_b.md", f"expected doc_b.md third, got {hits[2].path}"
+    # score écrasé par le relevance_score du reranker (ordre monotone décroissant)
+    assert [h.score for h in hits] == [0.95, 0.80, 0.10]
     stub_reranker.rerank.assert_called_once()
 
 
@@ -248,7 +254,7 @@ async def test_rerank_skipped_for_singleton(
         AsyncMock(return_value=single_hit),
     )
 
-    rerank_factory, stub_reranker = _make_rerank_factory([0])
+    rerank_factory, stub_reranker = _make_rerank_factory([(0, 0.0)])
 
     hits = await search(
         refs=[McpWorkspaceRef(name=_WS_NAME, api_key=_API_KEY)],

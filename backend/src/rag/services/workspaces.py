@@ -13,12 +13,11 @@ from rag.api.errors import (
     WorkspaceNotFound,
 )
 from rag.db.helpers import fetch_all, fetch_one, transaction
-from rag.db.workspace_migrations import apply_pending
 from rag.db.workspace_schema import (
-    create_embeddings_table,
     create_workspace_database,
     derive_workspace_dsn,
     drop_workspace_database,
+    provision_workspace_schema,
 )
 from rag.schemas.admin import WorkspaceCreateRequest, WorkspacePatchRequest
 from rag.secrets.refs import build_ref
@@ -147,8 +146,7 @@ async def create_workspace(
     # 3. + 4. DDL workspace, avec compensation si erreur
     try:
         await create_workspace_database(admin_dsn, rag_base)
-        await create_embeddings_table(rag_cnx, dimension=dimension)
-        await apply_pending(rag_cnx)
+        await provision_workspace_schema(rag_cnx, dimension=dimension)
     except Exception:
         log.exception(
             "workspace.create.ddl_failed_rolling_back",

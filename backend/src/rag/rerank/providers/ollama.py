@@ -9,6 +9,7 @@ from rag.rerank.protocol import (
     RerankAuthError,
     RerankProviderUnreachable,
     RerankRateLimited,
+    RerankResult,
 )
 
 log = structlog.get_logger(__name__)
@@ -17,9 +18,16 @@ _TIMEOUT = 30.0
 
 
 class OllamaRerankProvider:
-    """Reranker Ollama local (depuis Ollama 0.4+).
+    """Reranker via un serveur compatible Ollama exposant ``POST /api/rerank``.
 
-    Format de réponse de référence (à adapter si l'API Ollama évolue) :
+    ATTENTION (BUG-006) : Ollama **upstream n'expose PAS** d'endpoint natif de
+    rerank — la feature request est ouverte de longue date et un Ollama standard
+    répond 404 sur ``/api/rerank``. Ce provider cible donc un **fork** ou un
+    **serveur tiers** compatible Ollama qui implémente cet endpoint. Un Ollama
+    « embeddings only » ne convient pas : configurer plutôt un provider rerank
+    dédié (cohere / jina / voyage / dashscope).
+
+    Format de réponse attendu :
         {"results": [{"index": int, "relevance_score": float}, ...]}
     """
 
@@ -36,7 +44,7 @@ class OllamaRerankProvider:
 
     async def rerank(
         self, *, query: str, documents: list[str], top_k: int,
-    ) -> list[int]:
+    ) -> list[RerankResult]:
         if not documents:
             return []
         url = f"{self._base_url}/api/rerank"
@@ -61,6 +69,15 @@ class OllamaRerankProvider:
             raise RerankAuthError(f"ollama auth: HTTP {resp.status_code}")
         if resp.status_code == 429:
             raise RerankRateLimited("ollama rate limited (429)")
+        if resp.status_code == 404:
+            # Cas le plus fréquent (BUG-006) : Ollama upstream n'implémente pas
+            # /api/rerank. Message actionnable plutôt qu'un « unexpected 404 ».
+            raise RerankProviderUnreachable(
+                f"ollama /api/rerank introuvable (HTTP 404) à {url} : cet endpoint "
+                "n'existe pas dans Ollama upstream. Un fork ou serveur tiers "
+                "compatible exposant /api/rerank est requis, ou configurez un "
+                "provider rerank dédié (cohere/jina/voyage/dashscope)."
+            )
         if 500 <= resp.status_code < 600:
             raise RerankProviderUnreachable(f"ollama 5xx: HTTP {resp.status_code}")
         if resp.status_code >= 400:
@@ -75,5 +92,7 @@ class OllamaRerankProvider:
         results = sorted(
             results, key=lambda r: float(r.get("relevance_score", 0.0)), reverse=True,
         )
-        indices = [int(r["index"]) for r in results]
-        return indices[:top_k]
+        pairs: list[RerankResult] = [
+            (int(r["index"]), float(r.get("relevance_score", 0.0))) for r in results
+        ]
+        return pairs[:top_k]

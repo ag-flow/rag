@@ -18,7 +18,12 @@ from rag.db.pool import WorkspacePoolRegistry
 from rag.db.workspace_search import hybrid_search, vector_search
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
-from rag.rerank.protocol import RerankProvider, RerankProviderUnreachable
+from rag.rerank.protocol import (
+    RerankProvider,
+    RerankProviderError,
+    RerankProviderUnreachable,
+    RerankResult,
+)
 from rag.rerank.providers.factory import make_rerank_provider as _make_rerank_default
 from rag.schemas.mcp import MultiWorkspaceRequest, SearchHit, SingleWorkspaceRequest
 from rag.secrets.refs import build_ref, is_vault_ref
@@ -267,8 +272,11 @@ async def search(
 ) -> list[SearchHit]:
     """Orchestre la recherche MCP multi-workspace.
 
-    Fail-fast : la première exception remontée par un workspace propage
-    via `asyncio.gather` et annule les autres tasks. Aucun résultat partiel.
+    Fail-fast : la première exception remontée par un workspace (auth, embedding,
+    accès DB…) propage via `asyncio.gather` et annule les autres tasks. Aucun
+    résultat partiel. Exception : un échec du provider rerank
+    (`RerankProviderError`) ne fait PAS échouer la recherche — `_search_one`
+    retombe sur l'ordre vector/RRF non reranké (BUG-002).
 
     `provider_factory` par défaut `None` → lookup dynamique de
     `make_provider` au runtime (permet monkey-patching côté tests
@@ -302,20 +310,22 @@ async def search(
     return [hit for ws_result in results for hit in ws_result.hits]
 
 
-def _validate_rerank_indices(indices: list[int], *, n_documents: int) -> list[int]:
-    """Filtre les indices hors bornes ou dupliqués renvoyés par un reranker.
+def _validate_rerank_results(
+    results: list[RerankResult], *, n_documents: int
+) -> list[RerankResult]:
+    """Filtre les paires (index, score) hors bornes ou dupliquées d'un reranker.
 
     Le protocole `RerankProvider` promet des indices dans range(n_documents),
     mais rien ne garantit qu'un provider (bug upstream, self-hosted buggé,
     changement d'API) respecte ce contrat. Un indice hors bornes provoquerait
     un IndexError ; un doublon dupliquerait silencieusement un hit.
     """
-    valid: list[int] = []
+    valid: list[RerankResult] = []
     seen: set[int] = set()
     dropped: list[int] = []
-    for i in indices:
+    for i, score in results:
         if 0 <= i < n_documents and i not in seen:
-            valid.append(i)
+            valid.append((i, score))
             seen.add(i)
         else:
             dropped.append(i)
@@ -325,10 +335,10 @@ def _validate_rerank_indices(indices: list[int], *, n_documents: int) -> list[in
             dropped=dropped,
             n_documents=n_documents,
         )
-    if indices and not valid:
+    if results and not valid:
         raise RerankProviderUnreachable(
             "rerank provider returned no valid indices "
-            f"(n_documents={n_documents}, indices={indices})"
+            f"(n_documents={n_documents}, results={results})"
         )
     return valid
 
@@ -419,17 +429,49 @@ async def _search_one(
             base_url=rerank_cfg["base_url"],
         )
         documents = [h.content for h in hits]
-        indices = await reranker.rerank(query=query, documents=documents, top_k=top_k)
-        indices = _validate_rerank_indices(indices, n_documents=len(documents))
-        hits = [hits[i] for i in indices]
-        log.info(
-            "mcp.rerank.applied",
-            workspace=ref.name,
-            pre_hits=len(documents),
-            post_hits=len(hits),
-            provider=rerank_cfg["provider"],
-            model=rerank_cfg["model"],
-        )
+        try:
+            results = await reranker.rerank(query=query, documents=documents, top_k=top_k)
+            results = _validate_rerank_results(results, n_documents=len(documents))
+        except RerankProviderError as exc:
+            # Fallback dégradé (BUG-002) : un échec provider (429 / timeout /
+            # auth / 5xx) ne doit pas propager en HTTP 500 ni — via asyncio.gather
+            # — annuler les autres workspaces d'une recherche multi. On conserve
+            # l'ordre vector/RRF (tronqué à top_k au retour) et on trace un
+            # avertissement plutôt que d'échouer la recherche.
+            log.warning(
+                "mcp.rerank.failed_fallback_to_base_order",
+                workspace=ref.name,
+                provider=rerank_cfg["provider"],
+                model=rerank_cfg["model"],
+                error=type(exc).__name__,
+                detail=str(exc),
+            )
+        else:
+            # Écrase `score` par le relevance_score du reranker (BUG-012) : la
+            # réponse est ordonnée par le reranker, donc `score` doit rester
+            # monotone avec cet ordre — sinon un tri/filtre client par score
+            # réintroduit l'ordre pré-rerank. Copie sans mutation en place.
+            hits = [
+                hits[i].model_copy(
+                    update={
+                        "score": rscore,
+                        "debug": (
+                            hits[i].debug.model_copy(update={"rerank_score": rscore})
+                            if hits[i].debug is not None
+                            else None
+                        ),
+                    }
+                )
+                for i, rscore in results
+            ]
+            log.info(
+                "mcp.rerank.applied",
+                workspace=ref.name,
+                pre_hits=len(documents),
+                post_hits=len(hits),
+                provider=rerank_cfg["provider"],
+                model=rerank_cfg["model"],
+            )
     elif rerank_cfg:
         log.debug(
             "mcp.rerank.skipped_singleton_or_empty",

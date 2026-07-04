@@ -1,6 +1,6 @@
 # BUG-002 — Les exceptions des providers rerank (429/timeout/auth) ne sont jamais capturées
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / rerank + services/mcp
 - **Sévérité** : haute

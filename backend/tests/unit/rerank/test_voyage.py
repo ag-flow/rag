@@ -31,8 +31,8 @@ async def test_voyage_returns_sorted_indices() -> None:
         model="rerank-2", api_key="test-key",
         transport=_mock_transport(handler),
     )
-    indices = await provider.rerank(query="q", documents=["a", "b", "c"], top_k=3)
-    assert indices == [1, 2, 0]
+    results = await provider.rerank(query="q", documents=["a", "b", "c"], top_k=3)
+    assert results == [(1, 0.95), (2, 0.80), (0, 0.40)]
 
 
 @pytest.mark.asyncio

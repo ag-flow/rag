@@ -1,6 +1,6 @@
 # BUG-012 — Après rerank, `SearchHit.score` porte toujours le score pré-rerank : trier par score annule le reranking
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / services/mcp + schemas/mcp + protocole rerank
 - **Sévérité** : basse

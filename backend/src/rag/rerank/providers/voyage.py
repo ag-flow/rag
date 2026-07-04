@@ -9,6 +9,7 @@ from rag.rerank.protocol import (
     RerankAuthError,
     RerankProviderUnreachable,
     RerankRateLimited,
+    RerankResult,
 )
 
 log = structlog.get_logger(__name__)
@@ -36,7 +37,7 @@ class VoyageRerankProvider:
 
     async def rerank(
         self, *, query: str, documents: list[str], top_k: int,
-    ) -> list[int]:
+    ) -> list[RerankResult]:
         if not documents:
             return []
         body: dict[str, Any] = {
@@ -72,4 +73,4 @@ class VoyageRerankProvider:
 
         data = resp.json()
         items = data.get("data", [])
-        return [int(r["index"]) for r in items]
+        return [(int(r["index"]), float(r.get("relevance_score", 0.0))) for r in items]
