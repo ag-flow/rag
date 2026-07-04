@@ -1,6 +1,6 @@
 # BUG-032 — Changer le provider/modèle d'embedding n'invalide jamais les embeddings existants : vecteurs périmés et mixtes
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / sync + indexer + db
 - **Sévérité** : haute

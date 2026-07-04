@@ -1,6 +1,6 @@
 # BUG-037 — Sélecteur de job « le plus ancien » trie par UUID aléatoire : pas de FIFO, famine possible
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / sync/executor + migration
 - **Sévérité** : moyenne

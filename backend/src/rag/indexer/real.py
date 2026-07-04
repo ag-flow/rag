@@ -106,6 +106,7 @@ class RealIndexer:
                 ctx=ctx,
                 strategy_override=strategy_override,
                 extra_metadata=extra_metadata or {},
+                indexer_used=indexer_used,
             )
         else:
             n_chunks = await self._index_legacy(
@@ -185,6 +186,7 @@ class RealIndexer:
         ctx: dict[str, Any],
         strategy_override: str | None,
         extra_metadata: Mapping[str, Any] = {},
+        indexer_used: str = "",
     ) -> int:
         routing = await load_routing(self._config_pool, workspace_id)
         strategy_name = resolve_strategy_name(
@@ -214,6 +216,21 @@ class RealIndexer:
             return 0
 
         existing = await load_existing_chunk_hashes(ws_pool, path)
+        # Si l'indexeur (provider/modèle) a changé depuis la dernière indexation
+        # de ce path, les vecteurs conservés appartiennent à un espace vectoriel
+        # incompatible : on force le ré-embed de tous les chunks en repartant
+        # d'un set vide (l'upsert met à jour les lignes existantes via ON
+        # CONFLICT et purge les hashes disparus). Cf. BUG-032.
+        stored_indexer = await self._stored_indexer_used(workspace_id, path)
+        if stored_indexer is not None and stored_indexer != indexer_used:
+            log.info(
+                "real_indexer.indexer_changed_reembed",
+                workspace_id=str(workspace_id),
+                path=path,
+                previous_indexer=stored_indexer,
+                current_indexer=indexer_used,
+            )
+            existing = set()
         plan = plan_children(existing, [h for h, _ in ordered])
         new_set = set(plan.new_hashes)
 
@@ -294,6 +311,16 @@ class RealIndexer:
             model=ctx["model"],
             api_key=api_key,
             base_url=ctx["base_url"],
+        )
+
+    async def _stored_indexer_used(self, workspace_id: UUID, path: str) -> str | None:
+        """Indexeur (provider/modèle) ayant produit l'indexation courante de
+        `path`, ou None si jamais indexé. Sert à détecter un changement de
+        modèle qui invaliderait les vecteurs conservés (BUG-032)."""
+        return await self._config_pool.fetchval(
+            "SELECT indexer_used FROM indexed_documents WHERE workspace_id=$1 AND path=$2",
+            workspace_id,
+            path,
         )
 
     async def _record_indexed_document(

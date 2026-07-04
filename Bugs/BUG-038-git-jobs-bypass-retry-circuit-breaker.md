@@ -1,6 +1,6 @@
 # BUG-038 — Les jobs git contournent entièrement la machinerie de retry/backoff et de circuit-breaker
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / sync/executor
 - **Sévérité** : moyenne

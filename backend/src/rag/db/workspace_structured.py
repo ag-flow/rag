@@ -124,11 +124,6 @@ async def upsert_structured(
         )
 
         key_to_id = await _upsert_sections(conn, path, parents)
-        await conn.execute(
-            "DELETE FROM sections WHERE path=$1 AND section_key <> ALL($2::text[])",
-            path,
-            current_keys,
-        )
 
         inserted = kept = 0
         for child in deduped:
@@ -163,6 +158,17 @@ async def upsert_structured(
                     child.chunk_hash,
                 )
                 kept += 1
+
+        # Supprimer les sections périmées seulement APRÈS que les enfants gardés
+        # aient été re-pointés vers leur nouveau section_id ci-dessus. Sinon le
+        # CASCADE FK (section→embeddings) détruirait des embeddings encore
+        # référencés par un chunk gardé dont la section parente a été renommée
+        # (BUG-051).
+        await conn.execute(
+            "DELETE FROM sections WHERE path=$1 AND section_key <> ALL($2::text[])",
+            path,
+            current_keys,
+        )
 
     result = {
         "inserted": inserted,
