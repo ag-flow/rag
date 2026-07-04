@@ -21,7 +21,7 @@ def test_single_request_accepts_minimal_payload() -> None:
     )
     assert req.workspace == "harpocrate"
     assert req.top_k == 5  # default
-    assert req.min_score == 0.7  # default
+    assert req.min_score == 0.3  # default (seuil permissif, cf. mcp_standard)
 
 
 def test_multi_request_accepts_workspaces_list() -> None:

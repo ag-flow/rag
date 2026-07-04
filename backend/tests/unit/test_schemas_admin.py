@@ -19,32 +19,29 @@ def test_workspace_create_valid_minimal() -> None:
     req = WorkspaceCreateRequest.model_validate(
         {
             "name": "workspace1",
-            "api_key_vault": "vault1",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",
-                "api_key": "sk-abc123",
+                "api_key_ref": "openai/embed-key",
             },
         }
     )
     assert req.name == "workspace1"
-    assert req.api_key_vault == "vault1"
     assert req.indexer.provider == "openai"
-    assert req.indexer.api_key == "sk-abc123"
+    assert req.indexer.api_key_ref == "openai/embed-key"
 
 
 def test_workspace_create_valid_ollama_no_api_key() -> None:
     req = WorkspaceCreateRequest.model_validate(
         {
             "name": "myws",
-            "api_key_vault": "vault1",
             "indexer": {
                 "provider": "ollama",
                 "model": "nomic-embed-text",
             },
         }
     )
-    assert req.indexer.api_key is None
+    assert req.indexer.api_key_ref is None
 
 
 def test_workspace_create_name_regex_rejects_uppercase() -> None:
@@ -52,7 +49,6 @@ def test_workspace_create_name_regex_rejects_uppercase() -> None:
         WorkspaceCreateRequest.model_validate(
             {
                 "name": "Harpocrate",
-                "api_key_vault": "vault1",
                 "indexer": {
                     "provider": "openai",
                     "model": "text-embedding-3-small",
@@ -66,7 +62,6 @@ def test_workspace_create_name_regex_rejects_leading_digit() -> None:
         WorkspaceCreateRequest.model_validate(
             {
                 "name": "1abc",
-                "api_key_vault": "vault1",
                 "indexer": {
                     "provider": "openai",
                     "model": "text-embedding-3-small",
@@ -81,7 +76,6 @@ def test_workspace_create_name_max_length_63() -> None:
         WorkspaceCreateRequest.model_validate(
             {
                 "name": long,
-                "api_key_vault": "vault1",
                 "indexer": {
                     "provider": "openai",
                     "model": "text-embedding-3-small",
@@ -95,11 +89,10 @@ def test_workspace_create_name_accepts_exactly_63_chars() -> None:
     req = WorkspaceCreateRequest.model_validate(
         {
             "name": name_63,
-            "api_key_vault": "vault1",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",
-                "api_key": "sk-test",
+                "api_key_ref": "openai/embed-key",
             },
         }
     )
@@ -111,11 +104,10 @@ def test_workspace_create_name_accepts_dash_and_underscore() -> None:
     req = WorkspaceCreateRequest.model_validate(
         {
             "name": "ag-flow_docker",
-            "api_key_vault": "vault1",
             "indexer": {
                 "provider": "openai",
                 "model": "text-embedding-3-small",
-                "api_key": "sk-test",
+                "api_key_ref": "openai/embed-key",
             },
         }
     )
@@ -127,7 +119,6 @@ def test_workspace_create_rejects_extra_fields() -> None:
         WorkspaceCreateRequest.model_validate(
             {
                 "name": "ws",
-                "api_key_vault": "vault1",
                 "indexer": {
                     "provider": "openai",
                     "model": "text-embedding-3-small",
@@ -155,18 +146,28 @@ def test_indexer_spec_api_key_ref_optional() -> None:
 # IndexerCreateSpec (création) -------------------------------------------------
 
 
-def test_indexer_create_spec_api_key_optional_for_ollama() -> None:
+def test_indexer_create_spec_api_key_ref_optional_for_ollama() -> None:
     spec = IndexerCreateSpec.model_validate(
         {"provider": "ollama", "model": "nomic-embed-text"}
     )
-    assert spec.api_key is None
+    assert spec.api_key_ref is None
 
 
-def test_indexer_create_spec_rejects_api_key_ref() -> None:
-    # api_key_ref n'est plus accepté à la création (extra="forbid")
+def test_indexer_create_spec_accepts_api_key_ref() -> None:
+    # api_key_ref (harpo_path d'une provider_api_key existante) est le mécanisme
+    # de clé à la création.
+    spec = IndexerCreateSpec.model_validate(
+        {"provider": "openai", "model": "text-embedding-3-small", "api_key_ref": "openai/k"}
+    )
+    assert spec.api_key_ref == "openai/k"
+
+
+def test_indexer_create_spec_rejects_plaintext_api_key() -> None:
+    # L'ancien champ `api_key` en clair n'est plus accepté (extra="forbid") :
+    # la clé passe par référence Harpocrate via api_key_ref.
     with pytest.raises(ValidationError):
         IndexerCreateSpec.model_validate(
-            {"provider": "openai", "model": "text-embedding-3-small", "api_key_ref": "k"}
+            {"provider": "openai", "model": "text-embedding-3-small", "api_key": "sk-abc123"}
         )
 
 
@@ -197,7 +198,8 @@ def test_source_create_git_minimal() -> None:
         {
             "name": "harpocrate",
             "type": "git",
-            "api_key_vault": "rag",
+            "auth_type": "token",
+            "auth_ref": "rag/github-pat",
             "config": {
                 "url": "https://github.com/gael/harpocrate",
                 "branch": "main",
@@ -209,7 +211,8 @@ def test_source_create_git_minimal() -> None:
     assert req.type == "git"
     assert req.config["url"] == "https://github.com/gael/harpocrate"
     assert req.name == "harpocrate"
-    assert req.api_key_vault == "rag"
+    assert req.auth_type == "token"
+    assert req.auth_ref == "rag/github-pat"
 
 
 def test_source_create_rejects_non_git_type() -> None:
