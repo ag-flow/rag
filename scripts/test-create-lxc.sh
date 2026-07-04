@@ -375,12 +375,16 @@ pct push "${CREATED_CTID}" "${ENV_GIT}" /root/.env.git \
 pct exec "${CREATED_CTID}" -- chmod 600 /root/.env.git
 log "  .env.git posé dans /root/.env.git"
 
-# Construire l'URL HTTPS avec token
-GIT_URL="https://${TOKEN}@github.com/${GIT_REPO}.git"
-GIT_URL_SAFE="https://***@github.com/${GIT_REPO}.git"
+# URL de clone SANS token (le PAT n'est jamais interpolé dans la commande
+# pct exec → invisible dans `ps` de l'hôte et jamais persisté dans .git/config).
+GIT_URL_SAFE="https://github.com/${GIT_REPO}.git"
 
 log "  Clone de ${GIT_URL_SAFE} (branche ${GIT_BRANCH}) dans ${APP_DIR}..."
 
+# Le token est lu côté LXC depuis /root/.env.git (déjà poussé, chmod 600) et
+# fourni à git via un credential.helper éphémère passé en `-c` : il n'est ni
+# écrit dans le remote origin (URL sans token), ni exposé dans la liste des
+# processus de l'hôte Proxmox.
 pct exec "${CREATED_CTID}" -- bash -c "
 set -e
 
@@ -391,7 +395,10 @@ fi
 
 mkdir -p \"\$(dirname '${APP_DIR}')\"
 cd \"\$(dirname '${APP_DIR}')\"
-git clone --branch '${GIT_BRANCH}' '${GIT_URL}' \"\$(basename '${APP_DIR}')\"
+
+export GH_TOKEN=\$(grep '^TOKEN=' /root/.env.git | head -1 | cut -d= -f2- | tr -d '[:space:]')
+git -c credential.helper='!f() { echo username=x-access-token; echo \"password=\$GH_TOKEN\"; }; f' \\
+    clone --branch '${GIT_BRANCH}' 'https://github.com/${GIT_REPO}.git' \"\$(basename '${APP_DIR}')\"
 echo '  -> Clone terminé'
 " || fatal "git clone a échoué dans le LXC ${CREATED_CTID}"
 

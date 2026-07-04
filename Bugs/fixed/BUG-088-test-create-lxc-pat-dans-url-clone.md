@@ -1,6 +1,13 @@
 # BUG-088 — `test-create-lxc.sh` : PAT GitHub embarqué dans l'URL de clone — persisté dans `.git/config` et visible dans `ps`
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
+
+> Résolution : l'URL de clone est désormais **sans token**
+> (`https://github.com/<repo>.git`). Le PAT est lu côté LXC depuis
+> `/root/.env.git` (déjà poussé, chmod 600) et fourni à git via un
+> `credential.helper` éphémère passé en `-c`. Résultat : le token n'apparaît
+> plus dans la ligne de commande `pct exec` (invisible dans `ps` de l'hôte) et
+> n'est jamais persisté dans le `remote origin` de `.git/config`.
 
 - **Zone** : infra / scripts
 - **Sévérité** : moyenne (sécurité — fuite de PAT scope `repo`)
