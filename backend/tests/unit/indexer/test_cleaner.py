@@ -122,8 +122,20 @@ class TestStripDecorativeSeparators:
     def test_removes_triple_star(self):
         assert "***" not in strip_decorative_separators("before\n\n***\n\nafter")
 
-    def test_removes_triple_tilde(self):
-        assert "~~~" not in strip_decorative_separators("before\n\n~~~\n\nafter")
+    def test_preserves_tilde_fence_delimiter(self):
+        # ~~~ est un délimiteur de fence, pas un séparateur décoratif (BUG-039)
+        assert "~~~" in strip_decorative_separators("before\n\n~~~\n\nafter")
+
+    def test_preserves_separators_inside_fence(self):
+        text = "prose\n\n~~~\n---\n===\n~~~\n\nend"
+        result = strip_decorative_separators(text)
+        assert "---" in result
+        assert "===" in result
+
+    def test_preserves_yaml_frontmatter_delimiters(self):
+        text = "---\ntitle: doc\n---\n\nbody"
+        result = strip_decorative_separators(text)
+        assert result.startswith("---\ntitle: doc\n---")
 
     def test_removes_long_underscore(self):
         assert "___" not in strip_decorative_separators("before\n\n___\n\nafter")

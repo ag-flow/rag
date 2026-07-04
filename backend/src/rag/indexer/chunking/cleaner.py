@@ -30,24 +30,54 @@ def clean_content_text(text: str) -> str:
     return text
 
 
-_SEP_LINE_RE = re.compile(r"^[ \t]*[-=*~_]{3,}[ \t]*$")
+# `~~~` est exclu : c'est un délimiteur de fence de code (géré par scan_fences),
+# jamais un séparateur décoratif. Le retirer casserait les régions fencées
+# (BUG-039).
+_SEP_LINE_RE = re.compile(r"^[ \t]*[-=*_]{3,}[ \t]*$")
+_FRONTMATTER_DELIM_RE = re.compile(r"^[ \t]*---[ \t]*$")
+_FRONTMATTER_CLOSE = ("---", "...")
 
 
 def _is_separator_line(line: str) -> bool:
     return bool(_SEP_LINE_RE.match(line))
 
 
-def strip_decorative_separators(text: str) -> str:
-    """Supprime les lignes séparatrices décoratives (---, ===, ***, ~~~, ___).
+def _frontmatter_end(lines: list[str]) -> int:
+    """Index (exclusif) de fin du frontmatter YAML, ou 0 s'il n'y en a pas.
 
-    Préserve les underlines setext Markdown (--- ou === immédiatement après une
-    ligne de texte non vide et non-séparateur) pour ne pas casser la détection
+    Frontmatter = bloc ouvert par une ligne `---` en tout début de document et
+    refermé par `---` ou `...`. Ces lignes sont préservées : les délimiteurs ne
+    sont pas des séparateurs décoratifs (BUG-039).
+    """
+    if not lines or not _FRONTMATTER_DELIM_RE.match(lines[0]):
+        return 0
+    for j in range(1, len(lines)):
+        if lines[j].strip() in _FRONTMATTER_CLOSE:
+            return j + 1
+    return 0
+
+
+def strip_decorative_separators(text: str) -> str:
+    """Supprime les lignes séparatrices décoratives (---, ===, ***, ___).
+
+    Fence-aware : les régions fencées (```/~~~) et le frontmatter YAML sont
+    préservés intégralement — leurs délimiteurs ne sont jamais traités comme des
+    séparateurs, ce qui inversait sinon les régions fencées du document (BUG-039).
+
+    Préserve aussi les underlines setext Markdown (--- ou === immédiatement après
+    une ligne de texte non vide et non-séparateur) pour ne pas casser la détection
     de titres H1/H2.
     """
     lines = text.split("\n")
+    fenced: set[int] = set()
+    for start, end in scan_fences(lines):
+        fenced.update(range(start, end))
+    fm_end = _frontmatter_end(lines)
     result: list[str] = []
     for i, line in enumerate(lines):
-        if _is_separator_line(line):
+        if i < fm_end or i in fenced:
+            result.append(line)  # frontmatter / région fencée → préservé
+        elif _is_separator_line(line):
             prev = lines[i - 1] if i > 0 else ""
             if prev.strip() and not _is_separator_line(prev):
                 result.append(line)  # underline setext → préservé
