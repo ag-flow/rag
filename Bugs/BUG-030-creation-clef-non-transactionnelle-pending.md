@@ -1,6 +1,6 @@
 # BUG-030 — Création de clé non transactionnelle : lignes `'pending'` orphelines, et `GET /apikey` peut renvoyer la chaîne littérale `"pending"`
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / services/workspace_apikeys + api/admin
 - **Sévérité** : moyenne

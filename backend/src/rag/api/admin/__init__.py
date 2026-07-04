@@ -146,6 +146,7 @@ def build_admin_router() -> APIRouter:
             JOIN workspaces w ON w.id = k.workspace_id
             WHERE w.name = $1
               AND k.revoked_at IS NULL
+              AND k.api_key_ref <> 'pending'
               AND (k.rotated_at IS NULL OR k.rotated_at > now() - interval '72 hours')
             ORDER BY (k.rotated_at IS NOT NULL), k.created_at DESC
             LIMIT 1

@@ -94,32 +94,36 @@ async def create_key(
     if ws_id is None:
         raise ValueError(f"workspace {workspace_name!r} not found")
 
+    vault, client = await _get_vault_and_client(vault_svc, client_provider, conn)
+
     api_key = generate_api_key()
     fp = sha256(api_key.encode()).hexdigest()
 
-    key_id = await conn.fetchval(
-        """
-        INSERT INTO workspace_api_keys (workspace_id, name, fingerprint, api_key_ref)
-        VALUES ($1, $2, $3, 'pending')
-        RETURNING id
-        """,
-        ws_id, req.name, fp,
-    )
+    # INSERT + écriture vault + UPDATE atomiques : si set_secret échoue, la
+    # transaction est annulée et aucune ligne 'pending' orpheline ne subsiste
+    # (BUG-030).
+    async with conn.transaction():
+        key_id = await conn.fetchval(
+            """
+            INSERT INTO workspace_api_keys (workspace_id, name, fingerprint, api_key_ref)
+            VALUES ($1, $2, $3, 'pending')
+            RETURNING id
+            """,
+            ws_id, req.name, fp,
+        )
+        path = _key_path(workspace_name, str(key_id))
+        api_key_ref = build_ref(vault.api_key_id, path)
 
-    vault, client = await _get_vault_and_client(vault_svc, client_provider, conn)
-    path = _key_path(workspace_name, str(key_id))
-    api_key_ref = build_ref(vault.api_key_id, path)
+        await asyncio.to_thread(client.set_secret, path, api_key)
 
-    await asyncio.to_thread(client.set_secret, path, api_key)
-
-    row = await conn.fetchrow(
-        """
-        UPDATE workspace_api_keys SET api_key_ref = $1
-        WHERE id = $2
-        RETURNING id, name, fingerprint, created_at
-        """,
-        api_key_ref, key_id,
-    )
+        row = await conn.fetchrow(
+            """
+            UPDATE workspace_api_keys SET api_key_ref = $1
+            WHERE id = $2
+            RETURNING id, name, fingerprint, created_at
+            """,
+            api_key_ref, key_id,
+        )
 
     log.info("workspace_api_key.created", workspace=workspace_name, name=req.name)
     return ApiKeyCreated(
@@ -155,34 +159,38 @@ async def rotate_key(
     if old_row["revoked_at"] is not None:
         raise ValueError("cannot rotate a revoked key")
 
+    vault, client = await _get_vault_and_client(vault_svc, client_provider, conn)
+
     new_api_key = generate_api_key()
     new_fp = sha256(new_api_key.encode()).hexdigest()
-
-    new_key_id = await conn.fetchval(
-        """
-        INSERT INTO workspace_api_keys (workspace_id, name, fingerprint, api_key_ref)
-        SELECT workspace_id, name || ' (rotation)', $2, 'pending'
-        FROM workspace_api_keys WHERE id = $1::uuid
-        RETURNING id
-        """,
-        key_id, new_fp,
-    )
-
-    vault, client = await _get_vault_and_client(vault_svc, client_provider, conn)
-    path = _key_path(workspace_name, str(new_key_id))
-    new_api_key_ref = build_ref(vault.api_key_id, path)
-
-    await asyncio.to_thread(client.set_secret, path, new_api_key)
-
     now = datetime.now(UTC)
-    await conn.execute(
-        "UPDATE workspace_api_keys SET api_key_ref = $1 WHERE id = $2",
-        new_api_key_ref, new_key_id,
-    )
-    await conn.execute(
-        "UPDATE workspace_api_keys SET rotated_at = $1 WHERE id = $2::uuid",
-        now, key_id,
-    )
+
+    # INSERT de la nouvelle clé + écriture vault + bascule de l'ancienne en
+    # période de grâce, atomiques : un échec de set_secret annule tout et
+    # n'abandonne aucune ligne 'pending' orpheline (BUG-030).
+    async with conn.transaction():
+        new_key_id = await conn.fetchval(
+            """
+            INSERT INTO workspace_api_keys (workspace_id, name, fingerprint, api_key_ref)
+            SELECT workspace_id, name || ' (rotation)', $2, 'pending'
+            FROM workspace_api_keys WHERE id = $1::uuid
+            RETURNING id
+            """,
+            key_id, new_fp,
+        )
+        path = _key_path(workspace_name, str(new_key_id))
+        new_api_key_ref = build_ref(vault.api_key_id, path)
+
+        await asyncio.to_thread(client.set_secret, path, new_api_key)
+
+        await conn.execute(
+            "UPDATE workspace_api_keys SET api_key_ref = $1 WHERE id = $2",
+            new_api_key_ref, new_key_id,
+        )
+        await conn.execute(
+            "UPDATE workspace_api_keys SET rotated_at = $1 WHERE id = $2::uuid",
+            now, key_id,
+        )
 
     log.info("workspace_api_key.rotated", workspace=workspace_name, old=key_id)
     return ApiKeyRotated(
