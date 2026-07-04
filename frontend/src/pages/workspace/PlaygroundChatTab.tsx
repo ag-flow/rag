@@ -140,7 +140,10 @@ export function PlaygroundChatTab({ workspaceName }: Props) {
             min={1}
             max={50}
             value={topK}
-            onChange={(e) => setTopK(parseInt(e.target.value, 10) || 5)}
+            onChange={(e) => {
+              const parsed = parseInt(e.target.value, 10);
+              setTopK(Number.isNaN(parsed) ? 5 : parsed);
+            }}
             className="w-16 h-8 text-xs"
           />
         </div>
@@ -152,7 +155,10 @@ export function PlaygroundChatTab({ workspaceName }: Props) {
             max={1}
             step={0.05}
             value={minScore}
-            onChange={(e) => setMinScore(parseFloat(e.target.value) || 0.7)}
+            onChange={(e) => {
+              const parsed = parseFloat(e.target.value);
+              setMinScore(Number.isNaN(parsed) ? 0.3 : parsed);
+            }}
             className="w-16 h-8 text-xs"
           />
         </div>
