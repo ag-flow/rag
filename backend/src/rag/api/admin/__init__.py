@@ -133,7 +133,10 @@ def build_admin_router() -> APIRouter:
         provisionner `.rag-client.json` au démarrage container.
 
         Résolution via cache process-lifetime → Harpocrate sur miss.
-        Retourne la première clé active (non révoquée, non expirée) par ordre de création.
+        Priorité à la clé non tournée la plus récente (non révoquée) ; à
+        défaut, la clé tournée la plus récente encore en fenêtre de grâce
+        (72h). Évite de renvoyer une clé sur le point d'expirer alors qu'une
+        clé active existe déjà (BUG-025).
         """
         pool = _config_pool(request)
         row = await pool.fetchrow(
@@ -144,7 +147,7 @@ def build_admin_router() -> APIRouter:
             WHERE w.name = $1
               AND k.revoked_at IS NULL
               AND (k.rotated_at IS NULL OR k.rotated_at > now() - interval '72 hours')
-            ORDER BY k.created_at ASC
+            ORDER BY (k.rotated_at IS NOT NULL), k.created_at DESC
             LIMIT 1
             """,
             name,

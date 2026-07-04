@@ -1,6 +1,6 @@
 # BUG-025 — `GET /workspaces/{name}/apikey` renvoie la clé en fin de rotation après une rotation
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / api/admin
 - **Sévérité** : moyenne
