@@ -1,6 +1,6 @@
 # BUG-074 — Playground chat : un `min_score` de 0 est impossible et saute silencieusement à 0.7 ; `top_k` idem
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / pages/workspace
 - **Sévérité** : moyenne

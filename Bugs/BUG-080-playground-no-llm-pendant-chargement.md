@@ -1,6 +1,6 @@
 # BUG-080 — Playground chat affiche « no LLM configured » pendant que les configs chargent encore
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / pages/workspace
 - **Sévérité** : basse

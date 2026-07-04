@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Send, RotateCcw, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -52,7 +53,7 @@ function ChunksCollapsible({ chunks }: { chunks: ChunkResult[] }) {
 export function PlaygroundChatTab({ workspaceName }: Props) {
   const { t } = useTranslation("playground");
   const { toast } = useToast();
-  const { data: configs = [] } = useLlmConfigs(workspaceName);
+  const { data: configs = [], isLoading: configsLoading } = useLlmConfigs(workspaceName);
   const chatMutation = usePlaygroundChat(workspaceName);
 
   const enabledConfigs = configs.filter((c) => c.enabled);
@@ -107,6 +108,10 @@ export function PlaygroundChatTab({ workspaceName }: Props) {
     }
   }
 
+  if (configsLoading) {
+    return <LoadingSpinner />;
+  }
+
   if (enabledConfigs.length === 0) {
     return (
       <div className="rounded border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
@@ -140,7 +145,10 @@ export function PlaygroundChatTab({ workspaceName }: Props) {
             min={1}
             max={50}
             value={topK}
-            onChange={(e) => setTopK(parseInt(e.target.value, 10) || 5)}
+            onChange={(e) => {
+              const parsed = parseInt(e.target.value, 10);
+              setTopK(Number.isNaN(parsed) ? 5 : parsed);
+            }}
             className="w-16 h-8 text-xs"
           />
         </div>
@@ -152,7 +160,10 @@ export function PlaygroundChatTab({ workspaceName }: Props) {
             max={1}
             step={0.05}
             value={minScore}
-            onChange={(e) => setMinScore(parseFloat(e.target.value) || 0.7)}
+            onChange={(e) => {
+              const parsed = parseFloat(e.target.value);
+              setMinScore(Number.isNaN(parsed) ? 0.3 : parsed);
+            }}
             className="w-16 h-8 text-xs"
           />
         </div>
