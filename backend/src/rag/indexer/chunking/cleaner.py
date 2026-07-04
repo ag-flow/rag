@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import html
 import re
 import unicodedata
 from collections import Counter
 from dataclasses import dataclass
 
+from rag.indexer.chunking._sections import scan_fences
 from rag.indexer.chunking.structured import ChunkedDocument, StructuredChunkerProtocol
 
 
@@ -54,30 +56,37 @@ def strip_decorative_separators(text: str) -> str:
     return "\n".join(result)
 
 
-_HTML_TAG_RE = re.compile(r"<[^>]+>")
-_NAMED_ENTITIES: dict[str, str] = {
-    "&amp;": "&",
-    "&lt;": "<",
-    "&gt;": ">",
-    "&quot;": '"',
-    "&apos;": "'",
-    "&nbsp;": " ",
-}
-_NUMERIC_ENTITY_RE = re.compile(r"&#(?:\d+|x[0-9a-fA-F]+);")
+_HTML_TAG_RE = re.compile(r"</?[a-zA-Z][^>]*>")
 
 
 def strip_html_tags(text: str) -> str:
     """Supprime les balises HTML et décode les entités communes.
 
     Opérations (dans l'ordre) :
-    1. Remplacement des entités nommées (&amp;, &lt;, &gt;, &quot;, &apos;, &nbsp;)
-    2. Suppression des entités numériques (&#123;, &#x7f;)
-    3. Suppression des balises (<tag>, </tag>, <self/>)
+    1. Décodage des entités (&amp;, &lt;, &gt;, &quot;, &apos;, &nbsp;, numériques…)
+       via `html.unescape` — sémantique correcte, pas de double-décodage
+       (contrairement à un remplacement naïf où `&amp;amp;` redevenait `<`).
+    2. Suppression des balises (<tag>, </tag>, <self/>) — le regex exige un nom
+       de tag valide en tête (`</?[a-zA-Z]`) pour ne pas avaler la prose
+       contenant des comparateurs (`x < y && y > z`) ou des generics (`vector<T>`).
+
+    Les régions fencées (```/~~~) sont préservées telles quelles : le nettoyage
+    HTML ne doit pas corrompre des échantillons de code.
     """
-    for entity, char in _NAMED_ENTITIES.items():
-        text = text.replace(entity, char)
-    text = _NUMERIC_ENTITY_RE.sub("", text)
-    return _HTML_TAG_RE.sub("", text)
+    text = html.unescape(text)
+    lines = text.splitlines(keepends=False)
+    fence_ranges = scan_fences(lines)
+    fenced_line_idx: set[int] = set()
+    for start, end in fence_ranges:
+        fenced_line_idx.update(range(start, end))
+    cleaned_lines = [
+        line if i in fenced_line_idx else _HTML_TAG_RE.sub("", line)
+        for i, line in enumerate(lines)
+    ]
+    result = "\n".join(cleaned_lines)
+    if text.endswith("\n"):
+        result += "\n"
+    return result
 
 
 _BOILERPLATE_RE = re.compile(

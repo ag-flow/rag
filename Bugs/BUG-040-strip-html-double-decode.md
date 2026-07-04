@@ -1,6 +1,6 @@
 # BUG-040 — `strip_html_tags` double-décode les entités et supprime la prose entre `<` et `>`
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / indexer/chunking
 - **Sévérité** : moyenne
