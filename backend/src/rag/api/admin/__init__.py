@@ -800,7 +800,6 @@ def build_admin_router() -> APIRouter:
                     req=body,
                     vault_svc=request.app.state.harpocrate_vaults_service,
                     client_provider=request.app.state.client_provider,
-                    config_pool=pool,
                 )
             except ValueError as exc:
                 raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
@@ -821,7 +820,6 @@ def build_admin_router() -> APIRouter:
                 key_id=str(key_id),
                 vault_svc=request.app.state.harpocrate_vaults_service,
                 client_provider=request.app.state.client_provider,
-                config_pool=pool,
             )
         if result is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "api key not found")

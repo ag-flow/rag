@@ -29,10 +29,11 @@ def _key_path(workspace_name: str, key_id: str) -> str:
 async def _get_vault_and_client(
     vault_svc: Any,
     client_provider: Any,
-    config_pool: asyncpg.Pool,
+    conn: asyncpg.Connection,
 ) -> tuple[Any, Any]:
-    async with config_pool.acquire() as conn:
-        vault = await vault_svc.get_default(conn)
+    # Réutilise la connexion déjà tenue par l'appelant : ré-acquérir depuis le
+    # même pool en la tenant provoque un deadlock par épuisement (BUG-059).
+    vault = await vault_svc.get_default(conn)
     if vault is None:
         raise RuntimeError("no default Harpocrate vault configured")
     client = await client_provider.get_client(vault.api_key_id)
@@ -84,7 +85,6 @@ async def create_key(
     req: ApiKeyCreate,
     vault_svc: Any,
     client_provider: Any,
-    config_pool: asyncpg.Pool,
 ) -> ApiKeyCreated:
     from rag.services.apikey import generate_api_key
 
@@ -106,7 +106,7 @@ async def create_key(
         ws_id, req.name, fp,
     )
 
-    vault, client = await _get_vault_and_client(vault_svc, client_provider, config_pool)
+    vault, client = await _get_vault_and_client(vault_svc, client_provider, conn)
     path = _key_path(workspace_name, str(key_id))
     api_key_ref = build_ref(vault.api_key_id, path)
 
@@ -138,7 +138,6 @@ async def rotate_key(
     key_id: str,
     vault_svc: Any,
     client_provider: Any,
-    config_pool: asyncpg.Pool,
 ) -> ApiKeyRotated | None:
     from rag.services.apikey import generate_api_key
 
@@ -169,7 +168,7 @@ async def rotate_key(
         key_id, new_fp,
     )
 
-    vault, client = await _get_vault_and_client(vault_svc, client_provider, config_pool)
+    vault, client = await _get_vault_and_client(vault_svc, client_provider, conn)
     path = _key_path(workspace_name, str(new_key_id))
     new_api_key_ref = build_ref(vault.api_key_id, path)
 

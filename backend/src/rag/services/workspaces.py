@@ -195,7 +195,6 @@ async def create_workspace(
             req=ApiKeyCreate(name="default"),
             vault_svc=harpocrate_vaults_service,
             client_provider=client_provider,
-            config_pool=config_pool,
         )
 
     log.info("workspace.created", name=request.name, dimension=dimension)
