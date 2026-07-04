@@ -210,7 +210,7 @@ class RerankSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
-    provider: Literal["cohere", "openai", "voyage", "ollama", "jina", "dashscope"]
+    provider: Literal["cohere", "voyage", "ollama", "jina", "dashscope"]
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
     base_url: str | None = None
