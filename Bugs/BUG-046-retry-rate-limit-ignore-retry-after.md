@@ -1,6 +1,6 @@
 # BUG-046 — Le retry sur rate-limit ignore `Retry-After` et relance des séquences de batch complètes
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / indexer/providers
 - **Sévérité** : basse

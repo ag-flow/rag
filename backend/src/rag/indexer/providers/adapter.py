@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import asyncio
+import random
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
@@ -21,12 +24,40 @@ log = structlog.get_logger(__name__)
 
 _TIMEOUT_SECONDS = 30.0
 _DEFAULT_RETRY_SLEEP_SECONDS = 2.0
+# Nombre de retries sur transitoire (429/503/réseau) → _MAX_RETRIES + 1 tentatives.
+_MAX_RETRIES = 3
+# Plafond d'une pause unique, y compris un Retry-After élevé.
+_MAX_RETRY_SLEEP_SECONDS = 60.0
+
+
+def _parse_retry_after(value: str | None) -> float | None:
+    """Parse un header `Retry-After` : delta-seconds ou HTTP-date.
+
+    Retourne le délai en secondes (>= 0), ou None si absent/invalide.
+    """
+    if not value:
+        return None
+    value = value.strip()
+    try:
+        return max(0.0, float(int(value)))
+    except ValueError:
+        pass
+    try:
+        dt = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return max(0.0, (dt - datetime.now(timezone.utc)).total_seconds())
 
 
 class EmbeddingProviderAdapter:
     """Compose EmbeddingService + EmbeddingPlatform → implémente EmbeddingProvider.
 
-    Responsabilités : batching, HTTP retry 1x (429/503/timeout), error mapping.
+    Responsabilités : batching, HTTP retry par batch avec backoff exponentiel
+    jitteré honorant `Retry-After` (429/503/timeout), error mapping.
     """
 
     def __init__(
@@ -82,6 +113,18 @@ class EmbeddingProviderAdapter:
         headers = self._platform.auth_headers()
         return await self._call(client, url, headers, payload)
 
+    def _retry_delay(self, attempt: int, retry_after: float | None) -> float:
+        """Backoff exponentiel full-jitter, plancher `Retry-After`, plafond global.
+
+        Base = retry_sleep · 2^attempt ; le jitter tire uniformément dans
+        [0, base] (évite le thundering herd) ; `Retry-After` (si fourni par le
+        provider) sert de plancher ; le tout est plafonné à _MAX_RETRY_SLEEP.
+        """
+        base = self._retry_sleep * (2**attempt)
+        jittered = random.uniform(0.0, base)
+        delay = max(jittered, retry_after or 0.0)
+        return min(delay, _MAX_RETRY_SLEEP_SECONDS)
+
     async def _call(
         self,
         client: httpx.AsyncClient,
@@ -89,17 +132,24 @@ class EmbeddingProviderAdapter:
         headers: dict[str, str],
         payload: dict[str, Any],
     ) -> list[list[float]]:
-        for attempt in (0, 1):
+        for attempt in range(_MAX_RETRIES + 1):
+            is_last = attempt == _MAX_RETRIES
             try:
                 response = await client.post(url, headers=headers, json=payload)
             except (httpx.TimeoutException, httpx.NetworkError) as e:
-                if attempt == 0:
-                    log.warning("embedding_adapter.network_retry", error=str(e))
-                    await asyncio.sleep(self._retry_sleep)
-                    continue
-                raise EmbeddingProviderUnreachable(
-                    f"Unreachable: {type(e).__name__}: {e}"
-                ) from e
+                if is_last:
+                    raise EmbeddingProviderUnreachable(
+                        f"Unreachable: {type(e).__name__}: {e}"
+                    ) from e
+                delay = self._retry_delay(attempt, None)
+                log.warning(
+                    "embedding_adapter.network_retry",
+                    error=str(e),
+                    attempt=attempt,
+                    sleep=round(delay, 3),
+                )
+                await asyncio.sleep(delay)
+                continue
 
             if response.status_code == 200:
                 return self._service.parse_response(response.json())
@@ -108,16 +158,21 @@ class EmbeddingProviderAdapter:
             if response.status_code in (401, 403):
                 raise EmbeddingAuthError(f"Auth error: HTTP {response.status_code}")
             if response.status_code in (429, 503):
-                if attempt == 0:
-                    log.warning(
-                        "embedding_adapter.transient_retry",
-                        status=response.status_code,
-                    )
-                    await asyncio.sleep(self._retry_sleep)
-                    continue
-                if response.status_code == 429:
-                    raise EmbeddingRateLimited("Rate limit (after retry)")
-                raise EmbeddingProviderUnreachable("503 (after retry)")
+                if is_last:
+                    if response.status_code == 429:
+                        raise EmbeddingRateLimited("Rate limit (after retries)")
+                    raise EmbeddingProviderUnreachable("503 (after retries)")
+                retry_after = _parse_retry_after(response.headers.get("retry-after"))
+                delay = self._retry_delay(attempt, retry_after)
+                log.warning(
+                    "embedding_adapter.transient_retry",
+                    status=response.status_code,
+                    attempt=attempt,
+                    retry_after=retry_after,
+                    sleep=round(delay, 3),
+                )
+                await asyncio.sleep(delay)
+                continue
             if 400 <= response.status_code < 500:
                 raise EmbeddingBadRequest(
                     f"Bad request: HTTP {response.status_code}"
