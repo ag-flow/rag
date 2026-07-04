@@ -1,6 +1,6 @@
 # BUG-047 — Un job pické avec contexte workspace manquant reste bloqué en `running`
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / sync/executor
 - **Sévérité** : basse

@@ -1,6 +1,6 @@
 # BUG-036 — `ssh_username` accepté de bout en bout mais jamais utilisé
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / sync/git_ops + sync/executor
 - **Sévérité** : moyenne

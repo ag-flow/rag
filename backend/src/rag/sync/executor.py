@@ -97,6 +97,11 @@ async def pick_next_pending_job(
 
     if context is None:
         log.error("sync.picker.workspace_not_found", workspace_id=str(row["workspace_id"]))
+        await _mark_job_error(
+            config_pool,
+            job_id=row["job_id"],
+            error_message="workspace context not found (workspace or indexer_configs missing)",
+        )
         return None
 
     # asyncpg renvoie le jsonb sous forme de str dans ce repo
@@ -154,14 +159,21 @@ def _to_vault_ref(logical_key: str, vault_name: str) -> str:
 async def _resolve_token(
     resolver: _ResolverProtocol,
     config: dict[str, Any],
-    default_vault_name: str,
+    default_vault_name: str | None,
 ) -> str | None:
-    """Résout `auth_ref` si présent. None si source publique."""
+    """Résout `auth_ref` si présent. None si source publique.
+
+    `auth_ref` peut être une ref vault pleinement qualifiée (``${vault://name:key}``),
+    résolvable sans vault par défaut. Sinon (clé logique nue), un vault par
+    défaut est requis pour construire la ref.
+    """
     auth_ref = config.get("auth_ref")
     if not auth_ref:
         return None
     if is_vault_ref(auth_ref):
         return await resolver.resolve_with_retry(auth_ref)
+    if default_vault_name is None:
+        raise RuntimeError("no default Harpocrate vault configured")
     return await resolver.resolve_with_retry(_to_vault_ref(auth_ref, default_vault_name))
 
 
@@ -652,13 +664,7 @@ async def _execute_git_job(
         else:
             _log("info", "Auth : source publique (SSH sans clé).")
     else:
-        if config.get("auth_ref") and default_vault_name is None:
-            raise RuntimeError("no default Harpocrate vault configured")
-        token = (
-            await _resolve_token(resolver, config, default_vault_name)
-            if default_vault_name is not None
-            else None
-        )
+        token = await _resolve_token(resolver, config, default_vault_name)
         if token:
             _log("info", "Auth : token résolu.")
         else:
