@@ -1,6 +1,6 @@
 # BUG-076 — Les mutations create/toggle/delete de webhook n'ont aucun retour d'erreur ; une création échouée laisse le dialog ouvert silencieusement
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / pages/workspace
 - **Sévérité** : moyenne
