@@ -143,7 +143,7 @@ describe("AddSourceDialog", () => {
     expect(payload.config.branch).toBe("develop");
   });
 
-  it("affiche un toast d'avertissement quand branch_warning est présent", async () => {
+  it("affiche un toast unique avec l'avertissement en description quand branch_warning est présent", async () => {
     mockAddResponse.value = { id: "s1", branch_warning: "w" };
     renderWithProviders(
       <AddSourceDialog name="my-workspace" open={true} onOpenChange={() => {}} />,
@@ -158,7 +158,13 @@ describe("AddSourceDialog", () => {
     await waitFor(() => {
       expect(mockMutate).toHaveBeenCalledOnce();
     });
-    // deux toasts : avertissement (branch_warning) + succès
-    expect(mockToast).toHaveBeenCalledTimes(2);
+    // un seul toast : succès avec l'avertissement en description (TOAST_LIMIT = 1)
+    expect(mockToast).toHaveBeenCalledTimes(1);
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Source ajoutée.",
+        description: "Branche par défaut non détectée, « main » utilisé. Vérifiez si la synchronisation échoue.",
+      }),
+    );
   });
 });

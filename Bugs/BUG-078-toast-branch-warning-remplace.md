@@ -1,6 +1,6 @@
 # BUG-078 — AddSourceDialog : le toast d'avertissement de branche est instantanément remplacé (TOAST_LIMIT = 1)
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / pages/workspace
 - **Sévérité** : basse

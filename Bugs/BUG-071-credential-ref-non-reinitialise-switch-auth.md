@@ -1,6 +1,6 @@
 # BUG-071 — AddSourceDialog : `credential_ref` non réinitialisé au changement d'auth type → ref de token soumise comme `ssh_key_ref`
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / pages/workspace
 - **Sévérité** : moyenne

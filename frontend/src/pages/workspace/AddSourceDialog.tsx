@@ -354,10 +354,10 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
   const onSubmitCreate = (v: CreateValues) => {
     add.mutate(buildCreatePayload(v), {
       onSuccess: (created) => {
-        if (created.branch_warning) {
-          toast({ title: t("sources.add.branch_warning") });
-        }
-        toast({ title: t("sources.add.success") });
+        toast({
+          title: t("sources.add.success"),
+          ...(created.branch_warning && { description: t("sources.add.branch_warning") }),
+        });
         createForm.reset();
         onOpenChange(false);
       },
@@ -411,7 +411,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
   // ── Render ───────────────────────────────────────────────────────────────
 
   if (isEdit) {
-    const { register, handleSubmit, formState, control } = editForm;
+    const { register, handleSubmit, formState, control, setValue } = editForm;
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
@@ -433,6 +433,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
             <AuthBlock
               control={control}
               register={register}
+              setValue={setValue}
               watchedAuthType={watchedAuthType}
               credentialItems={credentialItems}
               t={t}
@@ -493,7 +494,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
   }
 
   // Mode création
-  const { register, handleSubmit, formState, control } = createForm;
+  const { register, handleSubmit, formState, control, setValue } = createForm;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
@@ -527,6 +528,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
           <AuthBlock
             control={control}
             register={register}
+            setValue={setValue}
             watchedAuthType={watchedAuthType}
             credentialItems={credentialItems}
             t={t}
@@ -578,12 +580,21 @@ interface AuthBlockProps {
   control: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   register: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setValue: any;
   watchedAuthType: AuthType | undefined;
   credentialItems: { value: string; label: string; sub: string }[];
   t: (key: string) => string;
 }
 
-function AuthBlock({ control, register, watchedAuthType, credentialItems, t }: AuthBlockProps) {
+function AuthBlock({
+  control,
+  register,
+  setValue,
+  watchedAuthType,
+  credentialItems,
+  t,
+}: AuthBlockProps) {
   return (
     <div className="rounded-md border bg-slate-50 p-3 space-y-3">
       {/* Provider */}
@@ -627,7 +638,10 @@ function AuthBlock({ control, register, watchedAuthType, credentialItems, t }: A
                     type="radio"
                     value={at}
                     checked={field.value === at}
-                    onChange={() => field.onChange(at)}
+                    onChange={() => {
+                      field.onChange(at);
+                      setValue("credential_ref", "", { shouldValidate: true });
+                    }}
                   />
                   {at === "token"
                     ? t("sources.fields.auth_type_token")
