@@ -1,6 +1,6 @@
 # BUG-027 — Contournement de l'ACL owner des vaults via les sous-routers (ssh-keys / git-credentials / provider-keys)
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / api (sous-routers harpocrate)
 - **Sévérité** : moyenne (sécurité — élévation horizontale entre owners)
