@@ -1,6 +1,6 @@
 # BUG-086 — Caddyfile prod : route `/workspaces/*` morte — les timeouts étendus 120s ne s'appliquent jamais aux vrais endpoints
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : infra / deploy/prod/Caddyfile
 - **Sévérité** : moyenne

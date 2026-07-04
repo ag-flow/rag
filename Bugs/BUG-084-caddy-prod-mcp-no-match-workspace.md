@@ -1,6 +1,6 @@
 # BUG-084 — Caddyfile prod : `handle /mcp` ne matche pas `/mcp/{workspace_id}` — endpoint MCP inaccessible via le proxy
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : infra / deploy/prod/Caddyfile
 - **Sévérité** : **critique**
