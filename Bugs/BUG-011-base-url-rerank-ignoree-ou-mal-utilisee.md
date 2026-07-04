@@ -1,6 +1,6 @@
 # BUG-011 — `base_url` rerank : ignorée pour cohere/voyage/jina, utilisée comme URL complète pour dashscope
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / rerank
 - **Sévérité** : basse (mais implication sécurité : fuite de credentials vers l'endpoint public)

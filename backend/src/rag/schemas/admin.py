@@ -47,7 +47,14 @@ class RerankCreateSpec(BaseModel):
     provider: Literal["cohere", "voyage", "ollama", "jina", "dashscope"]
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
-    base_url: str | None = None
+    base_url: str | None = Field(
+        default=None,
+        description=(
+            "cohere/voyage/jina/ollama : préfixe d'hôte (le path de l'endpoint "
+            "est ajouté automatiquement). dashscope : URL complète de "
+            "l'endpoint rerank (ex: pour switcher région international/CN)."
+        ),
+    )
     top_k_pre_rerank: int = Field(default=50, gt=0, le=500)
 
 
@@ -223,7 +230,14 @@ class RerankSpec(BaseModel):
     provider: Literal["cohere", "voyage", "ollama", "jina", "dashscope"]
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
-    base_url: str | None = None
+    base_url: str | None = Field(
+        default=None,
+        description=(
+            "cohere/voyage/jina/ollama : préfixe d'hôte (le path de l'endpoint "
+            "est ajouté automatiquement). dashscope : URL complète de "
+            "l'endpoint rerank (ex: pour switcher région international/CN)."
+        ),
+    )
     top_k_pre_rerank: int = Field(default=50, gt=0, le=500)
 
 
