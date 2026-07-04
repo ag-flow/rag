@@ -21,7 +21,7 @@ from rag.indexer.providers.protocol import EmbeddingProvider
 from rag.rerank.protocol import RerankProvider, RerankProviderUnreachable
 from rag.rerank.providers.factory import make_rerank_provider as _make_rerank_default
 from rag.schemas.mcp import MultiWorkspaceRequest, SearchHit, SingleWorkspaceRequest
-from rag.secrets.refs import build_ref
+from rag.secrets.refs import build_ref, is_vault_ref
 from rag.secrets.resolver import VaultLookupFailed
 
 log = structlog.get_logger(__name__)
@@ -216,6 +216,21 @@ def _to_vault_ref(logical_key: str, vault_name: str) -> str:
     return build_ref(vault_name, logical_key)
 
 
+def _as_vault_ref(ref: str, default_vault_name: str) -> str:
+    """Normalise un `api_key_ref` en ref vault complète, sans double-wrapper.
+
+    `api_key_ref` peut être soit une clé logique (à préfixer avec le vault par
+    défaut), soit déjà une ref complète `${vault://<name>:<path>}` (harpo_path
+    d'une provider_api_key, cf IndexerCreateSpec). Wrapper inconditionnellement
+    une ref déjà complète produit `${vault://X:${vault://...}}`, que le
+    resolver ne sait pas parser (UnknownAction). Reflète
+    `RealIndexer._resolve_api_key` (indexer/real.py).
+    """
+    if is_vault_ref(ref):
+        return ref
+    return _to_vault_ref(ref, default_vault_name)
+
+
 @dataclass(frozen=True)
 class _WorkspaceResult:
     workspace_name: str
@@ -334,7 +349,7 @@ async def _search_one(
     api_key: str | None = None
     if ctx["api_key_ref"]:
         api_key = await secret_resolver.resolve_with_retry(
-            _to_vault_ref(ctx["api_key_ref"], default_vault_name)
+            _as_vault_ref(ctx["api_key_ref"], default_vault_name)
         )
 
     provider = provider_factory(
@@ -384,7 +399,7 @@ async def _search_one(
         rerank_api_key: str | None = None
         if rerank_cfg["api_key_ref"]:
             rerank_api_key = await secret_resolver.resolve_with_retry(
-                _to_vault_ref(rerank_cfg["api_key_ref"], default_vault_name)
+                _as_vault_ref(rerank_cfg["api_key_ref"], default_vault_name)
             )
         reranker = rerank_factory(
             provider=rerank_cfg["provider"],
