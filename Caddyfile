@@ -3,6 +3,7 @@
 # /auth/* → backend:8000 (OIDC flow M5a)
 # /me     → backend:8000 (OIDC)
 # /ws/*   → backend:8000 (WebSocket logs jobs)
+# /mcp*   → backend:8000 (endpoint MCP, POST + mount ASGI /mcp/{workspace_id})
 # /ui*    → frontend:80 (Nginx static, M5b)
 # /health → backend:8000 (smoke direct)
 # /version → backend:8000 (smoke direct)
@@ -25,6 +26,9 @@
         reverse_proxy backend:8000
     }
     handle /ws/* {
+        reverse_proxy backend:8000
+    }
+    handle /mcp* {
         reverse_proxy backend:8000
     }
     handle /health {
