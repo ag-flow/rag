@@ -1,6 +1,6 @@
 # BUG-041 — Estimateur de tokens par ratio de caractères : les blocs atomiques CJK passent le « plafond dur » puis explosent la vraie limite provider
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / indexer/chunking
 - **Sévérité** : moyenne
