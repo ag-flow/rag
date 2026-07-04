@@ -1,6 +1,6 @@
 # BUG-051 — `upsert_structured` supprime les sections périmées *avant* de re-pointer les chunks gardés → le CASCADE FK détruit silencieusement des embeddings gardés
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / db/workspace_structured
 - **Sévérité** : haute
