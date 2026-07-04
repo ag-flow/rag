@@ -28,15 +28,31 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     credentials: "include",
   });
 
+  // 204/205 : pas de body par contrat HTTP, ne pas tenter de parser.
+  if (resp.status === 204 || resp.status === 205) {
+    if (!resp.ok) {
+      throw new ApiError(resp.status, null);
+    }
+    return undefined as T;
+  }
+
   let body: unknown = null;
+  let parseFailed = false;
   try {
     body = await resp.json();
   } catch {
-    // 204 No Content ou réponse non-JSON
+    parseFailed = true;
   }
 
   if (!resp.ok) {
     throw new ApiError(resp.status, body);
+  }
+
+  if (parseFailed) {
+    // Réponse 2xx dont le body est absent/non-JSON (proxy mal configuré,
+    // fallback statique, body tronqué) : ne pas faire passer `null` pour un
+    // `T` non-nullable — le caster masquerait un TypeError en aval.
+    throw new ApiError(resp.status, null);
   }
 
   return body as T;
