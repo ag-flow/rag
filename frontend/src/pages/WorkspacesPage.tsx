@@ -8,20 +8,23 @@ import { WorkspaceDetailPanel } from "@/pages/workspace/WorkspaceDetailPanel";
 import { CreateWorkspaceDialog } from "@/pages/workspace/CreateWorkspaceDialog";
 
 export function WorkspacesPage() {
-  const { data, isLoading } = useWorkspaces();
+  const { data, isLoading, isFetching } = useWorkspaces();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedName = searchParams.get("ws");
   const [createOpen, setCreateOpen] = useState(false);
 
   // Auto-sélection au premier load : premier workspace de la liste.
+  // On attend que le refetch de la liste soit stabilisé (isFetching=false)
+  // avant d'auto-sélectionner, pour ne pas re-sélectionner un workspace
+  // tout juste supprimé depuis des données de cache périmées.
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || isFetching) return;
     if (selectedName) return;
     if (!data || data.length === 0) return;
     const first = data[0];
     if (!first) return;
     setSearchParams({ ws: first.name }, { replace: true });
-  }, [data, isLoading, selectedName, setSearchParams]);
+  }, [data, isLoading, isFetching, selectedName, setSearchParams]);
 
   const handleSelect = (name: string) => {
     setSearchParams({ ws: name }, { replace: true });

@@ -1,6 +1,6 @@
 # BUG-073 — Détail workspace : pas d'état d'erreur → spinner infini ou rendu périmé pour un workspace supprimé/inconnu
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / pages/workspace
 - **Sévérité** : haute

@@ -1,6 +1,6 @@
 # BUG-075 — WebhookForm : map d'erreurs de header clée par index, non ré-indexée à la suppression
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / pages/workspace
 - **Sévérité** : moyenne

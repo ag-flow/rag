@@ -1,6 +1,6 @@
 # BUG-081 — TriggerPromptsPanel : `order_index` dupliqué après suppressions ; erreurs d'ajout avalées
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / pages/workspace
 - **Sévérité** : basse

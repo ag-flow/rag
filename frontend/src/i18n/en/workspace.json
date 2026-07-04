@@ -17,6 +17,9 @@
       "delete": "Delete workspace"
     }
   },
+  "panel": {
+    "load_error": "Failed to load workspace."
+  },
   "tabs": {
     "detail": "Detail",
     "sources": "Git sources ({{count}})",

@@ -27,5 +27,6 @@
   "field_llm": "LLM à utiliser",
   "field_order": "Ordre d'exécution",
   "prompt_add_save": "Ajouter",
-  "prompt_delete_btn": "Retirer"
+  "prompt_delete_btn": "Retirer",
+  "add_prompt_error": "Erreur lors de l'ajout du prompt."
 }

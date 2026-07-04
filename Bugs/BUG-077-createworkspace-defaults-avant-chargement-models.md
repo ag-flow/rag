@@ -1,6 +1,6 @@
 # BUG-077 — CreateWorkspaceDialog : défauts de formulaire calculés avant le chargement des modèles et jamais re-synchronisés
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / pages/workspace
 - **Sévérité** : moyenne
