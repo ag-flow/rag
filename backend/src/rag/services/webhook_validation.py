@@ -18,6 +18,8 @@ _PRIVATE_NETWORKS: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = [
     ipaddress.ip_network("::1/128"),
     ipaddress.ip_network("fc00::/7"),        # ULA
     ipaddress.ip_network("fe80::/10"),       # link-local IPv6
+    ipaddress.ip_network("::ffff:0:0/96"),   # IPv4-mapped IPv6
+    ipaddress.ip_network("64:ff9b::/96"),    # RFC 6052 — NAT64 well-known
 ]
 
 # RFC 7230 — token : tout sauf séparateurs
@@ -51,10 +53,13 @@ def validate_webhook_url(url: str) -> None:
     # IP littérale dans l'URL — vérification directe sans DNS
     try:
         ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        ip = None  # Pas une IP littérale, on fait la résolution DNS
+
+    if ip is not None:
+        # Le rejet SSRF (_assert_public) doit se propager, pas être avalé.
         _assert_public(ip, hostname)
         return
-    except ValueError:
-        pass  # Pas une IP littérale, on fait la résolution DNS
 
     # Résolution DNS synchrone (acceptable pour les opérations admin)
     try:
@@ -71,7 +76,18 @@ def validate_webhook_url(url: str) -> None:
 
 
 def _assert_public(ip: ipaddress.IPv4Address | ipaddress.IPv6Address, label: str) -> None:
-    if any(ip in net for net in _PRIVATE_NETWORKS):
+    # Normaliser un IPv6 mappé-IPv4 (::ffff:a.b.c.d) vers son IPv4 embarquée
+    # afin de la comparer contre les plages privées v4 (sinon mismatch de version).
+    mapped = getattr(ip, "ipv4_mapped", None)
+    check = mapped if mapped is not None else ip
+    if (
+        any(check in net for net in _PRIVATE_NETWORKS)
+        or check.is_multicast
+        or check.is_reserved
+        or check.is_unspecified
+        or check.is_loopback
+        or check.is_link_local
+    ):
         raise ValueError(
             f"L'URL pointe vers une adresse privée/réservée : {label}"
         )
