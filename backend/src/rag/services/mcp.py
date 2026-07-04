@@ -12,7 +12,7 @@ import asyncpg
 import structlog
 from fastapi import HTTPException, status
 
-from rag.api.errors import HarpocrateUnreachableForApikey, VaultUnreachable, WorkspaceNotFound
+from rag.api.errors import HarpocrateUnreachableForApikey, WorkspaceNotFound
 from rag.auth.workspace_auth import ApiKeyCache
 from rag.db.pool import WorkspacePoolRegistry
 from rag.db.workspace_search import hybrid_search, vector_search
@@ -22,6 +22,7 @@ from rag.rerank.protocol import RerankProvider, RerankProviderUnreachable
 from rag.rerank.providers.factory import make_rerank_provider as _make_rerank_default
 from rag.schemas.mcp import MultiWorkspaceRequest, SearchHit, SingleWorkspaceRequest
 from rag.secrets.refs import build_ref
+from rag.secrets.resolver import VaultLookupFailed
 
 log = structlog.get_logger(__name__)
 
@@ -113,7 +114,7 @@ async def _authenticate(
     if cached is None:
         try:
             cached = await secret_resolver.resolve_with_retry(api_key_ref)
-        except VaultUnreachable as e:
+        except (VaultLookupFailed, ConnectionError, TimeoutError) as e:
             raise HarpocrateUnreachableForApikey() from e
         apikey_cache.put(api_key_ref, cached)
 

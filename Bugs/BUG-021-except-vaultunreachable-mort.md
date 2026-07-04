@@ -1,6 +1,6 @@
 # BUG-021 — `except VaultUnreachable` mort : le resolver ne le lève jamais, une panne Harpocrate donne un 500 au lieu d'un 503
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / auth + api/admin + services/mcp
 - **Sévérité** : haute

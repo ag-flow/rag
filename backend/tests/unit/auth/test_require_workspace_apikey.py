@@ -114,8 +114,13 @@ async def test_valid_key_returns_auth_context() -> None:
 
 @pytest.mark.asyncio
 async def test_harpocrate_unreachable_raises_503() -> None:
-    """Si Harpocrate est inaccessible sur cache miss -> 503 harpocrate_unreachable."""
-    from rag.api.errors import HarpocrateUnreachableForApikey, VaultUnreachable
+    """Si Harpocrate est inaccessible sur cache miss -> 503 harpocrate_unreachable.
+
+    Le resolver ne lève jamais VaultUnreachable (erreur API, pas erreur du
+    resolver) : il lève VaultLookupFailed ou une erreur de connexion brute
+    (BUG-021)."""
+    from rag.api.errors import HarpocrateUnreachableForApikey
+    from rag.secrets.resolver import VaultLookupFailed
 
     ref = "${vault://rag:wsapi_ws}"
     cache = ApiKeyCache()
@@ -128,7 +133,7 @@ async def test_harpocrate_unreachable_raises_503() -> None:
         }
     )
     resolver = MagicMock()
-    resolver.resolve_with_retry = AsyncMock(side_effect=VaultUnreachable("down"))
+    resolver.resolve_with_retry = AsyncMock(side_effect=VaultLookupFailed("down"))
     req = _fake_request({"Authorization": "Bearer some-key"}, pool, cache, resolver)
     with pytest.raises(HarpocrateUnreachableForApikey):
         await require_workspace_apikey("ws", req)  # type: ignore[arg-type]

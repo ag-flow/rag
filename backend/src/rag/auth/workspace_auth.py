@@ -8,7 +8,8 @@ from uuid import UUID
 import asyncpg
 from fastapi import HTTPException, Request, status
 
-from rag.api.errors import HarpocrateUnreachableForApikey, VaultUnreachable
+from rag.api.errors import HarpocrateUnreachableForApikey
+from rag.secrets.resolver import VaultLookupFailed
 
 
 class ApiKeyCache:
@@ -103,7 +104,7 @@ async def require_workspace_apikey(
         resolver = request.app.state.resolver
         try:
             cached = await resolver.resolve_with_retry(api_key_ref)
-        except VaultUnreachable as e:
+        except (VaultLookupFailed, ConnectionError, TimeoutError) as e:
             raise HarpocrateUnreachableForApikey() from e
         cache.put(api_key_ref, cached)
 

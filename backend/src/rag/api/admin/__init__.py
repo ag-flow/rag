@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel as _PydanticBase
 
-from rag.api.errors import HarpocrateUnreachableForApikey, VaultUnreachable
+from rag.api.errors import HarpocrateUnreachableForApikey
 from rag.auth.admin_auth import require_admin
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.schemas.admin import (
@@ -41,6 +41,7 @@ from rag.schemas.workspace_apikeys import (
     ApiKeyRotated,
 )
 from rag.secrets.refs import parse_ref
+from rag.secrets.resolver import VaultLookupFailed
 from rag.services.workspaces import (
     create_workspace,
     delete_workspace,
@@ -159,7 +160,7 @@ def build_admin_router() -> APIRouter:
         if cached is None:
             try:
                 cached = await request.app.state.resolver.resolve_with_retry(api_key_ref)
-            except VaultUnreachable as e:
+            except (VaultLookupFailed, ConnectionError, TimeoutError) as e:
                 raise HarpocrateUnreachableForApikey() from e
             cache.put(api_key_ref, cached)
         return ApiKeyRotateResponse(api_key=cached)
