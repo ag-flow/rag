@@ -18,7 +18,7 @@ from rag.db.pool import WorkspacePoolRegistry
 from rag.db.workspace_search import hybrid_search, vector_search
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
-from rag.rerank.protocol import RerankProvider
+from rag.rerank.protocol import RerankProvider, RerankProviderUnreachable
 from rag.rerank.providers.factory import make_rerank_provider as _make_rerank_default
 from rag.schemas.mcp import MultiWorkspaceRequest, SearchHit, SingleWorkspaceRequest
 from rag.secrets.refs import build_ref
@@ -275,6 +275,37 @@ async def search(
     return [hit for ws_result in results for hit in ws_result.hits]
 
 
+def _validate_rerank_indices(indices: list[int], *, n_documents: int) -> list[int]:
+    """Filtre les indices hors bornes ou dupliqués renvoyés par un reranker.
+
+    Le protocole `RerankProvider` promet des indices dans range(n_documents),
+    mais rien ne garantit qu'un provider (bug upstream, self-hosted buggé,
+    changement d'API) respecte ce contrat. Un indice hors bornes provoquerait
+    un IndexError ; un doublon dupliquerait silencieusement un hit.
+    """
+    valid: list[int] = []
+    seen: set[int] = set()
+    dropped: list[int] = []
+    for i in indices:
+        if 0 <= i < n_documents and i not in seen:
+            valid.append(i)
+            seen.add(i)
+        else:
+            dropped.append(i)
+    if dropped:
+        log.warning(
+            "mcp.rerank.invalid_indices_dropped",
+            dropped=dropped,
+            n_documents=n_documents,
+        )
+    if indices and not valid:
+        raise RerankProviderUnreachable(
+            "rerank provider returned no valid indices "
+            f"(n_documents={n_documents}, indices={indices})"
+        )
+    return valid
+
+
 async def _search_one(
     *,
     ref: McpWorkspaceRef,
@@ -362,6 +393,7 @@ async def _search_one(
         )
         documents = [h.content for h in hits]
         indices = await reranker.rerank(query=query, documents=documents, top_k=top_k)
+        indices = _validate_rerank_indices(indices, n_documents=len(documents))
         hits = [hits[i] for i in indices]
         log.info(
             "mcp.rerank.applied",

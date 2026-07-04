@@ -1,6 +1,6 @@
 # BUG-004 — Indices renvoyés par le reranker appliqués sans validation de bornes ni d'unicité
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / rerank + services/mcp
 - **Sévérité** : moyenne
