@@ -26,7 +26,12 @@ export function useJobLogs(jobId: string | null): { lines: JobLogLine[]; jobStat
     const ws = new WebSocket(`${protocol}//${window.location.host}/ws/jobs/${jobId}/logs`);
 
     ws.onmessage = (e: MessageEvent) => {
-      const event: WsEvent = JSON.parse(e.data as string);
+      let event: WsEvent;
+      try {
+        event = JSON.parse(e.data as string);
+      } catch {
+        return;
+      }
       if (event.type === "log") {
         setLines((prev) => [...prev, event]);
       } else if (event.type === "done") {
@@ -35,6 +40,10 @@ export function useJobLogs(jobId: string | null): { lines: JobLogLine[]; jobStat
     };
 
     ws.onerror = () => setJobStatus("error");
+
+    ws.onclose = () => {
+      setJobStatus((prev) => (prev === "running" ? "error" : prev));
+    };
 
     return () => ws.close();
   }, [jobId]);
