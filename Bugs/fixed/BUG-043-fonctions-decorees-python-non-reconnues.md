@@ -1,6 +1,6 @@
 # BUG-043 — Fonctions/méthodes Python décorées non reconnues par le CodeChunker
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / indexer/chunking
 - **Sévérité** : basse
