@@ -1,6 +1,6 @@
 # BUG-083 — La page Harpocrate peut re-sélectionner un vault tout juste retiré depuis le cache périmé
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / pages/harpocrate
 - **Sévérité** : basse

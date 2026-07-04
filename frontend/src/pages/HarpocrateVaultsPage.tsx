@@ -10,21 +10,24 @@ import { CreateVaultDialog } from "@/pages/harpocrate/CreateVaultDialog";
 
 export function HarpocrateVaultsPage() {
   const { t } = useTranslation("harpocrate");
-  const { data, isLoading } = useVaults();
+  const { data, isLoading, isFetching } = useVaults();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get("vault");
   const [createOpen, setCreateOpen] = useState(false);
 
   // Auto-sélection au premier load : default ou premier de la liste.
+  // On saute tant qu'un refetch (ex. invalidation après retrait d'un vault)
+  // est en vol : sinon on peut re-sélectionner depuis le cache périmé un
+  // vault tout juste retiré avant que la liste à jour n'arrive.
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || isFetching) return;
     if (selectedId) return;
     if (!data || data.length === 0) return;
     const defaultVault = data.find((v) => v.is_default) ?? data[0];
     if (defaultVault) {
       setSearchParams({ vault: defaultVault.id }, { replace: true });
     }
-  }, [data, isLoading, selectedId, setSearchParams]);
+  }, [data, isLoading, isFetching, selectedId, setSearchParams]);
 
   const handleSelect = (id: string) => {
     setSearchParams({ vault: id }, { replace: true });
