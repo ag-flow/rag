@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -167,6 +167,11 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
   } | null>(null);
   const detectBranches = useDetectBranches();
   const [detectedBranches, setDetectedBranches] = useState<string[]>([]);
+  // Séquence de détection de branches : invalide les réponses périmées
+  // (URL corrigée en cours de vol, dialog fermé/rouvert). Voir BUG-072.
+  const detectSeqRef = useRef(0);
+  const openRef = useRef(open);
+  openRef.current = open;
 
   // ── Formulaires ──────────────────────────────────────────────────────────
 
@@ -231,6 +236,8 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
 
   useEffect(() => {
     if (!open) return;
+    // Toute réponse de détection encore en vol devient périmée à la (ré)ouverture.
+    detectSeqRef.current += 1;
     setTestResult(null);
     setDetectedBranches([]);
     if (isEdit && source) {
@@ -262,12 +269,17 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
 
   // Détection de branches — debounce 800ms
   useEffect(() => {
+    if (!open) return;
     if (!watchedUrl || watchedUrl.length < 10) {
       setDetectedBranches([]);
       return;
     }
     const timer = setTimeout(() => {
+      const seq = ++detectSeqRef.current;
       const authType = watchedAuthType ?? "token";
+      // Une réponse n'est appliquée que si elle correspond à la requête la plus
+      // récente (seq) et que le dialog est toujours ouvert. Voir BUG-072.
+      const isStale = () => seq !== detectSeqRef.current || !openRef.current;
       detectBranches.mutate(
         {
           url: watchedUrl,
@@ -277,6 +289,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
         },
         {
           onSuccess: (data) => {
+            if (isStale()) return;
             setDetectedBranches(data.branches);
             if (data.branches.length >= 1) {
               const target = data.default ?? data.branches[0];
@@ -287,12 +300,15 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
               }
             }
           },
-          onError: () => setDetectedBranches([]),
+          onError: () => {
+            if (isStale()) return;
+            setDetectedBranches([]);
+          },
         },
       );
     }, 800);
     return () => clearTimeout(timer);
-  }, [watchedUrl, watchedCredential, watchedAuthType, watchedSshUser]);
+  }, [open, watchedUrl, watchedCredential, watchedAuthType, watchedSshUser]);
 
   // ── Payloads ─────────────────────────────────────────────────────────────
 
