@@ -1,6 +1,6 @@
 # BUG-056 — `get_default_vault_name()` renvoie l'api_key_id, mais `source_webhooks` l'utilise comme *nom* de vault → enable/disable/rotate échouent toujours
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / secrets/client_provider + services/source_webhooks
 - **Sévérité** : haute
