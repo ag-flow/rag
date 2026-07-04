@@ -1,6 +1,6 @@
 # BUG-085 — Caddyfile dev : aucune route `/mcp` — l'endpoint MCP annoncé par dev-deploy.sh est absorbé par le catch-all
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : infra / Caddyfile + dev-deploy.sh
 - **Sévérité** : haute

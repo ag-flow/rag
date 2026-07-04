@@ -83,7 +83,11 @@ export function useDeleteVault() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => harpocrateVaultsApi.delete(id),
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
+      // Purge immédiatement le cache du vault retiré : sans ça, l'effet
+      // d'auto-sélection de HarpocrateVaultsPage peut le re-choisir pendant
+      // que l'invalidation de la liste est encore en vol (cache périmé).
+      qc.removeQueries({ queryKey: [...ROOT_KEY, id] });
       void qc.invalidateQueries({ queryKey: ROOT_KEY });
     },
   });

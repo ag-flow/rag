@@ -1,6 +1,6 @@
 # BUG-095 — `remote-deploy.ps1` : mot de passe SSH exposé sur la ligne de commande plink
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : infra / scripts
 - **Sévérité** : basse (sécurité)

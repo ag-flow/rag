@@ -1,6 +1,6 @@
 # BUG-091 — Prod : Caddy exige backend `service_healthy` sans `start_period` — boot lent (migrations) = site entier down
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : infra / deploy/prod
 - **Sévérité** : moyenne

@@ -1,6 +1,6 @@
 # BUG-093 — `destroy-test.sh` : `sleep 2` fixe entre `pct stop` et `pct destroy` — destroy peut échouer sous `set -e`
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : infra / scripts
 - **Sévérité** : basse

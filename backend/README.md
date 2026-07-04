@@ -6,8 +6,7 @@ Service d'infrastructure RAG. Spec : `../docs/superpowers/specs/2026-05-14-rag-m
 
 ```powershell
 cd backend
-./scripts/fetch-harpocrate-sdk.sh    # télécharge le wheel dans vendor/
-uv sync                               # installe deps + wheel local
+uv sync                               # installe deps + SDK Harpocrate vendoré (vendor/harpocrate-sdk)
 uv run pytest -v
 ```
 
