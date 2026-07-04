@@ -1,6 +1,6 @@
 # BUG-052 — `delete_git_credential` interroge une table `sources` inexistante
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / services/git_credentials
 - **Sévérité** : haute
