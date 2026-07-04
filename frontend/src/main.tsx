@@ -1,15 +1,35 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  MutationCache,
+  QueryCache,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import App from "@/App";
+import { ApiError, isUnauthorized, redirectToLogin } from "@/lib/api";
 import "@/lib/i18n";
 import "@/styles/globals.css";
 
+// Session expirée : toute 401 (query ou mutation) redirige vers /ui/login. BUG-017.
+const onGlobalError = (error: unknown): void => {
+  if (isUnauthorized(error)) redirectToLogin();
+};
+
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({ onError: onGlobalError }),
+  mutationCache: new MutationCache({ onError: onGlobalError }),
   defaultOptions: {
     queries: {
-      retry: 1,
+      // Ne pas retenter les erreurs client 4xx (401/403/404/422…) ; garder un
+      // retry unique pour les erreurs transitoires (réseau, 5xx).
+      retry: (failureCount, error) => {
+        if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+          return false;
+        }
+        return failureCount < 1;
+      },
       staleTime: 30_000,
       refetchOnWindowFocus: false,
     },

@@ -1,6 +1,6 @@
 # BUG-017 — Expiration de session non gérée en cours d'usage : les 401 post-login apparaissent comme des erreurs génériques, sans redirection
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / lib/api + auth
 - **Sévérité** : moyenne

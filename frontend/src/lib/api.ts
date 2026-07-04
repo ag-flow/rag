@@ -14,6 +14,23 @@ export function isUnauthorized(err: unknown): boolean {
   return err instanceof ApiError && err.status === 401;
 }
 
+/**
+ * Redirige vers la page de login en préservant la route courante dans `next`.
+ * No-op si l'on est déjà sur la page de login (évite les boucles de redirection).
+ * Centralise la gestion « session expirée » utilisée par AuthGuard et par les
+ * handlers globaux QueryCache/MutationCache (BUG-017).
+ */
+export function redirectToLogin(): void {
+  if (typeof window === "undefined") return;
+  const { pathname, search } = window.location;
+  if (pathname.startsWith("/ui/login")) return;
+  let next = pathname + search;
+  if (next.startsWith("/ui")) {
+    next = next.slice(3) || "/";
+  }
+  window.location.href = `/ui/login?next=${encodeURIComponent(next)}`;
+}
+
 export function isErrorBodyWithDetail(body: unknown, expected: string): boolean {
   if (typeof body !== "object" || body === null || !("detail" in body)) {
     return false;
