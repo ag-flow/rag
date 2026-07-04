@@ -44,10 +44,17 @@ class RerankCreateSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
-    provider: str = Field(min_length=1)
+    provider: Literal["cohere", "voyage", "ollama", "jina", "dashscope"]
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
-    base_url: str | None = None
+    base_url: str | None = Field(
+        default=None,
+        description=(
+            "cohere/voyage/jina/ollama : préfixe d'hôte (le path de l'endpoint "
+            "est ajouté automatiquement). dashscope : URL complète de "
+            "l'endpoint rerank (ex: pour switcher région international/CN)."
+        ),
+    )
     top_k_pre_rerank: int = Field(default=50, gt=0, le=500)
 
 
@@ -138,6 +145,16 @@ class SourceUpdateRequest(BaseModel):
     ssh_username: str | None = None
     config: dict[str, Any]
 
+    @field_validator("config")
+    @classmethod
+    def config_url_not_blank_if_present(cls, v: dict[str, Any]) -> dict[str, Any]:
+        # PATCH est un update partiel (mergé sur la config existante par le
+        # service) : url n'est pas requis ici. Mais si le client l'envoie,
+        # il ne doit pas l'effacer avec une valeur vide.
+        if "url" in v and not v["url"]:
+            raise ValueError("config.url cannot be empty for git sources")
+        return v
+
 
 class SourceResponse(BaseModel):
     id: UUID
@@ -210,10 +227,17 @@ class RerankSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
-    provider: Literal["cohere", "openai", "voyage", "ollama", "jina", "dashscope"]
+    provider: Literal["cohere", "voyage", "ollama", "jina", "dashscope"]
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
-    base_url: str | None = None
+    base_url: str | None = Field(
+        default=None,
+        description=(
+            "cohere/voyage/jina/ollama : préfixe d'hôte (le path de l'endpoint "
+            "est ajouté automatiquement). dashscope : URL complète de "
+            "l'endpoint rerank (ex: pour switcher région international/CN)."
+        ),
+    )
     top_k_pre_rerank: int = Field(default=50, gt=0, le=500)
 
 

@@ -1,6 +1,6 @@
 # BUG-022 — `/mcp` legacy double-wrappe les refs vault complètes → `UnknownAction` → 500
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / services/mcp
 - **Sévérité** : haute

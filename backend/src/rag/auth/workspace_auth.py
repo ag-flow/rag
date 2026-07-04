@@ -8,7 +8,8 @@ from uuid import UUID
 import asyncpg
 from fastapi import HTTPException, Request, status
 
-from rag.api.errors import HarpocrateUnreachableForApikey, VaultUnreachable
+from rag.api.errors import HarpocrateUnreachableForApikey
+from rag.secrets.resolver import VaultLookupFailed
 
 
 class ApiKeyCache:
@@ -76,11 +77,15 @@ async def require_workspace_apikey(
     row = await pool.fetchrow(
         """
         SELECT w.id,
-               w.api_key_ref,
+               k.api_key_ref,
                ic.provider || '/' || ic.model AS indexer_used
         FROM workspaces w
+        JOIN workspace_api_keys k ON k.workspace_id = w.id
         JOIN indexer_configs ic ON ic.workspace_id = w.id
-        WHERE w.name = $1 AND w.api_key_fingerprint = $2
+        WHERE w.name = $1
+          AND k.fingerprint = $2
+          AND k.revoked_at IS NULL
+          AND (k.rotated_at IS NULL OR k.rotated_at > now() - interval '72 hours')
         """,
         name,
         fingerprint,
@@ -94,21 +99,30 @@ async def require_workspace_apikey(
 
     cache: ApiKeyCache = request.app.state.apikey_cache
     api_key_ref: str = row["api_key_ref"]
+    resolver = request.app.state.resolver
     cached = cache.get(api_key_ref)
     if cached is None:
-        resolver = request.app.state.resolver
         try:
             cached = await resolver.resolve_with_retry(api_key_ref)
-        except VaultUnreachable as e:
+        except (VaultLookupFailed, ConnectionError, TimeoutError) as e:
             raise HarpocrateUnreachableForApikey() from e
         cache.put(api_key_ref, cached)
 
     if not compare_digest(cached, api_key):
-        # Très rare : fingerprint matché mais clair non. Possible après
-        # rotation Harpocrate hors-bande sans mise à jour fingerprint DB.
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid_workspace_apikey",
-        )
+        # Fingerprint matché mais clair non : le cache peut être périmé
+        # (rotation Harpocrate hors-bande sans invalidation explicite).
+        # Invalide et re-résout une fois avant de conclure à une clé invalide,
+        # sinon l'entrée périmée provoque un 401 permanent jusqu'au restart.
+        cache.invalidate(api_key_ref)
+        try:
+            cached = await resolver.resolve_with_retry(api_key_ref)
+        except (VaultLookupFailed, ConnectionError, TimeoutError) as e:
+            raise HarpocrateUnreachableForApikey() from e
+        cache.put(api_key_ref, cached)
+        if not compare_digest(cached, api_key):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="invalid_workspace_apikey",
+            )
 
     return AuthContext(workspace_id=row["id"], indexer_used=row["indexer_used"])

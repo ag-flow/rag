@@ -1,6 +1,6 @@
 # BUG-066 — `add_source`/`update_source` détectent toujours la branche par défaut avec `token=None` → mauvaise branche pour les repos privés
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / services/sources
 - **Sévérité** : basse

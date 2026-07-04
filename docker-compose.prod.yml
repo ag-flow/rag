@@ -1,0 +1,112 @@
+# ag-flow.rag — Stack de production
+#
+# Prérequis : fichier .env complété à partir de .env.prod.example
+# Usage     : docker compose -f docker-compose.prod.yml up -d
+#
+# Architecture :
+#   caddy:80  →  backend:8000  (FastAPI)
+#              →  frontend:80  (Nginx static)
+#   postgres  →  réseau interne uniquement (pas de port exposé)
+#
+# TLS : géré par Cloudflare Tunnel en front — Caddy tourne en HTTP simple.
+
+services:
+
+  # ────────────────────────────────────────────────────────────
+  # Base de données
+  # ────────────────────────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: rag-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Pas de port exposé : accès réservé au réseau interne Docker.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [rag]
+
+  # ────────────────────────────────────────────────────────────
+  # Backend FastAPI
+  # ────────────────────────────────────────────────────────────
+  backend:
+    image: ghcr.io/ag-flow/rag-backend:${IMAGE_TAG:-latest}
+    container_name: rag-backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      GIT_SHA: ${GIT_SHA:-}
+      ENVIRONMENT: prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # Clones git persistants du sync worker
+      - rag_repos:/var/lib/rag/repos
+      # Tarifs providers d'embedding (télécharger depuis le repo — voir docs/deploy.md)
+      - ${PRICING_FILE_HOST_PATH:-./embedding_providers_pricing.yml}:/app/config/pricing.yml:ro
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks: [rag]
+    # Pas de port exposé : accès via Caddy uniquement.
+
+  # ────────────────────────────────────────────────────────────
+  # Frontend Nginx (assets statiques Vite)
+  # ────────────────────────────────────────────────────────────
+  frontend:
+    image: ghcr.io/ag-flow/rag-frontend:${IMAGE_TAG:-latest}
+    container_name: rag-frontend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks: [rag]
+    # Pas de port exposé : accès via Caddy uniquement.
+
+  # ────────────────────────────────────────────────────────────
+  # Reverse proxy
+  # ────────────────────────────────────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    container_name: rag-caddy
+    restart: unless-stopped
+    ports:
+      - "${CADDY_HTTP_PORT:-80}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    networks: [rag]
+
+volumes:
+  postgres_data:
+    name: rag_postgres_data
+  rag_repos:
+    name: rag_repos
+  caddy_data:
+    name: rag_caddy_data
+  caddy_config:
+    name: rag_caddy_config
+
+networks:
+  rag:
+    driver: bridge
+    name: rag_prod

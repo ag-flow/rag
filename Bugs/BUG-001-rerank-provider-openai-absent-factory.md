@@ -1,6 +1,6 @@
 # BUG-001 — Provider rerank "openai" accepté par le schéma mais absent de la factory
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / rerank
 - **Sévérité** : haute

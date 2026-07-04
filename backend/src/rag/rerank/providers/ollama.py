@@ -40,10 +40,12 @@ class OllamaRerankProvider:
         if not documents:
             return []
         url = f"{self._base_url}/api/rerank"
+        top_n = min(top_k, len(documents))
         body: dict[str, Any] = {
             "model": self._model,
             "query": query,
             "documents": documents,
+            "top_n": top_n,
         }
         try:
             async with httpx.AsyncClient(
@@ -68,5 +70,10 @@ class OllamaRerankProvider:
 
         data = resp.json()
         results = data.get("results", [])
+        # Défensif : ne pas se fier à l'ordre du serveur, trier explicitement
+        # par relevance_score décroissant (format de réponse documenté).
+        results = sorted(
+            results, key=lambda r: float(r.get("relevance_score", 0.0)), reverse=True,
+        )
         indices = [int(r["index"]) for r in results]
         return indices[:top_k]

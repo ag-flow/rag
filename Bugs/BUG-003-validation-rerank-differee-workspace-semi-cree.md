@@ -1,6 +1,6 @@
 # BUG-003 — Validation du rerank différée après création du workspace : provider invalide = workspace semi-créé sans clé API
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / schemas + services/workspaces
 - **Sévérité** : moyenne

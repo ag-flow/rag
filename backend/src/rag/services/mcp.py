@@ -12,16 +12,17 @@ import asyncpg
 import structlog
 from fastapi import HTTPException, status
 
-from rag.api.errors import HarpocrateUnreachableForApikey, VaultUnreachable, WorkspaceNotFound
+from rag.api.errors import HarpocrateUnreachableForApikey, WorkspaceNotFound
 from rag.auth.workspace_auth import ApiKeyCache
 from rag.db.pool import WorkspacePoolRegistry
 from rag.db.workspace_search import hybrid_search, vector_search
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
-from rag.rerank.protocol import RerankProvider
+from rag.rerank.protocol import RerankProvider, RerankProviderUnreachable
 from rag.rerank.providers.factory import make_rerank_provider as _make_rerank_default
 from rag.schemas.mcp import MultiWorkspaceRequest, SearchHit, SingleWorkspaceRequest
-from rag.secrets.refs import build_ref
+from rag.secrets.refs import build_ref, is_vault_ref
+from rag.secrets.resolver import VaultLookupFailed
 
 log = structlog.get_logger(__name__)
 
@@ -113,15 +114,26 @@ async def _authenticate(
     if cached is None:
         try:
             cached = await secret_resolver.resolve_with_retry(api_key_ref)
-        except VaultUnreachable as e:
+        except (VaultLookupFailed, ConnectionError, TimeoutError) as e:
             raise HarpocrateUnreachableForApikey() from e
         apikey_cache.put(api_key_ref, cached)
 
     if not compare_digest(cached, ref.api_key):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid_workspace_apikey",
-        )
+        # Fingerprint matché mais clair non : cache potentiellement périmé
+        # (rotation Harpocrate hors-bande). Invalide et re-résout une fois
+        # avant de conclure à une clé invalide (BUG-026 : sinon 401 permanent
+        # jusqu'au restart du process).
+        apikey_cache.invalidate(api_key_ref)
+        try:
+            cached = await secret_resolver.resolve_with_retry(api_key_ref)
+        except (VaultLookupFailed, ConnectionError, TimeoutError) as e:
+            raise HarpocrateUnreachableForApikey() from e
+        apikey_cache.put(api_key_ref, cached)
+        if not compare_digest(cached, ref.api_key):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="invalid_workspace_apikey",
+            )
 
     return _CacheEntry(
         workspace_id=row["id"],
@@ -215,6 +227,21 @@ def _to_vault_ref(logical_key: str, vault_name: str) -> str:
     return build_ref(vault_name, logical_key)
 
 
+def _as_vault_ref(ref: str, default_vault_name: str) -> str:
+    """Normalise un `api_key_ref` en ref vault complète, sans double-wrapper.
+
+    `api_key_ref` peut être soit une clé logique (à préfixer avec le vault par
+    défaut), soit déjà une ref complète `${vault://<name>:<path>}` (harpo_path
+    d'une provider_api_key, cf IndexerCreateSpec). Wrapper inconditionnellement
+    une ref déjà complète produit `${vault://X:${vault://...}}`, que le
+    resolver ne sait pas parser (UnknownAction). Reflète
+    `RealIndexer._resolve_api_key` (indexer/real.py).
+    """
+    if is_vault_ref(ref):
+        return ref
+    return _to_vault_ref(ref, default_vault_name)
+
+
 @dataclass(frozen=True)
 class _WorkspaceResult:
     workspace_name: str
@@ -275,6 +302,37 @@ async def search(
     return [hit for ws_result in results for hit in ws_result.hits]
 
 
+def _validate_rerank_indices(indices: list[int], *, n_documents: int) -> list[int]:
+    """Filtre les indices hors bornes ou dupliqués renvoyés par un reranker.
+
+    Le protocole `RerankProvider` promet des indices dans range(n_documents),
+    mais rien ne garantit qu'un provider (bug upstream, self-hosted buggé,
+    changement d'API) respecte ce contrat. Un indice hors bornes provoquerait
+    un IndexError ; un doublon dupliquerait silencieusement un hit.
+    """
+    valid: list[int] = []
+    seen: set[int] = set()
+    dropped: list[int] = []
+    for i in indices:
+        if 0 <= i < n_documents and i not in seen:
+            valid.append(i)
+            seen.add(i)
+        else:
+            dropped.append(i)
+    if dropped:
+        log.warning(
+            "mcp.rerank.invalid_indices_dropped",
+            dropped=dropped,
+            n_documents=n_documents,
+        )
+    if indices and not valid:
+        raise RerankProviderUnreachable(
+            "rerank provider returned no valid indices "
+            f"(n_documents={n_documents}, indices={indices})"
+        )
+    return valid
+
+
 async def _search_one(
     *,
     ref: McpWorkspaceRef,
@@ -302,7 +360,7 @@ async def _search_one(
     api_key: str | None = None
     if ctx["api_key_ref"]:
         api_key = await secret_resolver.resolve_with_retry(
-            _to_vault_ref(ctx["api_key_ref"], default_vault_name)
+            _as_vault_ref(ctx["api_key_ref"], default_vault_name)
         )
 
     provider = provider_factory(
@@ -352,7 +410,7 @@ async def _search_one(
         rerank_api_key: str | None = None
         if rerank_cfg["api_key_ref"]:
             rerank_api_key = await secret_resolver.resolve_with_retry(
-                _to_vault_ref(rerank_cfg["api_key_ref"], default_vault_name)
+                _as_vault_ref(rerank_cfg["api_key_ref"], default_vault_name)
             )
         reranker = rerank_factory(
             provider=rerank_cfg["provider"],
@@ -362,6 +420,7 @@ async def _search_one(
         )
         documents = [h.content for h in hits]
         indices = await reranker.rerank(query=query, documents=documents, top_k=top_k)
+        indices = _validate_rerank_indices(indices, n_documents=len(documents))
         hits = [hits[i] for i in indices]
         log.info(
             "mcp.rerank.applied",

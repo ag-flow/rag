@@ -1,6 +1,6 @@
 # BUG-005 — Provider Ollama : résultats tronqués sans tri par score et top_n jamais envoyé
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / rerank
 - **Sévérité** : moyenne
