@@ -1,6 +1,6 @@
 # BUG-061 — Le cache JWKS OIDC n'a ni TTL ni invalidation sur échec de signature
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / services/oidc
 - **Sévérité** : moyenne

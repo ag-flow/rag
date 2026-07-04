@@ -62,12 +62,19 @@ class ParagraphChunker:
         if buffer:
             coalesced.append(buffer)
 
+        # Réserve le budget de l'overlap dans la taille de découpage pour que
+        # les chunks finaux (préfixés par la queue du chunk précédent) ne
+        # dépassent jamais max_chars (BUG-045).
+        split_budget = self._max_chars
+        if self._overlap_chars > 0 and len(coalesced) > 1:
+            split_budget = self._max_chars - self._overlap_chars
+
         split_chunks: list[str] = []
         for p in coalesced:
-            if len(p) <= self._max_chars:
+            if len(p) <= split_budget:
                 split_chunks.append(p)
                 continue
-            split_chunks.extend(self._split_big_paragraph(p))
+            split_chunks.extend(self._split_big_paragraph(p, split_budget))
 
         if self._overlap_chars <= 0 or len(split_chunks) <= 1:
             return [Chunk(content=s) for s in split_chunks]
@@ -78,12 +85,13 @@ class ParagraphChunker:
             result.append(Chunk(content=prev_tail + split_chunks[i]))
         return result
 
-    def _split_big_paragraph(self, p: str) -> list[str]:
+    def _split_big_paragraph(self, p: str, max_chars: int | None = None) -> list[str]:
+        budget = self._max_chars if max_chars is None else max_chars
         chunks: list[str] = []
         remaining = p
-        while len(remaining) > self._max_chars:
-            window_start = max(0, self._max_chars - 200)
-            window = remaining[window_start : self._max_chars]
+        while len(remaining) > budget:
+            window_start = max(0, budget - 200)
+            window = remaining[window_start:budget]
             cut_pos = -1
             for sep in (". ", "\n", " "):
                 idx = window.rfind(sep)
@@ -91,7 +99,7 @@ class ParagraphChunker:
                     cut_pos = window_start + idx + len(sep)
                     break
             if cut_pos == -1:
-                cut_pos = self._max_chars
+                cut_pos = budget
             chunks.append(remaining[:cut_pos].strip())
             remaining = remaining[cut_pos:].lstrip()
         if remaining:

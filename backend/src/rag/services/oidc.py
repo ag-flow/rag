@@ -178,7 +178,9 @@ class OidcService:
         return doc
 
     async def _jwks(self, discovery: _DiscoveryDoc) -> KeySet:
-        """Fetch + cache JWKS. Reload on signature fail handled by caller."""
+        """Fetch + cache JWKS (sans expiration). Le cache est évincé et
+        rechargé par `verify_id_token` sur `BadSignatureError` (rotation des
+        clés de signature Keycloak)."""
         cached = self._jwks_cache.get(discovery.jwks_uri)
         if cached is not None:
             return cached
@@ -220,8 +222,18 @@ class OidcService:
 
         try:
             token = joserfc_jwt.decode(id_token, key=keyset, algorithms=["RS256"])
-        except BadSignatureError as e:
-            raise OidcInvalidToken("bad_signature") from e
+        except BadSignatureError:
+            # Le trousseau JWKS en cache peut etre perime (rotation des cles
+            # de signature cote Keycloak) : on l'evince et on retente une
+            # fois avec un trousseau frais avant d'abandonner (BUG-061).
+            self._jwks_cache.pop(discovery.jwks_uri, None)
+            keyset = await self._jwks(discovery)
+            try:
+                token = joserfc_jwt.decode(id_token, key=keyset, algorithms=["RS256"])
+            except BadSignatureError as e:
+                raise OidcInvalidToken("bad_signature") from e
+            except JoseError as e:
+                raise OidcInvalidToken(f"jose_error: {type(e).__name__}") from e
         except JoseError as e:
             raise OidcInvalidToken(f"jose_error: {type(e).__name__}") from e
 

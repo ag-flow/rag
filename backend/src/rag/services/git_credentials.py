@@ -176,8 +176,8 @@ async def delete_git_credential(
 
     # Verification de reference : aucune source ne doit utiliser ce harpo_path
     ref_count = await conn.fetchval(
-        "SELECT count(*) FROM sources WHERE config->>'auth_ref' LIKE $1",
-        f"%{row['harpo_path']}%",
+        "SELECT count(*) FROM workspace_sources WHERE config->>'auth_ref' = $1",
+        row["harpo_path"],
     )
     if int(ref_count or 0) > 0:
         raise GitCredentialReferencedError(

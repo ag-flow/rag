@@ -223,10 +223,18 @@ async def reindex_workspace(
     if row is None:
         raise WorkspaceNotFound(name)
 
+    # `api_key_ref=None` signifie « champ omis » côté client, pas « retirer
+    # la ref » : on le traite comme inchangé (sémantique COALESCE) pour ne
+    # pas déclencher le drop/recreate destructif ni nuller la ref stockée
+    # (BUG-062).
+    effective_api_key_ref: str | None = None
+    if new_indexer is not None:
+        effective_api_key_ref = new_indexer.api_key_ref or row["api_key_ref"]
+
     same_indexer = new_indexer is None or (
         new_indexer.provider == row["provider"]
         and new_indexer.model == row["model"]
-        and (new_indexer.api_key_ref or None) == (row["api_key_ref"] or None)
+        and (effective_api_key_ref or None) == (row["api_key_ref"] or None)
     )
     if same_indexer:
         return await create_pending_job(
@@ -280,7 +288,7 @@ async def reindex_workspace(
             """,
             new_indexer.provider,
             new_indexer.model,
-            new_indexer.api_key_ref,
+            effective_api_key_ref,
             new_dimension,
             row["workspace_id"],
         )

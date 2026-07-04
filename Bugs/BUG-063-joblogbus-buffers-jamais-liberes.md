@@ -1,6 +1,6 @@
 # BUG-063 — `JobLogBus` : les buffers ne sont jamais libérés → croissance mémoire non bornée
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / services/job_log_bus
 - **Sévérité** : moyenne
