@@ -1,6 +1,6 @@
 # BUG-045 — L'overlap legacy fait dépasser `max_chars` aux chunks
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / indexer/chunking
 - **Sévérité** : basse
