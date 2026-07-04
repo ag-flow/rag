@@ -202,6 +202,7 @@ class ModelEntry(BaseModel):
     provider: str = Field(min_length=1)
     model: str = Field(min_length=1)
     dimension: int = Field(gt=0)
+    created_at: str | None = None
 
 
 class RerankSpec(BaseModel):

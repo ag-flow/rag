@@ -2,6 +2,7 @@ import { api } from "@/lib/api";
 import type {
   ApiKeyRotateResponse,
   DetectBranchesResponse,
+  DocumentViewResponse,
   IndexKeysResponse,
   PathDetailResponse,
   StrategyPatchRequest,
@@ -77,4 +78,9 @@ export const workspacesApi = {
 
   patchIndexKeyStrategy: (name: string, path: string, payload: StrategyPatchRequest) =>
     api.patch<void>(`${BASE}/${name}/index-keys/${encodeURIComponent(path)}/strategy`, payload),
+
+  getDocumentView: (name: string, path: string) =>
+    api.get<DocumentViewResponse>(
+      `${BASE}/${name}/document-view?${new URLSearchParams({ path }).toString()}`,
+    ),
 };
