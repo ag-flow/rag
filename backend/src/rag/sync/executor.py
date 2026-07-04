@@ -613,13 +613,48 @@ async def execute_next_pending_job(
                 webhook_secret=webhook_secret,
             )
     except Exception as e:
+        # Les jobs push/delete gèrent leurs erreurs en interne ; ce chemin sert
+        # surtout aux jobs git (schedule/webhook/manual), qui doivent bénéficier
+        # de la même machinerie retry/backoff + circuit-breaker (BUG-038).
         msg = _format_error(e)
-        log.exception("sync.executor.job_error", job_id=str(job.job_id))
-        await _mark_job_error(config_pool, job_id=job.job_id, error_message=msg)
-        if job_log_bus is not None:
-            jid = str(job.job_id)
-            job_log_bus.publish(jid, "error", f"Erreur : {msg}")
-            job_log_bus.complete(jid, status="error")
+        family = classify_indexer_error(e)
+        jid = str(job.job_id)
+        if family == "transient" and _should_retry(job.retry_count):
+            delay = _backoff_delay(job.retry_count)
+            await _reschedule_job(
+                config_pool,
+                job_id=job.job_id,
+                retry_count=job.retry_count + 1,
+                delay_seconds=delay,
+            )
+            log.warning(
+                "sync.executor.job_transient_retry",
+                job_id=jid,
+                retry_count=job.retry_count + 1,
+                delay_seconds=delay,
+                error=msg,
+            )
+            if job_log_bus is not None:
+                job_log_bus.publish(
+                    jid,
+                    "warning",
+                    f"Erreur transitoire, nouvelle tentative dans {delay}s : {msg}",
+                )
+        else:
+            await _mark_job_error(config_pool, job_id=job.job_id, error_message=msg)
+            if family in ("blocking", "transient"):
+                # transient ici = retries épuisés → même traitement que blocking
+                await open_circuit(
+                    config_pool,
+                    workspace_id=job.workspace_id,
+                    provider=job.indexer_provider,
+                    model=job.indexer_model,
+                    error_message=msg,
+                )
+            log.exception("sync.executor.job_error", job_id=jid, family=family)
+            if job_log_bus is not None:
+                job_log_bus.publish(jid, "error", f"Erreur : {msg}")
+                job_log_bus.complete(jid, status="error")
     return True
 
 
