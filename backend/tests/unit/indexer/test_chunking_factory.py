@@ -122,6 +122,76 @@ def test_make_chunker_markdown_immutable_levels() -> None:
     assert isinstance(chunker._heading_levels, tuple)
 
 
+# ── Tests du nettoyage legacy (make_chunker + CleaningLegacyChunkerWrapper) ──
+
+
+def test_make_chunker_paragraph_no_cleaning_returns_plain() -> None:
+    chunker = make_chunker(
+        strategy="paragraph",
+        max_chars=1000,
+        min_chars=100,
+        overlap_chars=100,
+        extras={},
+    )
+    assert isinstance(chunker, ParagraphChunker)
+
+
+def test_make_chunker_paragraph_cleaning_returns_wrapper() -> None:
+    from rag.indexer.chunking.cleaner import CleaningLegacyChunkerWrapper
+
+    chunker = make_chunker(
+        strategy="paragraph",
+        max_chars=1000,
+        min_chars=100,
+        overlap_chars=100,
+        extras={"clean_content": True},
+    )
+    assert isinstance(chunker, CleaningLegacyChunkerWrapper)
+
+
+def test_make_chunker_paragraph_all_cleaning_false_returns_plain() -> None:
+    chunker = make_chunker(
+        strategy="paragraph",
+        max_chars=1000,
+        min_chars=100,
+        overlap_chars=100,
+        extras={"clean_content": False, "strip_html": False},
+    )
+    assert isinstance(chunker, ParagraphChunker)
+
+
+def test_make_chunker_markdown_cleaning_wraps_and_preserves_heading_levels() -> None:
+    from rag.indexer.chunking.cleaner import CleaningLegacyChunkerWrapper
+    from rag.indexer.chunking.markdown import MarkdownChunker
+
+    chunker = make_chunker(
+        strategy="markdown",
+        max_chars=2000,
+        min_chars=200,
+        overlap_chars=200,
+        extras={"heading_levels": [1, 3], "strip_html": True},
+    )
+    assert isinstance(chunker, CleaningLegacyChunkerWrapper)
+    inner = chunker._inner
+    assert isinstance(inner, MarkdownChunker)
+    assert inner._heading_levels == (1, 3)
+
+
+def test_make_chunker_cleaning_applied_before_chunking() -> None:
+    """strip_html retire les balises avant que ParagraphChunker ne découpe."""
+    chunker = make_chunker(
+        strategy="paragraph",
+        max_chars=1000,
+        min_chars=1,
+        overlap_chars=0,
+        extras={"strip_html": True},
+    )
+    result = chunker.chunk("<p>Bonjour</p>")
+    joined = " ".join(c.content for c in result)
+    assert "<p>" not in joined
+    assert "Bonjour" in joined
+
+
 # ── Tests du paramètre clean_content dans make_structured_chunker ────────────
 
 

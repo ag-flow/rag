@@ -7,6 +7,7 @@ from collections import Counter
 from dataclasses import dataclass
 
 from rag.indexer.chunking._sections import scan_fences
+from rag.indexer.chunking.protocol import Chunk, ChunkerProtocol
 from rag.indexer.chunking.structured import ChunkedDocument, StructuredChunkerProtocol
 
 
@@ -184,6 +185,24 @@ class CleaningOptions:
         )
 
 
+def apply_cleaning(content: str, options: CleaningOptions) -> str:
+    """Applique les nettoyages activés à `content`, dans l'ordre canonique.
+
+    Ordre d'application : strip_html → clean_content → strip_separators →
+    strip_boilerplate. Chaque étape est indépendante ; si toutes les options
+    sont désactivées, `content` est renvoyé inchangé.
+    """
+    if options.strip_html:
+        content = strip_html_tags(content)
+    if options.clean_content:
+        content = clean_content_text(content)
+    if options.strip_separators:
+        content = strip_decorative_separators(content)
+    if options.strip_boilerplate:
+        content = strip_boilerplate_lines(content)
+    return content
+
+
 class CleaningChunkerWrapper:
     """Applique les nettoyages configurés avant de déléguer au chunker interne.
 
@@ -200,13 +219,20 @@ class CleaningChunkerWrapper:
         self._options = options if options is not None else CleaningOptions(clean_content=True)
 
     def chunk(self, content: str) -> ChunkedDocument:
-        opts = self._options
-        if opts.strip_html:
-            content = strip_html_tags(content)
-        if opts.clean_content:
-            content = clean_content_text(content)
-        if opts.strip_separators:
-            content = strip_decorative_separators(content)
-        if opts.strip_boilerplate:
-            content = strip_boilerplate_lines(content)
-        return self._inner.chunk(content)
+        return self._inner.chunk(apply_cleaning(content, self._options))
+
+
+class CleaningLegacyChunkerWrapper:
+    """Équivalent de `CleaningChunkerWrapper` pour le moteur legacy.
+
+    Implémente `ChunkerProtocol` (découpage plat → `list[Chunk]`). Réutilise la
+    même logique de nettoyage pré-chunk que le moteur structured via
+    `apply_cleaning`, sans dupliquer l'algorithme.
+    """
+
+    def __init__(self, inner: ChunkerProtocol, options: CleaningOptions) -> None:
+        self._inner = inner
+        self._options = options
+
+    def chunk(self, content: str) -> list[Chunk]:
+        return self._inner.chunk(apply_cleaning(content, self._options))

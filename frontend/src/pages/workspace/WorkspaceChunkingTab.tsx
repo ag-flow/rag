@@ -18,17 +18,29 @@ import { useChunkingConfig, useUpsertChunkingConfig } from "@/hooks/useChunking"
 import { ApiError } from "@/lib/api";
 import { isChunkingChangeRequiresReindex } from "@/lib/chunking";
 import type { UpsertChunkingResult } from "@/lib/chunking";
-import type { ChunkingSpec, ChunkingStrategy } from "@/lib/chunking.types";
-import { computeExtrasPayload } from "@/lib/chunkingExtras";
+import type { ChunkingConfig, ChunkingSpec, ChunkingStrategy } from "@/lib/chunking.types";
+import { computeExtrasPayload, extractCleaningOptions } from "@/lib/chunkingExtras";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import type { Workspace } from "@/lib/workspaces.types";
 import { ChunkingConfirmReindexAlert } from "./ChunkingConfirmReindexAlert";
+import { CleaningOptionsPanel } from "./CleaningOptionsPanel";
+import { CLEANING_KEYS, type CleaningOptions } from "./CleaningOptionsPanel.schema";
 import {
   CHUNKING_STRATEGIES,
   chunkingFormSchema,
   DEFAULT_CHUNKING_FORM,
   type ChunkingFormValues,
 } from "./WorkspaceChunkingTab.schema";
+
+function configToForm(config: ChunkingConfig): ChunkingFormValues {
+  return {
+    strategy: config.strategy,
+    max_chars: config.max_chars,
+    min_chars: config.min_chars,
+    overlap_chars: config.overlap_chars,
+    ...extractCleaningOptions(config.extras),
+  };
+}
 
 interface Props {
   workspace: Workspace;
@@ -54,12 +66,7 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
   useEffect(() => {
     if (isLoading) return;
     if (data) {
-      form.reset({
-        strategy: data.strategy,
-        max_chars: data.max_chars,
-        min_chars: data.min_chars,
-        overlap_chars: data.overlap_chars,
-      });
+      form.reset(configToForm(data));
     }
   }, [data, isLoading, form]);
 
@@ -68,12 +75,7 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
       toast({ title: t("chunking.save.noChange") });
     } else if (result.status === "updated") {
       toast({ title: t("chunking.save.success") });
-      form.reset({
-        strategy: result.config.strategy,
-        max_chars: result.config.max_chars,
-        min_chars: result.config.min_chars,
-        overlap_chars: result.config.overlap_chars,
-      });
+      form.reset(configToForm(result.config));
     } else {
       toast({ title: t("chunking.reindex.triggered") });
       form.reset(form.getValues());
@@ -84,9 +86,18 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
     // TS strict : data est garanti par le guard JSX (isLoading || !data → LoadingSpinner)
     // mais le narrowing ne traverse pas la closure. Guard runtime no-op.
     if (!data) return;
+    const cleaning: CleaningOptions = {
+      clean_content: values.clean_content,
+      strip_separators: values.strip_separators,
+      strip_boilerplate: values.strip_boilerplate,
+      strip_html: values.strip_html,
+    };
     const payload: ChunkingSpec = {
-      ...values,
-      extras: computeExtrasPayload(values.strategy, data),
+      strategy: values.strategy,
+      max_chars: values.max_chars,
+      min_chars: values.min_chars,
+      overlap_chars: values.overlap_chars,
+      extras: computeExtrasPayload(values.strategy, cleaning, data),
     };
     upsert.mutate(
       { payload, confirm: false },
@@ -109,6 +120,19 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
         },
       },
     );
+  };
+
+  const cleaningValue: CleaningOptions = {
+    clean_content: form.watch("clean_content"),
+    strip_separators: form.watch("strip_separators"),
+    strip_boilerplate: form.watch("strip_boilerplate"),
+    strip_html: form.watch("strip_html"),
+  };
+
+  const handleCleaningChange = (next: CleaningOptions) => {
+    for (const key of CLEANING_KEYS) {
+      form.setValue(key, next[key], { shouldDirty: true });
+    }
   };
 
   const onConfirmReindex = () => {
@@ -241,6 +265,12 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
           )}
         </div>
 
+        <CleaningOptionsPanel
+          value={cleaningValue}
+          onChange={handleCleaningChange}
+          disabled={upsert.isPending}
+        />
+
         <p className="text-xs text-slate-500">
           {t("chunking.lastModified", {
             when: formatRelativeTime(data.updated_at, t),
@@ -251,14 +281,7 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
           <Button
             type="button"
             variant="ghost"
-            onClick={() =>
-              form.reset({
-                strategy: data.strategy,
-                max_chars: data.max_chars,
-                min_chars: data.min_chars,
-                overlap_chars: data.overlap_chars,
-              })
-            }
+            onClick={() => form.reset(configToForm(data))}
             disabled={!form.formState.isDirty}
           >
             {t("chunking.actions.cancel")}

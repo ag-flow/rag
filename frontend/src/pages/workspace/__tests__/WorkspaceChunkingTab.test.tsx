@@ -245,6 +245,27 @@ describe("WorkspaceChunkingTab", () => {
     expect(callArgs?.payload?.extras).toEqual({ heading_levels: [1, 3] });
   });
 
+  it("monte le panneau de nettoyage et pré-coche les options depuis extras", () => {
+    mockState({ ...mockConfig, extras: { strip_html: true } });
+    renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
+    expect(screen.getByText(/Nettoyage du contenu/i)).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: /Supprimer les balises HTML/i })).toBeChecked();
+    expect(screen.getByRole("switch", { name: /Normalisation du texte/i })).not.toBeChecked();
+  });
+
+  it("toggler une option de nettoyage l'inclut dans le payload extras", async () => {
+    const user = userEvent.setup();
+    mockState(mockConfig); // paragraph, extras {}
+    renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
+    await user.click(screen.getByRole("switch", { name: /Normalisation du texte/i }));
+    await user.click(screen.getByRole("button", { name: /^Enregistrer$/i }));
+
+    await waitFor(() => expect(upsertMutate).toHaveBeenCalled());
+    const callArgs = upsertMutate.mock.calls[0]?.[0];
+    expect(callArgs?.payload?.strategy).toBe("paragraph");
+    expect(callArgs?.payload?.extras).toEqual({ clean_content: true });
+  });
+
   it("erreur Zod min ≥ max → message d'erreur, pas de submit", async () => {
     mockState(mockConfig);
     renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);

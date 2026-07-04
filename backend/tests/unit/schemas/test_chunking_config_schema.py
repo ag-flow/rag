@@ -64,14 +64,58 @@ def test_strategy_must_be_known_literal() -> None:
         )
 
 
-def test_extras_must_be_empty_for_paragraph() -> None:
-    with pytest.raises(ValidationError, match="extras must be empty for strategy 'paragraph'"):
+def test_paragraph_rejects_non_cleaning_extras() -> None:
+    with pytest.raises(ValidationError, match="unknown keys"):
         ChunkingConfigSpec(
             strategy="paragraph",
             max_chars=2000,
             min_chars=200,
             overlap_chars=200,
             extras={"foo": "bar"},
+        )
+
+
+def test_paragraph_accepts_cleaning_options() -> None:
+    spec = ChunkingConfigSpec(
+        strategy="paragraph",
+        max_chars=2000,
+        min_chars=200,
+        overlap_chars=200,
+        extras={"clean_content": True, "strip_html": True},
+    )
+    assert spec.extras == {"clean_content": True, "strip_html": True}
+
+
+def test_paragraph_cleaning_option_must_be_boolean() -> None:
+    with pytest.raises(ValidationError, match="clean_content must be a boolean"):
+        ChunkingConfigSpec(
+            strategy="paragraph",
+            max_chars=2000,
+            min_chars=200,
+            overlap_chars=200,
+            extras={"clean_content": "yes"},
+        )
+
+
+def test_markdown_accepts_cleaning_options_alongside_heading_levels() -> None:
+    spec = ChunkingConfigSpec(
+        strategy="markdown",
+        max_chars=2000,
+        min_chars=200,
+        overlap_chars=200,
+        extras={"heading_levels": [1, 3], "strip_boilerplate": True},
+    )
+    assert spec.extras == {"heading_levels": [1, 3], "strip_boilerplate": True}
+
+
+def test_markdown_cleaning_option_must_be_boolean() -> None:
+    with pytest.raises(ValidationError, match="strip_html must be a boolean"):
+        ChunkingConfigSpec(
+            strategy="markdown",
+            max_chars=2000,
+            min_chars=200,
+            overlap_chars=200,
+            extras={"strip_html": 1},
         )
 
 
