@@ -59,7 +59,7 @@ async def pick_next_pending_job(
                       WHERE cb.workspace_id = j.workspace_id
                         AND (cb.open_until IS NULL OR cb.open_until > now())
                   )
-                ORDER BY j.id
+                ORDER BY j.created_at
                 LIMIT 1
                 FOR UPDATE OF j SKIP LOCKED
             )
