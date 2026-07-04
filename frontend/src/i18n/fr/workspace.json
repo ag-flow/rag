@@ -262,7 +262,29 @@
         "actions": { "cancel": "Annuler", "confirm": "Réindexer maintenant" }
       }
     },
-    "lastModified": "Dernière modification : {{when}}"
+    "lastModified": "Dernière modification : {{when}}",
+    "cleaning": {
+      "title": "Nettoyage du contenu",
+      "description": "Appliqué sur chaque document avant découpage. Désactivé par défaut — chaque option est indépendante.",
+      "options": {
+        "clean_content": {
+          "label": "Normalisation du texte",
+          "description": "Corrige l'unicode (ligatures, espaces insécables), uniformise les fins de ligne (CRLF → LF) et supprime les espaces en fin de ligne."
+        },
+        "strip_separators": {
+          "label": "Supprimer les séparateurs décoratifs",
+          "description": "Retire les lignes composées uniquement de tirets, égaux ou étoiles (---, ===, *** …). Les sous-titres Markdown soulignés (Titre\\n-----) sont préservés."
+        },
+        "strip_boilerplate": {
+          "label": "Supprimer les entêtes boilerplate",
+          "description": "Retire les mentions de licence (SPDX, copyright), les marqueurs auto-generated / do not edit, et les pieds de page répétés à l'identique 5 fois ou plus dans le même document."
+        },
+        "strip_html": {
+          "label": "Supprimer les balises HTML",
+          "description": "Retire les balises (<p>, <div>…) et décode les entités HTML (&amp; → &, &lt; → <…). Utile pour les exports web ou les sources scrappées."
+        }
+      }
+    }
   },
   "dialog": {
     "cancel": "Annuler",
@@ -351,7 +373,18 @@
     "last_indexed": "Indexé {{when}}",
     "version_label": "Version du {{date}}",
     "chunk_label": "Chunk #{{index}}",
-    "metadata_label": "Metadata"
+    "metadata_label": "Metadata",
+    "view_chunks": "Chunks",
+    "view_document": "Document",
+    "document_view": {
+      "legacy_notice": "Pipeline legacy — sections structurées non disponibles. Les embeddings bruts sont affichés.",
+      "chunks_count_one": "{{count}} chunk",
+      "chunks_count_other": "{{count}} chunks",
+      "chunks_count": "{{count}} chunk(s)",
+      "embed_chunks_title": "Chunks embeddés ({{count}})",
+      "embed_chunk_label": "#{{index}}",
+      "error": "Erreur de chargement de la vue document."
+    }
   },
   "optional": "optionnel",
   "time": {

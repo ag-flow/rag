@@ -18,7 +18,7 @@ from rag.api.errors import (
 def test_oidc_not_configured_payload() -> None:
     e = OidcNotConfigured()
     assert isinstance(e, AdminError)
-    assert e.http_status == 503
+    assert e.http_status == 404
     assert e.to_payload() == {
         "error": "oidc_not_configured",
         "message": "POST /admin/oidc avec la master-key pour configurer Keycloak",
