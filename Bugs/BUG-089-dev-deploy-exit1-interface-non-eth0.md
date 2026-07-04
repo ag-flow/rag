@@ -1,6 +1,6 @@
 # BUG-089 — `dev-deploy.sh` exit 1 après un déploiement réussi si l'interface n'est pas `eth0`
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : infra / dev-deploy.sh
 - **Sévérité** : moyenne

@@ -149,9 +149,18 @@ read_env_var() {
   awk -F'=' -v k="$key" '$1 == k {print $2; exit}' .env | tr -d '\r'
 }
 
-# Détecte l'IPv4 de l'interface eth0. Retourne vide si l'interface n'existe
-# pas (ex: serveur où l'interface s'appelle ens18, enp0s3, etc.).
+# Détecte l'IPv4 utilisable pour afficher les URLs de smoke. Essaie d'abord
+# l'interface de la route par défaut (fonctionne quel que soit son nom :
+# eth0, ens18, enp0s3…), puis retombe sur eth0 explicitement si la route
+# par défaut n'est pas déterminable. Retourne vide si aucune des deux
+# méthodes n'aboutit.
 detect_eth0_ip() {
+  local iface ip_addr
+  iface="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="dev") print $(i+1)}' | head -1)"
+  if [ -n "$iface" ]; then
+    ip_addr="$(ip -4 -o addr show dev "$iface" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)"
+    [ -n "$ip_addr" ] && { echo "$ip_addr"; return 0; }
+  fi
   ip -4 -o addr show dev eth0 2>/dev/null \
     | awk '{print $4}' | cut -d/ -f1 | head -1
 }
@@ -243,7 +252,8 @@ if [ ! -f ".env" ]; then
     echo "      ⚠  Configurer les coffres Harpocrate via l'IHM /ui/settings/harpocrate-vaults"
     echo "         après le premier démarrage (HARPOCRATE_DEK requis)."
   else
-    echo "[2/5] ⚠  .env absent et .env.example introuvable — config requise pour démarrer"
+    echo "[2/5] ✗ .env absent et .env.example introuvable — config requise pour démarrer" >&2
+    exit 1
   fi
 else
   echo "[2/5] .env déjà présent (secrets non régénérés)."
@@ -280,7 +290,11 @@ if [ "$RESET_DATA" = "1" ]; then
   # complète réinit au prochain up avec POSTGRES_PASSWORD du .env),
   # `caddy_data`, `caddy_config`. Le .env est conservé.
   echo "      ⚠  --reset : down -v (purge postgres_data + caddy_data + caddy_config)"
-  docker compose -f "$COMPOSE_FILE" down -v --remove-orphans || true
+  if ! docker compose -f "$COMPOSE_FILE" down -v --remove-orphans; then
+    echo "✗ --reset demandé mais 'docker compose down -v' a échoué — les volumes n'ont PAS été purgés." >&2
+    echo "  Corriger la cause (ex: .env manquant/invalide) avant de relancer, sous peine de repartir sur l'ancienne base." >&2
+    exit 1
+  fi
 else
   docker compose -f "$COMPOSE_FILE" down --remove-orphans || true
 fi
@@ -314,13 +328,14 @@ echo
 
 # ─── Affichage final : URL d'accès ──────────────────────────────────────────
 # Pour le smoke (URLs affichées à l'admin local), on utilise TOUJOURS l'IP
-# eth0 — pas RAG_PUBLIC_URL, qui peut contenir une valeur héritée non
-# pertinente en dev (ex: `http://localhost` par défaut dans .env.example,
-# ou une URL Cloudflare configurée pour la prod). Les URLs doivent être
-# copiables tel quel depuis le poste de dev.
+# détectée localement (route par défaut, quel que soit le nom de
+# l'interface) — pas RAG_PUBLIC_URL, qui peut contenir une valeur héritée
+# non pertinente en dev (ex: `http://localhost` par défaut dans
+# .env.example, ou une URL Cloudflare configurée pour la prod). Les URLs
+# doivent être copiables tel quel depuis le poste de dev.
 IP="$(detect_eth0_ip)"
 if [ -z "$IP" ]; then
-  echo "✗ Impossible de détecter l'IP eth0 — interface absente ou nommée différemment (ens18, enp0s3…)." >&2
+  echo "✗ Impossible de détecter une IPv4 (ni route par défaut, ni interface eth0)." >&2
   echo "  Le smoke ne peut pas afficher d'URL utilisable. Adapter detect_eth0_ip si besoin." >&2
   exit 1
 fi
@@ -351,12 +366,12 @@ if [ "$SMOKE_OK" = "1" ]; then
   ✓ /version    ${VERSION_JSON}
 
   Endpoints exposés (cf. docker compose ps) :
-  → IHM (frontend)   : ${APP_URL}/
+  → IHM (frontend)   : ${APP_URL}/ui/
   → API admin        : ${APP_URL}/api/admin/  (auth Bearer ${PROJECT_NAME_UPPER}_MASTER_KEY)
   → API MCP          : ${APP_URL}/mcp         (auth Bearer api_key workspace)
   → Backend direct   : http://${IP}:8000/     (bypass Caddy, debug)
   → pgweb (DB UI)    : http://${IP}:8081/
-  → Postgres CLI     : psql postgresql://rag:<POSTGRES_PASSWORD>@${IP}:5432/postgres
+  → Postgres CLI     : psql postgresql://rag:<POSTGRES_PASSWORD>@${IP}:5432/rag_config
 EOF
 echo "  → Compte admin     : créer via ${APP_URL}/ui/login (wizard premier accès)"
 cat <<EOF

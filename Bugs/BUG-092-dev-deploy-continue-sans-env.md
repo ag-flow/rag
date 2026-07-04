@@ -1,6 +1,6 @@
 # BUG-092 — `dev-deploy.sh` continue quand `.env` et `.env.example` sont absents — `--reset` silencieusement no-op puis `up` casse
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : infra / dev-deploy.sh
 - **Sévérité** : basse
