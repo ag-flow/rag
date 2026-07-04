@@ -62,14 +62,31 @@ if ($remoteKey) {
         Write-Error "Cle SSH introuvable : $keyPath"
         exit 1
     }
-    ssh -o StrictHostKeyChecking=no -p $remotePort -i $keyPath "${remoteUser}@${remoteHost}" $remoteCmd
+    ssh -o StrictHostKeyChecking=accept-new -p $remotePort -i $keyPath "${remoteUser}@${remoteHost}" $remoteCmd
 
 } elseif ($remotePwd) {
     if (-not (Get-Command plink -ErrorAction SilentlyContinue)) {
         Write-Error "plink requis pour auth par mot de passe - winget install PuTTY.PuTTY"
         exit 1
     }
-    plink -batch -pw $remotePwd -P $remotePort "${remoteUser}@${remoteHost}" $remoteCmd
+    # Le mot de passe n'est jamais passe sur la ligne de commande (visible
+    # via Task Manager / Get-Process / audit EDR) : il transite par un
+    # fichier temporaire lu par plink (-pwfile), cree avec des ACL restreintes
+    # a l'utilisateur courant et supprime immediatement apres l'appel.
+    $pwFile = New-TemporaryFile
+    try {
+        Set-Content -Path $pwFile -Value $remotePwd -NoNewline
+        $acl = Get-Acl $pwFile
+        $acl.SetAccessRuleProtection($true, $false)
+        $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+            $env:USERNAME, 'FullControl', 'Allow')
+        $acl.AddAccessRule($rule)
+        Set-Acl -Path $pwFile -AclObject $acl
+
+        plink -batch -pwfile $pwFile -P $remotePort "${remoteUser}@${remoteHost}" $remoteCmd
+    } finally {
+        Remove-Item -Path $pwFile -Force -ErrorAction SilentlyContinue
+    }
 
 } else {
     Write-Error "REMOTE_KEY ou REMOTE_PASSWORD requis dans $EnvFile"
