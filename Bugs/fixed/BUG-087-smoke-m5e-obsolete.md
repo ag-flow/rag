@@ -1,6 +1,13 @@
 # BUG-087 — `smoke-m5e.sh` complètement obsolète : variable env inexistante + INSERT sur des colonnes supprimées
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
+
+> Résolution : script `scripts/smoke-m5e.sh` **supprimé** (`git rm`). Il n'était
+> référencé nulle part hors sa fiche et l'index `Bugs/README.md`. Le réécrire
+> aurait imposé de reconstituer tout le flux `workspace_api_keys` + Harpocrate
+> (le bypass par INSERT SQL direct n'est plus possible : colonnes
+> `api_key_encrypted`/`api_key_fingerprint` droppées par migrations 015/033) ;
+> la suppression est donc l'option propre.
 
 - **Zone** : infra / scripts
 - **Sévérité** : haute
