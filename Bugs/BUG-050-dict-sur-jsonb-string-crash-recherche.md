@@ -1,6 +1,6 @@
 # BUG-050 — `dict()` sur une string jsonb : le mapping des résultats de recherche crashe (asyncpg renvoie jsonb en `str`)
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / db (search + mcp_tools)
 - **Sévérité** : **critique**

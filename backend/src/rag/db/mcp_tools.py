@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 from uuid import UUID
 
@@ -7,6 +8,19 @@ import asyncpg
 import structlog
 
 log = structlog.get_logger(__name__)
+
+
+def _parse_metadata(raw: Any) -> dict[str, Any] | None:
+    """Normalise la colonne jsonb `metadata` (asyncpg la renvoie en `str`).
+
+    Aucun codec jsonb n'est enregistré au niveau du pool : il faut donc
+    parser explicitement la string, comme dans `index_keys.py`.
+    """
+    if not raw:
+        return None
+    if isinstance(raw, str):
+        return json.loads(raw)
+    return dict(raw)
 
 
 async def get_index_status(
@@ -21,8 +35,8 @@ async def get_index_status(
         workspace_id,
     )
     src = await config_pool.fetchrow(
-        "SELECT last_indexed_at, next_sync_at FROM workspace_sources "
-        "WHERE workspace_id = $1 LIMIT 1",
+        "SELECT MAX(last_indexed_at) AS last_indexed_at, MIN(next_sync_at) AS next_sync_at "
+        "FROM workspace_sources WHERE workspace_id = $1",
         workspace_id,
     )
     job = await config_pool.fetchrow(
@@ -128,12 +142,8 @@ async def search_files_in_workspace(
             "path": r["path"],
             "chunk_index": r["chunk_index"],
             "content": r["content"],
-            "enrichment_key": (
-                dict(r["metadata"]).get("enrichment_key") if r["metadata"] else None
-            ),
-            "source_path": (
-                dict(r["metadata"]).get("source_path") if r["metadata"] else None
-            ),
+            "enrichment_key": (_parse_metadata(r["metadata"]) or {}).get("enrichment_key"),
+            "source_path": (_parse_metadata(r["metadata"]) or {}).get("source_path"),
         }
         for r in rows
     ]
@@ -169,7 +179,7 @@ async def reconstruct_document(
         if sections:
             parts = [r["content"] for r in sections]
             is_code = any(
-                r["metadata"] and dict(r["metadata"]).get("scope") for r in sections
+                (_parse_metadata(r["metadata"]) or {}).get("scope") for r in sections
             )
             return {
                 "content": "\n\n".join(parts),

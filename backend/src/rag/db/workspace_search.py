@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -11,6 +12,19 @@ from pgvector.asyncpg import register_vector
 from rag.schemas.mcp import SearchHit
 
 log = structlog.get_logger(__name__)
+
+
+def _parse_metadata(raw: Any) -> dict[str, Any] | None:
+    """Normalise la colonne jsonb `metadata` (asyncpg la renvoie en `str`).
+
+    Aucun codec jsonb n'est enregistré au niveau du pool : il faut donc
+    parser explicitement la string, comme dans `index_keys.py`.
+    """
+    if not raw:
+        return None
+    if isinstance(raw, str):
+        return json.loads(raw)
+    return dict(raw)
 
 
 @dataclass(frozen=True)
@@ -136,7 +150,7 @@ async def _fetch_vector_children(
             section_id=r["section_id"],
             content=r["content"],
             score=float(r["score"]),
-            metadata=dict(r["metadata"]) if r["metadata"] else None,
+            metadata=_parse_metadata(r["metadata"]),
         )
         for r in rows
         if float(r["score"]) >= min_score
@@ -291,7 +305,7 @@ async def lexical_search(
             section_id=r["section_id"],
             content=r["content"],
             score=float(r["lexical_score"]),
-            metadata=dict(r["metadata"]) if r["metadata"] else None,
+            metadata=_parse_metadata(r["metadata"]),
         )
         for r in rows
     ]

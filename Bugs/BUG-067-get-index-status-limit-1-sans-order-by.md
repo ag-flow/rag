@@ -1,6 +1,6 @@
 # BUG-067 — `get_index_status` : `workspace_sources ... LIMIT 1` sans ORDER BY
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / db/mcp_tools
 - **Sévérité** : basse
