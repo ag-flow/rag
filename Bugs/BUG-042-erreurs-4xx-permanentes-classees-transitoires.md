@@ -1,6 +1,6 @@
 # BUG-042 — Les erreurs HTTP 4xx permanentes du provider sont classées transitoires
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / indexer/providers + sync/error_classifier
 - **Sévérité** : moyenne
