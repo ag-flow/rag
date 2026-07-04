@@ -1,6 +1,6 @@
 # BUG-072 — Détection de branche : races non gardées et pas d'annulation des requêtes en vol
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / pages/workspace
 - **Sévérité** : moyenne

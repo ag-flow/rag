@@ -1,6 +1,6 @@
 # BUG-070 — AddSourceDialog : l'effet de défaut `ssh_username` écrase la valeur custom sauvegardée en édition
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / pages/workspace
 - **Sévérité** : haute
