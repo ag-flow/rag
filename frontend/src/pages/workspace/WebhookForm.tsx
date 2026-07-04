@@ -26,35 +26,37 @@ export function WebhookForm({ onSubmit, onCancel, loading }: Props) {
   const [headers, setHeaders] = useState<WebhookHeaderIn[]>([
     { name: "X-Api-Key", value: "", vault: null, enabled: false },
   ]);
-  const [headerErrors, setHeaderErrors] = useState<Record<number, string>>({});
+  const [touched, setTouched] = useState<Record<number, boolean>>({});
+
+  // Erreurs recalculées à chaque rendu depuis `headers` — jamais stockées
+  // par index dans un state séparé, pour éviter tout décalage lors d'un
+  // removeHeader qui compacte le tableau.
+  const headerErrors: Record<number, string> = {};
+  headers.forEach((h, i) => {
+    if (touched[i] && RESERVED.has(h.name.toLowerCase())) {
+      headerErrors[i] = t("webhooks.reserved_error");
+    }
+  });
 
   const hasReservedError = Object.keys(headerErrors).length > 0;
 
-  function validateHeader(idx: number, headerName: string) {
-    if (RESERVED.has(headerName.toLowerCase())) {
-      setHeaderErrors((e) => ({
-        ...e,
-        [idx]: t("webhooks.reserved_error"),
-      }));
-    } else {
-      setHeaderErrors((e) => {
-        const copy = { ...e };
-        delete copy[idx];
-        return copy;
-      });
-    }
+  function validateHeader(idx: number) {
+    setTouched((t) => ({ ...t, [idx]: true }));
   }
 
   function addHeader() {
     setHeaders((h) => [...h, { name: "", value: "", vault: null, enabled: true }]);
+    setTouched((t) => ({ ...t, [headers.length]: false }));
   }
 
   function removeHeader(idx: number) {
     setHeaders((h) => h.filter((_, i) => i !== idx));
-    setHeaderErrors((e) => {
-      const copy = { ...e };
-      delete copy[idx];
-      return copy;
+    setTouched((t) => {
+      const entries = Object.entries(t)
+        .map(([k, v]) => [Number(k), v] as const)
+        .filter(([i]) => i !== idx)
+        .map(([i, v]) => [i > idx ? i - 1 : i, v] as const);
+      return Object.fromEntries(entries);
     });
   }
 
@@ -103,7 +105,7 @@ export function WebhookForm({ onSubmit, onCancel, loading }: Props) {
                   placeholder={t("webhooks.header_name")}
                   value={h.name}
                   onChange={(e) => updateHeader(i, "name", e.target.value)}
-                  onBlur={(e) => validateHeader(i, e.target.value)}
+                  onBlur={() => validateHeader(i)}
                 />
                 {headerErrors[i] !== undefined && (
                   <p className="text-xs text-red-500 mt-1">{headerErrors[i]}</p>
