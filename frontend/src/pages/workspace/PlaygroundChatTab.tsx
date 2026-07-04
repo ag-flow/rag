@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Send, RotateCcw, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -52,7 +53,7 @@ function ChunksCollapsible({ chunks }: { chunks: ChunkResult[] }) {
 export function PlaygroundChatTab({ workspaceName }: Props) {
   const { t } = useTranslation("playground");
   const { toast } = useToast();
-  const { data: configs = [] } = useLlmConfigs(workspaceName);
+  const { data: configs = [], isLoading: configsLoading } = useLlmConfigs(workspaceName);
   const chatMutation = usePlaygroundChat(workspaceName);
 
   const enabledConfigs = configs.filter((c) => c.enabled);
@@ -105,6 +106,10 @@ export function PlaygroundChatTab({ workspaceName }: Props) {
     } catch {
       toast({ title: t("chat.error_toast"), variant: "destructive" });
     }
+  }
+
+  if (configsLoading) {
+    return <LoadingSpinner />;
   }
 
   if (enabledConfigs.length === 0) {
