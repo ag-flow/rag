@@ -1,6 +1,6 @@
 # BUG-068 — Dédup d'enrichissement clé uniquement sur le hash de la source — un changement de prompt/LLM ne relance jamais les enrichissements
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / services/enrichments
 - **Sévérité** : basse
