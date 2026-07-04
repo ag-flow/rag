@@ -1,6 +1,6 @@
 # BUG-020 — Auth push/delete workspace interroge des colonnes supprimées par la migration 033 : endpoints toujours en 500
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / auth + api/workspace
 - **Sévérité** : **critique**
