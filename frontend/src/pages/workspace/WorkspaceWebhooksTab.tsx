@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/useToast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +38,7 @@ interface Props {
 
 export function WorkspaceWebhooksTab({ workspaceName }: Props) {
   const { t } = useTranslation("workspace");
+  const { toast } = useToast();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [subTab, setSubTab] = useState("list");
@@ -53,6 +55,8 @@ export function WorkspaceWebhooksTab({ workspaceName }: Props) {
       void qc.invalidateQueries({ queryKey: ["webhooks", workspaceName] });
       setShowForm(false);
     },
+    onError: () =>
+      toast({ title: t("webhooks.create_error"), variant: "destructive" }),
   });
 
   const toggleMutation = useMutation({
@@ -60,12 +64,16 @@ export function WorkspaceWebhooksTab({ workspaceName }: Props) {
       patchWebhook(workspaceName, id, { enabled }),
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["webhooks", workspaceName] }),
+    onError: () =>
+      toast({ title: t("webhooks.toggle_error"), variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteWebhook(workspaceName, id),
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["webhooks", workspaceName] }),
+    onError: () =>
+      toast({ title: t("webhooks.delete_error"), variant: "destructive" }),
   });
 
   return (
