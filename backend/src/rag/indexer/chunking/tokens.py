@@ -1,7 +1,19 @@
 from __future__ import annotations
 
 import math
+import unicodedata
 from typing import Protocol
+
+# Caractères « denses » : largeur East-Asian Wide (W) ou Fullwidth (F). Couvre les
+# idéogrammes CJK, kana, hangul, formes fullwidth et la plupart des emoji — tous
+# ~1 token/caractère en BPE, là où le latin fait ~4. Les caractères latins
+# accentués (é, à, €) sont classés « Ambiguous » et donc traités comme du latin :
+# aucune régression EN/FR (BUG-041).
+_DENSE_WIDTHS = frozenset({"W", "F"})
+
+
+def _dense_char_count(text: str) -> int:
+    return sum(1 for c in text if unicodedata.east_asian_width(c) in _DENSE_WIDTHS)
 
 
 class TokenEstimator(Protocol):
@@ -21,12 +33,18 @@ class TokenEstimator(Protocol):
 
 
 class HeuristicTokenEstimator:
-    """Estimateur heuristique : ``ceil(len(text) / char_ratio)``.
+    """Estimateur heuristique, conservateur pour les scripts denses.
 
     `char_ratio` = nombre moyen de caractères par token pour le modèle visé
     (≈ 4.0 pour l'anglais/français en BPE OpenAI). Configurable par modèle via
-    `model_dimensions.token_char_ratio`. L'imprécision est absorbée en aval par
-    la marge de sécurité du plafond provider (cf. ADR 0001 §3).
+    `model_dimensions.token_char_ratio`.
+
+    Un simple ``len / char_ratio`` sous-estime jusqu'à 4× le CJK, les emoji et
+    les symboles denses (~1 char/token), laissant passer des blocs atomiques qui
+    explosent la vraie limite d'input du provider (BUG-041). On sépare donc le
+    comptage : caractères denses (Wide/Fullwidth) à 1 token chacun, le reste au
+    `char_ratio`. Conservateur — jamais de sous-estimation sur les scripts denses,
+    et strictement identique à l'ancien comportement pour l'EN/FR (0 dense).
     """
 
     def __init__(self, char_ratio: float = 4.0) -> None:
@@ -37,4 +55,6 @@ class HeuristicTokenEstimator:
     def estimate(self, text: str) -> int:
         if not text:
             return 0
-        return math.ceil(len(text) / self._char_ratio)
+        dense = _dense_char_count(text)
+        light = len(text) - dense
+        return dense + math.ceil(light / self._char_ratio)

@@ -87,6 +87,47 @@ class TestLanguages:
         assert doc.parents  # produit au moins une unité, pas de crash
 
 
+_PY_DECORATED = (
+    "import functools\n\n"
+    "@app.get('/')\n"
+    "def route_root():\n"
+    "    return 'ok'\n\n"
+    "class Svc:\n"
+    "    @property\n"
+    "    def value(self):\n"
+    "        return 1\n\n"
+    "    @staticmethod\n"
+    "    def helper():\n"
+    "        return 2\n"
+)
+
+
+class TestDecoratedDefinitions:
+    def test_decorated_module_function_is_named_unit(self) -> None:
+        # BUG-043 : une fonction décorée ne doit pas finir en unité (module)
+        doc = _chunker().chunk(_PY_DECORATED)
+        keys = {p.section_key for p in doc.parents}
+        assert "route_root" in keys
+
+    def test_decorator_line_kept_in_unit(self) -> None:
+        doc = _chunker().chunk(_PY_DECORATED)
+        route = next(p for p in doc.parents if p.section_key == "route_root")
+        assert "@app.get('/')" in route.content
+
+    def test_decorated_methods_detected_as_members(self) -> None:
+        doc = _chunker().chunk(_PY_DECORATED)
+        keys = {p.section_key for p in doc.parents}
+        assert "Svc/value" in keys
+        assert "Svc/helper" in keys
+
+    def test_class_shell_elides_decorated_methods(self) -> None:
+        doc = _chunker().chunk(_PY_DECORATED)
+        shell = next(p for p in doc.parents if p.section_key == "Svc")
+        assert "class Svc:" in shell.content
+        assert "… value" in shell.content
+        assert "return 1" not in shell.content  # corps de méthode décorée élidé
+
+
 class TestDeterminism:
     def test_same_input_same_output(self) -> None:
         assert _chunker().chunk(_PY) == _chunker().chunk(_PY)

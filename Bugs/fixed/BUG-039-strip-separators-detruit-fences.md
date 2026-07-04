@@ -1,6 +1,6 @@
 # BUG-039 — `strip_separators` détruit les fences de code `~~~` et les délimiteurs de frontmatter `---`
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / indexer/chunking
 - **Sévérité** : moyenne
