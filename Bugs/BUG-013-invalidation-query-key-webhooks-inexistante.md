@@ -1,6 +1,6 @@
 # BUG-013 — Enable/disable webhook invalide une query key qu'aucune query n'utilise : liste des sources jamais rafraîchie
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / hooks
 - **Sévérité** : haute
