@@ -1,6 +1,6 @@
 # BUG-096 — `docker-compose-dev.yml` : healthcheck postgres sans `start_period` — fenêtre de 25s pour l'initdb du premier boot
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : infra / docker-compose-dev.yml
 - **Sévérité** : basse
