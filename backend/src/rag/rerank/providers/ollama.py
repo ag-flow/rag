@@ -9,6 +9,7 @@ from rag.rerank.protocol import (
     RerankAuthError,
     RerankProviderUnreachable,
     RerankRateLimited,
+    RerankResult,
 )
 
 log = structlog.get_logger(__name__)
@@ -36,7 +37,7 @@ class OllamaRerankProvider:
 
     async def rerank(
         self, *, query: str, documents: list[str], top_k: int,
-    ) -> list[int]:
+    ) -> list[RerankResult]:
         if not documents:
             return []
         url = f"{self._base_url}/api/rerank"
@@ -75,5 +76,7 @@ class OllamaRerankProvider:
         results = sorted(
             results, key=lambda r: float(r.get("relevance_score", 0.0)), reverse=True,
         )
-        indices = [int(r["index"]) for r in results]
-        return indices[:top_k]
+        pairs: list[RerankResult] = [
+            (int(r["index"]), float(r.get("relevance_score", 0.0))) for r in results
+        ]
+        return pairs[:top_k]

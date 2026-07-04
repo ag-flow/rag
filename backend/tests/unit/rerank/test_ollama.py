@@ -30,8 +30,8 @@ async def test_ollama_returns_sorted_indices() -> None:
         base_url="http://localhost:11434",
         transport=_mock_transport(handler),
     )
-    indices = await provider.rerank(query="q", documents=["a", "b", "c"], top_k=2)
-    assert indices == [0, 2]
+    results = await provider.rerank(query="q", documents=["a", "b", "c"], top_k=2)
+    assert results == [(0, 0.7), (2, 0.5)]
 
 
 @pytest.mark.asyncio
