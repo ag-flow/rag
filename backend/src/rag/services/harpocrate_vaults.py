@@ -190,23 +190,24 @@ class HarpocrateVaultsService:
         dek = self._require_dek()
         vault_id = uuid4()
 
-        if req.is_default:
-            await conn.execute(_DEMOTE_DEFAULT)
-
         try:
-            row = await conn.fetchrow(
-                _INSERT_VAULT,
-                vault_id,
-                req.name,
-                req.label,
-                req.base_url,
-                req.api_key_id,
-                req.api_key,
-                dek,
-                req.probe_path,
-                req.is_default,
-                owner_id,
-            )
+            async with conn.transaction():
+                if req.is_default:
+                    await conn.execute(_DEMOTE_DEFAULT)
+
+                row = await conn.fetchrow(
+                    _INSERT_VAULT,
+                    vault_id,
+                    req.name,
+                    req.label,
+                    req.base_url,
+                    req.api_key_id,
+                    req.api_key,
+                    dek,
+                    req.probe_path,
+                    req.is_default,
+                    owner_id,
+                )
         except UniqueViolationError as exc:
             raise VaultNameAlreadyExistsError(req.name) from exc
 

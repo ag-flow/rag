@@ -1,6 +1,6 @@
 # BUG-057 — Vault `create(is_default=True)` démote le défaut courant hors de toute transaction
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / services/harpocrate_vaults
 - **Sévérité** : moyenne
