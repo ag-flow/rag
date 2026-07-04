@@ -366,12 +366,12 @@ if [ "$SMOKE_OK" = "1" ]; then
   ✓ /version    ${VERSION_JSON}
 
   Endpoints exposés (cf. docker compose ps) :
-  → IHM (frontend)   : ${APP_URL}/
+  → IHM (frontend)   : ${APP_URL}/ui/
   → API admin        : ${APP_URL}/api/admin/  (auth Bearer ${PROJECT_NAME_UPPER}_MASTER_KEY)
   → API MCP          : ${APP_URL}/mcp         (auth Bearer api_key workspace)
   → Backend direct   : http://${IP}:8000/     (bypass Caddy, debug)
   → pgweb (DB UI)    : http://${IP}:8081/
-  → Postgres CLI     : psql postgresql://rag:<POSTGRES_PASSWORD>@${IP}:5432/postgres
+  → Postgres CLI     : psql postgresql://rag:<POSTGRES_PASSWORD>@${IP}:5432/rag_config
 EOF
 echo "  → Compte admin     : créer via ${APP_URL}/ui/login (wizard premier accès)"
 cat <<EOF

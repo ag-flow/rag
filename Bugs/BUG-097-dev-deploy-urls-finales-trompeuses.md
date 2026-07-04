@@ -1,6 +1,6 @@
 # BUG-097 — `dev-deploy.sh` : URLs finales trompeuses — « IHM » sur `/` (bandeau Caddy) et psql sur la base `postgres`
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : infra / dev-deploy.sh
 - **Sévérité** : basse
