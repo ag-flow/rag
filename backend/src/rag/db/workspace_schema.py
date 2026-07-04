@@ -105,3 +105,38 @@ async def create_embeddings_table(workspace_dsn: str, *, dimension: int) -> None
         log.info("workspace.embeddings.created", dimension=dimension)
     finally:
         await conn.close()
+
+
+async def provision_workspace_schema(workspace_dsn: str, *, dimension: int) -> None:
+    """Provisionne le schéma complet d'une base workspace.
+
+    Crée la table `embeddings` de base (dimension donnée) puis applique toutes
+    les migrations workspace (sections, chunk_hash, FTS, section_index). Fonction
+    partagée entre la création de workspace et le reindex (changement d'indexeur),
+    pour garantir un schéma identique dans les deux cas — voir BUG-049.
+    """
+    # Import local : évite tout couplage de cycle au chargement du module db.
+    from rag.db.workspace_migrations import apply_pending
+
+    await create_embeddings_table(workspace_dsn, dimension=dimension)
+    await apply_pending(workspace_dsn)
+
+
+async def reset_workspace_schema(workspace_dsn: str) -> None:
+    """Réinitialise le schéma d'une base workspace pour un reprovisioning propre.
+
+    Drop `embeddings`, `sections` et l'historique `workspace_schema_migrations`,
+    afin que `provision_workspace_schema` puisse rejouer les migrations 001-004
+    depuis un état vierge (les migrations 002/004 ne sont pas idempotentes :
+    `CREATE TABLE sections`, `DROP CONSTRAINT`…). Sans ce reset, `apply_pending`
+    serait un no-op (versions déjà enregistrées) et le schéma resterait divergent.
+    """
+    conn = await asyncpg.connect(workspace_dsn)
+    try:
+        # embeddings.section_id → sections(id) : CASCADE lève d'abord la FK.
+        await conn.execute("DROP TABLE IF EXISTS embeddings CASCADE")
+        await conn.execute("DROP TABLE IF EXISTS sections CASCADE")
+        await conn.execute("DROP TABLE IF EXISTS workspace_schema_migrations")
+        log.info("workspace.schema.reset", dsn_path=urlsplit(workspace_dsn).path)
+    finally:
+        await conn.close()
