@@ -17,7 +17,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from rag.db.enrichment_lookup import get_enrichment as get_enrichment_db
 from rag.db.workspace_search import vector_search
 from rag.indexer.providers.factory import make_provider
-from rag.secrets.refs import is_vault_ref
+from rag.secrets.refs import as_vault_ref, is_vault_ref
 
 log = structlog.get_logger(__name__)
 
@@ -37,6 +37,7 @@ class _WsCtx:
     resolver: Any
     workspace_id: UUID
     config_pool: asyncpg.Pool
+    default_vault_name: str | None = None
 
 
 _ws_ctx: ContextVar[_WsCtx] = ContextVar("mcp_ws_ctx")
@@ -80,8 +81,22 @@ async def rag_search(
     ctx = _ws_ctx.get()
 
     api_key: str | None = None
-    if ctx.indexer_api_key_ref and is_vault_ref(ctx.indexer_api_key_ref):
-        api_key = await ctx.resolver.resolve_with_retry(ctx.indexer_api_key_ref)
+    if ctx.indexer_api_key_ref:
+        ref = ctx.indexer_api_key_ref
+        if is_vault_ref(ref) or ctx.default_vault_name is not None:
+            # Normalise la clé logique (format legacy) en ref vault par défaut,
+            # comme le fait RealIndexer à l'indexation. Sans cette normalisation
+            # l'embedding était appelé avec api_key=None → 401 (BUG-024).
+            # `default_vault_name` n'est utilisé que pour une clé logique ; une
+            # ref vault complète est renvoyée telle quelle.
+            api_key = await ctx.resolver.resolve_with_retry(
+                as_vault_ref(ref, ctx.default_vault_name or "")
+            )
+        else:
+            log.warning(
+                "mcp_standard.logical_ref_without_default_vault",
+                workspace=ctx.workspace_name,
+            )
 
     provider = make_provider(
         service=ctx.indexer_service,
@@ -353,6 +368,7 @@ class RagMcpDispatcher:
         self._pool_registry: Any = None
         self._resolver: Any = None
         self._apikey_cache: Any = None
+        self._client_provider: Any = None
 
     def set_app_state(self, app_state: Any) -> None:
         """Appelé depuis le lifespan après initialisation des pools."""
@@ -360,6 +376,7 @@ class RagMcpDispatcher:
         self._pool_registry = app_state.pools
         self._resolver = app_state.resolver
         self._apikey_cache = app_state.apikey_cache
+        self._client_provider = app_state.client_provider
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in ("http", "websocket"):
@@ -450,6 +467,10 @@ class RagMcpDispatcher:
             if not compare_digest(cached, token):
                 raise PermissionError("token mismatch")
 
+        default_vault_name: str | None = None
+        if self._client_provider is not None:
+            default_vault_name = await self._client_provider.get_default_vault_name()
+
         return _WsCtx(
             workspace_name=str(row["name"]),
             rag_cnx=str(row["rag_cnx"]),
@@ -462,6 +483,7 @@ class RagMcpDispatcher:
             resolver=self._resolver,
             workspace_id=UUID(workspace_id),
             config_pool=self._config_pool,
+            default_vault_name=default_vault_name,
         )
 
 

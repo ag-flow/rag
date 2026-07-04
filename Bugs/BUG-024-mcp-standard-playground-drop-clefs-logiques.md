@@ -1,6 +1,6 @@
 # BUG-024 — `mcp_standard.rag_search` et playground droppent silencieusement les refs de clé logique → appels embedding non authentifiés
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / api/mcp_standard + api/playground
 - **Sévérité** : moyenne
