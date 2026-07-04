@@ -1,6 +1,6 @@
 # BUG-026 — Empoisonnement de l'`ApiKeyCache` : sur mismatch du clair, l'entrée périmée n'est jamais invalidée → 401 permanent jusqu'au restart
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / auth + api/mcp_standard + services/mcp
 - **Sévérité** : moyenne

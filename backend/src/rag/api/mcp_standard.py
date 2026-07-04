@@ -440,7 +440,15 @@ class RagMcpDispatcher:
             self._apikey_cache.put(api_key_ref, cached)
 
         if not compare_digest(cached, token):
-            raise PermissionError("token mismatch")
+            # Fingerprint matché mais clair non : cache potentiellement
+            # périmé (rotation Harpocrate hors-bande). Invalide et
+            # re-résout une fois avant de conclure à un token invalide
+            # (BUG-026 : sinon 401 permanent jusqu'au restart du process).
+            self._apikey_cache.invalidate(api_key_ref)
+            cached = await self._resolver.resolve_with_retry(api_key_ref)
+            self._apikey_cache.put(api_key_ref, cached)
+            if not compare_digest(cached, token):
+                raise PermissionError("token mismatch")
 
         return _WsCtx(
             workspace_name=str(row["name"]),

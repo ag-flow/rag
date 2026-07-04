@@ -99,9 +99,9 @@ async def require_workspace_apikey(
 
     cache: ApiKeyCache = request.app.state.apikey_cache
     api_key_ref: str = row["api_key_ref"]
+    resolver = request.app.state.resolver
     cached = cache.get(api_key_ref)
     if cached is None:
-        resolver = request.app.state.resolver
         try:
             cached = await resolver.resolve_with_retry(api_key_ref)
         except (VaultLookupFailed, ConnectionError, TimeoutError) as e:
@@ -109,11 +109,20 @@ async def require_workspace_apikey(
         cache.put(api_key_ref, cached)
 
     if not compare_digest(cached, api_key):
-        # Très rare : fingerprint matché mais clair non. Possible après
-        # rotation Harpocrate hors-bande sans mise à jour fingerprint DB.
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid_workspace_apikey",
-        )
+        # Fingerprint matché mais clair non : le cache peut être périmé
+        # (rotation Harpocrate hors-bande sans invalidation explicite).
+        # Invalide et re-résout une fois avant de conclure à une clé invalide,
+        # sinon l'entrée périmée provoque un 401 permanent jusqu'au restart.
+        cache.invalidate(api_key_ref)
+        try:
+            cached = await resolver.resolve_with_retry(api_key_ref)
+        except (VaultLookupFailed, ConnectionError, TimeoutError) as e:
+            raise HarpocrateUnreachableForApikey() from e
+        cache.put(api_key_ref, cached)
+        if not compare_digest(cached, api_key):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="invalid_workspace_apikey",
+            )
 
     return AuthContext(workspace_id=row["id"], indexer_used=row["indexer_used"])

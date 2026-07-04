@@ -89,6 +89,37 @@ async def test_invalid_key_raises_401() -> None:
 
 
 @pytest.mark.asyncio
+async def test_stale_cache_invalidated_and_reresolved_on_mismatch() -> None:
+    """BUG-026 : cache périmé (rotation Harpocrate hors-bande) -> invalidation
+    + re-résolution une fois, la nouvelle clé claire est acceptée sans 401
+    permanent."""
+    ref = "${vault://rag:wsapi_ws}"
+    cache = ApiKeyCache()
+    cache.put(ref, "old-stale-value")  # entrée périmée déjà en cache
+    ws_id = uuid4()
+    new_key = "new-key-from-harpocrate"
+    pool = MagicMock()
+    pool.fetchrow = AsyncMock(
+        return_value={
+            "id": ws_id,
+            "api_key_ref": ref,
+            "indexer_used": "openai/text-embedding-3-small",
+        }
+    )
+    resolver = MagicMock()
+    resolver.resolve_with_retry = AsyncMock(return_value=new_key)
+    req = _fake_request({"Authorization": f"Bearer {new_key}"}, pool, cache, resolver)
+
+    ctx = await require_workspace_apikey("ws", req)  # type: ignore[arg-type]
+
+    assert isinstance(ctx, AuthContext)
+    assert ctx.workspace_id == ws_id
+    resolver.resolve_with_retry.assert_awaited_once_with(ref)
+    # Le cache reflète désormais la valeur fraîche, plus l'ancienne valeur périmée.
+    assert cache.get(ref) == new_key
+
+
+@pytest.mark.asyncio
 async def test_valid_key_returns_auth_context() -> None:
     """Cle valide -> AuthContext retourne avec workspace_id et indexer_used."""
     ref = "${vault://rag:wsapi_ws}"

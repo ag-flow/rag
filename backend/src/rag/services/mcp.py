@@ -119,10 +119,21 @@ async def _authenticate(
         apikey_cache.put(api_key_ref, cached)
 
     if not compare_digest(cached, ref.api_key):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid_workspace_apikey",
-        )
+        # Fingerprint matché mais clair non : cache potentiellement périmé
+        # (rotation Harpocrate hors-bande). Invalide et re-résout une fois
+        # avant de conclure à une clé invalide (BUG-026 : sinon 401 permanent
+        # jusqu'au restart du process).
+        apikey_cache.invalidate(api_key_ref)
+        try:
+            cached = await secret_resolver.resolve_with_retry(api_key_ref)
+        except (VaultLookupFailed, ConnectionError, TimeoutError) as e:
+            raise HarpocrateUnreachableForApikey() from e
+        apikey_cache.put(api_key_ref, cached)
+        if not compare_digest(cached, ref.api_key):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="invalid_workspace_apikey",
+            )
 
     return _CacheEntry(
         workspace_id=row["id"],
