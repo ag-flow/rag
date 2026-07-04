@@ -303,6 +303,7 @@ async def test_source_connection(
     else:
         authed_url = url
 
+    proc: asyncio.subprocess.Process | None = None
     try:
         proc = await asyncio.create_subprocess_exec(
             "git",
@@ -319,6 +320,12 @@ async def test_source_connection(
         stderr_msg = stderr_bytes.decode(errors="replace").strip()
         return {"success": False, "message": stderr_msg[:300] or "git ls-remote a échoué"}
     except TimeoutError:
+        if proc is not None and proc.returncode is None:
+            # wait_for a annulé l'attente mais laisse le process tourner :
+            # le tuer explicitement pour éviter l'accumulation de process
+            # git pendus (fd/process exhaustion sur hôte black-holed).
+            proc.kill()
+            await proc.wait()
         return {"success": False, "message": "Délai dépassé (15 s)"}
     except Exception as exc:
         return {"success": False, "message": str(exc)[:300]}

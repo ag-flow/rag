@@ -1,6 +1,6 @@
 # BUG-065 — `test_source_connection` : le subprocess `git ls-remote` en timeout n'est jamais tué
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / services/sources
 - **Sévérité** : basse
