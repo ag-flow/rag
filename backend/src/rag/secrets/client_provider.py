@@ -78,6 +78,7 @@ class HarpocrateClientProvider:
 
         if not vaults:
             self._clients = {}
+            self._clients_by_name = {}
             self._default_name = None
             log.info("vault.load.empty", reason="table harpocrate_vaults vide")
             return

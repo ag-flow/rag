@@ -1,6 +1,6 @@
 # BUG-029 — `HarpocrateClientProvider._load` laisse `_clients_by_name` périmé quand la table vault se vide
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / secrets
 - **Sévérité** : moyenne

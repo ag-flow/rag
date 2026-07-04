@@ -1,6 +1,6 @@
 # BUG-023 — `SecretResolver` fait du HTTP synchrone bloquant sur l'event loop
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / secrets
 - **Sévérité** : haute

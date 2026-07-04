@@ -1,6 +1,6 @@
 # BUG-031 — Fichier vidé dans git : chunks périmés conservés dans le vector store et réindexé à l'infini
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / indexer
 - **Sévérité** : haute

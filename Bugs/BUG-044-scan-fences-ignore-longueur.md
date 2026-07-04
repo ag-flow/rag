@@ -1,6 +1,6 @@
 # BUG-044 — `scan_fences` ignore la règle de longueur de fence : les fences à 4 backticks se ferment trop tôt
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / indexer/chunking
 - **Sévérité** : basse

@@ -10,6 +10,7 @@ import structlog
 from rag.indexer.providers.platforms.protocol import EmbeddingPlatform
 from rag.indexer.providers.protocol import (
     EmbeddingAuthError,
+    EmbeddingBadRequest,
     EmbeddingProviderUnreachable,
     EmbeddingQuotaExhausted,
     EmbeddingRateLimited,
@@ -117,6 +118,10 @@ class EmbeddingProviderAdapter:
                 if response.status_code == 429:
                     raise EmbeddingRateLimited("Rate limit (after retry)")
                 raise EmbeddingProviderUnreachable("503 (after retry)")
+            if 400 <= response.status_code < 500:
+                raise EmbeddingBadRequest(
+                    f"Bad request: HTTP {response.status_code}"
+                )
             raise EmbeddingProviderUnreachable(
                 f"Unexpected HTTP {response.status_code}"
             )
