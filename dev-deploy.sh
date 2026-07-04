@@ -252,7 +252,8 @@ if [ ! -f ".env" ]; then
     echo "      ⚠  Configurer les coffres Harpocrate via l'IHM /ui/settings/harpocrate-vaults"
     echo "         après le premier démarrage (HARPOCRATE_DEK requis)."
   else
-    echo "[2/5] ⚠  .env absent et .env.example introuvable — config requise pour démarrer"
+    echo "[2/5] ✗ .env absent et .env.example introuvable — config requise pour démarrer" >&2
+    exit 1
   fi
 else
   echo "[2/5] .env déjà présent (secrets non régénérés)."
@@ -289,7 +290,11 @@ if [ "$RESET_DATA" = "1" ]; then
   # complète réinit au prochain up avec POSTGRES_PASSWORD du .env),
   # `caddy_data`, `caddy_config`. Le .env est conservé.
   echo "      ⚠  --reset : down -v (purge postgres_data + caddy_data + caddy_config)"
-  docker compose -f "$COMPOSE_FILE" down -v --remove-orphans || true
+  if ! docker compose -f "$COMPOSE_FILE" down -v --remove-orphans; then
+    echo "✗ --reset demandé mais 'docker compose down -v' a échoué — les volumes n'ont PAS été purgés." >&2
+    echo "  Corriger la cause (ex: .env manquant/invalide) avant de relancer, sous peine de repartir sur l'ancienne base." >&2
+    exit 1
+  fi
 else
   docker compose -f "$COMPOSE_FILE" down --remove-orphans || true
 fi
