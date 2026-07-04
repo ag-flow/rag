@@ -97,6 +97,11 @@ async def pick_next_pending_job(
 
     if context is None:
         log.error("sync.picker.workspace_not_found", workspace_id=str(row["workspace_id"]))
+        await _mark_job_error(
+            config_pool,
+            job_id=row["job_id"],
+            error_message="workspace context not found (workspace or indexer_configs missing)",
+        )
         return None
 
     # asyncpg renvoie le jsonb sous forme de str dans ce repo
