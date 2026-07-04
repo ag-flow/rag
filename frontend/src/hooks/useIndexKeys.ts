@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { workspacesApi } from "@/lib/workspaces";
-import type { IndexKeyStrategy } from "@/lib/workspaces.types";
+import type { DocumentViewResponse, IndexKeyStrategy } from "@/lib/workspaces.types";
 
 export function useIndexKeys(workspaceName: string, enabled: boolean) {
   return useQuery({
@@ -18,6 +18,18 @@ export function useIndexKeyDetail(
   return useQuery({
     queryKey: ["workspace", workspaceName, "index-keys", path],
     queryFn: () => workspacesApi.getIndexKeyDetail(workspaceName, path),
+    enabled,
+  });
+}
+
+export function useDocumentView(
+  workspaceName: string,
+  path: string,
+  enabled: boolean,
+) {
+  return useQuery<DocumentViewResponse>({
+    queryKey: ["workspace", workspaceName, "document-view", path],
+    queryFn: () => workspacesApi.getDocumentView(workspaceName, path),
     enabled,
   });
 }
