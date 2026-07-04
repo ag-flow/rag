@@ -1,6 +1,6 @@
 # BUG-062 — `reindex_workspace` : omettre `api_key_ref` dans un spec indexeur par ailleurs identique déclenche le drop/recreate destructif et nulle la ref stockée
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / services/jobs
 - **Sévérité** : moyenne
