@@ -1,6 +1,6 @@
 # BUG-053 — `delete_provider_key` référence la colonne supprimée `workspaces.api_key_ref`
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / services/provider_api_keys
 - **Sévérité** : haute

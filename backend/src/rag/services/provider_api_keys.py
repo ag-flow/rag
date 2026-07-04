@@ -170,10 +170,15 @@ async def delete_provider_key(
     if row is None:
         return False
 
-    # Verification de reference : aucun workspace ne doit utiliser ce harpo_path
+    # Verification de reference : aucune config (indexer/rerank/llm) ne doit
+    # utiliser ce harpo_path. `workspaces.api_key_ref` a ete supprimee par la
+    # migration 033 — les refs vivent desormais dans ces tables.
     ref_count = await conn.fetchval(
-        "SELECT count(*) FROM workspaces WHERE api_key_ref LIKE $1",
-        f"%{row['harpo_path']}%",
+        "SELECT "
+        "(SELECT count(*) FROM indexer_configs WHERE api_key_ref = $1) "
+        "+ (SELECT count(*) FROM rerank_configs WHERE api_key_ref = $1) "
+        "+ (SELECT count(*) FROM workspace_llm_configs WHERE api_key_ref = $1)",
+        row["harpo_path"],
     )
     if int(ref_count or 0) > 0:
         raise ProviderKeyReferencedError(
