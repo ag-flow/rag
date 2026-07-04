@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 
 import asyncpg
@@ -30,7 +31,8 @@ class LocalAuthService:
         if row is None:
             return None
         try:
-            valid = bcrypt.checkpw(
+            valid = await asyncio.to_thread(
+                bcrypt.checkpw,
                 password.encode("utf-8"),
                 row["password_hash"].encode("utf-8"),
             )

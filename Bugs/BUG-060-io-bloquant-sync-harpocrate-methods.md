@@ -1,6 +1,6 @@
 # BUG-060 — I/O synchrone bloquant dans les chemins async (méthodes du service HarpocrateVaults + bcrypt)
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / services/harpocrate_vaults + services/local_auth
 - **Sévérité** : moyenne
