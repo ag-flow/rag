@@ -1,6 +1,6 @@
 # BUG-028 — `init-admin` : race count-then-insert autorise un 2e admin ; bcrypt bloque l'event loop
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / api/setup + services/local_auth
 - **Sévérité** : moyenne (sécurité — création d'admin persistant par un attaquant)
