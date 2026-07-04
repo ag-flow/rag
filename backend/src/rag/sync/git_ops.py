@@ -63,8 +63,14 @@ def _build_authenticated_url(url: str, token: str | None) -> str:
 
 
 @contextlib.contextmanager
-def _ssh_key_env(ssh_key: str) -> Iterator[dict[str, str]]:
-    """Écrit la clé SSH dans un fichier temp (chmod 600) et yield l'env GIT_SSH_COMMAND."""
+def _ssh_key_env(
+    ssh_key: str, ssh_username: str | None = None
+) -> Iterator[dict[str, str]]:
+    """Écrit la clé SSH dans un fichier temp (chmod 600) et yield l'env GIT_SSH_COMMAND.
+
+    Si `ssh_username` est fourni, force l'utilisateur SSH via `-o User=<user>`
+    (utile pour les serveurs git exigeant un utilisateur non-`git`, ex. Gerrit).
+    """
     tmp_path: str | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -73,11 +79,12 @@ def _ssh_key_env(ssh_key: str) -> Iterator[dict[str, str]]:
             f.write(ssh_key)
             tmp_path = f.name
         os.chmod(tmp_path, 0o600)
+        user_opt = f" -o User={ssh_username}" if ssh_username else ""
         yield {
             "GIT_SSH_COMMAND": (
                 f"ssh -i {tmp_path} "
                 "-o StrictHostKeyChecking=no "
-                "-o BatchMode=yes"
+                "-o BatchMode=yes" + user_opt
             ),
         }
     finally:
@@ -144,7 +151,7 @@ async def clone(
     dest.parent.mkdir(parents=True, exist_ok=True)
 
     if ssh_key is not None:
-        with _ssh_key_env(ssh_key) as ssh_env:
+        with _ssh_key_env(ssh_key, ssh_username) as ssh_env:
             log.info("git.clone.start", url=sanitize_git_output(url), dest=str(dest))
             await _run_git(
                 ["clone", "--branch", branch, url, str(dest)],
@@ -292,7 +299,7 @@ async def list_remote_branches(
         return sorted(branches)
 
     if ssh_key is not None:
-        with _ssh_key_env(ssh_key) as ssh_env:
+        with _ssh_key_env(ssh_key, ssh_username) as ssh_env:
             env.update(ssh_env)
             return await _do_ls_remote(url)
     else:
