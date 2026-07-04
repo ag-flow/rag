@@ -1,6 +1,6 @@
 # BUG-009 — `SourceUpdateRequest` sans le validateur `config.url` : un PATCH peut effacer l'URL git
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / schemas + services/sources
 - **Sévérité** : moyenne

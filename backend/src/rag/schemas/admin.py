@@ -138,6 +138,16 @@ class SourceUpdateRequest(BaseModel):
     ssh_username: str | None = None
     config: dict[str, Any]
 
+    @field_validator("config")
+    @classmethod
+    def config_url_not_blank_if_present(cls, v: dict[str, Any]) -> dict[str, Any]:
+        # PATCH est un update partiel (mergé sur la config existante par le
+        # service) : url n'est pas requis ici. Mais si le client l'envoie,
+        # il ne doit pas l'effacer avec une valeur vide.
+        if "url" in v and not v["url"]:
+            raise ValueError("config.url cannot be empty for git sources")
+        return v
+
 
 class SourceResponse(BaseModel):
     id: UUID

@@ -203,7 +203,10 @@ async def update_source(
     raw = current["config"]
     current_config = json.loads(raw) if isinstance(raw, str) else dict(raw)
 
-    config = dict(request.config)
+    # Fusionne sur la config existante : PATCH est un update partiel, pas un
+    # remplacement. Sans ça, un config={"branch": "main"} efface url et les
+    # autres clés déjà persistées (ex: url du dépôt git).
+    config = {**current_config, **request.config}
 
     # Préserver les champs auth existants si non fournis dans la requête
     for field in ("git_provider", "auth_type", "auth_ref", "ssh_key_ref", "ssh_username"):
