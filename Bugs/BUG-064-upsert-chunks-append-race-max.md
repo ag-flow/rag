@@ -1,6 +1,6 @@
 # BUG-064 — `upsert_chunks(strategy="append")` : race MAX+1 read-then-insert sur `(path, chunk_index)`
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / db/workspace_embeddings
 - **Sévérité** : basse
