@@ -1,6 +1,6 @@
 # BUG-033 — Un fichier poison bloque définitivement l'indexation de tous les fichiers suivants d'un job git
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / sync
 - **Sévérité** : haute
