@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Protocol
 
 import asyncpg
@@ -13,7 +14,7 @@ from rag.api.errors import (
     WorkspaceNotFound,
 )
 from rag.db.helpers import fetch_all, fetch_one
-from rag.secrets.refs import build_ref
+from rag.secrets.refs import build_ref, parse_ref
 from rag.services.webhook_validation import (
     validate_header_name,
     validate_header_value,
@@ -35,6 +36,12 @@ _RESERVED_LIST = sorted(RESERVED_HEADERS)
 
 class _ResolverProtocol(Protocol):
     async def resolve_with_retry(self, ref: str) -> str: ...
+
+
+class _ClientProviderProtocol(Protocol):
+    """Fournit un client vault Harpocrate exposant `set_secret` (écriture)."""
+
+    async def get_client(self, key: str) -> Any: ...
 
 
 def _check_reserved(header_name: str) -> None:
@@ -100,7 +107,7 @@ async def create_webhook(
     url: str,
     enabled: bool,
     headers: list[dict[str, Any]],
-    resolver: _ResolverProtocol | None,
+    client_provider: _ClientProviderProtocol | None,
 ) -> dict[str, Any]:
     # Validation SSRF — à la création, avant toute persistance
     try:
@@ -140,7 +147,7 @@ async def create_webhook(
                 header_name=h["name"],
                 value=h.get("value"),
                 vault=h.get("vault"),
-                resolver=resolver,
+                client_provider=client_provider,
             )
             hdr_id = await conn.fetchval(
                 "INSERT INTO webhook_headers (webhook_id, name, value, vault_ref, enabled) "
@@ -168,11 +175,22 @@ async def _resolve_header_write(
     header_name: str,
     value: str | None,
     vault: str | None,
-    resolver: _ResolverProtocol | None,
+    client_provider: _ClientProviderProtocol | None,
 ) -> tuple[str | None, str | None]:
-    """Retourne (vault_ref, value_in_db). Si vault → build la ref, value_in_db=None."""
+    """Retourne (vault_ref, value_in_db).
+
+    Si `vault` : écrit la valeur dans Harpocrate (comme `source_webhooks`) puis
+    retourne la ref vault avec `value_in_db=None` (la valeur ne transite jamais
+    par la colonne `value`). Sinon : pas de coffre, la valeur est stockée en DB.
+    """
     if vault and value:
         logical = f"/workspaces/{workspace_name}/hooks/{wh_id}/headers/{header_name}"
+        if client_provider is None:
+            raise RuntimeError(
+                "Cannot persist vault-backed webhook header without a client_provider"
+            )
+        client = await client_provider.get_client(vault)
+        await asyncio.to_thread(client.set_secret, logical, value)
         vault_ref = build_ref(vault, logical)
         return vault_ref, None
     return None, value
@@ -268,7 +286,7 @@ async def patch_webhook_header(
     vault: str | None = None,
     enabled: bool | None = None,
     workspace_name: str,
-    resolver: _ResolverProtocol | None,
+    client_provider: _ClientProviderProtocol | None,
 ) -> dict[str, Any]:
     row = await fetch_one(
         config_pool,
@@ -294,7 +312,17 @@ async def patch_webhook_header(
     idx = 1
 
     if value is not None:
-        if row["vault_ref"] and resolver is not None:
+        if row["vault_ref"]:
+            # Header adossé au coffre : on réécrit le secret dans Harpocrate au
+            # même path (upsert) ; la colonne `value` reste NULL et la ref
+            # inchangée.
+            if client_provider is None:
+                raise RuntimeError(
+                    "Cannot update vault-backed webhook header without a client_provider"
+                )
+            vault_name, logical = parse_ref(row["vault_ref"])
+            client = await client_provider.get_client(vault_name)
+            await asyncio.to_thread(client.set_secret, logical, value)
             log.info("webhook.header_update_vault", header_id=header_id)
         else:
             sets.append(f"value=${idx}")

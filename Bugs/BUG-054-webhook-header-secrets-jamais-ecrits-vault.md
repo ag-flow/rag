@@ -1,6 +1,6 @@
 # BUG-054 — Les secrets de headers webhook avec `vault` ne sont jamais écrits dans Harpocrate → valeur silencieusement perdue, ref pendante stockée
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : backend / services/webhooks
 - **Sévérité** : haute
