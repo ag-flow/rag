@@ -271,13 +271,21 @@ async def _execute_push_job(
         strategy_override = row["strategy_override"]
         content_hash = "sha256:" + sha256(content.encode("utf-8")).hexdigest()
 
-        existing = await config_pool.fetchval(
-            "SELECT content_hash FROM indexed_documents WHERE workspace_id=$1 AND path=$2",
+        existing = await config_pool.fetchrow(
+            "SELECT content_hash, indexer_used FROM indexed_documents "
+            "WHERE workspace_id=$1 AND path=$2",
             job.workspace_id,
             path,
         )
 
-        if existing == content_hash:
+        # On ne skip que si le contenu ET l'indexeur (provider/modèle) sont
+        # inchangés : un changement d'indexeur invalide les vecteurs stockés
+        # (espaces vectoriels incompatibles), il faut ré-indexer (BUG-032).
+        if (
+            existing is not None
+            and existing["content_hash"] == content_hash
+            and existing["indexer_used"] == job.indexer_used
+        ):
             await config_pool.execute(
                 """
                 UPDATE index_jobs
@@ -754,12 +762,18 @@ async def _execute_git_job(
         content_hash = "sha256:" + sha256(content.encode("utf-8")).hexdigest()
 
         async with config_pool.acquire() as conn:
-            existing = await conn.fetchval(
-                "SELECT content_hash FROM indexed_documents WHERE workspace_id=$1 AND path=$2",
+            existing = await conn.fetchrow(
+                "SELECT content_hash, indexer_used FROM indexed_documents "
+                "WHERE workspace_id=$1 AND path=$2",
                 job.workspace_id,
                 path,
             )
-        if existing == content_hash:
+        # Skip seulement si contenu ET indexeur inchangés (cf. BUG-032).
+        if (
+            existing is not None
+            and existing["content_hash"] == content_hash
+            and existing["indexer_used"] == job.indexer_used
+        ):
             files_skipped += 1
             continue
 
