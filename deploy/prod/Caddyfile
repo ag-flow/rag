@@ -6,6 +6,17 @@
 }
 
 :80 {
+    # Indexation workspace (gros payloads — timeout étendu)
+    # Doit précéder handle /api/* : les blocs handle sont évalués dans l'ordre.
+    handle /api/workspaces/* {
+        reverse_proxy backend:8000 {
+            transport http {
+                read_timeout 120s
+                write_timeout 120s
+            }
+        }
+    }
+
     # API admin et workspace
     handle /api/* {
         reverse_proxy backend:8000
@@ -26,16 +37,6 @@
         reverse_proxy backend:8000 {
             transport http {
                 keepalive 86400s
-            }
-        }
-    }
-
-    # Indexation workspace + MCP (gros payloads — timeout étendu)
-    handle /workspaces/* {
-        reverse_proxy backend:8000 {
-            transport http {
-                read_timeout 120s
-                write_timeout 120s
             }
         }
     }
