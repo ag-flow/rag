@@ -1,6 +1,6 @@
 # BUG-069 — Les actions webhook passent l'UUID de source comme `source_name` quand `source.name` est null
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / pages/workspace
 - **Sévérité** : haute

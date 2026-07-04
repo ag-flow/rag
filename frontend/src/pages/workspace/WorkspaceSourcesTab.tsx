@@ -132,21 +132,25 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
                         {t("sources.editAction")}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      {!source.webhook_enabled ? (
+                      {!source.name ? (
+                        <DropdownMenuItem disabled className="text-xs text-slate-400">
+                          {tWh("menu_requires_name")}
+                        </DropdownMenuItem>
+                      ) : !source.webhook_enabled ? (
                         <DropdownMenuItem
-                          onSelect={() => setWebhookEnableTarget(source.name ?? source.id)}
+                          onSelect={() => setWebhookEnableTarget(source.name)}
                         >
                           {tWh("menu_enable")}
                         </DropdownMenuItem>
                       ) : (
                         <>
                           <DropdownMenuItem
-                            onSelect={() => setWebhookRotateTarget(source.name ?? source.id)}
+                            onSelect={() => setWebhookRotateTarget(source.name)}
                           >
                             {tWh("menu_rotate")}
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onSelect={() => setWebhookDisableTarget(source.name ?? source.id)}
+                            onSelect={() => setWebhookDisableTarget(source.name)}
                             className="text-rose-600"
                           >
                             {tWh("menu_disable")}
