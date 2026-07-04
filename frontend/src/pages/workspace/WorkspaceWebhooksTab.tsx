@@ -108,7 +108,7 @@ export function WorkspaceWebhooksTab({ workspaceName }: Props) {
                     {wh.url}
                   </span>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    {t("webhooks.headers_count_one", {
+                    {t("webhooks.headers_count", {
                       count: wh.headers.length,
                     })}
                   </div>

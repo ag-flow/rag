@@ -1,6 +1,6 @@
 # BUG-079 — Compteur de headers webhook : clé plurielle `_one` codée en dur → la forme plurielle n'est jamais utilisée
 
-**Statut : 🔴 à corriger**
+**Statut : 🟢 corrigé**
 
 - **Zone** : frontend / pages/workspace + i18n
 - **Sévérité** : basse
