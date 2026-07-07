@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from rag.rerank.providers.azure_foundry import AzureFoundryRerankProvider
 from rag.rerank.providers.cohere import CohereRerankProvider
 from rag.rerank.providers.factory import make_rerank_provider
 from rag.rerank.providers.jina import JinaRerankProvider
@@ -71,4 +72,27 @@ def test_factory_jina_missing_api_key() -> None:
     with pytest.raises(ValueError, match="jina requires api_key"):
         make_rerank_provider(
             provider="jina", model="m", api_key=None, base_url=None,
+        )
+
+
+def test_factory_azure_foundry() -> None:
+    p = make_rerank_provider(
+        provider="azure-foundry", model="rerank-v3.5", api_key="k",
+        base_url="https://proj.services.ai.azure.com/providers/cohere/v2/rerank",
+    )
+    assert isinstance(p, AzureFoundryRerankProvider)
+
+
+def test_factory_azure_foundry_missing_api_key() -> None:
+    with pytest.raises(ValueError, match="azure-foundry requires api_key"):
+        make_rerank_provider(
+            provider="azure-foundry", model="m", api_key=None,
+            base_url="https://x/rerank",
+        )
+
+
+def test_factory_azure_foundry_missing_base_url() -> None:
+    with pytest.raises(ValueError, match="azure-foundry requires base_url"):
+        make_rerank_provider(
+            provider="azure-foundry", model="m", api_key="k", base_url=None,
         )

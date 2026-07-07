@@ -39,7 +39,7 @@ import {
 
 type FormData = z.infer<typeof workspaceCreateSchema>;
 
-const BASE_URL_PROVIDERS = ["ollama", "azure-openai"];
+const BASE_URL_PROVIDERS = ["ollama", "azure-openai", "azure-foundry"];
 const NO_KEY_PROVIDERS = ["ollama"];
 
 interface ProviderModelBlockProps {

@@ -44,15 +44,19 @@ class RerankCreateSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
-    provider: Literal["cohere", "voyage", "ollama", "jina", "dashscope"]
+    provider: Literal[
+        "cohere", "voyage", "ollama", "jina", "dashscope", "azure-foundry"
+    ]
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
     base_url: str | None = Field(
         default=None,
         description=(
             "cohere/voyage/jina/ollama : préfixe d'hôte (le path de l'endpoint "
-            "est ajouté automatiquement). dashscope : URL complète de "
-            "l'endpoint rerank (ex: pour switcher région international/CN)."
+            "est ajouté automatiquement). dashscope/azure-foundry : URL complète "
+            "de l'endpoint rerank (ex: dashscope pour switcher région "
+            "international/CN ; azure-foundry pour l'endpoint du déploiement "
+            "Cohere sur Azure)."
         ),
     )
     top_k_pre_rerank: int = Field(default=50, gt=0, le=500)
@@ -227,15 +231,19 @@ class RerankSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
-    provider: Literal["cohere", "voyage", "ollama", "jina", "dashscope"]
+    provider: Literal[
+        "cohere", "voyage", "ollama", "jina", "dashscope", "azure-foundry"
+    ]
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
     base_url: str | None = Field(
         default=None,
         description=(
             "cohere/voyage/jina/ollama : préfixe d'hôte (le path de l'endpoint "
-            "est ajouté automatiquement). dashscope : URL complète de "
-            "l'endpoint rerank (ex: pour switcher région international/CN)."
+            "est ajouté automatiquement). dashscope/azure-foundry : URL complète "
+            "de l'endpoint rerank (ex: dashscope pour switcher région "
+            "international/CN ; azure-foundry pour l'endpoint du déploiement "
+            "Cohere sur Azure)."
         ),
     )
     top_k_pre_rerank: int = Field(default=50, gt=0, le=500)
