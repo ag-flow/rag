@@ -19,16 +19,23 @@ class RerankProviderUnreachable(RerankProviderError):  # noqa: N818
     """Timeout / connection refused / HTTP 5xx."""
 
 
+RerankResult = tuple[int, float]
+"""Paire ``(index, relevance_score)`` : `index` référence un document dans
+`documents`, `relevance_score` est le score de pertinence renvoyé par le
+provider (échelle propre au provider, typiquement 0..1). Utilisé pour peupler
+`SearchHit.score` / `DebugTrace.rerank_score` (BUG-012)."""
+
+
 class RerankProvider(Protocol):
-    """Reranke des documents selon une query, retourne les indices triés
-    par pertinence décroissante.
+    """Reranke des documents selon une query, retourne les paires
+    ``(index, relevance_score)`` triées par pertinence décroissante.
 
     Convention : `len(retour) ≤ min(top_k, len(documents))`. Les indices
-    sont dans `range(len(documents))`. L'ordre est strict : indice à
+    sont dans `range(len(documents))`. L'ordre est strict : paire à
     position 0 = document le plus pertinent.
     """
 
     async def rerank(
         self, *, query: str, documents: list[str], top_k: int,
-    ) -> list[int]:
+    ) -> list[RerankResult]:
         ...

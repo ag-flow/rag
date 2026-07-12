@@ -37,7 +37,7 @@ async def test_create_and_list_webhook(pool: asyncpg.Pool) -> None:
         url="https://example.com/hook",
         enabled=True,
         headers=[{"name": "X-Api-Key", "value": "secret", "vault": None, "enabled": True}],
-        resolver=None,
+        client_provider=None,
     )
     assert created["name"] == "hook1"
     assert len(created["headers"]) == 1
@@ -75,7 +75,7 @@ async def test_patch_webhook_enabled(pool: asyncpg.Pool) -> None:
         url="https://x.com",
         enabled=True,
         headers=[],
-        resolver=None,
+        client_provider=None,
     )
     updated = await patch_webhook(pool, webhook_id=wh["id"], enabled=False)
     assert updated["enabled"] is False
@@ -92,7 +92,7 @@ async def test_delete_webhook(pool: asyncpg.Pool) -> None:
         url="https://x.com",
         enabled=True,
         headers=[],
-        resolver=None,
+        client_provider=None,
     )
     await delete_webhook(pool, webhook_id=wh["id"], resolver=None)
     hooks = await list_webhooks(pool, workspace_name="ws4")

@@ -2,7 +2,13 @@
 // `RerankConfig` correspond à RerankConfigResponse.
 // `RerankSpec` correspond à RerankSpec (body PUT).
 
-export type RerankProvider = "cohere" | "openai" | "voyage" | "ollama";
+export type RerankProvider =
+  | "cohere"
+  | "voyage"
+  | "jina"
+  | "dashscope"
+  | "azure-foundry"
+  | "ollama";
 
 export type RerankConfig = {
   workspace_id: string;

@@ -9,6 +9,10 @@ export const chunkingFormSchema = z
     max_chars: z.coerce.number().int().min(1, "min"),
     min_chars: z.coerce.number().int().min(0, "min"),
     overlap_chars: z.coerce.number().int().min(0, "min"),
+    clean_content: z.boolean().default(false),
+    strip_separators: z.boolean().default(false),
+    strip_boilerplate: z.boolean().default(false),
+    strip_html: z.boolean().default(false),
   })
   .superRefine((data, ctx) => {
     if (data.min_chars >= data.max_chars) {
@@ -34,4 +38,8 @@ export const DEFAULT_CHUNKING_FORM: ChunkingFormValues = {
   max_chars: 2000,
   min_chars: 200,
   overlap_chars: 200,
+  clean_content: false,
+  strip_separators: false,
+  strip_boilerplate: false,
+  strip_html: false,
 };

@@ -24,14 +24,22 @@ type DialogKey = "reindex" | "delete" | null;
 
 export function WorkspaceDetailPanel({ name }: Props) {
   const { t } = useTranslation("workspace");
-  const { data: ws, isLoading } = useWorkspace(name);
+  const { data: ws, isLoading, isError } = useWorkspace(name);
   const [activeTab, setActiveTab] = useState("detail");
   const [openDialog, setOpenDialog] = useState<DialogKey>(null);
 
-  if (isLoading || !ws) {
+  if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (isError || !ws) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6 text-sm text-rose-600">
+        {t("panel.load_error")}
       </div>
     );
   }

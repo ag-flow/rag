@@ -12,16 +12,22 @@ import asyncpg
 import structlog
 from fastapi import HTTPException, status
 
-from rag.api.errors import HarpocrateUnreachableForApikey, VaultUnreachable, WorkspaceNotFound
+from rag.api.errors import HarpocrateUnreachableForApikey, WorkspaceNotFound
 from rag.auth.workspace_auth import ApiKeyCache
 from rag.db.pool import WorkspacePoolRegistry
 from rag.db.workspace_search import hybrid_search, vector_search
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
-from rag.rerank.protocol import RerankProvider
+from rag.rerank.protocol import (
+    RerankProvider,
+    RerankProviderError,
+    RerankProviderUnreachable,
+    RerankResult,
+)
 from rag.rerank.providers.factory import make_rerank_provider as _make_rerank_default
 from rag.schemas.mcp import MultiWorkspaceRequest, SearchHit, SingleWorkspaceRequest
-from rag.secrets.refs import build_ref
+from rag.secrets.refs import build_ref, is_vault_ref
+from rag.secrets.resolver import VaultLookupFailed
 
 log = structlog.get_logger(__name__)
 
@@ -113,15 +119,26 @@ async def _authenticate(
     if cached is None:
         try:
             cached = await secret_resolver.resolve_with_retry(api_key_ref)
-        except VaultUnreachable as e:
+        except (VaultLookupFailed, ConnectionError, TimeoutError) as e:
             raise HarpocrateUnreachableForApikey() from e
         apikey_cache.put(api_key_ref, cached)
 
     if not compare_digest(cached, ref.api_key):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid_workspace_apikey",
-        )
+        # Fingerprint matché mais clair non : cache potentiellement périmé
+        # (rotation Harpocrate hors-bande). Invalide et re-résout une fois
+        # avant de conclure à une clé invalide (BUG-026 : sinon 401 permanent
+        # jusqu'au restart du process).
+        apikey_cache.invalidate(api_key_ref)
+        try:
+            cached = await secret_resolver.resolve_with_retry(api_key_ref)
+        except (VaultLookupFailed, ConnectionError, TimeoutError) as e:
+            raise HarpocrateUnreachableForApikey() from e
+        apikey_cache.put(api_key_ref, cached)
+        if not compare_digest(cached, ref.api_key):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="invalid_workspace_apikey",
+            )
 
     return _CacheEntry(
         workspace_id=row["id"],
@@ -215,6 +232,21 @@ def _to_vault_ref(logical_key: str, vault_name: str) -> str:
     return build_ref(vault_name, logical_key)
 
 
+def _as_vault_ref(ref: str, default_vault_name: str) -> str:
+    """Normalise un `api_key_ref` en ref vault complète, sans double-wrapper.
+
+    `api_key_ref` peut être soit une clé logique (à préfixer avec le vault par
+    défaut), soit déjà une ref complète `${vault://<name>:<path>}` (harpo_path
+    d'une provider_api_key, cf IndexerCreateSpec). Wrapper inconditionnellement
+    une ref déjà complète produit `${vault://X:${vault://...}}`, que le
+    resolver ne sait pas parser (UnknownAction). Reflète
+    `RealIndexer._resolve_api_key` (indexer/real.py).
+    """
+    if is_vault_ref(ref):
+        return ref
+    return _to_vault_ref(ref, default_vault_name)
+
+
 @dataclass(frozen=True)
 class _WorkspaceResult:
     workspace_name: str
@@ -240,8 +272,11 @@ async def search(
 ) -> list[SearchHit]:
     """Orchestre la recherche MCP multi-workspace.
 
-    Fail-fast : la première exception remontée par un workspace propage
-    via `asyncio.gather` et annule les autres tasks. Aucun résultat partiel.
+    Fail-fast : la première exception remontée par un workspace (auth, embedding,
+    accès DB…) propage via `asyncio.gather` et annule les autres tasks. Aucun
+    résultat partiel. Exception : un échec du provider rerank
+    (`RerankProviderError`) ne fait PAS échouer la recherche — `_search_one`
+    retombe sur l'ordre vector/RRF non reranké (BUG-002).
 
     `provider_factory` par défaut `None` → lookup dynamique de
     `make_provider` au runtime (permet monkey-patching côté tests
@@ -275,6 +310,39 @@ async def search(
     return [hit for ws_result in results for hit in ws_result.hits]
 
 
+def _validate_rerank_results(
+    results: list[RerankResult], *, n_documents: int
+) -> list[RerankResult]:
+    """Filtre les paires (index, score) hors bornes ou dupliquées d'un reranker.
+
+    Le protocole `RerankProvider` promet des indices dans range(n_documents),
+    mais rien ne garantit qu'un provider (bug upstream, self-hosted buggé,
+    changement d'API) respecte ce contrat. Un indice hors bornes provoquerait
+    un IndexError ; un doublon dupliquerait silencieusement un hit.
+    """
+    valid: list[RerankResult] = []
+    seen: set[int] = set()
+    dropped: list[int] = []
+    for i, score in results:
+        if 0 <= i < n_documents and i not in seen:
+            valid.append((i, score))
+            seen.add(i)
+        else:
+            dropped.append(i)
+    if dropped:
+        log.warning(
+            "mcp.rerank.invalid_indices_dropped",
+            dropped=dropped,
+            n_documents=n_documents,
+        )
+    if results and not valid:
+        raise RerankProviderUnreachable(
+            "rerank provider returned no valid indices "
+            f"(n_documents={n_documents}, results={results})"
+        )
+    return valid
+
+
 async def _search_one(
     *,
     ref: McpWorkspaceRef,
@@ -302,7 +370,7 @@ async def _search_one(
     api_key: str | None = None
     if ctx["api_key_ref"]:
         api_key = await secret_resolver.resolve_with_retry(
-            _to_vault_ref(ctx["api_key_ref"], default_vault_name)
+            _as_vault_ref(ctx["api_key_ref"], default_vault_name)
         )
 
     provider = provider_factory(
@@ -352,7 +420,7 @@ async def _search_one(
         rerank_api_key: str | None = None
         if rerank_cfg["api_key_ref"]:
             rerank_api_key = await secret_resolver.resolve_with_retry(
-                _to_vault_ref(rerank_cfg["api_key_ref"], default_vault_name)
+                _as_vault_ref(rerank_cfg["api_key_ref"], default_vault_name)
             )
         reranker = rerank_factory(
             provider=rerank_cfg["provider"],
@@ -361,16 +429,49 @@ async def _search_one(
             base_url=rerank_cfg["base_url"],
         )
         documents = [h.content for h in hits]
-        indices = await reranker.rerank(query=query, documents=documents, top_k=top_k)
-        hits = [hits[i] for i in indices]
-        log.info(
-            "mcp.rerank.applied",
-            workspace=ref.name,
-            pre_hits=len(documents),
-            post_hits=len(hits),
-            provider=rerank_cfg["provider"],
-            model=rerank_cfg["model"],
-        )
+        try:
+            results = await reranker.rerank(query=query, documents=documents, top_k=top_k)
+            results = _validate_rerank_results(results, n_documents=len(documents))
+        except RerankProviderError as exc:
+            # Fallback dégradé (BUG-002) : un échec provider (429 / timeout /
+            # auth / 5xx) ne doit pas propager en HTTP 500 ni — via asyncio.gather
+            # — annuler les autres workspaces d'une recherche multi. On conserve
+            # l'ordre vector/RRF (tronqué à top_k au retour) et on trace un
+            # avertissement plutôt que d'échouer la recherche.
+            log.warning(
+                "mcp.rerank.failed_fallback_to_base_order",
+                workspace=ref.name,
+                provider=rerank_cfg["provider"],
+                model=rerank_cfg["model"],
+                error=type(exc).__name__,
+                detail=str(exc),
+            )
+        else:
+            # Écrase `score` par le relevance_score du reranker (BUG-012) : la
+            # réponse est ordonnée par le reranker, donc `score` doit rester
+            # monotone avec cet ordre — sinon un tri/filtre client par score
+            # réintroduit l'ordre pré-rerank. Copie sans mutation en place.
+            hits = [
+                hits[i].model_copy(
+                    update={
+                        "score": rscore,
+                        "debug": (
+                            hits[i].debug.model_copy(update={"rerank_score": rscore})
+                            if hits[i].debug is not None
+                            else None
+                        ),
+                    }
+                )
+                for i, rscore in results
+            ]
+            log.info(
+                "mcp.rerank.applied",
+                workspace=ref.name,
+                pre_hits=len(documents),
+                post_hits=len(hits),
+                provider=rerank_cfg["provider"],
+                model=rerank_cfg["model"],
+            )
     elif rerank_cfg:
         log.debug(
             "mcp.rerank.skipped_singleton_or_empty",

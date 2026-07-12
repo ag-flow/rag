@@ -33,3 +33,22 @@ class TestHeuristicTokenEstimator:
             HeuristicTokenEstimator(char_ratio=0.0)
         with pytest.raises(ValueError, match="char_ratio"):
             HeuristicTokenEstimator(char_ratio=-1.0)
+
+    def test_cjk_counted_one_token_per_char(self) -> None:
+        # BUG-041 : le CJK ne doit pas être sous-estimé au ratio latin
+        est = HeuristicTokenEstimator(char_ratio=4.0)
+        assert est.estimate("中" * 10) == 10
+
+    def test_mixed_cjk_and_latin(self) -> None:
+        est = HeuristicTokenEstimator(char_ratio=4.0)
+        # 8 chars latins -> 2 tokens ; 3 idéogrammes -> 3 tokens
+        assert est.estimate("a" * 8 + "中文字") == 2 + 3
+
+    def test_ascii_behavior_unchanged(self) -> None:
+        # Aucune régression EN/FR : é/à sont « Ambiguous », traités comme du latin
+        est = HeuristicTokenEstimator(char_ratio=4.0)
+        assert est.estimate("café à Noël") == est.estimate("x" * len("café à Noël"))
+
+    def test_emoji_not_underestimated(self) -> None:
+        est = HeuristicTokenEstimator(char_ratio=4.0)
+        assert est.estimate("😀" * 5) >= 5

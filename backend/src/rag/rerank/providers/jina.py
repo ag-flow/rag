@@ -9,11 +9,13 @@ from rag.rerank.protocol import (
     RerankAuthError,
     RerankProviderUnreachable,
     RerankRateLimited,
+    RerankResult,
 )
 
 log = structlog.get_logger(__name__)
 
-_URL = "https://api.jina.ai/v1/rerank"
+_DEFAULT_BASE_URL = "https://api.jina.ai/v1"
+_PATH = "/rerank"
 _TIMEOUT = 30.0
 
 
@@ -25,10 +27,12 @@ class JinaRerankProvider:
         *,
         model: str,
         api_key: str,
+        base_url: str | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._model = model
         self._api_key = api_key
+        self._url = f"{(base_url or _DEFAULT_BASE_URL).rstrip('/')}{_PATH}"
         self._transport = transport
 
     async def rerank(
@@ -37,7 +41,7 @@ class JinaRerankProvider:
         query: str,
         documents: list[str],
         top_k: int,
-    ) -> list[int]:
+    ) -> list[RerankResult]:
         if not documents:
             return []
         body: dict[str, Any] = {
@@ -55,7 +59,7 @@ class JinaRerankProvider:
                 transport=self._transport,
                 timeout=_TIMEOUT,
             ) as client:
-                resp = await client.post(_URL, json=body, headers=headers)
+                resp = await client.post(self._url, json=body, headers=headers)
         except httpx.TimeoutException as e:
             raise RerankProviderUnreachable(f"jina timeout: {e}") from e
         except httpx.RequestError as e:
@@ -72,4 +76,4 @@ class JinaRerankProvider:
 
         data = resp.json()
         results = data.get("results", [])
-        return [int(r["index"]) for r in results]
+        return [(int(r["index"]), float(r.get("relevance_score", 0.0))) for r in results]

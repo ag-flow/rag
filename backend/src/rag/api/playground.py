@@ -100,7 +100,7 @@ async def playground_chat(
     """Chat RAG-ancré : embed → vector_search → LLM."""
     from rag.db.workspace_search import vector_search
     from rag.indexer.providers.factory import make_provider
-    from rag.secrets.refs import is_vault_ref, parse_ref
+    from rag.secrets.refs import as_vault_ref, is_vault_ref, parse_ref
     from rag.services.llm_clients import build_prompt, call_llm
     from rag.services.llm_configs import get_llm_config_for_chat
 
@@ -108,11 +108,18 @@ async def playground_chat(
     pool_registry = request.app.state.pools
     vault_svc = request.app.state.harpocrate_vaults_service
     client_provider = request.app.state.client_provider
+    default_vault_name: str | None = await client_provider.get_default_vault_name()
 
     async def _resolve_harpo(harpo_path: str) -> str | None:
-        if not is_vault_ref(harpo_path):
-            return None
-        vault_name, secret_path = parse_ref(harpo_path)
+        # Normalise une clé logique (format legacy) en ref vault par défaut,
+        # comme RealIndexer à l'indexation : sans ça, un api_key_ref logique
+        # était droppé → embedding/LLM appelé avec api_key=None → 401 (BUG-024).
+        ref = harpo_path
+        if not is_vault_ref(ref):
+            if default_vault_name is None:
+                return None
+            ref = as_vault_ref(ref, default_vault_name)
+        vault_name, secret_path = parse_ref(ref)
         async with config_pool.acquire() as conn:
             vault = await vault_svc.get_by_name(conn, vault_name)
         if vault is None:

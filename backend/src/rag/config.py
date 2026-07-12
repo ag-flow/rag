@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     environment: Literal["dev", "staging", "prod"] = "dev"
     log_level: str = "INFO"
-    sync_worker_poll_interval_seconds: int = 30
+    sync_worker_poll_interval_seconds: int = Field(default=30, ge=1)
 
     # Interval par défaut entre 2 syncs d'une même source (override possible
     # par source via config.sync_interval_seconds). 5 min = bon compromis

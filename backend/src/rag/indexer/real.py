@@ -106,6 +106,7 @@ class RealIndexer:
                 ctx=ctx,
                 strategy_override=strategy_override,
                 extra_metadata=extra_metadata or {},
+                indexer_used=indexer_used,
             )
         else:
             n_chunks = await self._index_legacy(
@@ -116,8 +117,7 @@ class RealIndexer:
                 extra_metadata=extra_metadata or {},
             )
         if n_chunks == 0:
-            log.info("real_indexer.empty_content_skipped", path=path)
-            return 0
+            log.info("real_indexer.empty_content_purged", path=path)
         await self._record_indexed_document(workspace_id, path, content_hash, indexer_used, title)
         return n_chunks
 
@@ -145,17 +145,20 @@ class RealIndexer:
                 dataclasses.replace(c, metadata={**extra_metadata, **dict(c.metadata)})
                 for c in chunks
             ]
+        ws_pool = await self._pool_registry.get_workspace_pool(
+            ctx["workspace_name"],
+            ctx["rag_cnx"],
+        )
         if not chunks:
+            # Contenu vidé/tronqué : purge les chunks périmés de ce path plutôt
+            # que de les laisser cherchables indéfiniment (cf. BUG-031).
+            await delete_path(ws_pool, path)
             return 0
 
         api_key = await self._resolve_api_key(ctx, workspace_id, path)
         provider = self._build_provider(ctx, api_key)
         embeddings = await provider.embed_texts([c.content for c in chunks])
 
-        ws_pool = await self._pool_registry.get_workspace_pool(
-            ctx["workspace_name"],
-            ctx["rag_cnx"],
-        )
         strategy = await get_strategy(self._config_pool, workspace_id, path)
         await upsert_chunks(
             ws_pool,
@@ -183,6 +186,7 @@ class RealIndexer:
         ctx: dict[str, Any],
         strategy_override: str | None,
         extra_metadata: Mapping[str, Any] = {},
+        indexer_used: str = "",
     ) -> int:
         routing = await load_routing(self._config_pool, workspace_id)
         strategy_name = resolve_strategy_name(
@@ -200,14 +204,33 @@ class RealIndexer:
         )
         doc = chunker.chunk(content)
         ordered = _dedupe_by_hash(doc.children)
-        if not ordered:
-            return 0
 
         ws_pool = await self._pool_registry.get_workspace_pool(
             ctx["workspace_name"],
             ctx["rag_cnx"],
         )
+        if not ordered:
+            # Contenu vidé/tronqué : purge les sections/enfants périmés de ce
+            # path plutôt que de les laisser cherchables indéfiniment (BUG-031).
+            await delete_sections_for_path(ws_pool, path)
+            return 0
+
         existing = await load_existing_chunk_hashes(ws_pool, path)
+        # Si l'indexeur (provider/modèle) a changé depuis la dernière indexation
+        # de ce path, les vecteurs conservés appartiennent à un espace vectoriel
+        # incompatible : on force le ré-embed de tous les chunks en repartant
+        # d'un set vide (l'upsert met à jour les lignes existantes via ON
+        # CONFLICT et purge les hashes disparus). Cf. BUG-032.
+        stored_indexer = await self._stored_indexer_used(workspace_id, path)
+        if stored_indexer is not None and stored_indexer != indexer_used:
+            log.info(
+                "real_indexer.indexer_changed_reembed",
+                workspace_id=str(workspace_id),
+                path=path,
+                previous_indexer=stored_indexer,
+                current_indexer=indexer_used,
+            )
+            existing = set()
         plan = plan_children(existing, [h for h, _ in ordered])
         new_set = set(plan.new_hashes)
 
@@ -237,8 +260,9 @@ class RealIndexer:
                 section_key=p.section_key,
                 content=p.content,
                 metadata={**extra_metadata, **dict(p.metadata)} if extra_metadata else p.metadata,
+                section_index=idx,
             )
-            for p in doc.parents
+            for idx, p in enumerate(doc.parents)
         ]
         result = await upsert_structured(
             ws_pool, path=path, parents=parent_rows, children=child_rows
@@ -287,6 +311,16 @@ class RealIndexer:
             model=ctx["model"],
             api_key=api_key,
             base_url=ctx["base_url"],
+        )
+
+    async def _stored_indexer_used(self, workspace_id: UUID, path: str) -> str | None:
+        """Indexeur (provider/modèle) ayant produit l'indexation courante de
+        `path`, ou None si jamais indexé. Sert à détecter un changement de
+        modèle qui invaliderait les vecteurs conservés (BUG-032)."""
+        return await self._config_pool.fetchval(
+            "SELECT indexer_used FROM indexed_documents WHERE workspace_id=$1 AND path=$2",
+            workspace_id,
+            path,
         )
 
     async def _record_indexed_document(

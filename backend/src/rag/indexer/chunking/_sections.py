@@ -81,21 +81,43 @@ def _extract_heading_title(tokens: list[Token], heading_open_index: int) -> str:
     return ""
 
 
+def _leading_run_length(stripped: str, char: str) -> int:
+    """Longueur du préfixe composé uniquement de `char` (ex. "````" → 4)."""
+    n = 0
+    for c in stripped:
+        if c != char:
+            break
+        n += 1
+    return n
+
+
 def scan_fences(lines: list[str]) -> list[tuple[int, int]]:
-    """Repère les blocs de code fence (``` ou ~~~) → liste de (start, end_exclusif)."""
+    """Repère les blocs de code fence (``` ou ~~~) → liste de (start, end_exclusif).
+
+    Respecte la règle CommonMark : la fence fermante doit utiliser le même
+    caractère que l'ouvreur et être au moins aussi longue. Sans ça, un fence
+    ouvert avec 4 backtick (````) contenant une ligne ``` (exemple imbriqué de
+    syntaxe markdown) se refermait prématurément sur cette ligne interne.
+    """
     ranges: list[tuple[int, int]] = []
     in_fence = False
-    fence_marker = ""
+    fence_char = ""
+    fence_len = 0
     start = 0
     for i, line in enumerate(lines):
         stripped = line.lstrip()
         if not in_fence and (stripped.startswith("```") or stripped.startswith("~~~")):
             in_fence = True
-            fence_marker = stripped[:3]
+            fence_char = stripped[0]
+            fence_len = _leading_run_length(stripped, fence_char)
             start = i
-        elif in_fence and stripped.startswith(fence_marker):
-            ranges.append((start, i + 1))
-            in_fence = False
+        elif in_fence:
+            candidate_char = stripped[:1]
+            if candidate_char == fence_char and _leading_run_length(
+                stripped, fence_char
+            ) >= fence_len:
+                ranges.append((start, i + 1))
+                in_fence = False
     if in_fence:
         ranges.append((start, len(lines)))
     return ranges

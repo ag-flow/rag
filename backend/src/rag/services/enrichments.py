@@ -87,13 +87,17 @@ async def run_enrichments(
         metadata_key = row["metadata_key"]
         enriched_path = f"{path}::{metadata_key}"
 
+        dedup_key = sha256(
+            f"{src_hash}:{row['prompt']}:{row['llm_provider']}:{row['llm_model']}".encode()
+        ).hexdigest()
+
         existing = await conn.fetchrow(
             "SELECT id, result_hash FROM document_enrichments "
             "WHERE workspace_id = $1::uuid AND path = $2 AND template_id = $3::uuid",
             workspace_id, path, template_id,
         )
 
-        if existing and existing["result_hash"] == src_hash:
+        if existing and existing["result_hash"] == dedup_key:
             results.append({
                 "path": path,
                 "metadata_key": metadata_key,
@@ -161,7 +165,7 @@ async def run_enrichments(
                 indexed_at = now()
             """,
             workspace_id, path, template_id, metadata_key,
-            row["result_type"], answer, src_hash,
+            row["result_type"], answer, dedup_key,
             row["llm_provider"], row["llm_model"],
         )
 

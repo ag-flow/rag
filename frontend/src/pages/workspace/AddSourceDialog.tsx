@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -167,6 +167,11 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
   } | null>(null);
   const detectBranches = useDetectBranches();
   const [detectedBranches, setDetectedBranches] = useState<string[]>([]);
+  // Séquence de détection de branches : invalide les réponses périmées
+  // (URL corrigée en cours de vol, dialog fermé/rouvert). Voir BUG-072.
+  const detectSeqRef = useRef(0);
+  const openRef = useRef(open);
+  openRef.current = open;
 
   // ── Formulaires ──────────────────────────────────────────────────────────
 
@@ -231,6 +236,8 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
 
   useEffect(() => {
     if (!open) return;
+    // Toute réponse de détection encore en vol devient périmée à la (ré)ouverture.
+    detectSeqRef.current += 1;
     setTestResult(null);
     setDetectedBranches([]);
     if (isEdit && source) {
@@ -260,25 +267,19 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
     }
   }, [open, source, isEdit, createForm, editForm]);
 
-  // Auto ssh_username selon provider
-  useEffect(() => {
-    if (!watchedProvider || watchedAuthType !== "ssh") return;
-    const defaultUser = DEFAULT_SSH_USER[watchedProvider] ?? "";
-    if (isEdit) {
-      editForm.setValue("ssh_username", defaultUser);
-    } else {
-      createForm.setValue("ssh_username", defaultUser);
-    }
-  }, [watchedProvider, watchedAuthType, isEdit, createForm, editForm]);
-
   // Détection de branches — debounce 800ms
   useEffect(() => {
+    if (!open) return;
     if (!watchedUrl || watchedUrl.length < 10) {
       setDetectedBranches([]);
       return;
     }
     const timer = setTimeout(() => {
+      const seq = ++detectSeqRef.current;
       const authType = watchedAuthType ?? "token";
+      // Une réponse n'est appliquée que si elle correspond à la requête la plus
+      // récente (seq) et que le dialog est toujours ouvert. Voir BUG-072.
+      const isStale = () => seq !== detectSeqRef.current || !openRef.current;
       detectBranches.mutate(
         {
           url: watchedUrl,
@@ -288,6 +289,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
         },
         {
           onSuccess: (data) => {
+            if (isStale()) return;
             setDetectedBranches(data.branches);
             if (data.branches.length >= 1) {
               const target = data.default ?? data.branches[0];
@@ -298,12 +300,15 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
               }
             }
           },
-          onError: () => setDetectedBranches([]),
+          onError: () => {
+            if (isStale()) return;
+            setDetectedBranches([]);
+          },
         },
       );
     }, 800);
     return () => clearTimeout(timer);
-  }, [watchedUrl, watchedCredential, watchedAuthType, watchedSshUser]);
+  }, [open, watchedUrl, watchedCredential, watchedAuthType, watchedSshUser]);
 
   // ── Payloads ─────────────────────────────────────────────────────────────
 
@@ -354,10 +359,10 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
   const onSubmitCreate = (v: CreateValues) => {
     add.mutate(buildCreatePayload(v), {
       onSuccess: (created) => {
-        if (created.branch_warning) {
-          toast({ title: t("sources.add.branch_warning") });
-        }
-        toast({ title: t("sources.add.success") });
+        toast({
+          title: t("sources.add.success"),
+          ...(created.branch_warning && { description: t("sources.add.branch_warning") }),
+        });
         createForm.reset();
         onOpenChange(false);
       },
@@ -411,7 +416,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
   // ── Render ───────────────────────────────────────────────────────────────
 
   if (isEdit) {
-    const { register, handleSubmit, formState, control } = editForm;
+    const { register, handleSubmit, formState, control, setValue, getValues } = editForm;
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
@@ -433,7 +438,10 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
             <AuthBlock
               control={control}
               register={register}
+              setValue={setValue}
+              getValues={getValues}
               watchedAuthType={watchedAuthType}
+              watchedProvider={watchedProvider}
               credentialItems={credentialItems}
               t={t}
             />
@@ -493,7 +501,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
   }
 
   // Mode création
-  const { register, handleSubmit, formState, control } = createForm;
+  const { register, handleSubmit, formState, control, setValue, getValues } = createForm;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
@@ -527,7 +535,10 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
           <AuthBlock
             control={control}
             register={register}
+            setValue={setValue}
+            getValues={getValues}
             watchedAuthType={watchedAuthType}
+            watchedProvider={watchedProvider}
             credentialItems={credentialItems}
             t={t}
           />
@@ -578,12 +589,26 @@ interface AuthBlockProps {
   control: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   register: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setValue: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getValues: any;
   watchedAuthType: AuthType | undefined;
+  watchedProvider: GitProvider | undefined;
   credentialItems: { value: string; label: string; sub: string }[];
   t: (key: string) => string;
 }
 
-function AuthBlock({ control, register, watchedAuthType, credentialItems, t }: AuthBlockProps) {
+function AuthBlock({
+  control,
+  register,
+  setValue,
+  getValues,
+  watchedAuthType,
+  watchedProvider,
+  credentialItems,
+  t,
+}: AuthBlockProps) {
   return (
     <div className="rounded-md border bg-slate-50 p-3 space-y-3">
       {/* Provider */}
@@ -595,7 +620,16 @@ function AuthBlock({ control, register, watchedAuthType, credentialItems, t }: A
           name="git_provider"
           control={control}
           render={({ field }) => (
-            <Select value={(field.value as string) ?? ""} onValueChange={field.onChange}>
+            <Select
+              value={(field.value as string) ?? ""}
+              onValueChange={(val) => {
+                field.onChange(val);
+                // Défaut ssh_username piloté par l'utilisateur (pas au chargement)
+                if (watchedAuthType === "ssh") {
+                  setValue("ssh_username", DEFAULT_SSH_USER[val as GitProvider] ?? "");
+                }
+              }}
+            >
               <SelectTrigger className="mt-1">
                 <SelectValue />
               </SelectTrigger>
@@ -627,7 +661,15 @@ function AuthBlock({ control, register, watchedAuthType, credentialItems, t }: A
                     type="radio"
                     value={at}
                     checked={field.value === at}
-                    onChange={() => field.onChange(at)}
+                    onChange={() => {
+                      field.onChange(at);
+                      setValue("credential_ref", "", { shouldValidate: true });
+                      // Défaut ssh_username seulement si l'utilisateur passe en SSH
+                      // et que le champ est vide (préserve une valeur déjà chargée/saisie)
+                      if (at === "ssh" && watchedProvider && !getValues("ssh_username")) {
+                        setValue("ssh_username", DEFAULT_SSH_USER[watchedProvider] ?? "");
+                      }
+                    }}
                   />
                   {at === "token"
                     ? t("sources.fields.auth_type_token")

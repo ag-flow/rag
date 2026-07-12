@@ -7,7 +7,7 @@ export function useEnableWebhook(workspaceName: string) {
     mutationFn: (sourceName: string) =>
       sourceWebhooksApi.enable(workspaceName, sourceName),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["sources", workspaceName] });
+      void qc.invalidateQueries({ queryKey: ["workspace", workspaceName, "sources"] });
     },
   });
 }
@@ -18,7 +18,7 @@ export function useDisableWebhook(workspaceName: string) {
     mutationFn: (sourceName: string) =>
       sourceWebhooksApi.disable(workspaceName, sourceName),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["sources", workspaceName] });
+      void qc.invalidateQueries({ queryKey: ["workspace", workspaceName, "sources"] });
     },
   });
 }

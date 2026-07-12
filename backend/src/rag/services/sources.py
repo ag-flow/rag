@@ -36,6 +36,25 @@ async def _get_workspace_id_or_raise(config_pool: asyncpg.Pool, name: str) -> UU
     return UUID(str(row["id"]))
 
 
+async def _resolve_branch_token(
+    config: dict[str, Any], *, resolver: _ResolverProtocol | None
+) -> str | None:
+    """Résout le token HTTPS depuis `auth_ref` pour la détection de branche.
+
+    SSH (pas d'auth_ref, ssh_key_ref à la place) → None, cohérent avec
+    detect_default_branch qui repose sur une URL HTTPS authentifiée.
+    Sans resolver disponible ou auth_ref legacy (non-vault) → None (le
+    fallback "main" de _resolve_branch_for_write reste acceptable).
+    """
+    auth_ref: str | None = config.get("auth_ref")
+    if not auth_ref or resolver is None:
+        return None
+    if not is_vault_ref(auth_ref):
+        log.warning("branch_detect.legacy_auth_ref")
+        return None
+    return await resolver.resolve_with_retry(auth_ref)
+
+
 async def _resolve_branch_for_write(
     config: dict[str, Any], *, token: str | None
 ) -> tuple[dict[str, Any], str | None]:
@@ -97,6 +116,7 @@ async def add_source(
     config_pool: asyncpg.Pool,
     harpocrate_vaults_service: HarpocrateVaultsService,
     owner_id: str | None = None,
+    resolver: _ResolverProtocol | None = None,
 ) -> dict[str, Any]:
     """Crée une source pour un workspace.
 
@@ -129,8 +149,11 @@ async def add_source(
     if request.ssh_username:
         config["ssh_username"] = request.ssh_username
 
-    # Pour detect_default_branch : token None si SSH (fallback "main" acceptable)
-    config, branch_warning = await _resolve_branch_for_write(config, token=None)
+    # Résout le token HTTPS (auth_ref) si disponible : nécessaire pour détecter
+    # la branche par défaut d'un repo privé (BUG-066). SSH → None naturellement
+    # (pas d'auth_ref), fallback "main" géré par _resolve_branch_for_write.
+    branch_token = await _resolve_branch_token(config, resolver=resolver)
+    config, branch_warning = await _resolve_branch_for_write(config, token=branch_token)
 
     async with config_pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -203,7 +226,10 @@ async def update_source(
     raw = current["config"]
     current_config = json.loads(raw) if isinstance(raw, str) else dict(raw)
 
-    config = dict(request.config)
+    # Fusionne sur la config existante : PATCH est un update partiel, pas un
+    # remplacement. Sans ça, un config={"branch": "main"} efface url et les
+    # autres clés déjà persistées (ex: url du dépôt git).
+    config = {**current_config, **request.config}
 
     # Préserver les champs auth existants si non fournis dans la requête
     for field in ("git_provider", "auth_type", "auth_ref", "ssh_key_ref", "ssh_username"):
@@ -213,7 +239,10 @@ async def update_source(
         elif field in current_config:
             config[field] = current_config[field]
 
-    config, branch_warning = await _resolve_branch_for_write(config, token=None)
+    # Résout le token HTTPS (auth_ref) si disponible : nécessaire pour détecter
+    # la branche par défaut d'un repo privé (BUG-066).
+    branch_token = await _resolve_branch_token(config, resolver=resolver)
+    config, branch_warning = await _resolve_branch_for_write(config, token=branch_token)
 
     async with config_pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -300,6 +329,7 @@ async def test_source_connection(
     else:
         authed_url = url
 
+    proc: asyncio.subprocess.Process | None = None
     try:
         proc = await asyncio.create_subprocess_exec(
             "git",
@@ -316,6 +346,12 @@ async def test_source_connection(
         stderr_msg = stderr_bytes.decode(errors="replace").strip()
         return {"success": False, "message": stderr_msg[:300] or "git ls-remote a échoué"}
     except TimeoutError:
+        if proc is not None and proc.returncode is None:
+            # wait_for a annulé l'attente mais laisse le process tourner :
+            # le tuer explicitement pour éviter l'accumulation de process
+            # git pendus (fd/process exhaustion sur hôte black-holed).
+            proc.kill()
+            await proc.wait()
         return {"success": False, "message": "Délai dépassé (15 s)"}
     except Exception as exc:
         return {"success": False, "message": str(exc)[:300]}

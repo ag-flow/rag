@@ -2,6 +2,7 @@ import { api } from "@/lib/api";
 import type {
   ApiKeyRotateResponse,
   DetectBranchesResponse,
+  DocumentViewResponse,
   IndexKeysResponse,
   PathDetailResponse,
   StrategyPatchRequest,
@@ -29,9 +30,6 @@ export const workspacesApi = {
     api.patch<Workspace>(`${BASE}/${name}`, payload),
 
   delete: (name: string) => api.delete<void>(`${BASE}/${name}`),
-
-  rotateApiKey: (name: string) =>
-    api.post<ApiKeyRotateResponse>(`${BASE}/${name}/rotate-apikey`, {}),
 
   revealApiKey: (name: string) => api.get<ApiKeyRotateResponse>(`${BASE}/${name}/apikey`),
 
@@ -73,8 +71,13 @@ export const workspacesApi = {
     api.get<IndexKeysResponse>(`${BASE}/${name}/index-keys`),
 
   getIndexKeyDetail: (name: string, path: string) =>
-    api.get<PathDetailResponse>(`${BASE}/${name}/index-keys/${path}`),
+    api.get<PathDetailResponse>(`${BASE}/${name}/index-keys/${encodeURIComponent(path)}`),
 
   patchIndexKeyStrategy: (name: string, path: string, payload: StrategyPatchRequest) =>
     api.patch<void>(`${BASE}/${name}/index-keys/${encodeURIComponent(path)}/strategy`, payload),
+
+  getDocumentView: (name: string, path: string) =>
+    api.get<DocumentViewResponse>(
+      `${BASE}/${name}/document-view?${new URLSearchParams({ path }).toString()}`,
+    ),
 };

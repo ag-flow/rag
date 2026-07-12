@@ -1,4 +1,3 @@
-// frontend/src/pages/workspace/WorkspaceIndexTab.tsx
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -12,6 +11,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useIndexKeyDetail, useIndexKeys, usePatchStrategy } from "@/hooks/useIndexKeys";
 import type { PathStrategyEntry } from "@/lib/workspaces.types";
+import { DocumentChunkViewer } from "./DocumentChunkViewer";
 
 interface Props {
   workspaceName: string;
@@ -84,10 +84,11 @@ interface PathRowProps {
 function PathRow({ entry, workspaceName, isOpen, onToggle }: PathRowProps) {
   const { t } = useTranslation("workspace");
   const patch = usePatchStrategy(workspaceName);
+  const [viewMode, setViewMode] = useState<"chunks" | "document">("chunks");
   const { data: detail, isLoading: detailLoading } = useIndexKeyDetail(
     workspaceName,
     entry.path,
-    isOpen,
+    isOpen && viewMode === "chunks",
   );
 
   const isFromFile = entry.updated_by === "strategy_file";
@@ -161,8 +162,35 @@ function PathRow({ entry, workspaceName, isOpen, onToggle }: PathRowProps) {
       </button>
 
       {isOpen && (
-        <div className="border-t border-slate-100 bg-slate-50 px-3 py-2 space-y-3">
-          {detailLoading ? (
+        <div className="border-t border-slate-100 bg-slate-50 px-3 py-2 space-y-2">
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => setViewMode("chunks")}
+              className={`px-2 py-1 rounded text-xs ${
+                viewMode === "chunks"
+                  ? "bg-white border border-slate-300 text-slate-700 font-medium"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {t("index.view_chunks")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("document")}
+              className={`px-2 py-1 rounded text-xs ${
+                viewMode === "document"
+                  ? "bg-white border border-slate-300 text-slate-700 font-medium"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {t("index.view_document")}
+            </button>
+          </div>
+
+          {viewMode === "document" ? (
+            <DocumentChunkViewer workspaceName={workspaceName} path={entry.path} />
+          ) : detailLoading ? (
             <LoadingSpinner />
           ) : (
             (detail?.versions ?? []).map((vg) => (

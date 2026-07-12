@@ -69,10 +69,12 @@ async def run_backfill(
             ORDER BY w.name
             """
         )
-        # Grouper par rag_cnx (workspace pool)
+        # Grouper par rag_cnx (workspace pool). Le DSN peut être surchargé via
+        # workspace_dsn_map (clé = nom du workspace) ; sinon on retombe sur le
+        # rag_cnx stocké en base.
         by_rag: dict[str, list[dict]] = {}
         for row in rows:
-            rag_cnx = row["rag_cnx"]
+            rag_cnx = (workspace_dsn_map or {}).get(row["name"], row["rag_cnx"])
             by_rag.setdefault(rag_cnx, []).append(dict(row))
 
         for rag_cnx, ws_rows in by_rag.items():

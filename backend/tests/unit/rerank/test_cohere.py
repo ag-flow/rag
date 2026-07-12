@@ -31,8 +31,8 @@ async def test_cohere_returns_sorted_indices() -> None:
         model="rerank-v3.5", api_key="test-key",
         transport=_mock_transport(handler),
     )
-    indices = await provider.rerank(query="q", documents=["a", "b", "c"], top_k=3)
-    assert indices == [2, 0, 1]
+    results = await provider.rerank(query="q", documents=["a", "b", "c"], top_k=3)
+    assert results == [(2, 0.99), (0, 0.50), (1, 0.10)]
 
 
 @pytest.mark.asyncio

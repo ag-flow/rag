@@ -77,7 +77,11 @@ def test_require_apikey_cache_miss_resolves_from_harpocrate_and_caches(
 
 
 def test_require_apikey_harpocrate_unreachable_returns_503(app_with_auth: FastAPI) -> None:
-    from rag.api.errors import VaultUnreachable
+    """Le resolver ne lève jamais VaultUnreachable (c'est une erreur API, pas
+    une erreur du resolver) : il lève VaultLookupFailed ou une erreur de
+    connexion brute. Ce sont ces exceptions que require_workspace_apikey doit
+    capturer pour mapper vers le 503 harpocrate_unreachable (BUG-021)."""
+    from rag.secrets.resolver import VaultLookupFailed
 
     ref = "${vault://rag:wsapi_test1}"
     api_key = "some-key"
@@ -89,7 +93,28 @@ def test_require_apikey_harpocrate_unreachable_returns_503(app_with_auth: FastAP
         }
     )
     app_with_auth.state.resolver.resolve_with_retry = AsyncMock(
-        side_effect=VaultUnreachable("test")
+        side_effect=VaultLookupFailed("test")
+    )
+
+    client = TestClient(app_with_auth)
+    resp = client.get("/ws/test1/check", headers={"Authorization": f"Bearer {api_key}"})
+    assert resp.status_code == 503
+    assert resp.json()["error"] == "harpocrate_unreachable"
+
+
+def test_require_apikey_connection_error_returns_503(app_with_auth: FastAPI) -> None:
+    """Une erreur de connexion brute (SDK/réseau) doit aussi mapper vers 503."""
+    ref = "${vault://rag:wsapi_test1}"
+    api_key = "some-key"
+    app_with_auth.state.pools.config_pool.fetchrow = AsyncMock(
+        return_value={
+            "id": uuid4(),
+            "api_key_ref": ref,
+            "indexer_used": "ollama/mxbai",
+        }
+    )
+    app_with_auth.state.resolver.resolve_with_retry = AsyncMock(
+        side_effect=ConnectionError("network down")
     )
 
     client = TestClient(app_with_auth)

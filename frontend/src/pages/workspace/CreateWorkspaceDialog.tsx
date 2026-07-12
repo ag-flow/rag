@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslation } from "react-i18next";
@@ -39,7 +39,7 @@ import {
 
 type FormData = z.infer<typeof workspaceCreateSchema>;
 
-const BASE_URL_PROVIDERS = ["ollama", "azure-openai"];
+const BASE_URL_PROVIDERS = ["ollama", "azure-openai", "azure-foundry"];
 const NO_KEY_PROVIDERS = ["ollama"];
 
 interface ProviderModelBlockProps {
@@ -209,6 +209,26 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
       rerank: null,
     },
   });
+
+  // ── Reset à l'ouverture ──────────────────────────────────────────────────
+  // Le dialog est monté (fermé) avant que useModels() ait fini de charger,
+  // donc les defaultValues du useForm capturent des défauts vides/génériques
+  // qui ne sont jamais resynchronisés. On recalcule et on réinitialise le
+  // formulaire à chaque ouverture avec les modèles effectivement disponibles.
+  useEffect(() => {
+    if (!open) return;
+    setShowRerank(false);
+    form.reset({
+      name: "",
+      indexer: {
+        provider: defaultProvider,
+        model: defaultModel,
+        api_key_ref: null,
+        base_url: null,
+      },
+      rerank: null,
+    });
+  }, [open, defaultProvider, defaultModel, form]);
 
   function handleToggleRerank() {
     if (showRerank) {

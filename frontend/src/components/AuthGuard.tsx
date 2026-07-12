@@ -1,6 +1,6 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { useMe } from "@/hooks/useMe";
-import { isUnauthorized } from "@/lib/api";
+import { isUnauthorized, redirectToLogin } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import type { MeResponse } from "@/lib/validators";
 
@@ -18,11 +18,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   if (isLoading) return <LoadingSpinner />;
 
   if (error && isUnauthorized(error)) {
-    let next = window.location.pathname + window.location.search;
-    if (next.startsWith("/ui")) {
-      next = next.slice(3) || "/";
-    }
-    window.location.href = `/ui/login?next=${encodeURIComponent(next)}`;
+    redirectToLogin();
     return null;
   }
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import bcrypt
 import structlog
 from fastapi import APIRouter, Request
@@ -27,12 +29,18 @@ def build_setup_router() -> APIRouter:
         pool = request.app.state.pools.config_pool
 
         async with pool.acquire() as conn, conn.transaction():
+            # Sérialise les init-admin concurrents : un seul insert peut passer
+            # le check count==0 (EXCLUSIVE n'affecte pas les SELECT de login).
+            await conn.execute("LOCK TABLE users IN EXCLUSIVE MODE")
             count = await conn.fetchval("SELECT COUNT(*) FROM users")
             if count > 0:
                 raise SetupAlreadyDone()
-            password_hash = bcrypt.hashpw(
-                payload.password.encode("utf-8"), bcrypt.gensalt(12)
-            ).decode("utf-8")
+            password_hash_bytes = await asyncio.to_thread(
+                bcrypt.hashpw,
+                payload.password.encode("utf-8"),
+                bcrypt.gensalt(12),
+            )
+            password_hash = password_hash_bytes.decode("utf-8")
             await conn.execute(
                 "INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3)",
                 payload.username,

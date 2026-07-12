@@ -39,7 +39,7 @@ async def test_rerank_returns_sorted_indices() -> None:
         model="gte-rerank-v2", api_key="k", transport=_ok_transport([2, 0, 1])
     )
     result = await provider.rerank(query="q", documents=["a", "b", "c"], top_k=3)
-    assert result == [2, 0, 1]
+    assert result == [(2, 1.0), (0, 0.9), (1, 0.8)]
 
 
 @pytest.mark.asyncio

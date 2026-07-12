@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 import time
@@ -172,7 +173,7 @@ class SecretResolver:
                 )
 
         try:
-            value = client.get_secret(path)
+            value = await asyncio.to_thread(client.get_secret, path)
         except PermissionError as e:
             raise VaultLookupFailed(f"401 on {raw_ref!r}") from e
         except Exception as e:

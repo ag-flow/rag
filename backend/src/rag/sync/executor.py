@@ -59,7 +59,7 @@ async def pick_next_pending_job(
                       WHERE cb.workspace_id = j.workspace_id
                         AND (cb.open_until IS NULL OR cb.open_until > now())
                   )
-                ORDER BY j.id
+                ORDER BY j.created_at
                 LIMIT 1
                 FOR UPDATE OF j SKIP LOCKED
             )
@@ -97,6 +97,11 @@ async def pick_next_pending_job(
 
     if context is None:
         log.error("sync.picker.workspace_not_found", workspace_id=str(row["workspace_id"]))
+        await _mark_job_error(
+            config_pool,
+            job_id=row["job_id"],
+            error_message="workspace context not found (workspace or indexer_configs missing)",
+        )
         return None
 
     # asyncpg renvoie le jsonb sous forme de str dans ce repo
@@ -154,14 +159,21 @@ def _to_vault_ref(logical_key: str, vault_name: str) -> str:
 async def _resolve_token(
     resolver: _ResolverProtocol,
     config: dict[str, Any],
-    default_vault_name: str,
+    default_vault_name: str | None,
 ) -> str | None:
-    """Résout `auth_ref` si présent. None si source publique."""
+    """Résout `auth_ref` si présent. None si source publique.
+
+    `auth_ref` peut être une ref vault pleinement qualifiée (``${vault://name:key}``),
+    résolvable sans vault par défaut. Sinon (clé logique nue), un vault par
+    défaut est requis pour construire la ref.
+    """
     auth_ref = config.get("auth_ref")
     if not auth_ref:
         return None
     if is_vault_ref(auth_ref):
         return await resolver.resolve_with_retry(auth_ref)
+    if default_vault_name is None:
+        raise RuntimeError("no default Harpocrate vault configured")
     return await resolver.resolve_with_retry(_to_vault_ref(auth_ref, default_vault_name))
 
 
@@ -259,13 +271,21 @@ async def _execute_push_job(
         strategy_override = row["strategy_override"]
         content_hash = "sha256:" + sha256(content.encode("utf-8")).hexdigest()
 
-        existing = await config_pool.fetchval(
-            "SELECT content_hash FROM indexed_documents WHERE workspace_id=$1 AND path=$2",
+        existing = await config_pool.fetchrow(
+            "SELECT content_hash, indexer_used FROM indexed_documents "
+            "WHERE workspace_id=$1 AND path=$2",
             job.workspace_id,
             path,
         )
 
-        if existing == content_hash:
+        # On ne skip que si le contenu ET l'indexeur (provider/modèle) sont
+        # inchangés : un changement d'indexeur invalide les vecteurs stockés
+        # (espaces vectoriels incompatibles), il faut ré-indexer (BUG-032).
+        if (
+            existing is not None
+            and existing["content_hash"] == content_hash
+            and existing["indexer_used"] == job.indexer_used
+        ):
             await config_pool.execute(
                 """
                 UPDATE index_jobs
@@ -593,13 +613,48 @@ async def execute_next_pending_job(
                 webhook_secret=webhook_secret,
             )
     except Exception as e:
+        # Les jobs push/delete gèrent leurs erreurs en interne ; ce chemin sert
+        # surtout aux jobs git (schedule/webhook/manual), qui doivent bénéficier
+        # de la même machinerie retry/backoff + circuit-breaker (BUG-038).
         msg = _format_error(e)
-        log.exception("sync.executor.job_error", job_id=str(job.job_id))
-        await _mark_job_error(config_pool, job_id=job.job_id, error_message=msg)
-        if job_log_bus is not None:
-            jid = str(job.job_id)
-            job_log_bus.publish(jid, "error", f"Erreur : {msg}")
-            job_log_bus.complete(jid, status="error")
+        family = classify_indexer_error(e)
+        jid = str(job.job_id)
+        if family == "transient" and _should_retry(job.retry_count):
+            delay = _backoff_delay(job.retry_count)
+            await _reschedule_job(
+                config_pool,
+                job_id=job.job_id,
+                retry_count=job.retry_count + 1,
+                delay_seconds=delay,
+            )
+            log.warning(
+                "sync.executor.job_transient_retry",
+                job_id=jid,
+                retry_count=job.retry_count + 1,
+                delay_seconds=delay,
+                error=msg,
+            )
+            if job_log_bus is not None:
+                job_log_bus.publish(
+                    jid,
+                    "warning",
+                    f"Erreur transitoire, nouvelle tentative dans {delay}s : {msg}",
+                )
+        else:
+            await _mark_job_error(config_pool, job_id=job.job_id, error_message=msg)
+            if family in ("blocking", "transient"):
+                # transient ici = retries épuisés → même traitement que blocking
+                await open_circuit(
+                    config_pool,
+                    workspace_id=job.workspace_id,
+                    provider=job.indexer_provider,
+                    model=job.indexer_model,
+                    error_message=msg,
+                )
+            log.exception("sync.executor.job_error", job_id=jid, family=family)
+            if job_log_bus is not None:
+                job_log_bus.publish(jid, "error", f"Erreur : {msg}")
+                job_log_bus.complete(jid, status="error")
     return True
 
 
@@ -652,13 +707,7 @@ async def _execute_git_job(
         else:
             _log("info", "Auth : source publique (SSH sans clé).")
     else:
-        if config.get("auth_ref") and default_vault_name is None:
-            raise RuntimeError("no default Harpocrate vault configured")
-        token = (
-            await _resolve_token(resolver, config, default_vault_name)
-            if default_vault_name is not None
-            else None
-        )
+        token = await _resolve_token(resolver, config, default_vault_name)
         if token:
             _log("info", "Auth : token résolu.")
         else:
@@ -735,6 +784,7 @@ async def _execute_git_job(
     files_changed = 0
     files_skipped = 0
     changed_files: list[tuple[str, str]] = []  # (path, change_type)
+    failed_files: list[tuple[str, str]] = []  # (path, error) — échecs déterministes isolés
     added_set = set(changes.added)
     enrichment_results: list[dict] = []
 
@@ -748,22 +798,52 @@ async def _execute_git_job(
         content_hash = "sha256:" + sha256(content.encode("utf-8")).hexdigest()
 
         async with config_pool.acquire() as conn:
-            existing = await conn.fetchval(
-                "SELECT content_hash FROM indexed_documents WHERE workspace_id=$1 AND path=$2",
+            existing = await conn.fetchrow(
+                "SELECT content_hash, indexer_used FROM indexed_documents "
+                "WHERE workspace_id=$1 AND path=$2",
                 job.workspace_id,
                 path,
             )
-        if existing == content_hash:
+        # Skip seulement si contenu ET indexeur inchangés (cf. BUG-032).
+        if (
+            existing is not None
+            and existing["content_hash"] == content_hash
+            and existing["indexer_used"] == job.indexer_used
+        ):
             files_skipped += 1
             continue
 
-        await indexer.index_file(
-            workspace_id=job.workspace_id,
-            path=path,
-            content=content,
-            content_hash=content_hash,
-            indexer_used=job.indexer_used,
-        )
+        try:
+            await indexer.index_file(
+                workspace_id=job.workspace_id,
+                path=path,
+                content=content,
+                content_hash=content_hash,
+                indexer_used=job.indexer_used,
+            )
+        except Exception as exc:
+            family = classify_indexer_error(exc)
+            if family != "permanent":
+                # transient / blocking = erreur provider-level (rate-limit, auth,
+                # quota, injoignable) → on laisse remonter pour que la machinerie
+                # retry/backoff + circuit-breaker du job la traite (BUG-038).
+                raise
+            # permanent = erreur déterministe propre à CE fichier (fence de code
+            # surdimensionné, panic tree-sitter, violation de contrainte DB). On
+            # l'isole et on continue : sinon un seul fichier « poison » bloquerait
+            # définitivement l'indexation de tous les fichiers suivants et
+            # empêcherait last_commit d'avancer (BUG-033).
+            err = _truncate(str(exc), 200)
+            failed_files.append((path, err))
+            log.warning(
+                "sync.executor.file_index_failed",
+                job_id=jid,
+                path=path,
+                family=family,
+                error=err,
+            )
+            _log("warning", f"Échec fichier {path} : {err} — ignoré, on continue.")
+            continue
         files_changed += 1
         changed_files.append((path, "added" if path in added_set else "modified"))
 
@@ -809,7 +889,15 @@ async def _execute_git_job(
             job.source_id,
         )
 
-    # 6. Mark done
+    # 6. Mark done. Les fichiers en échec déterministe (BUG-033) sont résumés
+    # dans error_message pour tracer l'échec partiel, sans bloquer le job ni
+    # empêcher last_commit d'avancer.
+    partial_error: str | None = None
+    if failed_files:
+        partial_error = _truncate(
+            f"{len(failed_files)} fichier(s) non indexé(s) : "
+            + ", ".join(p for p, _ in failed_files)
+        )
     async with config_pool.acquire() as conn:
         await conn.execute(
             """
@@ -818,12 +906,14 @@ async def _execute_git_job(
                 finished_at=now(),
                 duration_ms=EXTRACT(MILLISECONDS FROM (now() - started_at))::int,
                 files_changed=$1,
-                files_skipped=$2
+                files_skipped=$2,
+                error_message=$4
             WHERE id=$3
             """,
             files_changed,
             files_skipped,
             job.job_id,
+            partial_error,
         )
         if changed_files:
             try:
@@ -845,8 +935,13 @@ async def _execute_git_job(
         workspace=job.workspace_name,
         files_changed=files_changed,
         files_skipped=files_skipped,
+        files_failed=len(failed_files),
     )
-    _log("info", f"Terminé : {files_changed} fichiers mis à jour, {files_skipped} ignorés.")
+    _log(
+        "info",
+        f"Terminé : {files_changed} fichiers mis à jour, {files_skipped} ignorés"
+        + (f", {len(failed_files)} en échec." if failed_files else "."),
+    )
     if bus is not None:
         bus.complete(jid, status="done", files_changed=files_changed, files_skipped=files_skipped)
 
@@ -865,7 +960,7 @@ async def _execute_git_job(
         files_skipped=files_skipped,
         duration_ms=None,
         finished_at=finished_at_str,
-        error_message=None,
+        error_message=partial_error,
         webhook_secret=webhook_secret,
         resolver=resolver,
         git_repo=url,

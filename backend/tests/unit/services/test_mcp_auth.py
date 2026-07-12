@@ -127,6 +127,36 @@ async def test_authenticate_cache_hit_skips_resolver() -> None:
 
 
 @pytest.mark.asyncio
+async def test_authenticate_stale_cache_invalidated_and_reresolved() -> None:
+    """BUG-026 : cache périmé (rotation Harpocrate hors-bande) -> invalidation
+    + re-résolution une fois, la nouvelle clé claire est acceptée."""
+    cache = ApiKeyCache()
+    ws_id = uuid4()
+    api_key_ref = "${vault://test:ws_apikey}"
+    new_key = "fresh-key-from-harpocrate"
+    cache.put(api_key_ref, "stale-old-value")  # entrée périmée déjà en cache
+
+    pool = MagicMock()
+    pool.fetchrow = AsyncMock(
+        return_value={
+            "id": ws_id,
+            "api_key_ref": api_key_ref,
+            "indexer_used": "openai/m",
+        }
+    )
+
+    ref = McpWorkspaceRef(name="ws", api_key=new_key)
+    entry = await _authenticate(
+        ref=ref,
+        config_pool=pool,
+        apikey_cache=cache,
+        secret_resolver=_StubResolver(new_key),
+    )
+    assert entry.workspace_id == ws_id
+    assert cache.get(api_key_ref) == new_key
+
+
+@pytest.mark.asyncio
 async def test_load_workspace_context_returns_full_row() -> None:
     pool = MagicMock()
     pool.fetchrow = AsyncMock(

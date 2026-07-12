@@ -86,16 +86,6 @@ export function useDeleteWorkspace() {
   });
 }
 
-export function useRotateApiKey(name: string) {
-  const qc = useQueryClient();
-  return useMutation<ApiKeyRotateResponse, Error, void>({
-    mutationFn: () => workspacesApi.rotateApiKey(name),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["workspace", name] });
-    },
-  });
-}
-
 export function useRevealApiKey(name: string) {
   return useMutation<ApiKeyRotateResponse, Error, void>({
     mutationFn: () => workspacesApi.revealApiKey(name),

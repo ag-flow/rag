@@ -33,6 +33,10 @@ def _resolver(request: Request) -> Any:
     return getattr(request.app.state, "resolver", None)
 
 
+def _client_provider(request: Request) -> Any:
+    return getattr(request.app.state, "client_provider", None)
+
+
 def build_webhooks_router() -> APIRouter:
     router = APIRouter(
         tags=["webhooks"],
@@ -86,7 +90,7 @@ def build_webhooks_router() -> APIRouter:
             url=body.url,
             enabled=body.enabled,
             headers=[h.model_dump() for h in body.headers],
-            resolver=_resolver(request),
+            client_provider=_client_provider(request),
         )
 
     @router.patch("/workspaces/{name}/webhooks/{webhook_id}", response_model=WebhookOut)
@@ -134,7 +138,7 @@ def build_webhooks_router() -> APIRouter:
             vault=body.vault,
             enabled=body.enabled,
             workspace_name=name,
-            resolver=_resolver(request),
+            client_provider=_client_provider(request),
         )
 
     return router

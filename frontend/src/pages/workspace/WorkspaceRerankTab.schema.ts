@@ -1,7 +1,30 @@
 import { z } from "zod";
 import type { RerankProvider } from "@/lib/rerank.types";
 
-export const RERANK_PROVIDERS: RerankProvider[] = ["cohere", "openai", "voyage", "ollama"];
+export const RERANK_PROVIDERS: RerankProvider[] = [
+  "cohere",
+  "voyage",
+  "jina",
+  "dashscope",
+  "azure-foundry",
+  "ollama",
+];
+
+// Providers nécessitant une clé API (tous sauf ollama, qui tourne en local).
+export const KEY_REQUIRED_PROVIDERS: RerankProvider[] = [
+  "cohere",
+  "voyage",
+  "jina",
+  "dashscope",
+  "azure-foundry",
+];
+
+// Providers nécessitant un base_url : ollama (hôte du serveur local) et
+// azure-foundry (URL complète de l'endpoint rerank du déploiement Azure).
+export const BASE_URL_REQUIRED_PROVIDERS: RerankProvider[] = [
+  "ollama",
+  "azure-foundry",
+];
 
 export const MODELS_BY_PROVIDER: Record<RerankProvider, string[]> = {
   cohere: [
@@ -11,14 +34,32 @@ export const MODELS_BY_PROVIDER: Record<RerankProvider, string[]> = {
     "rerank-english-light-v3.0",
     "rerank-multilingual-light-v3.0",
   ],
-  openai: ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"],
   voyage: ["voyage-rerank-2", "voyage-rerank-2-lite", "voyage-rerank-1"],
+  jina: [
+    "jina-reranker-v2-base-multilingual",
+    "jina-reranker-v1-base-en",
+    "jina-colbert-v2",
+  ],
+  dashscope: ["gte-rerank-v2", "gte-rerank"],
+  // Cohere Rerank déployé sur Azure AI Foundry (mêmes IDs modèle que Cohere).
+  "azure-foundry": [
+    "rerank-v3.5",
+    "rerank-multilingual-v3.0",
+    "rerank-english-v3.0",
+  ],
   ollama: ["bge-reranker-v2-m3", "bge-reranker-base", "ms-marco-minilm"],
 };
 
 export const rerankFormSchema = z
   .object({
-    provider: z.enum(["cohere", "openai", "voyage", "ollama"]),
+    provider: z.enum([
+      "cohere",
+      "voyage",
+      "jina",
+      "dashscope",
+      "azure-foundry",
+      "ollama",
+    ]),
     model: z.string().min(1, "required"),
     api_key_ref: z
       .string()
@@ -28,19 +69,14 @@ export const rerankFormSchema = z
     top_k_pre_rerank: z.coerce.number().int().min(1, "min").max(500, "max"),
   })
   .superRefine((data, ctx) => {
-    if (
-      (data.provider === "cohere" ||
-        data.provider === "openai" ||
-        data.provider === "voyage") &&
-      !data.api_key_ref
-    ) {
+    if (KEY_REQUIRED_PROVIDERS.includes(data.provider) && !data.api_key_ref) {
       ctx.addIssue({
         path: ["api_key_ref"],
         code: z.ZodIssueCode.custom,
         message: "required_for_provider",
       });
     }
-    if (data.provider === "ollama" && !data.base_url) {
+    if (BASE_URL_REQUIRED_PROVIDERS.includes(data.provider) && !data.base_url) {
       ctx.addIssue({
         path: ["base_url"],
         code: z.ZodIssueCode.custom,

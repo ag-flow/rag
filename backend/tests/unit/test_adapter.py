@@ -6,7 +6,11 @@ import json
 import httpx
 import pytest
 
-from rag.indexer.providers.adapter import EmbeddingProviderAdapter
+from rag.indexer.providers.adapter import (
+    _MAX_RETRIES,
+    EmbeddingProviderAdapter,
+    _parse_retry_after,
+)
 from rag.indexer.providers.platforms.bearer import BearerPlatform
 from rag.indexer.providers.protocol import (
     EmbeddingAuthError,
@@ -100,7 +104,7 @@ async def test_embed_texts_401_raises_auth_error() -> None:
 
 
 @pytest.mark.asyncio
-async def test_embed_texts_429_retries_once_then_raises_rate_limited() -> None:
+async def test_embed_texts_429_retries_then_raises_rate_limited() -> None:
     calls = {"n": 0}
 
     def handler(_request: httpx.Request) -> httpx.Response:
@@ -110,11 +114,11 @@ async def test_embed_texts_429_retries_once_then_raises_rate_limited() -> None:
     adapter = _make_adapter(transport=httpx.MockTransport(handler), retry_sleep=0.0)
     with pytest.raises(EmbeddingRateLimited):
         await adapter.embed_texts(["hello"])
-    assert calls["n"] == 2
+    assert calls["n"] == _MAX_RETRIES + 1
 
 
 @pytest.mark.asyncio
-async def test_embed_texts_503_retries_once_then_raises_unreachable() -> None:
+async def test_embed_texts_503_retries_then_raises_unreachable() -> None:
     calls = {"n": 0}
 
     def handler(_request: httpx.Request) -> httpx.Response:
@@ -124,11 +128,11 @@ async def test_embed_texts_503_retries_once_then_raises_unreachable() -> None:
     adapter = _make_adapter(transport=httpx.MockTransport(handler), retry_sleep=0.0)
     with pytest.raises(EmbeddingProviderUnreachable):
         await adapter.embed_texts(["hello"])
-    assert calls["n"] == 2
+    assert calls["n"] == _MAX_RETRIES + 1
 
 
 @pytest.mark.asyncio
-async def test_embed_texts_timeout_retries_once_then_raises_unreachable() -> None:
+async def test_embed_texts_timeout_retries_then_raises_unreachable() -> None:
     calls = {"n": 0}
 
     def handler(_request: httpx.Request) -> httpx.Response:
@@ -138,7 +142,41 @@ async def test_embed_texts_timeout_retries_once_then_raises_unreachable() -> Non
     adapter = _make_adapter(transport=httpx.MockTransport(handler), retry_sleep=0.0)
     with pytest.raises(EmbeddingProviderUnreachable):
         await adapter.embed_texts(["hello"])
+    assert calls["n"] == _MAX_RETRIES + 1
+
+
+@pytest.mark.asyncio
+async def test_embed_texts_429_then_success_recovers() -> None:
+    """Un 429 transitoire suivi d'un 200 réussit sans avorter le batch."""
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(429, headers={"Retry-After": "0"})
+        return _ok_response(json.loads(request.content)["input"])
+
+    adapter = _make_adapter(transport=httpx.MockTransport(handler), retry_sleep=0.0)
+    result = await adapter.embed_texts(["hello"])
+    assert len(result) == 1
     assert calls["n"] == 2
+
+
+def test_parse_retry_after_delta_seconds() -> None:
+    assert _parse_retry_after("30") == 30.0
+    assert _parse_retry_after("  0 ") == 0.0
+    assert _parse_retry_after(None) is None
+    assert _parse_retry_after("not-a-date") is None
+
+
+def test_parse_retry_after_http_date_in_future() -> None:
+    from email.utils import format_datetime
+    from datetime import datetime, timedelta, timezone
+
+    future = datetime.now(timezone.utc) + timedelta(seconds=45)
+    parsed = _parse_retry_after(format_datetime(future))
+    assert parsed is not None
+    assert 30.0 < parsed <= 45.0
 
 
 @pytest.mark.asyncio

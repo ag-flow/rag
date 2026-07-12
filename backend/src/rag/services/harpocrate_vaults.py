@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import Any
 from uuid import UUID, uuid4
@@ -190,23 +191,24 @@ class HarpocrateVaultsService:
         dek = self._require_dek()
         vault_id = uuid4()
 
-        if req.is_default:
-            await conn.execute(_DEMOTE_DEFAULT)
-
         try:
-            row = await conn.fetchrow(
-                _INSERT_VAULT,
-                vault_id,
-                req.name,
-                req.label,
-                req.base_url,
-                req.api_key_id,
-                req.api_key,
-                dek,
-                req.probe_path,
-                req.is_default,
-                owner_id,
-            )
+            async with conn.transaction():
+                if req.is_default:
+                    await conn.execute(_DEMOTE_DEFAULT)
+
+                row = await conn.fetchrow(
+                    _INSERT_VAULT,
+                    vault_id,
+                    req.name,
+                    req.label,
+                    req.base_url,
+                    req.api_key_id,
+                    req.api_key,
+                    dek,
+                    req.probe_path,
+                    req.is_default,
+                    owner_id,
+                )
         except UniqueViolationError as exc:
             raise VaultNameAlreadyExistsError(req.name) from exc
 
@@ -326,7 +328,7 @@ class HarpocrateVaultsService:
         # Cas auth-only : pas de probe_path → health_check() via wallet-id
         if vault.probe_path is None:
             try:
-                client.health_check()
+                await asyncio.to_thread(client.health_check)
                 return VaultTestConnectionResult(
                     ok=True,
                     detail="auth ok (health_check)",
@@ -360,7 +362,7 @@ class HarpocrateVaultsService:
         # Cas test bout-en-bout : probe_path renseigné → get_secret
         path = vault.probe_path
         try:
-            client.get_secret(path)
+            await asyncio.to_thread(client.get_secret, path)
             return VaultTestConnectionResult(
                 ok=True,
                 detail="secret résolu",
@@ -423,12 +425,12 @@ class HarpocrateVaultsService:
             raise VaultNotFoundError(str(vault_id))
 
         client = HarpocrateVaultClient(url=vault.base_url, token=api_key)
-        wallet_id_str = client.health_check()
-        tok = client.token_info()
+        wallet_id_str = await asyncio.to_thread(client.health_check)
+        tok = await asyncio.to_thread(client.token_info)
 
         wallet = None
         try:
-            wallet = client.info()
+            wallet = await asyncio.to_thread(client.info)
         except VaultHttpError as e:
             if e.status_code == 401:
                 log.warning(
@@ -474,7 +476,9 @@ class HarpocrateVaultsService:
             raise VaultNotFoundError(str(vault_id))
 
         client = HarpocrateVaultClient(url=vault.base_url, token=api_key)
-        types_sdk = client.list_types(q=q, include_deprecated=include_deprecated)
+        types_sdk = await asyncio.to_thread(
+            client.list_types, q=q, include_deprecated=include_deprecated
+        )
         result = [
             SecretTypeSummary(
                 type_uuid=getattr(t, "type_uuid", None) or t.id,
@@ -514,7 +518,8 @@ class HarpocrateVaultsService:
             raise VaultNotFoundError(str(vault_id))
 
         client = HarpocrateVaultClient(url=vault.base_url, token=api_key)
-        sdk_resp = client.list_secrets(
+        sdk_resp = await asyncio.to_thread(
+            client.list_secrets,
             tag=tag,
             name_contains=name_contains,
             path=path,
@@ -563,7 +568,7 @@ class HarpocrateVaultsService:
             raise VaultNotFoundError(vault_name)
         client = HarpocrateVaultClient(url=str(vault.base_url), token=clear_api_key)
         try:
-            client.set_secret(path, value)
+            await asyncio.to_thread(client.set_secret, path, value)
         except Exception as e:
             log.error("vault.write.failed", vault=vault_name, path=path, error=str(e))
             from rag.api.errors import HarpocrateWriteFailed
@@ -588,7 +593,7 @@ class HarpocrateVaultsService:
             return
         try:
             client = HarpocrateVaultClient(url=str(vault.base_url), token=clear_api_key)
-            client.delete_secret(path)
+            await asyncio.to_thread(client.delete_secret, path)
         except Exception as e:
             log.warning("vault.delete.failed", vault=vault_name, path=path, error=str(e))
 

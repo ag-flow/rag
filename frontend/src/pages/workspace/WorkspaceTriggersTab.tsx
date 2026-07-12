@@ -27,6 +27,7 @@ interface TriggerPromptsPanelProps {
 
 function TriggerPromptsPanel({ trigger, workspaceName }: TriggerPromptsPanelProps) {
   const { t } = useTranslation("triggers");
+  const { toast } = useToast();
   const { data: triggerPrompts = [] } = useTriggerPrompts(workspaceName, trigger.id);
   const { data: allPrompts = [] } = usePrompts();
   const { data: llmConfigs = [] } = useLlmConfigs(workspaceName);
@@ -37,18 +38,23 @@ function TriggerPromptsPanel({ trigger, workspaceName }: TriggerPromptsPanelProp
   const [selectedLlm, setSelectedLlm] = useState("");
   const [addOpen, setAddOpen] = useState(false);
 
-  const nextOrder = triggerPrompts.length + 1;
+  const nextOrder =
+    triggerPrompts.reduce((max, tp) => Math.max(max, tp.order_index), 0) + 1;
 
   async function handleAddPrompt() {
     if (!selectedTemplate || !selectedLlm) return;
-    await addPrompt.mutateAsync({
-      template_id: selectedTemplate,
-      llm_id: selectedLlm,
-      order_index: nextOrder,
-    });
-    setSelectedTemplate("");
-    setSelectedLlm("");
-    setAddOpen(false);
+    try {
+      await addPrompt.mutateAsync({
+        template_id: selectedTemplate,
+        llm_id: selectedLlm,
+        order_index: nextOrder,
+      });
+      setSelectedTemplate("");
+      setSelectedLlm("");
+      setAddOpen(false);
+    } catch {
+      toast({ title: t("add_prompt_error"), variant: "destructive" });
+    }
   }
 
   return (

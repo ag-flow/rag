@@ -49,6 +49,10 @@ async def upsert_chunks(
                 )
             ]
         else:
+            await conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtext($1))",
+                path,
+            )
             raw = await conn.fetchval(
                 "SELECT COALESCE(MAX(chunk_index), -1) FROM embeddings WHERE path=$1",
                 path,

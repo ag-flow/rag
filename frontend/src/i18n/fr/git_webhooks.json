@@ -20,5 +20,6 @@
   "badge_schedule": "Schedule",
   "menu_enable": "Activer le webhook",
   "menu_rotate": "Rotation du secret",
-  "menu_disable": "Désactiver le webhook"
+  "menu_disable": "Désactiver le webhook",
+  "menu_requires_name": "Webhook indisponible : la source doit avoir un nom"
 }

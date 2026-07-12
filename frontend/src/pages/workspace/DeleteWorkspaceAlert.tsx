@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +26,7 @@ export function DeleteWorkspaceAlert({ name, open, onOpenChange }: Props) {
   const { t } = useTranslation("workspace");
   const { toast } = useToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const del = useDeleteWorkspace();
   const [confirmText, setConfirmText] = useState("");
 
@@ -35,6 +37,10 @@ export function DeleteWorkspaceAlert({ name, open, onOpenChange }: Props) {
   const handleConfirm = () => {
     del.mutate(name, {
       onSuccess: () => {
+        // Retire l'entrée cache du workspace supprimé pour éviter qu'un
+        // rendu périmé ou un spinner infini ne s'affiche s'il est
+        // re-sélectionné avant la stabilisation de la liste.
+        queryClient.removeQueries({ queryKey: ["workspace", name] });
         toast({ title: t("dialog.delete.success") });
         onOpenChange(false);
         navigate("/workspaces", { replace: true });

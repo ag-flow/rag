@@ -27,5 +27,6 @@
   "field_llm": "LLM to use",
   "field_order": "Execution order",
   "prompt_add_save": "Add",
-  "prompt_delete_btn": "Remove"
+  "prompt_delete_btn": "Remove",
+  "add_prompt_error": "Failed to add prompt."
 }

@@ -56,6 +56,26 @@ _BLOCK_KINDS = frozenset(
     {"block", "class_body", "declaration_list", "statement_block", "field_declaration_list"}
 )
 
+# tree-sitter Python : `@deco\ndef foo()` parse en `decorated_definition`, qui
+# encapsule la vraie `function_definition` / `class_definition` sous le champ
+# `definition`. On déballe pour la classification (kind/name) tout en conservant
+# le nœud externe pour le texte, afin de garder les lignes de décorateur dans
+# l'unité (BUG-043).
+_DECORATED_KIND = "decorated_definition"
+
+
+def _unwrap_decorated(node: CodeNode) -> CodeNode:
+    if node.kind == _DECORATED_KIND:
+        inner = node.child_field("definition")
+        if inner is not None:
+            return inner
+    return node
+
+
+def _symbol_name(node: CodeNode) -> str:
+    target = _unwrap_decorated(node)
+    return target.name or target.kind
+
 
 @dataclass
 class _Unit:
@@ -130,7 +150,7 @@ class CodeChunker:
         for node in root.named_children:
             if self._is_def(node):
                 flush()
-                units.append(_Unit(scope=[node.name or node.kind], text=node.text))
+                units.append(_Unit(scope=[_symbol_name(node)], text=node.text))
             elif self._is_container(node):
                 flush()
                 units.extend(self._container_units(node, lines))
@@ -140,13 +160,14 @@ class CodeChunker:
         return units
 
     def _container_units(self, container: CodeNode, lines: list[str]) -> list[_Unit]:
-        cname = container.name or container.kind
-        members = self._members(container)
+        inner = _unwrap_decorated(container)
+        cname = inner.name or inner.kind
+        members = self._members(inner)
         if not members:
             return [_Unit(scope=[cname], text=container.text)]
         shell = _elide_members(lines, container, members)
         result = [_Unit(scope=[cname], text=shell)]
-        result.extend(_Unit(scope=[cname, m.name or m.kind], text=m.text) for m in members)
+        result.extend(_Unit(scope=[cname, _symbol_name(m)], text=m.text) for m in members)
         return result
 
     def _members(self, container: CodeNode) -> list[CodeNode]:
@@ -159,14 +180,15 @@ class CodeChunker:
         return out
 
     def _is_def(self, node: CodeNode) -> bool:
+        target = _unwrap_decorated(node)
         if self._cfg is None:
-            return node.name is not None
-        return node.kind in self._cfg.def_kinds
+            return target.name is not None
+        return target.kind in self._cfg.def_kinds
 
     def _is_container(self, node: CodeNode) -> bool:
         if self._cfg is None:
             return False
-        return node.kind in self._cfg.container_kinds
+        return _unwrap_decorated(node).kind in self._cfg.container_kinds
 
     @staticmethod
     def _unit_key(unit: _Unit, seen: Counter[str]) -> str:
@@ -183,7 +205,7 @@ def _is_block(kind: str) -> bool:
 def _elide_members(lines: list[str], container: CodeNode, members: list[CodeNode]) -> str:
     """Texte de la coquille de classe : corps des méthodes remplacés par un
     marqueur ``… <nom>`` (pas de duplication du corps dans la coquille)."""
-    spans = sorted((m.start_line, m.end_line, m.name or m.kind) for m in members)
+    spans = sorted((m.start_line, m.end_line, _symbol_name(m)) for m in members)
     shell: list[str] = []
     row = container.start_line
     idx = 0

@@ -53,7 +53,7 @@ class DebugTrace(BaseModel):
     lexical_rank: int | None = None
     lexical_score: float | None = None
     rrf_score: float | None = None
-    rerank_score: float | None = None  # null jusqu'à ce que le reranker expose les scores
+    rerank_score: float | None = None  # relevance_score du reranker (null si pas de rerank)
     final_rank: int | None = None
 
 

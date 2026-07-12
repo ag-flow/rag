@@ -85,7 +85,26 @@ echo "  ✓ LXC ${CTID} (${LXC_NAME}) éligible à la suppression"
 # ─── Stop + destroy ────────────────────────────────────────────────────────
 echo "→ Stop du LXC ${CTID}..."
 ssh "${SSH_HOST}" "pct stop ${CTID} 2>&1 || true"
-sleep 2
+
+# Attend l'arrêt effectif (container chargé avec la stack Docker complète
+# dedans : peut prendre bien plus que quelques secondes) au lieu d'un sleep
+# fixe, sinon `pct destroy` échoue « CT is running » et `set -e` interrompt
+# le script en laissant le LXC en place.
+STOP_TIMEOUT_S="${STOP_TIMEOUT_S:-60}"
+_waited=0
+while true; do
+    _status="$(ssh "${SSH_HOST}" "pct status ${CTID} 2>/dev/null" | awk '{print $2}')"
+    if [ "${_status}" = "stopped" ]; then
+        break
+    fi
+    if [ "${_waited}" -ge "${STOP_TIMEOUT_S}" ]; then
+        echo "✗ LXC ${CTID} toujours à l'état '${_status:-inconnu}' après ${STOP_TIMEOUT_S}s." >&2
+        exit 1
+    fi
+    sleep 2
+    _waited=$((_waited + 2))
+done
+echo "  ✓ LXC ${CTID} arrêté (${_waited}s)"
 
 echo "→ Destroy --purge du LXC ${CTID}..."
 ssh "${SSH_HOST}" "pct destroy ${CTID} --purge"

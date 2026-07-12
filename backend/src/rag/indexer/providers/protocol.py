@@ -27,6 +27,12 @@ class EmbeddingProviderUnreachable(EmbeddingProviderError):  # noqa: N818
     """Réseau down, timeout, ou HTTP 503 (provider en panne)."""
 
 
+class EmbeddingBadRequest(EmbeddingProviderError):  # noqa: N818
+    """HTTP 4xx autre que 401/402/403/429 — requête invalide (modèle inconnu,
+    input rejeté, payload trop long…). Cause structurelle, jamais transitoire :
+    retenter ne change rien tant que la config n'est pas corrigée."""
+
+
 class EmbeddingProvider(Protocol):
     """Frontière commune entre `RealIndexer` (M4a) et les implémentations
     OpenAI / Voyage / Ollama.

@@ -44,10 +44,21 @@ class RerankCreateSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
-    provider: str = Field(min_length=1)
+    provider: Literal[
+        "cohere", "voyage", "ollama", "jina", "dashscope", "azure-foundry"
+    ]
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
-    base_url: str | None = None
+    base_url: str | None = Field(
+        default=None,
+        description=(
+            "cohere/voyage/jina/ollama : préfixe d'hôte (le path de l'endpoint "
+            "est ajouté automatiquement). dashscope/azure-foundry : URL complète "
+            "de l'endpoint rerank (ex: dashscope pour switcher région "
+            "international/CN ; azure-foundry pour l'endpoint du déploiement "
+            "Cohere sur Azure)."
+        ),
+    )
     top_k_pre_rerank: int = Field(default=50, gt=0, le=500)
 
 
@@ -138,6 +149,16 @@ class SourceUpdateRequest(BaseModel):
     ssh_username: str | None = None
     config: dict[str, Any]
 
+    @field_validator("config")
+    @classmethod
+    def config_url_not_blank_if_present(cls, v: dict[str, Any]) -> dict[str, Any]:
+        # PATCH est un update partiel (mergé sur la config existante par le
+        # service) : url n'est pas requis ici. Mais si le client l'envoie,
+        # il ne doit pas l'effacer avec une valeur vide.
+        if "url" in v and not v["url"]:
+            raise ValueError("config.url cannot be empty for git sources")
+        return v
+
 
 class SourceResponse(BaseModel):
     id: UUID
@@ -202,6 +223,7 @@ class ModelEntry(BaseModel):
     provider: str = Field(min_length=1)
     model: str = Field(min_length=1)
     dimension: int = Field(gt=0)
+    created_at: str | None = None
 
 
 class RerankSpec(BaseModel):
@@ -209,10 +231,21 @@ class RerankSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
-    provider: Literal["cohere", "openai", "voyage", "ollama", "jina", "dashscope"]
+    provider: Literal[
+        "cohere", "voyage", "ollama", "jina", "dashscope", "azure-foundry"
+    ]
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
-    base_url: str | None = None
+    base_url: str | None = Field(
+        default=None,
+        description=(
+            "cohere/voyage/jina/ollama : préfixe d'hôte (le path de l'endpoint "
+            "est ajouté automatiquement). dashscope/azure-foundry : URL complète "
+            "de l'endpoint rerank (ex: dashscope pour switcher région "
+            "international/CN ; azure-foundry pour l'endpoint du déploiement "
+            "Cohere sur Azure)."
+        ),
+    )
     top_k_pre_rerank: int = Field(default=50, gt=0, le=500)
 
 
@@ -244,9 +277,27 @@ class HybridConfigResponse(BaseModel):
     updated_at: str
 
 
+_CLEANING_KEYS = {"clean_content", "strip_separators", "strip_boilerplate", "strip_html"}
+
+
+def _validate_cleaning_extras(v: dict[str, Any]) -> dict[str, Any]:
+    """Valide les options de nettoyage (booléens). Renvoie les clés présentes.
+
+    Chaque clé est indépendante et optionnelle ; seules les clés effectivement
+    fournies sont conservées (une valeur absente vaut False côté factory).
+    """
+    cleaned: dict[str, Any] = {}
+    for key in _CLEANING_KEYS:
+        if key in v:
+            if not isinstance(v[key], bool):
+                raise ValueError(f"{key} must be a boolean")
+            cleaned[key] = v[key]
+    return cleaned
+
+
 def _validate_markdown_extras(v: dict[str, Any]) -> dict[str, Any]:
-    """Accepte uniquement {heading_levels?: list[int]}. Default si absent."""
-    allowed_keys = {"heading_levels"}
+    """Accepte {heading_levels?: list[int]} + les options de nettoyage booléennes."""
+    allowed_keys = {"heading_levels"} | _CLEANING_KEYS
     extra_keys = set(v.keys()) - allowed_keys
     if extra_keys:
         raise ValueError(
@@ -261,7 +312,7 @@ def _validate_markdown_extras(v: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("heading_levels must be sorted ascending")
     if len(set(levels)) != len(levels):
         raise ValueError("heading_levels must not contain duplicates")
-    return {"heading_levels": levels}
+    return {**_validate_cleaning_extras(v), "heading_levels": levels}
 
 
 class ChunkingConfigSpec(BaseModel):
@@ -296,9 +347,13 @@ class ChunkingConfigSpec(BaseModel):
     def _validate_extras(cls, v: dict[str, Any], info: ValidationInfo) -> dict[str, Any]:
         strategy = info.data.get("strategy")
         if strategy == "paragraph":
-            if v:
-                raise ValueError("extras must be empty for strategy 'paragraph'")
-            return v
+            unknown = set(v.keys()) - _CLEANING_KEYS
+            if unknown:
+                raise ValueError(
+                    "paragraph strategy only accepts cleaning options, "
+                    f"got unknown keys: {unknown}"
+                )
+            return _validate_cleaning_extras(v)
         if strategy == "markdown":
             return _validate_markdown_extras(v)
         return v

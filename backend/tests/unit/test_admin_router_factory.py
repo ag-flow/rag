@@ -13,7 +13,10 @@ def test_build_admin_router_returns_router_with_workspaces_routes() -> None:
     paths = {route.path for route in app.router.routes}  # type: ignore[attr-defined]
     assert "/workspaces" in paths
     assert "/workspaces/{name}" in paths
-    assert "/workspaces/{name}/rotate-apikey" in paths
+    # Gestion des clés API multi-clés (migration 033) : plus de /rotate-apikey.
+    assert "/workspaces/{name}/apikey" in paths
+    assert "/workspaces/{name}/api-keys" in paths
+    assert "/workspaces/{name}/api-keys/{key_id}/rotate" in paths
 
 
 def test_build_admin_router_includes_sources_routes() -> None:

@@ -17,6 +17,7 @@ class ParentRow:
     section_key: str
     content: str
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    section_index: int = 0
 
 
 @dataclass(frozen=True)
@@ -123,11 +124,6 @@ async def upsert_structured(
         )
 
         key_to_id = await _upsert_sections(conn, path, parents)
-        await conn.execute(
-            "DELETE FROM sections WHERE path=$1 AND section_key <> ALL($2::text[])",
-            path,
-            current_keys,
-        )
 
         inserted = kept = 0
         for child in deduped:
@@ -163,6 +159,17 @@ async def upsert_structured(
                 )
                 kept += 1
 
+        # Supprimer les sections périmées seulement APRÈS que les enfants gardés
+        # aient été re-pointés vers leur nouveau section_id ci-dessus. Sinon le
+        # CASCADE FK (section→embeddings) détruirait des embeddings encore
+        # référencés par un chunk gardé dont la section parente a été renommée
+        # (BUG-051).
+        await conn.execute(
+            "DELETE FROM sections WHERE path=$1 AND section_key <> ALL($2::text[])",
+            path,
+            current_keys,
+        )
+
     result = {
         "inserted": inserted,
         "kept": kept,
@@ -192,15 +199,17 @@ async def _upsert_sections(
     key_to_id: dict[str, int] = {}
     for parent in parents:
         section_id = await conn.fetchval(
-            "INSERT INTO sections (path, section_key, content, metadata) "
-            "VALUES ($1,$2,$3,$4::jsonb) "
+            "INSERT INTO sections (path, section_key, content, metadata, section_index) "
+            "VALUES ($1,$2,$3,$4::jsonb,$5) "
             "ON CONFLICT (path, section_key) DO UPDATE SET "
-            "content=EXCLUDED.content, metadata=EXCLUDED.metadata, indexed_at=now() "
+            "content=EXCLUDED.content, metadata=EXCLUDED.metadata, "
+            "section_index=EXCLUDED.section_index, indexed_at=now() "
             "RETURNING id",
             path,
             parent.section_key,
             parent.content,
             json.dumps(dict(parent.metadata)),
+            parent.section_index,
         )
         key_to_id[parent.section_key] = section_id
     return key_to_id

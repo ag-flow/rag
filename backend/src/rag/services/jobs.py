@@ -17,8 +17,9 @@ from rag.api.errors import (
 )
 from rag.db.helpers import fetch_all, fetch_one
 from rag.db.workspace_schema import (
-    create_embeddings_table,
     derive_workspace_dsn,
+    provision_workspace_schema,
+    reset_workspace_schema,
 )
 from rag.schemas.admin import ChunkingConfigSpec, IndexerSpec
 from rag.secrets.refs import build_ref
@@ -223,10 +224,18 @@ async def reindex_workspace(
     if row is None:
         raise WorkspaceNotFound(name)
 
+    # `api_key_ref=None` signifie « champ omis » côté client, pas « retirer
+    # la ref » : on le traite comme inchangé (sémantique COALESCE) pour ne
+    # pas déclencher le drop/recreate destructif ni nuller la ref stockée
+    # (BUG-062).
+    effective_api_key_ref: str | None = None
+    if new_indexer is not None:
+        effective_api_key_ref = new_indexer.api_key_ref or row["api_key_ref"]
+
     same_indexer = new_indexer is None or (
         new_indexer.provider == row["provider"]
         and new_indexer.model == row["model"]
-        and (new_indexer.api_key_ref or None) == (row["api_key_ref"] or None)
+        and (effective_api_key_ref or None) == (row["api_key_ref"] or None)
     )
     if same_indexer:
         return await create_pending_job(
@@ -257,14 +266,15 @@ async def reindex_workspace(
             documents_count=docs,
         )
 
-    # Drop + recreate la table embeddings avec la nouvelle dimension
+    # Reprovisionne intégralement le schéma workspace avec la nouvelle dimension.
+    # On réinitialise le schéma (drop embeddings + sections + historique de
+    # migrations) puis on rejoue create_embeddings_table + toutes les migrations
+    # workspace via la fonction de provisioning partagée avec create_workspace.
+    # Sans ce reset, apply_pending resterait un no-op et le schéma serait
+    # définitivement divergent (BUG-049).
     ws_dsn = derive_workspace_dsn(admin_dsn, row["rag_base"])
-    drop_conn = await asyncpg.connect(ws_dsn)
-    try:
-        await drop_conn.execute("DROP TABLE IF EXISTS embeddings CASCADE")
-    finally:
-        await drop_conn.close()
-    await create_embeddings_table(ws_dsn, dimension=new_dimension)
+    await reset_workspace_schema(ws_dsn)
+    await provision_workspace_schema(ws_dsn, dimension=new_dimension)
 
     # Update config + invalidate documents
     async with config_pool.acquire() as conn, conn.transaction():
@@ -280,7 +290,7 @@ async def reindex_workspace(
             """,
             new_indexer.provider,
             new_indexer.model,
-            new_indexer.api_key_ref,
+            effective_api_key_ref,
             new_dimension,
             row["workspace_id"],
         )

@@ -98,9 +98,17 @@ async def test_run_enrichments_calls_llm_and_indexes() -> None:
 
 @pytest.mark.asyncio
 async def test_run_enrichments_skips_if_hash_unchanged() -> None:
-    src_hash = sha256("class Foo {}".encode()).hexdigest()
-    conn = _make_conn(trigger_rows=[_trigger_row()])
-    conn.fetchrow = AsyncMock(return_value={"result_hash": src_hash, "id": "enr1"})
+    content = "class Foo {}"
+    src_hash = sha256(content.encode()).hexdigest()
+    trigger = _trigger_row()
+    # dedup_key doit reproduire EXACTEMENT le calcul de enrichments.run_enrichments
+    # (src_hash:prompt:provider:model) pour que la branche skip se déclenche —
+    # sinon le code appellerait le LLM (client OpenAI réel) au lieu de sauter.
+    dedup_key = sha256(
+        f"{src_hash}:{trigger['prompt']}:{trigger['llm_provider']}:{trigger['llm_model']}".encode()
+    ).hexdigest()
+    conn = _make_conn(trigger_rows=[trigger])
+    conn.fetchrow = AsyncMock(return_value={"result_hash": dedup_key, "id": "enr1"})
 
     indexer = MagicMock()
     indexer.index_file = AsyncMock()
@@ -111,7 +119,7 @@ async def test_run_enrichments_skips_if_hash_unchanged() -> None:
         workspace_id="ws1",
         workspace_name="test-ws",
         path="src/service.cs",
-        content="class Foo {}",
+        content=content,
         content_hash=f"sha256:{src_hash}",
         vault_svc=MagicMock(),
         client_provider=MagicMock(),
