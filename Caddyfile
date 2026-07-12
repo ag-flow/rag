@@ -7,7 +7,7 @@
 # /ui*    → frontend:80 (Nginx static, M5b)
 # /health → backend:8000 (smoke direct)
 # /version → backend:8000 (smoke direct)
-# /       → message d'accueil
+# /       → redirect vers /ui
 #
 # Pas de TLS — Cloudflare Tunnel gère le HTTPS en front en prod.
 
@@ -48,6 +48,9 @@
     }
     handle /ui* {
         reverse_proxy frontend:80
+    }
+    handle / {
+        redir /ui permanent
     }
     handle {
         respond "ag-flow.rag — see /ui or /api/*" 200
