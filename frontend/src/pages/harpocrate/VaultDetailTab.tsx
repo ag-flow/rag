@@ -20,10 +20,16 @@ import type { VaultSummary } from "@/lib/harpocrate-vaults.types";
 interface VaultDetailTabProps {
   vault: VaultSummary;
   onReveal: () => void;
+  onReplaceKey: () => void;
   onRetire: () => void;
 }
 
-export function VaultDetailTab({ vault, onReveal, onRetire }: VaultDetailTabProps) {
+export function VaultDetailTab({
+  vault,
+  onReveal,
+  onReplaceKey,
+  onRetire,
+}: VaultDetailTabProps) {
   const { t } = useTranslation("harpocrate");
   const { toast } = useToast();
   const updateMutation = useUpdateVault(vault.id);
@@ -109,6 +115,9 @@ export function VaultDetailTab({ vault, onReveal, onRetire }: VaultDetailTabProp
             />
             <Button type="button" variant="outline" onClick={onReveal}>
               {t("detail.reveal_key")}
+            </Button>
+            <Button type="button" variant="outline" onClick={onReplaceKey}>
+              {t("detail.replace_key")}
             </Button>
           </div>
         </div>
