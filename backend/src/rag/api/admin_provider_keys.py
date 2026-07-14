@@ -70,7 +70,7 @@ async def list_keys(vault_id: UUID, request: Request) -> list[ProviderApiKeyOut]
         vault = await svc.get_by_id(conn, vault_id)
         if vault is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
-        _check_vault_access(vault, owner_id, write=False)
+        _check_vault_access(vault, owner_id)
         return await list_provider_keys(conn, vault_id=str(vault_id))
 
 
@@ -87,7 +87,7 @@ async def create_key(
         vault = await svc.get_by_id(conn, vault_id)
         if vault is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
-        _check_vault_access(vault, owner_id, write=True)
+        _check_vault_access(vault, owner_id)
         vault_dict = {"id": str(vault.id), "name": vault.name, "base_url": vault.base_url}
         try:
             return await create_provider_key(conn, vault=vault_dict, vault_svc=svc, req=body)
@@ -109,7 +109,7 @@ async def update_key(
         vault = await svc.get_by_id(conn, vault_id)
         if vault is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
-        _check_vault_access(vault, owner_id, write=True)
+        _check_vault_access(vault, owner_id)
         vault_dict = {"id": str(vault.id), "name": vault.name, "base_url": vault.base_url}
         result = await update_provider_key(
             conn, key_id=str(key_id), vault=vault_dict, vault_svc=svc, req=body
@@ -132,7 +132,7 @@ async def delete_key(
         vault = await svc.get_by_id(conn, vault_id)
         if vault is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
-        _check_vault_access(vault, owner_id, write=True)
+        _check_vault_access(vault, owner_id)
         vault_dict = {"id": str(vault.id), "name": vault.name, "base_url": vault.base_url}
         try:
             deleted = await delete_provider_key(

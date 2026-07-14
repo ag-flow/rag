@@ -43,23 +43,15 @@ def _actor(request: Request) -> str:
     return "oidc"
 
 
-def _check_vault_access(
-    vault: VaultSummary,
-    owner_id: str,
-    *,
-    write: bool = False,
-) -> None:
+def _check_vault_access(vault: VaultSummary, owner_id: str) -> None:
     """Lève 403 si l'owner ne correspond pas.
 
-    Lecture (write=False) : autorisé si is_default OR owner_id match.
-    Écriture (write=True) : owner_id match obligatoire.
+    Le coffre par défaut (`is_default`) est partagé : lisible ET modifiable
+    par tout admin authentifié, quel que soit son `owner_id`. Les autres
+    coffres restent réservés à leur propriétaire, en lecture comme en écriture.
     """
-    if write:
-        if vault.owner_id != owner_id:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "not vault owner")
-    else:
-        if not vault.is_default and vault.owner_id != owner_id:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "not vault owner")
+    if not vault.is_default and vault.owner_id != owner_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "not vault owner")
 
 
 @router.get("", response_model=list[VaultSummary])
@@ -99,7 +91,7 @@ async def get_vault(vault_id: UUID, request: Request) -> VaultSummary:
     if v is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
     owner_id = get_current_owner_id(request)
-    _check_vault_access(v, owner_id, write=False)
+    _check_vault_access(v, owner_id)
     return v
 
 
@@ -113,7 +105,7 @@ async def update_vault(vault_id: UUID, req: VaultUpdateRequest, request: Request
         target = await svc.get_by_id(conn, vault_id)
         if target is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
-        _check_vault_access(target, owner_id, write=True)
+        _check_vault_access(target, owner_id)
         v = await svc.update(conn, vault_id, req)
     if v is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
@@ -131,7 +123,7 @@ async def delete_vault(vault_id: UUID, request: Request) -> None:
         target = await svc.get_by_id(conn, vault_id)
         if target is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
-        _check_vault_access(target, owner_id, write=True)
+        _check_vault_access(target, owner_id)
         if target.is_default:
             others = await svc.list_all(conn)
             if len(others) > 1:
@@ -157,7 +149,7 @@ async def rotate_api_key(
         target = await svc.get_by_id(conn, vault_id)
         if target is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
-        _check_vault_access(target, owner_id, write=True)
+        _check_vault_access(target, owner_id)
         v = await svc.rotate_api_key(conn, vault_id, req)
     if v is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
@@ -175,7 +167,7 @@ async def set_default(vault_id: UUID, request: Request) -> VaultSummary:
         target = await svc.get_by_id(conn, vault_id)
         if target is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
-        _check_vault_access(target, owner_id, write=True)
+        _check_vault_access(target, owner_id)
         v = await svc.set_default(conn, vault_id)
     if v is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
@@ -192,7 +184,7 @@ async def test_connection(vault_id: UUID, request: Request) -> VaultTestConnecti
         v = await svc.get_by_id(conn, vault_id)
         if v is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
-        _check_vault_access(v, owner_id, write=False)
+        _check_vault_access(v, owner_id)
         try:
             return await svc.test_connection(conn, vault_id)
         except VaultNotFoundError as exc:
@@ -209,7 +201,7 @@ async def reveal_api_key(vault_id: UUID, request: Request) -> VaultRevealApiKeyR
         v = await svc.get_by_id(conn, vault_id)
         if v is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
-        _check_vault_access(v, owner_id, write=True)
+        _check_vault_access(v, owner_id)
         api_key = await svc.reveal_api_key(conn, vault_id)
     log.warning("vault.reveal", vault_id=str(vault_id), actor=actor)
     return VaultRevealApiKeyResponse(id=v.id, api_key_id=v.api_key_id, api_key=api_key or "")
@@ -227,7 +219,7 @@ async def get_vault_info(
         v = await svc.get_by_id(conn, vault_id)
         if v is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
-        _check_vault_access(v, owner_id, write=False)
+        _check_vault_access(v, owner_id)
         try:
             result = await svc.get_wallet_info(conn, vault_id)
         except VaultNotFoundError as exc:
@@ -250,7 +242,7 @@ async def list_vault_types(
         v = await svc.get_by_id(conn, vault_id)
         if v is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
-        _check_vault_access(v, owner_id, write=False)
+        _check_vault_access(v, owner_id)
         try:
             return await svc.list_types(
                 conn,
@@ -278,7 +270,7 @@ async def list_vault_secrets(
         v = await svc.get_by_id(conn, vault_id)
         if v is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
-        _check_vault_access(v, owner_id, write=False)
+        _check_vault_access(v, owner_id)
         try:
             return await svc.list_wallet_secrets(
                 conn,
