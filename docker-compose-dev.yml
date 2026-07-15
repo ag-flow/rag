@@ -42,6 +42,9 @@ services:
       # `dev-deploy.sh --reset` (down -v) purge ce volume au passage.
       - rag_repos:/var/lib/rag/repos
       - ./embedding_providers_pricing.yml:/app/config/pricing.yml:ro
+      # Réglages d'auth pilotés par l'IHM (admin.env, inscriptible + relu à
+      # chaud). Le backend crée data/admin.env au premier enregistrement.
+      - ./data:/app/data
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s

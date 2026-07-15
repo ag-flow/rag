@@ -9,8 +9,10 @@ import structlog
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 
+from rag.admin_env import AdminEnvStore
 from rag.api.admin import build_admin_router
 from rag.api.admin.circuit_breaker import build_circuit_breaker_router
+from rag.api.admin_auth_config import build_admin_auth_config_router
 from rag.api.admin_git_credentials import router as admin_git_credentials_router
 from rag.api.admin_git_credentials import router_global as admin_git_creds_global_router
 from rag.api.admin_harpocrate_vaults import router as admin_harpocrate_vaults_router
@@ -170,11 +172,11 @@ def build_app(
             # à `app.state` indépendamment.
             app.state.resolver = resolver_factory(settings, app)
 
-            oidc_secret = settings.rag_oidc_client_secret
+            app.state.admin_env = AdminEnvStore(settings.rag_admin_env_file)
             app.state.oidc = OidcService(
                 config_pool=registry.config_pool,
                 public_url=str(settings.rag_public_url).rstrip("/"),
-                client_secret=oidc_secret.get_secret_value() if oidc_secret else None,
+                client_secret_provider=app.state.admin_env.get_oidc_client_secret,
             )
             app.state.public_url = str(settings.rag_public_url).rstrip("/")
 
@@ -254,6 +256,7 @@ def build_app(
     app.include_router(build_health_router())
     app.include_router(build_admin_router(), prefix="/api/admin")
     app.include_router(build_admin_oidc_router(), prefix="/api/admin")
+    app.include_router(build_admin_auth_config_router(), prefix="/api/admin")
     app.include_router(admin_harpocrate_vaults_router)
     app.include_router(admin_provider_keys_router)
     app.include_router(admin_provider_keys_global_router)

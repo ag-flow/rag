@@ -61,7 +61,7 @@ def _make_service(
     svc = OidcService(
         config_pool=None,
         public_url="https://rag.example.com",
-        client_secret="resolved-client-secret",
+        client_secret_provider=lambda: "resolved-client-secret",
         http_client=client,
     )
     cfg = OidcConfig(issuer=issuer, client_id="rag-service")

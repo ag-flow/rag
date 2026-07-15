@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -6,9 +6,15 @@ import { z } from "zod";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useOidcConfig, useUpsertOidcConfig } from "@/hooks/useOidcConfig";
-import { useAuthMethods } from "@/hooks/useAuthMethods";
+import {
+  useClientSecretStatus,
+  useLocalLogin,
+  useSetClientSecret,
+  useSetLocalLogin,
+} from "@/hooks/useAdminAuthConfig";
 import { useToast } from "@/hooks/useToast";
 
 const schema = z.object({
@@ -24,10 +30,16 @@ export function OidcConfigPage() {
   const { t } = useTranslation("oidc");
   const { toast } = useToast();
   const { data, isLoading } = useOidcConfig();
-  const { data: methods } = useAuthMethods();
   const upsert = useUpsertOidcConfig();
 
-  const localDisabled = methods?.local_auth_disabled_by_config ?? false;
+  const { data: secretStatus } = useClientSecretStatus();
+  const setSecret = useSetClientSecret();
+  const [secretInput, setSecretInput] = useState("");
+
+  const { data: localLogin } = useLocalLogin();
+  const setLocalLogin = useSetLocalLogin();
+  const localEnabled = localLogin?.enabled ?? true;
+
   const procedureSteps = t("procedure.steps", { returnObjects: true }) as string[];
 
   const form = useForm<FormValues>({
@@ -53,6 +65,23 @@ export function OidcConfigPage() {
 
   const handleCancel = () => {
     form.reset(data ?? EMPTY);
+  };
+
+  const handleSaveSecret = () => {
+    if (!secretInput) return;
+    setSecret.mutate(secretInput, {
+      onSuccess: () => {
+        toast({ title: t("client_secret.saved") });
+        setSecretInput("");
+      },
+      onError: () => toast({ title: t("client_secret.error"), variant: "destructive" }),
+    });
+  };
+
+  const handleToggleLocal = (enabled: boolean) => {
+    setLocalLogin.mutate(enabled, {
+      onError: () => toast({ title: t("local_auth.error"), variant: "destructive" }),
+    });
   };
 
   if (isLoading) {
@@ -96,16 +125,6 @@ export function OidcConfigPage() {
           )}
         </div>
 
-        <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
-          <p className="text-sm font-medium text-slate-700">
-            {t("client_secret_env.title")}
-          </p>
-          <p className="mt-1 text-xs text-slate-500">{t("client_secret_env.help")}</p>
-          <code className="mt-2 inline-block rounded bg-slate-200 px-2 py-1 font-mono text-xs text-slate-800">
-            RAG_OIDC_CLIENT_SECRET=…
-          </code>
-        </div>
-
         <div className="flex justify-end gap-2 pt-2">
           <Button
             type="button"
@@ -128,30 +147,60 @@ export function OidcConfigPage() {
 
       <section className="mt-6 rounded-md border bg-white p-6">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-sm font-semibold text-slate-900">{t("local_auth.title")}</h2>
+          <h2 className="text-sm font-semibold text-slate-900">{t("client_secret.title")}</h2>
           <span
             className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              localDisabled
-                ? "bg-rose-50 text-rose-700"
-                : "bg-emerald-50 text-emerald-700"
+              secretStatus?.configured
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-slate-100 text-slate-500"
             }`}
           >
             <span
-              className={`h-2 w-2 rounded-full ${localDisabled ? "bg-rose-500" : "bg-emerald-500"}`}
+              className={`h-2 w-2 rounded-full ${
+                secretStatus?.configured ? "bg-emerald-500" : "bg-slate-400"
+              }`}
               aria-hidden
             />
-            {localDisabled ? t("local_auth.status_disabled") : t("local_auth.status_enabled")}
+            {secretStatus?.configured ? t("client_secret.set") : t("client_secret.unset")}
           </span>
         </div>
-        <p className="mt-2 text-sm text-slate-600">
-          {localDisabled ? t("local_auth.help_disabled") : t("local_auth.help_enabled")}
-        </p>
-        <p className="mt-2 text-xs text-slate-500">{t("local_auth.env_hint")}</p>
+        <p className="mt-2 text-xs text-slate-500">{t("client_secret.help")}</p>
+        <div className="mt-3 flex items-center gap-2">
+          <Input
+            type="password"
+            value={secretInput}
+            onChange={(e) => setSecretInput(e.target.value)}
+            placeholder={t("client_secret.placeholder")}
+            className="flex-1 font-mono"
+            autoComplete="off"
+          />
+          <Button
+            type="button"
+            onClick={handleSaveSecret}
+            disabled={!secretInput || setSecret.isPending}
+          >
+            {t("client_secret.submit")}
+          </Button>
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-md border bg-white p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">{t("local_auth.title")}</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              {localEnabled ? t("local_auth.help_enabled") : t("local_auth.help_disabled")}
+            </p>
+          </div>
+          <Switch
+            checked={localEnabled}
+            onCheckedChange={handleToggleLocal}
+            disabled={setLocalLogin.isPending}
+            aria-label={t("local_auth.title")}
+          />
+        </div>
         <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
           <p className="text-sm text-amber-900">{t("local_auth.breakglass")}</p>
-          <code className="mt-2 inline-block rounded bg-amber-100 px-2 py-1 font-mono text-xs text-amber-900">
-            {localDisabled ? t("local_auth.toggle_to_enable") : t("local_auth.toggle_to_disable")}
-          </code>
         </div>
       </section>
 

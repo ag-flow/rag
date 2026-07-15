@@ -137,7 +137,7 @@ def build_auth_router() -> APIRouter:
 
     @router.post("/auth/local/login", response_model=LocalLoginResponse)
     async def local_login(payload: LocalLoginRequest, request: Request) -> LocalLoginResponse:
-        if request.app.state.settings.rag_local_auth_disabled:
+        if request.app.state.admin_env.is_local_auth_disabled():
             log.warning("auth.local.login.disabled", username=payload.username)
             raise LocalAuthDisabled()
         local_auth = request.app.state.local_auth

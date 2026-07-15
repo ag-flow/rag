@@ -5,9 +5,15 @@
     "issuer": "Issuer URL",
     "client_id": "Client ID"
   },
-  "client_secret_env": {
-    "title": "Client secret : dans le .env",
-    "help": "Le client secret ne se saisit pas ici : il se configure dans le fichier .env du backend via la variable RAG_OIDC_CLIENT_SECRET (source de vérité). Après modification, redémarrer le backend."
+  "client_secret": {
+    "title": "Client secret",
+    "help": "Saisi ici puis persisté côté serveur dans le fichier admin.env (jamais affiché en clair ensuite). Prise en compte immédiate, sans redémarrage.",
+    "set": "Défini",
+    "unset": "Non défini",
+    "placeholder": "Coller le client secret Keycloak",
+    "submit": "Enregistrer",
+    "saved": "Client secret enregistré.",
+    "error": "Échec de l'enregistrement du client secret."
   },
   "actions": {
     "cancel": "Annuler",
@@ -28,14 +34,10 @@
   },
   "local_auth": {
     "title": "Connexion locale (mot de passe)",
-    "status_enabled": "Activée",
-    "status_disabled": "Désactivée",
-    "help_enabled": "Le formulaire username / mot de passe est proposé sur la page de connexion, en plus du SSO.",
-    "help_disabled": "Seul le SSO est proposé sur la page de connexion. Toute tentative de connexion locale est refusée par le backend.",
-    "env_hint": "Ce réglage est piloté par la variable RAG_LOCAL_AUTH_DISABLED du fichier .env (source de vérité) ; il ne se change pas depuis cette page.",
-    "breakglass": "Sécurité anti-lockout : si le SSO tombe en panne, repassez RAG_LOCAL_AUTH_DISABLED=false dans le .env puis redémarrez le backend pour réactiver la connexion locale.",
-    "toggle_to_enable": "Pour réactiver : RAG_LOCAL_AUTH_DISABLED=false",
-    "toggle_to_disable": "Pour désactiver : RAG_LOCAL_AUTH_DISABLED=true"
+    "help_enabled": "Activée : le formulaire username / mot de passe est proposé sur la page de connexion, en plus du SSO.",
+    "help_disabled": "Désactivée : seul le SSO est proposé ; toute tentative de connexion locale est refusée par le backend.",
+    "breakglass": "Anti-lockout : ce réglage est persisté dans admin.env. Si le SSO tombe en panne, remettez RAG_LOCAL_AUTH_DISABLED=false dans ce fichier sur le serveur pour réactiver la connexion locale.",
+    "error": "Échec de la modification de la connexion locale."
   },
   "procedure": {
     "title": "Créer un Client ID (Keycloak)",
@@ -49,7 +51,7 @@
       "Étape « Login settings » — Valid redirect URIs : <RAG_PUBLIC_URL>/auth/callback (ex. https://rag.example.com/auth/callback).",
       "Valid post logout redirect URIs : <RAG_PUBLIC_URL>/ (la racine, avec le slash final).",
       "Web origins : <RAG_PUBLIC_URL> (ou la valeur + pour dériver automatiquement des redirect URIs). Cliquer sur Save.",
-      "Onglet « Credentials » du client → copier le « Client secret ». Le coller dans le fichier .env du backend : RAG_OIDC_CLIENT_SECRET=<secret>, puis redémarrer le backend.",
+      "Onglet « Credentials » du client → copier le « Client secret ». Le coller dans le champ « Client secret » ci-dessus puis Enregistrer (prise en compte immédiate).",
       "Onglet « Client scopes » → vérifier que les scopes openid, email et profile sont bien assignés (par défaut) : l'email de l'utilisateur doit remonter dans le token, car il détermine son identité (owner_id).",
       "Reporter l'Issuer URL dans le champ ci-dessus : https://<keycloak>/realms/<realm> (ex. https://keycloak.example.com/realms/yoops), puis Enregistrer la configuration."
     ],

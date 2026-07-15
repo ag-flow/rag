@@ -5,9 +5,15 @@
     "issuer": "Issuer URL",
     "client_id": "Client ID"
   },
-  "client_secret_env": {
-    "title": "Client secret: in the .env",
-    "help": "The client secret is not entered here: it is configured in the backend .env file via the RAG_OIDC_CLIENT_SECRET variable (source of truth). Restart the backend after changing it."
+  "client_secret": {
+    "title": "Client secret",
+    "help": "Entered here then persisted server-side in the admin.env file (never shown again). Takes effect immediately, no restart.",
+    "set": "Set",
+    "unset": "Not set",
+    "placeholder": "Paste the Keycloak client secret",
+    "submit": "Save",
+    "saved": "Client secret saved.",
+    "error": "Failed to save the client secret."
   },
   "actions": {
     "cancel": "Cancel",
@@ -28,14 +34,10 @@
   },
   "local_auth": {
     "title": "Local login (password)",
-    "status_enabled": "Enabled",
-    "status_disabled": "Disabled",
-    "help_enabled": "The username / password form is offered on the login page, alongside SSO.",
-    "help_disabled": "Only SSO is offered on the login page. Any local login attempt is rejected by the backend.",
-    "env_hint": "This setting is driven by the RAG_LOCAL_AUTH_DISABLED variable in the .env file (source of truth); it cannot be changed from this page.",
-    "breakglass": "Anti-lockout safeguard: if SSO breaks, set RAG_LOCAL_AUTH_DISABLED=false in the .env and restart the backend to re-enable local login.",
-    "toggle_to_enable": "To re-enable: RAG_LOCAL_AUTH_DISABLED=false",
-    "toggle_to_disable": "To disable: RAG_LOCAL_AUTH_DISABLED=true"
+    "help_enabled": "Enabled: the username / password form is offered on the login page, alongside SSO.",
+    "help_disabled": "Disabled: only SSO is offered; any local login attempt is rejected by the backend.",
+    "breakglass": "Anti-lockout: this setting is persisted in admin.env. If SSO breaks, set RAG_LOCAL_AUTH_DISABLED=false in that file on the server to re-enable local login.",
+    "error": "Failed to change local login."
   },
   "procedure": {
     "title": "Create a Client ID (Keycloak)",
@@ -49,7 +51,7 @@
       "« Login settings » step — Valid redirect URIs: <RAG_PUBLIC_URL>/auth/callback (e.g. https://rag.example.com/auth/callback).",
       "Valid post logout redirect URIs: <RAG_PUBLIC_URL>/ (the root, with trailing slash).",
       "Web origins: <RAG_PUBLIC_URL> (or the value + to auto-derive from redirect URIs). Click Save.",
-      "Client « Credentials » tab → copy the « Client secret ». Paste it into the backend .env file: RAG_OIDC_CLIENT_SECRET=<secret>, then restart the backend.",
+      "Client « Credentials » tab → copy the « Client secret ». Paste it into the « Client secret » field above and Save (takes effect immediately).",
       "Client « Client scopes » tab → verify the openid, email and profile scopes are assigned (default): the user's email must be present in the token, as it determines their identity (owner_id).",
       "Enter the Issuer URL in the field above: https://<keycloak>/realms/<realm> (e.g. https://keycloak.example.com/realms/yoops), then Save the configuration."
     ],

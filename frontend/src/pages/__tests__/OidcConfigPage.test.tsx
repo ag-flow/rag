@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import i18next from "i18next";
@@ -11,6 +11,8 @@ import enOidc from "@/i18n/en/oidc.json";
 import { OidcConfigPage } from "@/pages/OidcConfigPage";
 
 const mutateMock = vi.fn();
+const setSecretMutate = vi.fn();
+const setLocalMutate = vi.fn();
 
 vi.mock("@/hooks/useOidcConfig", () => ({
   useOidcConfig: vi.fn(),
@@ -21,22 +23,26 @@ vi.mock("@/hooks/useToast", () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
-vi.mock("@/hooks/useAuthMethods", () => ({
-  useAuthMethods: vi.fn(),
+vi.mock("@/hooks/useAdminAuthConfig", () => ({
+  useClientSecretStatus: vi.fn(),
+  useSetClientSecret: () => ({ mutate: setSecretMutate, isPending: false }),
+  useLocalLogin: vi.fn(),
+  useSetLocalLogin: () => ({ mutate: setLocalMutate, isPending: false }),
 }));
 
 import { useOidcConfig } from "@/hooks/useOidcConfig";
-import { useAuthMethods } from "@/hooks/useAuthMethods";
+import { useClientSecretStatus, useLocalLogin } from "@/hooks/useAdminAuthConfig";
 
-function mockAuthMethods(localDisabled: boolean): void {
-  vi.mocked(useAuthMethods).mockReturnValue({
-    data: {
-      oidc_configured: true,
-      local_auth_enabled: !localDisabled,
-      needs_setup: false,
-      local_auth_disabled_by_config: localDisabled,
-    },
-  } as unknown as ReturnType<typeof useAuthMethods>);
+function mockSecretStatus(configured: boolean): void {
+  vi.mocked(useClientSecretStatus).mockReturnValue({
+    data: { configured },
+  } as unknown as ReturnType<typeof useClientSecretStatus>);
+}
+
+function mockLocalLogin(enabled: boolean): void {
+  vi.mocked(useLocalLogin).mockReturnValue({
+    data: { enabled },
+  } as unknown as ReturnType<typeof useLocalLogin>);
 }
 
 const testI18n = i18next.createInstance();
@@ -66,62 +72,45 @@ function renderPage() {
   );
 }
 
+function mockConfig(data: unknown): void {
+  vi.mocked(useOidcConfig).mockReturnValue({
+    data,
+    isLoading: false,
+  } as unknown as ReturnType<typeof useOidcConfig>);
+}
+
 describe("OidcConfigPage", () => {
   beforeEach(() => {
-    mockAuthMethods(false);
+    vi.clearAllMocks();
+    mockSecretStatus(false);
+    mockLocalLogin(true);
+    mockConfig(null);
   });
 
   it("form vide si pas de config", () => {
-    vi.mocked(useOidcConfig).mockReturnValue({
-      data: null,
-      isLoading: false,
-    } as unknown as ReturnType<typeof useOidcConfig>);
     renderPage();
     const inputs = screen.getAllByRole("textbox");
     inputs.forEach((input) => expect((input as HTMLInputElement).value).toBe(""));
   });
 
   it("form pré-rempli si config existante", () => {
-    vi.mocked(useOidcConfig).mockReturnValue({
-      data: {
-        issuer: "https://kc.example.com/realms/test",
-        client_id: "rag",
-      },
-      isLoading: false,
-    } as unknown as ReturnType<typeof useOidcConfig>);
+    mockConfig({ issuer: "https://kc.example.com/realms/test", client_id: "rag" });
     renderPage();
     expect(screen.getByDisplayValue("https://kc.example.com/realms/test")).toBeInTheDocument();
     expect(screen.getByDisplayValue("rag")).toBeInTheDocument();
   });
 
-  it("Save désactivé tant que non-dirty", () => {
-    vi.mocked(useOidcConfig).mockReturnValue({
-      data: {
-        issuer: "https://kc.example.com/realms/test",
-        client_id: "rag",
-      },
-      isLoading: false,
-    } as unknown as ReturnType<typeof useOidcConfig>);
+  it("submit issuer/client_id appelle upsert.mutate", async () => {
     renderPage();
-    const save = screen.getByText(/^Enregistrer$/i).closest("button");
-    expect(save).toBeDisabled();
-  });
-
-  it("submit avec valeurs valides appelle upsert.mutate", async () => {
-    mutateMock.mockClear();
-    vi.mocked(useOidcConfig).mockReturnValue({
-      data: null,
-      isLoading: false,
-    } as unknown as ReturnType<typeof useOidcConfig>);
-    renderPage();
-    const inputs = screen.getAllByRole("textbox");
-    const [issuerInput, clientIdInput] = inputs;
+    const [issuerInput, clientIdInput] = screen.getAllByRole("textbox");
     if (!issuerInput || !clientIdInput) {
       throw new Error("Expected 2 textbox inputs on the OIDC form");
     }
     fireEvent.change(issuerInput, { target: { value: "https://kc.example.com/realms/test" } });
     fireEvent.change(clientIdInput, { target: { value: "rag" } });
-    fireEvent.click(screen.getByText(/^Enregistrer$/i));
+    const oidcForm = issuerInput.closest("form");
+    if (!oidcForm) throw new Error("form OIDC introuvable");
+    fireEvent.click(within(oidcForm).getByRole("button", { name: /^Enregistrer$/i }));
     await waitFor(() => expect(mutateMock).toHaveBeenCalled());
     expect(mutateMock.mock.calls[0]?.[0]).toEqual({
       issuer: "https://kc.example.com/realms/test",
@@ -129,32 +118,38 @@ describe("OidcConfigPage", () => {
     });
   });
 
-  it("affiche le statut connexion locale = Activée quand le flag est off", () => {
-    mockAuthMethods(false);
-    vi.mocked(useOidcConfig).mockReturnValue({
-      data: null,
-      isLoading: false,
-    } as unknown as ReturnType<typeof useOidcConfig>);
+  it("client secret : statut Non défini quand absent", () => {
+    mockSecretStatus(false);
     renderPage();
-    expect(screen.getByText(/^Activée$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Non défini$/)).toBeInTheDocument();
   });
 
-  it("affiche le statut connexion locale = Désactivée quand le flag est on", () => {
-    mockAuthMethods(true);
-    vi.mocked(useOidcConfig).mockReturnValue({
-      data: null,
-      isLoading: false,
-    } as unknown as ReturnType<typeof useOidcConfig>);
+  it("client secret : statut Défini quand présent", () => {
+    mockSecretStatus(true);
     renderPage();
-    expect(screen.getByText(/^Désactivée$/)).toBeInTheDocument();
-    expect(screen.getAllByText(/RAG_LOCAL_AUTH_DISABLED=false/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/^Défini$/)).toBeInTheDocument();
+  });
+
+  it("saisie + enregistrement du client secret appelle la mutation", () => {
+    renderPage();
+    const section = screen.getByText("Client secret").closest("section");
+    if (!section) throw new Error("section client secret introuvable");
+    const input = screen.getByPlaceholderText(/Coller le client secret/);
+    fireEvent.change(input, { target: { value: "hrpv_secret_abc" } });
+    fireEvent.click(within(section).getByRole("button", { name: /Enregistrer/i }));
+    expect(setSecretMutate.mock.calls[0]?.[0]).toBe("hrpv_secret_abc");
+  });
+
+  it("toggle connexion locale : reflète l'état et bascule", () => {
+    mockLocalLogin(true);
+    renderPage();
+    const sw = screen.getByRole("switch");
+    expect(sw).toBeChecked();
+    fireEvent.click(sw);
+    expect(setLocalMutate.mock.calls[0]?.[0]).toBe(false);
   });
 
   it("rend la procédure de création de client Keycloak", () => {
-    vi.mocked(useOidcConfig).mockReturnValue({
-      data: null,
-      isLoading: false,
-    } as unknown as ReturnType<typeof useOidcConfig>);
     renderPage();
     expect(screen.getByText(/Créer un Client ID \(Keycloak\)/)).toBeInTheDocument();
     expect(screen.getAllByText(/\/auth\/callback/).length).toBeGreaterThan(0);

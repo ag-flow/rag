@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import secrets
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, cast
 from urllib.parse import urlencode
@@ -74,15 +75,16 @@ class OidcService:
         *,
         config_pool: asyncpg.Pool,
         public_url: str,
-        client_secret: str | None = None,
+        client_secret_provider: Callable[[], str | None] | None = None,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
-        """`client_secret` (lu depuis `RAG_OIDC_CLIENT_SECRET` dans le .env) est
-        requis pour `exchange_code`/`refresh`. Les tests qui ne touchent que le
+        """`client_secret_provider` renvoie le client secret courant (lu à chaud
+        depuis le fichier admin.env via `AdminEnvStore`) ; requis pour
+        `exchange_code`/`refresh`. Les tests qui ne touchent que le
         discovery/JWKS/roles peuvent l'omettre.
         """
         self._config_pool = config_pool
-        self._client_secret = client_secret
+        self._client_secret_provider = client_secret_provider
         self._public_url = public_url.rstrip("/")
         self._http_client = http_client  # injection pour tests
         self._discovery_cache: dict[str, _DiscoveryDoc] = {}
@@ -333,17 +335,19 @@ class OidcService:
     ) -> _TokenPair:
         """Factorise l'appel POST au token_endpoint.
 
-        Le client_secret provient du .env (`RAG_OIDC_CLIENT_SECRET`), injecté
-        au démarrage — plus de résolution Harpocrate.
+        Le client_secret est lu à chaud depuis le fichier admin.env
+        (`RAG_OIDC_CLIENT_SECRET`) via le provider injecté — plus de résolution
+        Harpocrate.
         """
         discovery = await self._discover(config)
-        if not self._client_secret:
+        client_secret = self._client_secret_provider() if self._client_secret_provider else None
+        if not client_secret:
             log.warning("oidc.token_request.no_client_secret")
             raise OidcClientSecretMissing()
         payload = {
             **data,
             "client_id": config.client_id,
-            "client_secret": self._client_secret,
+            "client_secret": client_secret,
         }
 
         client = self._http_client or httpx.AsyncClient(timeout=10.0)
