@@ -64,7 +64,6 @@ async def test_dependency_raises_session_expired_when_token_expired() -> None:
         return_value=OidcConfig(
             issuer="https://kc.example.com/realms/r",
             client_id="rag-service",
-            client_secret_ref="x",
         )
     )
     exp_now = int(time.time())
@@ -92,7 +91,6 @@ async def test_dependency_returns_user_context_when_role_matches() -> None:
         return_value=OidcConfig(
             issuer="https://kc.example.com/realms/r",
             client_id="rag-service",
-            client_secret_ref="x",
         )
     )
     oidc.extract_roles = MagicMock(return_value=["rag-admin"])
@@ -116,7 +114,6 @@ async def test_dependency_admin_grants_viewer_endpoint() -> None:
         return_value=OidcConfig(
             issuer="https://kc.example.com/realms/r",
             client_id="rag-service",
-            client_secret_ref="x",
         )
     )
     oidc.extract_roles = MagicMock(return_value=["rag-admin"])
@@ -138,7 +135,6 @@ async def test_dependency_viewer_cannot_access_admin_endpoint() -> None:
         return_value=OidcConfig(
             issuer="https://kc.example.com/realms/r",
             client_id="rag-service",
-            client_secret_ref="x",
         )
     )
     oidc.extract_roles = MagicMock(return_value=["rag-viewer"])
@@ -177,7 +173,6 @@ async def test_dependency_raises_session_missing_when_id_token_absent() -> None:
         return_value=OidcConfig(
             issuer="https://kc.example.com/realms/r",
             client_id="rag-service",
-            client_secret_ref="x",
         )
     )
     req = _fake_request(
@@ -198,7 +193,6 @@ async def test_dependency_reraises_non_expired_invalid_token() -> None:
         return_value=OidcConfig(
             issuer="https://kc.example.com/realms/r",
             client_id="rag-service",
-            client_secret_ref="x",
         )
     )
     exp_future = int(time.time()) + 300

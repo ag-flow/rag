@@ -22,7 +22,6 @@ def test_auth_callback_400_state_missing(
         json={
             "issuer": "https://kc.example.com/realms/test",
             "client_id": "rag-service",
-            "client_secret_ref": "kc_secret",
         },
     )
     # Pas de cookie state préalable → state_missing
@@ -46,7 +45,6 @@ def test_refresh_401_without_session(
         json={
             "issuer": "https://kc.example.com/realms/test",
             "client_id": "rag-service",
-            "client_secret_ref": "kc_secret",
         },
     )
     r = admin_client.post("/auth/refresh")
@@ -74,7 +72,6 @@ def test_auth_callback_400_state_mismatch(
         json={
             "issuer": "https://kc.example.com/realms/test",
             "client_id": "rag-service",
-            "client_secret_ref": "kc_secret",
         },
     )
     # On provoque d'abord un /auth/login pour que la session contienne un state valide

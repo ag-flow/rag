@@ -23,7 +23,6 @@ from rag.api.admin_ssh_keys import router_global as admin_ssh_keys_global_router
 from rag.api.admin_webhooks import build_webhooks_router
 from rag.api.auth import build_auth_router
 from rag.api.auth_methods import build_auth_methods_router
-from rag.api.setup import build_setup_router
 from rag.api.enrichments import router_languages as enrichment_languages_router
 from rag.api.enrichments import router_prompts as enrichment_prompts_router
 from rag.api.enrichments import router_triggers as enrichment_triggers_router
@@ -34,6 +33,7 @@ from rag.api.mcp import build_mcp_router
 from rag.api.mcp_standard import RagMcpDispatcher, build_mcp_asgi
 from rag.api.playground import router_admin as playground_admin_router
 from rag.api.playground import router_chat as playground_chat_router
+from rag.api.setup import build_setup_router
 from rag.api.workspace import build_workspace_router
 from rag.api.ws import router as ws_router
 from rag.auth.workspace_auth import ApiKeyCache
@@ -170,11 +170,11 @@ def build_app(
             # à `app.state` indépendamment.
             app.state.resolver = resolver_factory(settings, app)
 
+            oidc_secret = settings.rag_oidc_client_secret
             app.state.oidc = OidcService(
                 config_pool=registry.config_pool,
-                secret_resolver=app.state.resolver,
-                client_provider=app.state.client_provider,
                 public_url=str(settings.rag_public_url).rstrip("/"),
+                client_secret=oidc_secret.get_secret_value() if oidc_secret else None,
             )
             app.state.public_url = str(settings.rag_public_url).rstrip("/")
 

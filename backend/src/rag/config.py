@@ -54,6 +54,19 @@ class Settings(BaseSettings):
 
     rag_local_session_ttl_seconds: int = Field(default=28800, ge=60)
 
+    rag_local_auth_disabled: bool = Field(
+        default=False,
+        description="Désactive la connexion locale (username/mot de passe). "
+        "Source de vérité dans le .env pour permettre une réactivation manuelle "
+        "en cas de lockout OIDC (RAG_LOCAL_AUTH_DISABLED=false + redémarrage).",
+    )
+
+    rag_oidc_client_secret: SecretStr | None = Field(
+        default=None,
+        description="Client secret OIDC (Keycloak). Stocké dans le .env — "
+        "source de vérité. Requis dès qu'une configuration OIDC existe en base.",
+    )
+
     rag_session_secret: SecretStr = SecretStr("")
 
     rag_webhook_secret: SecretStr | None = Field(

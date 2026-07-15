@@ -97,7 +97,6 @@ def _seed_and_login(
         json={
             "issuer": _ISSUER,
             "client_id": _CLIENT_ID,
-            "client_secret_ref": "kc_test_secret",
         },
     )
     assert r.status_code == 201, r.text
@@ -215,7 +214,6 @@ def test_admin_oidc_endpoint_accepts_oidc_admin_role(
         json={
             "issuer": "https://kc.other.com/realms/r",
             "client_id": "other",
-            "client_secret_ref": "other_ref",
         },
     )
     assert r.status_code in (200, 201), r.text
@@ -234,7 +232,6 @@ def test_post_oidc_with_oidc_viewer_role_returns_403(
         json={
             "issuer": "https://kc.example.com/realms/test",
             "client_id": "rag",
-            "client_secret_ref": "kc_rag_secret",
         },
     )
     assert r.status_code == 403

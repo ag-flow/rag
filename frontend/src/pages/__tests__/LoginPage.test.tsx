@@ -52,9 +52,16 @@ afterEach(() => {
   });
 });
 
-function mockMethods(methods: AuthMethods | undefined, isLoading = false) {
+const DEFAULT_METHODS: AuthMethods = {
+  oidc_configured: false,
+  local_auth_enabled: false,
+  needs_setup: false,
+  local_auth_disabled_by_config: false,
+};
+
+function mockMethods(methods: Partial<AuthMethods> | undefined, isLoading = false) {
   vi.mocked(useAuthMethods).mockReturnValue({
-    data: methods,
+    data: methods ? { ...DEFAULT_METHODS, ...methods } : undefined,
     isLoading,
   } as unknown as ReturnType<typeof useAuthMethods>);
 }

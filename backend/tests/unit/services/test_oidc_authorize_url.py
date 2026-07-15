@@ -29,12 +29,10 @@ def _make_service_with_config(issuer: str) -> OidcService:
         return_value={
             "issuer": issuer,
             "client_id": "rag-service",
-            "client_secret_ref": "kc_secret",
         }
     )
     svc = OidcService(
         config_pool=pool,
-        secret_resolver=None,
         public_url="https://rag.example.com",
         http_client=client,
     )

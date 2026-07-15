@@ -4,11 +4,9 @@
 export type OidcConfig = {
   issuer: string;
   client_id: string;
-  client_secret_ref: string;
 };
 
 export type OidcConfigCreate = {
   issuer: string;
   client_id: string;
-  client_secret_ref: string;
 };

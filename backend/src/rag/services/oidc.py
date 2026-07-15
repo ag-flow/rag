@@ -3,7 +3,7 @@ from __future__ import annotations
 import secrets
 import time
 from dataclasses import dataclass
-from typing import Any, Protocol, cast
+from typing import Any, cast
 from urllib.parse import urlencode
 
 import asyncpg
@@ -16,33 +16,27 @@ from joserfc.jwk import KeySet
 from joserfc.jwt import JWTClaimsRegistry
 
 from rag.api.errors import (
+    OidcClientSecretMissing,
     OidcInvalidCode,
     OidcInvalidToken,
     OidcKeycloakUnreachable,
     OidcNotConfigured,
     OidcSessionExpired,
-    VaultUnreachable,
 )
-from rag.secrets.refs import build_ref
 
 log = structlog.get_logger(__name__)
 
 
-class _ResolverProtocol(Protocol):
-    async def resolve_with_retry(self, ref: str) -> str: ...
-
-
-class _ClientProviderProtocol(Protocol):
-    async def get_default_vault_name(self) -> str | None: ...
-
-
 @dataclass(frozen=True)
 class OidcConfig:
-    """Config OIDC stockée en `oidc_config` (1 row max)."""
+    """Config OIDC stockée en `oidc_config` (1 row max).
+
+    Le client secret n'est PAS en base : il est lu depuis le .env
+    (`RAG_OIDC_CLIENT_SECRET`) et injecté au service au démarrage.
+    """
 
     issuer: str
     client_id: str
-    client_secret_ref: str  # clé logique Harpocrate
 
 
 @dataclass(frozen=True)
@@ -79,18 +73,16 @@ class OidcService:
         self,
         *,
         config_pool: asyncpg.Pool,
-        secret_resolver: _ResolverProtocol,
         public_url: str,
-        client_provider: _ClientProviderProtocol | None = None,
+        client_secret: str | None = None,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
-        """`client_provider` est requis pour `exchange_code`/`refresh`
-        (résolution du `client_secret` via le coffre par défaut). Les tests
-        qui ne touchent que le discovery/JWKS/roles peuvent l'omettre.
+        """`client_secret` (lu depuis `RAG_OIDC_CLIENT_SECRET` dans le .env) est
+        requis pour `exchange_code`/`refresh`. Les tests qui ne touchent que le
+        discovery/JWKS/roles peuvent l'omettre.
         """
         self._config_pool = config_pool
-        self._secret_resolver = secret_resolver
-        self._client_provider = client_provider
+        self._client_secret = client_secret
         self._public_url = public_url.rstrip("/")
         self._http_client = http_client  # injection pour tests
         self._discovery_cache: dict[str, _DiscoveryDoc] = {}
@@ -100,14 +92,13 @@ class OidcService:
 
     async def get_config(self) -> OidcConfig | None:
         row = await self._config_pool.fetchrow(
-            "SELECT issuer, client_id, client_secret_ref FROM oidc_config LIMIT 1"
+            "SELECT issuer, client_id FROM oidc_config LIMIT 1"
         )
         if row is None:
             return None
         return OidcConfig(
             issuer=row["issuer"],
             client_id=row["client_id"],
-            client_secret_ref=row["client_secret_ref"],
         )
 
     async def upsert_config(
@@ -115,7 +106,6 @@ class OidcService:
         *,
         issuer: str,
         client_id: str,
-        client_secret_ref: str,
     ) -> OidcConfig:
         """Remplace toute config existante. Pattern : 1 row max en table.
 
@@ -126,18 +116,16 @@ class OidcService:
             await conn.execute("DELETE FROM oidc_config")
             await conn.execute(
                 """
-                INSERT INTO oidc_config (issuer, client_id, client_secret_ref)
-                VALUES ($1, $2, $3)
+                INSERT INTO oidc_config (issuer, client_id)
+                VALUES ($1, $2)
                 """,
                 issuer,
                 client_id,
-                client_secret_ref,
             )
         log.info("oidc.config.upserted", issuer=issuer, client_id=client_id)
         return OidcConfig(
             issuer=issuer,
             client_id=client_id,
-            client_secret_ref=client_secret_ref,
         )
 
     # --- Discovery + JWKS cache ---
@@ -345,23 +333,17 @@ class OidcService:
     ) -> _TokenPair:
         """Factorise l'appel POST au token_endpoint.
 
-        Résout le client_secret via Harpocrate à chaque appel (actions peu
-        fréquentes, pas de cache pour éviter de tenir un secret en mémoire).
+        Le client_secret provient du .env (`RAG_OIDC_CLIENT_SECRET`), injecté
+        au démarrage — plus de résolution Harpocrate.
         """
         discovery = await self._discover(config)
-        if self._client_provider is None:
-            raise RuntimeError("OidcService.exchange_code/refresh requires a client_provider")
-        default_vault_name = await self._client_provider.get_default_vault_name()
-        if default_vault_name is None:
-            log.warning("oidc.token_request.no_default_vault")
-            raise VaultUnreachable()
-        client_secret = await self._secret_resolver.resolve_with_retry(
-            build_ref(default_vault_name, config.client_secret_ref)
-        )
+        if not self._client_secret:
+            log.warning("oidc.token_request.no_client_secret")
+            raise OidcClientSecretMissing()
         payload = {
             **data,
             "client_id": config.client_id,
-            "client_secret": client_secret,
+            "client_secret": self._client_secret,
         }
 
         client = self._http_client or httpx.AsyncClient(timeout=10.0)

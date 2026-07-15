@@ -10,7 +10,6 @@ def test_post_oidc_creates_config(admin_client: TestClient, admin_headers: dict[
         json={
             "issuer": "https://kc.example.com/realms/test",
             "client_id": "rag-service",
-            "client_secret_ref": "kc_secret",
         },
     )
     assert r.status_code == 201, r.text
@@ -35,12 +34,10 @@ def test_post_then_get_returns_same_config(
         json={
             "issuer": "https://kc.example.com/realms/test",
             "client_id": "rag-service",
-            "client_secret_ref": "ref1",
         },
     )
     r = admin_client.get("/api/admin/oidc", headers=admin_headers)
     assert r.status_code == 200
-    assert r.json()["client_secret_ref"] == "ref1"
 
 
 def test_post_replaces_existing_config(
@@ -52,7 +49,6 @@ def test_post_replaces_existing_config(
         json={
             "issuer": "https://kc-old/realms/r",
             "client_id": "old",
-            "client_secret_ref": "old_ref",
         },
     )
     admin_client.post(
@@ -61,13 +57,11 @@ def test_post_replaces_existing_config(
         json={
             "issuer": "https://kc-new/realms/r",
             "client_id": "new",
-            "client_secret_ref": "new_ref",
         },
     )
     r = admin_client.get("/api/admin/oidc", headers=admin_headers)
     body = r.json()
     assert body["client_id"] == "new"
-    assert body["client_secret_ref"] == "new_ref"
 
 
 def test_post_without_master_key_returns_401(
@@ -78,7 +72,6 @@ def test_post_without_master_key_returns_401(
         json={
             "issuer": "https://kc.example.com/realms/test",
             "client_id": "rag-service",
-            "client_secret_ref": "kc_secret",
         },
     )
     assert r.status_code == 401
@@ -93,7 +86,6 @@ def test_post_422_for_invalid_issuer(
         json={
             "issuer": "not-a-url",
             "client_id": "rag-service",
-            "client_secret_ref": "kc_secret",
         },
     )
     assert r.status_code == 422

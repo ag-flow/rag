@@ -300,6 +300,18 @@ class OidcNotConfigured(AdminError):
         }
 
 
+class OidcClientSecretMissing(AdminError):
+    """Config OIDC présente en base mais RAG_OIDC_CLIENT_SECRET absent du .env."""
+
+    http_status = 500
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "error": "oidc_client_secret_missing",
+            "message": "RAG_OIDC_CLIENT_SECRET absent du .env (requis pour l'échange OIDC)",
+        }
+
+
 class OidcKeycloakUnreachable(AdminError):
     http_status = 503
 
@@ -409,6 +421,18 @@ class LocalAuthInvalidCredentials(AdminError):
 
     def to_payload(self) -> dict[str, object]:
         return {"error": "invalid_credentials", "message": "Identifiants invalides"}
+
+
+class LocalAuthDisabled(AdminError):
+    """Login local tenté alors que RAG_LOCAL_AUTH_DISABLED=true."""
+
+    http_status = 403
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "error": "local_auth_disabled",
+            "message": "La connexion locale est désactivée (RAG_LOCAL_AUTH_DISABLED)",
+        }
 
 
 class LocalSessionExpired(AdminError):

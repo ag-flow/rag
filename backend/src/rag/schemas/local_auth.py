@@ -17,6 +17,7 @@ class AuthMethodsResponse(BaseModel):
     oidc_configured: bool
     local_auth_enabled: bool
     needs_setup: bool
+    local_auth_disabled_by_config: bool = False
 
 
 class InitAdminRequest(BaseModel):

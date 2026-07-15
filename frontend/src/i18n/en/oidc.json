@@ -3,8 +3,11 @@
   "subtitle": "Single Sign-On authentication (Keycloak, Auth0, …).",
   "fields": {
     "issuer": "Issuer URL",
-    "client_id": "Client ID",
-    "client_secret_ref": "client_secret reference (Harpocrate)"
+    "client_id": "Client ID"
+  },
+  "client_secret_env": {
+    "title": "Client secret: in the .env",
+    "help": "The client secret is not entered here: it is configured in the backend .env file via the RAG_OIDC_CLIENT_SECRET variable (source of truth). Restart the backend after changing it."
   },
   "actions": {
     "cancel": "Cancel",
@@ -22,5 +25,34 @@
     "required": "Required field.",
     "too_long": "Maximum 255 characters.",
     "alphanum_underscore_only": "Allowed characters: a-z, A-Z, 0-9, underscore."
+  },
+  "local_auth": {
+    "title": "Local login (password)",
+    "status_enabled": "Enabled",
+    "status_disabled": "Disabled",
+    "help_enabled": "The username / password form is offered on the login page, alongside SSO.",
+    "help_disabled": "Only SSO is offered on the login page. Any local login attempt is rejected by the backend.",
+    "env_hint": "This setting is driven by the RAG_LOCAL_AUTH_DISABLED variable in the .env file (source of truth); it cannot be changed from this page.",
+    "breakglass": "Anti-lockout safeguard: if SSO breaks, set RAG_LOCAL_AUTH_DISABLED=false in the .env and restart the backend to re-enable local login.",
+    "toggle_to_enable": "To re-enable: RAG_LOCAL_AUTH_DISABLED=false",
+    "toggle_to_disable": "To disable: RAG_LOCAL_AUTH_DISABLED=true"
+  },
+  "procedure": {
+    "title": "Create a Client ID (Keycloak)",
+    "intro": "Detailed procedure to create the OIDC client referenced above. Values in angle brackets must be adapted to your deployment.",
+    "steps": [
+      "Open the Keycloak admin console (https://<keycloak>/admin) and sign in with a realm admin account.",
+      "Top left, select the target realm (e.g. yoops) — this realm is the one that appears in the Issuer URL.",
+      "Clients menu → « Create client » button.",
+      "« General settings » step: Client type = OpenID Connect; Client ID = a short identifier (e.g. rag). This is exactly the value to enter in the « Client ID » field above. Click Next.",
+      "« Capability config » step: turn on « Client authentication » (ON → confidential client, a secret is generated); turn on « Standard flow » (Authorization Code Flow); leave the rest at defaults. Click Next.",
+      "« Login settings » step — Valid redirect URIs: <RAG_PUBLIC_URL>/auth/callback (e.g. https://rag.example.com/auth/callback).",
+      "Valid post logout redirect URIs: <RAG_PUBLIC_URL>/ (the root, with trailing slash).",
+      "Web origins: <RAG_PUBLIC_URL> (or the value + to auto-derive from redirect URIs). Click Save.",
+      "Client « Credentials » tab → copy the « Client secret ». Paste it into the backend .env file: RAG_OIDC_CLIENT_SECRET=<secret>, then restart the backend.",
+      "Client « Client scopes » tab → verify the openid, email and profile scopes are assigned (default): the user's email must be present in the token, as it determines their identity (owner_id).",
+      "Enter the Issuer URL in the field above: https://<keycloak>/realms/<realm> (e.g. https://keycloak.example.com/realms/yoops), then Save the configuration."
+    ],
+    "note": "After saving, test via the SSO button on the login page. On a redirect_uri error, check that the Valid redirect URI matches <RAG_PUBLIC_URL>/auth/callback exactly."
   }
 }

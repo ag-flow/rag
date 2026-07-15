@@ -94,7 +94,6 @@ def _seed_oidc_config(client: TestClient, admin_headers: dict[str, str]) -> None
         json={
             "issuer": _ISSUER,
             "client_id": _CLIENT_ID,
-            "client_secret_ref": "kc_test_secret",
         },
     )
     assert r.status_code == 201, r.text

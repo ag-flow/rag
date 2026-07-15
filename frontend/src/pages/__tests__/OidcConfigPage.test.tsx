@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -21,7 +21,23 @@ vi.mock("@/hooks/useToast", () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
+vi.mock("@/hooks/useAuthMethods", () => ({
+  useAuthMethods: vi.fn(),
+}));
+
 import { useOidcConfig } from "@/hooks/useOidcConfig";
+import { useAuthMethods } from "@/hooks/useAuthMethods";
+
+function mockAuthMethods(localDisabled: boolean): void {
+  vi.mocked(useAuthMethods).mockReturnValue({
+    data: {
+      oidc_configured: true,
+      local_auth_enabled: !localDisabled,
+      needs_setup: false,
+      local_auth_disabled_by_config: localDisabled,
+    },
+  } as unknown as ReturnType<typeof useAuthMethods>);
+}
 
 const testI18n = i18next.createInstance();
 
@@ -51,6 +67,10 @@ function renderPage() {
 }
 
 describe("OidcConfigPage", () => {
+  beforeEach(() => {
+    mockAuthMethods(false);
+  });
+
   it("form vide si pas de config", () => {
     vi.mocked(useOidcConfig).mockReturnValue({
       data: null,
@@ -66,14 +86,12 @@ describe("OidcConfigPage", () => {
       data: {
         issuer: "https://kc.example.com/realms/test",
         client_id: "rag",
-        client_secret_ref: "kc_rag_secret",
       },
       isLoading: false,
     } as unknown as ReturnType<typeof useOidcConfig>);
     renderPage();
     expect(screen.getByDisplayValue("https://kc.example.com/realms/test")).toBeInTheDocument();
     expect(screen.getByDisplayValue("rag")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("kc_rag_secret")).toBeInTheDocument();
   });
 
   it("Save désactivé tant que non-dirty", () => {
@@ -81,7 +99,6 @@ describe("OidcConfigPage", () => {
       data: {
         issuer: "https://kc.example.com/realms/test",
         client_id: "rag",
-        client_secret_ref: "kc_rag_secret",
       },
       isLoading: false,
     } as unknown as ReturnType<typeof useOidcConfig>);
@@ -98,19 +115,48 @@ describe("OidcConfigPage", () => {
     } as unknown as ReturnType<typeof useOidcConfig>);
     renderPage();
     const inputs = screen.getAllByRole("textbox");
-    const [issuerInput, clientIdInput, clientSecretInput] = inputs;
-    if (!issuerInput || !clientIdInput || !clientSecretInput) {
-      throw new Error("Expected 3 textbox inputs on the OIDC form");
+    const [issuerInput, clientIdInput] = inputs;
+    if (!issuerInput || !clientIdInput) {
+      throw new Error("Expected 2 textbox inputs on the OIDC form");
     }
     fireEvent.change(issuerInput, { target: { value: "https://kc.example.com/realms/test" } });
     fireEvent.change(clientIdInput, { target: { value: "rag" } });
-    fireEvent.change(clientSecretInput, { target: { value: "kc_rag_secret" } });
     fireEvent.click(screen.getByText(/^Enregistrer$/i));
     await waitFor(() => expect(mutateMock).toHaveBeenCalled());
     expect(mutateMock.mock.calls[0]?.[0]).toEqual({
       issuer: "https://kc.example.com/realms/test",
       client_id: "rag",
-      client_secret_ref: "kc_rag_secret",
     });
+  });
+
+  it("affiche le statut connexion locale = Activée quand le flag est off", () => {
+    mockAuthMethods(false);
+    vi.mocked(useOidcConfig).mockReturnValue({
+      data: null,
+      isLoading: false,
+    } as unknown as ReturnType<typeof useOidcConfig>);
+    renderPage();
+    expect(screen.getByText(/^Activée$/)).toBeInTheDocument();
+  });
+
+  it("affiche le statut connexion locale = Désactivée quand le flag est on", () => {
+    mockAuthMethods(true);
+    vi.mocked(useOidcConfig).mockReturnValue({
+      data: null,
+      isLoading: false,
+    } as unknown as ReturnType<typeof useOidcConfig>);
+    renderPage();
+    expect(screen.getByText(/^Désactivée$/)).toBeInTheDocument();
+    expect(screen.getAllByText(/RAG_LOCAL_AUTH_DISABLED=false/).length).toBeGreaterThan(0);
+  });
+
+  it("rend la procédure de création de client Keycloak", () => {
+    vi.mocked(useOidcConfig).mockReturnValue({
+      data: null,
+      isLoading: false,
+    } as unknown as ReturnType<typeof useOidcConfig>);
+    renderPage();
+    expect(screen.getByText(/Créer un Client ID \(Keycloak\)/)).toBeInTheDocument();
+    expect(screen.getAllByText(/\/auth\/callback/).length).toBeGreaterThan(0);
   });
 });
