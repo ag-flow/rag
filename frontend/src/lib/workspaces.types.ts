@@ -28,13 +28,7 @@ export type RerankSpec = {
 
 export type WorkspaceCreate = {
   name: string;
-  indexer: {
-    provider: string;
-    model: string;
-    api_key_ref: string | null;
-    base_url: string | null;
-  };
-  rerank?: RerankSpec | undefined;
+  endpoint_id: string;
 };
 
 export type WorkspaceCreateResponse = {
@@ -44,7 +38,8 @@ export type WorkspaceCreateResponse = {
 };
 
 export type WorkspacePatchRequest = {
-  indexer: { api_key_ref: string };
+  indexer?: { api_key_ref: string };
+  rerank?: { api_key_ref: string };
 };
 
 export type SourceConfig = {

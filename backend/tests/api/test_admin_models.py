@@ -44,15 +44,7 @@ def test_delete_model_409_in_use(
     admin_client.post(
         "/api/admin/workspaces",
         headers=admin_headers,
-        json={
-            "name": "ws_uses_model",
-            "api_key_vault": "rag",
-            "indexer": {
-                "provider": "openai",
-                "model": "text-embedding-3-small",
-                "api_key_ref": "openai_embedding_key",
-            },
-        },
+        json={"name": "ws_uses_model", "endpoint_id": admin_client.default_endpoint_id},
     )
     r = admin_client.delete("/api/admin/models/openai/text-embedding-3-small", headers=admin_headers)
     assert r.status_code == 409

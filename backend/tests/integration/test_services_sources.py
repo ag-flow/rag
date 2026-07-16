@@ -18,7 +18,7 @@ from rag.schemas.admin import (
     IndexerSpec,
     SourceCreateRequest,
     SourceUpdateRequest,
-    WorkspaceCreateRequest,
+    WorkspaceCreateResolved,
 )
 from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.secrets.resolver import VaultLookupFailed
@@ -74,7 +74,7 @@ async def _setup_ws(pg_container: str, session_pool: asyncpg.Pool, name: str) ->
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
     resolver = _Resolver({"k", "github_token"})
     await create_workspace(
-        request=WorkspaceCreateRequest(
+        request=WorkspaceCreateResolved(
             name=name,
             api_key_vault="rag",
             indexer=IndexerSpec(provider="openai", model="text-embedding-3-small", api_key_ref="k"),

@@ -15,7 +15,7 @@ import pytest
 from rag.db.pool import WorkspacePoolRegistry
 from rag.db.workspace_schema import derive_workspace_dsn, drop_workspace_database
 from rag.indexer.real import RealIndexer
-from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
+from rag.schemas.admin import IndexerSpec, WorkspaceCreateResolved
 from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.workspaces import create_workspace
 
@@ -84,7 +84,7 @@ async def test_real_indexer_markdown_strategy_produces_section_metadata(
     pg_container: str,
 ) -> None:
     """End-to-end : workspace configuré en markdown → chunks ont la metadata."""
-    req = WorkspaceCreateRequest(
+    req = WorkspaceCreateResolved(
         name="ws_md_e2e",
         api_key_vault="rag",
         indexer=IndexerSpec(

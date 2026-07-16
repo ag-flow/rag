@@ -104,6 +104,85 @@ def _make_stub_harpocrate_vaults_service(
     return service
 
 
+
+
+async def seed_endpoint(
+    dsn: str,
+    *,
+    slug: str,
+    provider: str,
+    model: str,
+    api_key_ref: str | None = "openai_embedding_key",
+    base_url: str | None = None,
+    rerank: dict | None = None,
+) -> str:
+    """Seed un endpoint arbitraire (coffre 'rag' créé au besoin) → endpoint_id.
+
+    `rerank` : dict {provider, model, api_key_ref?, base_url?, top_k?}.
+    Sert aux tests qui exercent une sémantique précise (provider inconnu,
+    ollama+base_url, rerank à la création…).
+    """
+    conn = await asyncpg.connect(dsn)
+    try:
+        vault_id = await conn.fetchval(
+            """
+            INSERT INTO harpocrate_vaults
+                (name, label, base_url, api_key_id, api_key_encrypted, is_default)
+            VALUES ('rag', 'rag', 'http://harpocrate.test', 'k-test',
+                    pgp_sym_encrypt('tok-test', 'passphrase-of-at-least-32-characters-long'),
+                    true)
+            ON CONFLICT (name) DO UPDATE SET label = EXCLUDED.label
+            RETURNING id
+            """
+        )
+        rr = rerank or {}
+        endpoint_id = await conn.fetchval(
+            """
+            INSERT INTO vault_endpoints
+                (vault_id, label, slug, indexer_provider, indexer_model,
+                 indexer_api_key_ref, indexer_base_url,
+                 rerank_provider, rerank_model, rerank_api_key_ref,
+                 rerank_base_url, rerank_top_k)
+            VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ON CONFLICT (vault_id, slug) DO UPDATE SET
+                indexer_provider = EXCLUDED.indexer_provider,
+                indexer_model = EXCLUDED.indexer_model,
+                indexer_api_key_ref = EXCLUDED.indexer_api_key_ref,
+                indexer_base_url = EXCLUDED.indexer_base_url,
+                rerank_provider = EXCLUDED.rerank_provider,
+                rerank_model = EXCLUDED.rerank_model,
+                rerank_api_key_ref = EXCLUDED.rerank_api_key_ref,
+                rerank_base_url = EXCLUDED.rerank_base_url,
+                rerank_top_k = EXCLUDED.rerank_top_k
+            RETURNING id
+            """,
+            vault_id, slug, provider, model, api_key_ref, base_url,
+            rr.get("provider"), rr.get("model"), rr.get("api_key_ref"),
+            rr.get("base_url"), rr.get("top_k"),
+        )
+        return str(endpoint_id)
+    finally:
+        await conn.close()
+
+
+def seed_endpoint_sync(dsn: str, **kwargs) -> str:
+    """Wrapper synchrone de seed_endpoint pour les tests API (TestClient sync)."""
+    import asyncio
+
+    return asyncio.run(seed_endpoint(dsn, **kwargs))
+
+
+async def _seed_default_endpoint(dsn: str) -> str:
+    """Seed un coffre + un endpoint de vectorisation, retourne l'endpoint_id.
+
+    La création de workspace exige désormais un endpoint (préréglage du
+    coffre) : chaque TestClient expose `default_endpoint_id` pour les helpers.
+    """
+    return await seed_endpoint(
+        dsn, slug="test-openai", provider="openai", model="text-embedding-3-small"
+    )
+
+
 @pytest_asyncio.fixture
 async def admin_client(
     pg_container: str,
@@ -148,6 +227,8 @@ async def admin_client(
         migrations_dir=_MIGRATIONS_DIR,
     )
     with TestClient(app) as client:
+        # Migrations appliquées par le lifespan → on peut seeder l'endpoint.
+        client.default_endpoint_id = await _seed_default_endpoint(pg_container)  # type: ignore[attr-defined]
         yield client
 
 

@@ -11,7 +11,7 @@ import pytest
 
 from rag.api.errors import WorkspaceNotFound
 from rag.db.migrations import run_migrations
-from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
+from rag.schemas.admin import IndexerSpec, WorkspaceCreateResolved
 from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.workspaces import create_workspace, get_workspace, list_workspaces
 
@@ -70,7 +70,7 @@ async def test_list_workspaces_includes_created(
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
     for name in ("ws_list_a", "ws_list_b"):
         await create_workspace(
-            request=WorkspaceCreateRequest(
+            request=WorkspaceCreateResolved(
                 name=name,
                 api_key_vault="rag",
                 indexer=IndexerSpec(
@@ -100,7 +100,7 @@ async def test_get_workspace_returns_detail(
     await run_migrations(session_pool, MIGRATIONS_DIR)
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
     await create_workspace(
-        request=WorkspaceCreateRequest(
+        request=WorkspaceCreateResolved(
             name="ws_detail",
             api_key_vault="rag",
             indexer=IndexerSpec(provider="voyage", model="voyage-3", api_key_ref="voyage_api_key"),

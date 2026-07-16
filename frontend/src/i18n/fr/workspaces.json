@@ -38,7 +38,16 @@
     "api_key_ref_placeholder": "Sélectionner une clé",
     "api_key_ref_none": "Aucune clé disponible pour ce provider — ajoutez-en une dans un coffre Harpocrate",
     "top_k": "top_k pré-rerank",
-    "rerank_remove": "Retirer le reranking"
+    "rerank_remove": "Retirer le reranking",
+    "endpoint_intro": "Choisissez le préréglage de vectorisation (endpoint) défini dans un coffre.",
+    "endpoint": "Endpoint",
+    "endpoint_placeholder": "Choisir un endpoint…",
+    "endpoint_none": "Aucun endpoint défini. Créez-en un dans l'onglet Endpoints d'un coffre.",
+    "endpoint_none_link": "Ouvrir les coffres",
+    "endpoint_with_rerank": "Rerank inclus : {{rerank}}",
+    "endpoint_no_rerank": "Sans reranking",
+    "cancel": "Annuler",
+    "submit": "Créer"
   },
   "actions": {
     "rotate_apikey": "Régénérer l'api_key",

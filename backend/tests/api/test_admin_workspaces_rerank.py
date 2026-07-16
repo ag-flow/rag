@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import os
+
 from fastapi.testclient import TestClient
+
+from tests.api.conftest import seed_endpoint_sync
 
 
 def _create_workspace(client: TestClient, admin_headers: dict[str, str], name: str) -> None:
@@ -9,11 +13,11 @@ def _create_workspace(client: TestClient, admin_headers: dict[str, str], name: s
         headers=admin_headers,
         json={
             "name": name,
-            "api_key_vault": "rag",
-            "indexer": {
-                "provider": "ollama", "model": "mxbai-embed-large",
-                "api_key_ref": None,
-            },
+            "endpoint_id": seed_endpoint_sync(
+                os.environ["DATABASE_URL"],
+                slug="ep-ollama-nourl", provider="ollama",
+                model="mxbai-embed-large", api_key_ref=None,
+            ),
         },
     )
     assert r.status_code == 201, r.text

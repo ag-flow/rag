@@ -1,0 +1,75 @@
+from __future__ import annotations
+
+import re
+import unicodedata
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+_SLUG_STRIP_RE = re.compile(r"[^a-z0-9]+")
+
+
+def slugify(label: str) -> str:
+    """Calcule le slug d'un endpoint depuis son label.
+
+    Minuscules, accents translittérés, tout caractère non alphanumérique
+    devient un tiret. Ex : « Docs internes (Ollama) » → `docs-internes-ollama`.
+    """
+    normalized = unicodedata.normalize("NFKD", label)
+    ascii_only = normalized.encode("ascii", "ignore").decode("ascii").lower()
+    return _SLUG_STRIP_RE.sub("-", ascii_only).strip("-")
+
+
+class EndpointIndexerSpec(BaseModel):
+    """Vectorisation : provider + modèle + clé API (harpo_path du coffre) + URL."""
+
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+    provider: str = Field(min_length=1, max_length=64)
+    model: str = Field(min_length=1, max_length=128)
+    api_key_ref: str | None = None
+    base_url: str | None = None
+
+
+class EndpointRerankSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+    provider: str = Field(min_length=1, max_length=64)
+    model: str = Field(min_length=1, max_length=128)
+    api_key_ref: str | None = None
+    base_url: str | None = None
+    top_k_pre_rerank: int = Field(default=20, ge=1, le=200)
+
+
+class EndpointCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str = Field(min_length=1, max_length=128)
+    indexer: EndpointIndexerSpec
+    rerank: EndpointRerankSpec | None = None
+
+
+class EndpointUpdate(BaseModel):
+    """Le slug est figé à la création ; label et configs restent éditables.
+
+    Snapshot : la modification n'affecte que les workspaces créés ensuite.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    label: str | None = Field(default=None, min_length=1, max_length=128)
+    indexer: EndpointIndexerSpec | None = None
+    rerank: EndpointRerankSpec | None = None
+    clear_rerank: bool = False
+
+
+class EndpointOut(BaseModel):
+    id: UUID
+    vault_id: UUID
+    label: str
+    slug: str
+    indexer: EndpointIndexerSpec
+    rerank: EndpointRerankSpec | None
+    created_at: datetime
+    updated_at: datetime

@@ -12,7 +12,7 @@ import pytest
 from rag.api.errors import IndexerChangeRequiresReindex, WorkspaceNotFound
 from rag.db.migrations import run_migrations
 from rag.db.workspace_schema import derive_workspace_dsn
-from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
+from rag.schemas.admin import IndexerSpec, WorkspaceCreateResolved
 from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.jobs import reindex_workspace
 from rag.services.workspaces import create_workspace
@@ -58,7 +58,7 @@ async def _create_with_doc(pg_container: str, session_pool: asyncpg.Pool, name: 
     """Crée un workspace et insère 1 indexed_document pour simuler du contenu existant."""
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
     await create_workspace(
-        request=WorkspaceCreateRequest(
+        request=WorkspaceCreateResolved(
             name=name,
             api_key_vault="rag",
             indexer=IndexerSpec(provider="openai", model="text-embedding-3-small", api_key_ref="k"),

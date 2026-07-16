@@ -11,7 +11,7 @@ import pytest
 
 from rag.api.errors import WorkspaceNotFound
 from rag.db.migrations import run_migrations
-from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
+from rag.schemas.admin import IndexerSpec, WorkspaceCreateResolved
 from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.workspaces import create_workspace, delete_workspace
 
@@ -60,7 +60,7 @@ async def test_delete_workspace_drops_db_and_config(
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
 
     await create_workspace(
-        request=WorkspaceCreateRequest(
+        request=WorkspaceCreateResolved(
             name="ws_del",
             api_key_vault="rag",
             indexer=IndexerSpec(provider="openai", model="text-embedding-3-small", api_key_ref="k"),
@@ -102,7 +102,7 @@ async def test_delete_workspace_idempotent_retry_after_partial_failure(
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
 
     await create_workspace(
-        request=WorkspaceCreateRequest(
+        request=WorkspaceCreateResolved(
             name="ws_orphan",
             api_key_vault="rag",
             indexer=IndexerSpec(provider="openai", model="text-embedding-3-small", api_key_ref="k"),

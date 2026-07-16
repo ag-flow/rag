@@ -46,7 +46,7 @@ describe("useWorkspaces hooks", () => {
   });
 
   it("useCreateWorkspace POSTs and invalidates", async () => {
-    vi.spyOn(apiModule.api, "post").mockResolvedValue({ name: "ws_a", api_key: "key-xyz" });
+    vi.spyOn(apiModule.api, "post").mockResolvedValue({ name: "ws_a" });
 
     const { qc, wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
@@ -54,7 +54,7 @@ describe("useWorkspaces hooks", () => {
     const { result } = renderHook(() => useCreateWorkspace(), { wrapper });
     result.current.mutate({
       name: "ws_a",
-      indexer: { provider: "openai", model: "x", api_key_ref: null, base_url: null },
+      endpoint_id: "11111111-2222-3333-4444-555555555555",
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));

@@ -11,7 +11,7 @@ import asyncpg
 import pytest
 
 from rag.db.workspace_schema import derive_workspace_dsn, drop_workspace_database
-from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
+from rag.schemas.admin import IndexerSpec, WorkspaceCreateResolved
 from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.chunking_configs import get_chunking_config
 from rag.services.workspaces import create_workspace
@@ -45,8 +45,8 @@ async def _cleanup_workspace(migrated: asyncpg.Pool, admin_dsn: str, name: str) 
         await conn.execute("DELETE FROM workspaces WHERE name = $1", name)
 
 
-def _make_request(name: str) -> WorkspaceCreateRequest:
-    return WorkspaceCreateRequest(
+def _make_request(name: str) -> WorkspaceCreateResolved:
+    return WorkspaceCreateResolved(
         name=name,
         api_key_vault="rag",
         indexer=IndexerSpec(

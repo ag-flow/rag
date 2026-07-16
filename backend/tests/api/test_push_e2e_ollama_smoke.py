@@ -7,6 +7,8 @@ import asyncpg
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.api.conftest import seed_endpoint_sync
+
 pytestmark = pytest.mark.smoke
 
 
@@ -32,12 +34,11 @@ def test_push_e2e_indexes_embeddings_in_pgvector(
         headers=admin_headers,
         json={
             "name": "ws_smoke_ollama",
-            "api_key_vault": "rag",
-            "indexer": {
-                "provider": "ollama",
-                "model": "nomic-embed-text",
-                "base_url": ollama_url,
-            },
+            "endpoint_id": seed_endpoint_sync(
+                os.environ["DATABASE_URL"],
+                slug="ep-ws_smoke_ollama", provider="ollama",
+                model="nomic-embed-text", api_key_ref=None, base_url=ollama_url,
+            ),
         },
     )
     assert r.status_code == 201, r.text

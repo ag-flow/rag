@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import UUID
 
 import asyncpg
 import pytest
@@ -12,8 +11,6 @@ from rag.db.migrations import run_migrations
 from rag.schemas.git_credentials import GitCredentialCreate, GitCredentialUpdate
 from rag.services.git_credentials import (
     DuplicateGitCredentialError,
-    GitCredentialNotFoundError,
-    GitCredentialReferencedError,
     create_git_credential,
     delete_git_credential,
     list_git_credentials,

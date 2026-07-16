@@ -14,7 +14,7 @@ from rag.db.migrations import run_migrations
 from rag.schemas.admin import (
     IndexerPatchSpec,
     IndexerSpec,
-    WorkspaceCreateRequest,
+    WorkspaceCreateResolved,
     WorkspacePatchRequest,
 )
 from rag.schemas.harpocrate_vaults import VaultSummary
@@ -74,7 +74,7 @@ async def test_patch_api_key_ref_updates_indexer_config(
     resolver = _Resolver({"old_key", "new_key"})
 
     await create_workspace(
-        request=WorkspaceCreateRequest(
+        request=WorkspaceCreateResolved(
             name="ws_patch",
             api_key_vault="rag",
             indexer=IndexerSpec(
@@ -122,7 +122,7 @@ async def test_patch_workspace_new_ref_not_in_vault_raises(
     resolver = _Resolver({"old_key"})
 
     await create_workspace(
-        request=WorkspaceCreateRequest(
+        request=WorkspaceCreateResolved(
             name="ws_patch_bad",
             api_key_vault="rag",
             indexer=IndexerSpec(

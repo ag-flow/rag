@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import os
 
 import asyncpg
 import pytest
 from fastapi.testclient import TestClient
 from pgvector.asyncpg import register_vector
+
+from tests.api.conftest import seed_endpoint_sync
 
 
 def _make_user_key(
@@ -47,15 +50,15 @@ def _make_ws(
     api_key_ref: str | None = "openai_embedding_key",
     base_url: str | None = None,
 ) -> str:
-    indexer_body: dict[str, object] = {"provider": provider, "model": model}
-    if api_key_ref is not None:
-        indexer_body["api_key_ref"] = api_key_ref
-    if base_url is not None:
-        indexer_body["base_url"] = base_url
+    endpoint_id = seed_endpoint_sync(
+        os.environ["DATABASE_URL"],
+        slug=f"ep-{name}", provider=provider, model=model,
+        api_key_ref=api_key_ref, base_url=base_url,
+    )
     r = client.post(
         "/api/admin/workspaces",
         headers=admin_headers,
-        json={"name": name, "api_key_vault": "rag", "indexer": indexer_body},
+        json={"name": name, "endpoint_id": endpoint_id},
     )
     assert r.status_code == 201, r.text
     return _make_user_key(client, admin_headers, r.json()["id"], name)

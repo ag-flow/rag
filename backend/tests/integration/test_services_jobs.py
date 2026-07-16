@@ -11,7 +11,7 @@ import pytest
 
 from rag.api.errors import JobNotFound, WorkspaceNotFound
 from rag.db.migrations import run_migrations
-from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
+from rag.schemas.admin import IndexerSpec, WorkspaceCreateResolved
 from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.jobs import create_pending_job, list_job_files, list_jobs
 from rag.services.workspaces import create_workspace
@@ -61,7 +61,7 @@ async def test_create_pending_job_inserts_row(
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
 
     await create_workspace(
-        request=WorkspaceCreateRequest(
+        request=WorkspaceCreateResolved(
             name="ws_jobs",
             api_key_vault="rag",
             indexer=IndexerSpec(provider="openai", model="text-embedding-3-small", api_key_ref="k"),
@@ -107,7 +107,7 @@ async def test_list_jobs_ordered_desc(
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
 
     await create_workspace(
-        request=WorkspaceCreateRequest(
+        request=WorkspaceCreateResolved(
             name="ws_jobs_order",
             api_key_vault="rag",
             indexer=IndexerSpec(provider="openai", model="text-embedding-3-small", api_key_ref="k"),

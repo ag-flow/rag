@@ -13,7 +13,7 @@ import pytest
 from rag.db.pool import WorkspacePoolRegistry
 from rag.db.workspace_schema import derive_workspace_dsn, drop_workspace_database
 from rag.indexer.real import RealIndexer
-from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
+from rag.schemas.admin import IndexerSpec, WorkspaceCreateResolved
 from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.workspaces import create_workspace
 
@@ -51,7 +51,7 @@ async def test_real_indexer_respects_chunking_config_max_chars(
 ) -> None:
     """RealIndexer lit chunking_config et applique max_chars pour produire plusieurs chunks."""
     name = "ws_realidx_chunk"
-    req = WorkspaceCreateRequest(
+    req = WorkspaceCreateResolved(
         name=name,
         api_key_vault="rag",
         indexer=IndexerSpec(

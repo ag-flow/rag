@@ -13,6 +13,7 @@ import { ReplaceApiKeyDialog } from "@/pages/harpocrate/ReplaceApiKeyDialog";
 import { RetireVaultDialog } from "@/pages/harpocrate/RetireVaultDialog";
 import { VaultApikeysTab } from "@/pages/harpocrate/VaultApikeysTab";
 import { VaultSshTab } from "@/pages/harpocrate/VaultSshTab";
+import { VaultEndpointsTab } from "@/pages/harpocrate/VaultEndpointsTab";
 
 type DialogKind = "reveal" | "replace" | "retire" | null;
 
@@ -61,6 +62,7 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
             <TabsTrigger value="info">{t("tabs.info")}</TabsTrigger>
             <TabsTrigger value="apikeys">{t("tabs.apikeys")}</TabsTrigger>
             <TabsTrigger value="ssh">{t("ssh.tab")}</TabsTrigger>
+            <TabsTrigger value="endpoints">{t("endpoints.tab")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="detail">
@@ -86,6 +88,10 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
 
           <TabsContent value="ssh">
             <VaultSshTab vaultId={vault.id} />
+          </TabsContent>
+
+          <TabsContent value="endpoints">
+            <VaultEndpointsTab vaultId={vault.id} />
           </TabsContent>
         </Tabs>
       </div>

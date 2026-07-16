@@ -60,6 +60,11 @@
     "save": {
       "success": "Reference saved.",
       "error": "Error saving."
+    },
+    "keyref": {
+      "save": "Change key",
+      "saved": "Key reference updated.",
+      "error": "Failed to update the key."
     }
   },
   "sources": {
@@ -248,7 +253,10 @@
       "min_lt_max": "Must be less than max size",
       "overlap_lt_max": "Must be less than max size"
     },
-    "actions": { "save": "Save", "cancel": "Cancel" },
+    "actions": {
+      "save": "Save",
+      "cancel": "Cancel"
+    },
     "save": {
       "success": "Configuration saved",
       "noChange": "No changes",
@@ -262,7 +270,10 @@
         "labelCurrent": "Current configuration:",
         "labelNew": "New configuration:",
         "consequence": "This operation will delete all existing chunks and re-index the documents. This may take several minutes.",
-        "actions": { "cancel": "Cancel", "confirm": "Reindex now" }
+        "actions": {
+          "cancel": "Cancel",
+          "confirm": "Reindex now"
+        }
       }
     },
     "lastModified": "Last modified: {{when}}",

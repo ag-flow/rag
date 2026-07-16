@@ -5,6 +5,8 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.api.conftest import seed_endpoint_sync
+
 pytestmark = pytest.mark.smoke
 
 
@@ -32,12 +34,11 @@ def test_mcp_e2e_ollama_search_returns_relevant_doc(
         headers=admin_headers,
         json={
             "name": "ws_mcp_smoke",
-            "api_key_vault": "rag",
-            "indexer": {
-                "provider": "ollama",
-                "model": "mxbai-embed-large",
-                "base_url": ollama_url,
-            },
+            "endpoint_id": seed_endpoint_sync(
+                os.environ["DATABASE_URL"],
+                slug="ep-ws_mcp_smoke", provider="ollama",
+                model="mxbai-embed-large", api_key_ref=None, base_url=ollama_url,
+            ),
         },
     )
     assert r.status_code == 201, r.text

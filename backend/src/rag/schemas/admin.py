@@ -63,7 +63,21 @@ class RerankCreateSpec(BaseModel):
 
 
 class WorkspaceCreateRequest(BaseModel):
-    """Payload POST /workspaces."""
+    """Payload POST /workspaces.
+
+    La vectorisation ne se configure plus champ par champ : on choisit un
+    endpoint (préréglage du coffre, cf. vault_endpoints). Sa config est
+    copiée dans indexer_configs / rerank_configs (snapshot à la création).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(pattern=_NAME_REGEX, max_length=63)
+    endpoint_id: UUID
+
+
+class WorkspaceCreateResolved(BaseModel):
+    """Forme interne après résolution de l'endpoint (consommée par le service)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -80,12 +94,25 @@ class IndexerPatchSpec(BaseModel):
     api_key_ref: str = Field(min_length=1)
 
 
-class WorkspacePatchRequest(BaseModel):
-    """Payload PATCH /workspaces/{name}. Seul `indexer.api_key_ref` est modifiable."""
+class RerankPatchSpec(BaseModel):
+    """Sous-payload PATCH : seul api_key_ref du rerank est modifiable."""
 
     model_config = ConfigDict(extra="forbid")
 
-    indexer: IndexerPatchSpec
+    api_key_ref: str = Field(min_length=1)
+
+
+class WorkspacePatchRequest(BaseModel):
+    """Payload PATCH /workspaces/{name}.
+
+    Seules les références de clé API sont modifiables (rotation par
+    re-pointage) — provider/modèle restent immuables (dimensions).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    indexer: IndexerPatchSpec | None = None
+    rerank: RerankPatchSpec | None = None
 
 
 class WorkspaceResponse(BaseModel):

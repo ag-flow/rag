@@ -96,9 +96,46 @@ def build_admin_router() -> APIRouter:
         payload: WorkspaceCreateRequest,
         request: Request,
     ) -> WorkspaceCreateResponse:
+        # Résout l'endpoint choisi (préréglage du coffre) et copie sa config —
+        # snapshot : les modifications ultérieures de l'endpoint n'affectent
+        # pas ce workspace.
+        from rag.schemas.admin import (
+            IndexerCreateSpec,
+            RerankCreateSpec,
+            WorkspaceCreateResolved,
+        )
+        from rag.services.vault_endpoints import get_endpoint
+
+        pool = _config_pool(request)
+        async with pool.acquire() as conn:
+            endpoint = await get_endpoint(conn, endpoint_id=payload.endpoint_id)
+        if endpoint is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="endpoint_not_found"
+            )
+        resolved = WorkspaceCreateResolved(
+            name=payload.name,
+            indexer=IndexerCreateSpec(
+                provider=endpoint.indexer.provider,
+                model=endpoint.indexer.model,
+                api_key_ref=endpoint.indexer.api_key_ref,
+                base_url=endpoint.indexer.base_url,
+            ),
+            rerank=(
+                RerankCreateSpec(
+                    provider=endpoint.rerank.provider,  # type: ignore[arg-type]
+                    model=endpoint.rerank.model,
+                    api_key_ref=endpoint.rerank.api_key_ref,
+                    base_url=endpoint.rerank.base_url,
+                    top_k_pre_rerank=endpoint.rerank.top_k_pre_rerank,
+                )
+                if endpoint.rerank is not None
+                else None
+            ),
+        )
         resp = await create_workspace(
-            request=payload,
-            config_pool=_config_pool(request),
+            request=resolved,
+            config_pool=pool,
             admin_dsn=_admin_dsn(request),
             resolver=_resolver(request),  # type: ignore[arg-type]
             harpocrate_vaults_service=request.app.state.harpocrate_vaults_service,

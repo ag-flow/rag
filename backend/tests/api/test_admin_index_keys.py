@@ -7,6 +7,8 @@ import os
 import asyncpg
 from fastapi.testclient import TestClient
 
+from tests.api.conftest import seed_endpoint_sync
+
 
 def _create_ws(client: TestClient, headers: dict[str, str], name: str) -> dict:
     r = client.post(
@@ -14,13 +16,12 @@ def _create_ws(client: TestClient, headers: dict[str, str], name: str) -> dict:
         headers=headers,
         json={
             "name": name,
-            "api_key_vault": "rag",
-            "indexer": {
-                "provider": "ollama",
-                "model": "mxbai-embed-large",
-                "api_key_ref": None,
-                "base_url": "http://stub:11434",
-            },
+            "endpoint_id": seed_endpoint_sync(
+                os.environ["DATABASE_URL"],
+                slug="ep-ollama-stub", provider="ollama",
+                model="mxbai-embed-large", api_key_ref=None,
+                base_url="http://stub:11434",
+            ),
         },
     )
     assert r.status_code == 201, r.text

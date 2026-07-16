@@ -38,7 +38,16 @@
     "api_key_ref_placeholder": "Select a key",
     "api_key_ref_none": "No key available for this provider — add one in a Harpocrate vault",
     "top_k": "top_k pre-rerank",
-    "rerank_remove": "Remove reranking"
+    "rerank_remove": "Remove reranking",
+    "endpoint_intro": "Pick the vectorization preset (endpoint) defined in a vault.",
+    "endpoint": "Endpoint",
+    "endpoint_placeholder": "Pick an endpoint…",
+    "endpoint_none": "No endpoint defined. Create one in a vault's Endpoints tab.",
+    "endpoint_none_link": "Open vaults",
+    "endpoint_with_rerank": "Rerank included: {{rerank}}",
+    "endpoint_no_rerank": "No reranking",
+    "cancel": "Cancel",
+    "submit": "Create"
   },
   "actions": {
     "rotate_apikey": "Rotate api_key",

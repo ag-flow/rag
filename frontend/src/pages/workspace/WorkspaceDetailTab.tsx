@@ -1,9 +1,48 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useRerankConfig } from "@/hooks/useRerank";
+import { useUpdateApiKeyRef } from "@/hooks/useWorkspaces";
+import { useToast } from "@/hooks/useToast";
 import type { Workspace } from "@/lib/workspaces.types";
 import { formatRelativeTime } from "@/lib/relativeTime";
+
+/** Champ éditable de référence de clé API (rotation par re-pointage). */
+function KeyRefEditor({
+  current,
+  onSave,
+  saving,
+  label,
+}: {
+  current: string | null;
+  onSave: (ref: string) => void;
+  saving: boolean;
+  label: string;
+}) {
+  const [value, setValue] = useState(current ?? "");
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        className="flex-1 font-mono text-xs"
+        aria-label={label}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={saving || value.trim() === "" || value === (current ?? "")}
+        onClick={() => onSave(value.trim())}
+      >
+        {label}
+      </Button>
+    </div>
+  );
+}
 
 interface Props {
   workspace: Workspace;
@@ -12,7 +51,16 @@ interface Props {
 
 export function WorkspaceDetailTab({ workspace, enabled }: Props) {
   const { t } = useTranslation("workspace");
+  const { toast } = useToast();
   const { data: rerankData, isLoading: rerankLoading } = useRerankConfig(workspace.name, enabled);
+  const patchMutation = useUpdateApiKeyRef(workspace.name);
+
+  function saveKeyRef(payload: { indexer?: { api_key_ref: string }; rerank?: { api_key_ref: string } }) {
+    patchMutation.mutate(payload, {
+      onSuccess: () => toast({ title: t("detail.keyref.saved") }),
+      onError: () => toast({ title: t("detail.keyref.error"), variant: "destructive" }),
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -69,7 +117,14 @@ export function WorkspaceDetailTab({ workspace, enabled }: Props) {
             <dt className="text-slate-500">{t("rerank.fields.baseUrl")}</dt>
             <dd className="font-mono">{rerankData.base_url ?? "—"}</dd>
             <dt className="text-slate-500">{t("rerank.fields.apiKeyRef")}</dt>
-            <dd className="font-mono">{rerankData.api_key_ref ?? "—"}</dd>
+            <dd>
+              <KeyRefEditor
+                current={rerankData.api_key_ref}
+                saving={patchMutation.isPending}
+                label={t("detail.keyref.save")}
+                onSave={(ref) => saveKeyRef({ rerank: { api_key_ref: ref } })}
+              />
+            </dd>
             <dt className="text-slate-500">{t("rerank.fields.topK")}</dt>
             <dd className="font-mono">{rerankData.top_k_pre_rerank}</dd>
           </dl>
@@ -93,7 +148,14 @@ export function WorkspaceDetailTab({ workspace, enabled }: Props) {
           <dt className="text-slate-500">{t("model.base_url")}</dt>
           <dd className="font-mono">{workspace.indexer.base_url ?? "—"}</dd>
           <dt className="text-slate-500">{t("model.api_key_ref")}</dt>
-          <dd className="font-mono">{workspace.indexer.api_key_ref ?? "—"}</dd>
+          <dd>
+            <KeyRefEditor
+              current={workspace.indexer.api_key_ref}
+              saving={patchMutation.isPending}
+              label={t("detail.keyref.save")}
+              onSave={(ref) => saveKeyRef({ indexer: { api_key_ref: ref } })}
+            />
+          </dd>
         </dl>
         <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 flex gap-2 text-sm">
           <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />

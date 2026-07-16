@@ -60,6 +60,11 @@
     "save": {
       "success": "Référence enregistrée.",
       "error": "Erreur à l'enregistrement."
+    },
+    "keyref": {
+      "save": "Changer la clé",
+      "saved": "Référence de clé mise à jour.",
+      "error": "Échec de la mise à jour de la clé."
     }
   },
   "sources": {
@@ -248,7 +253,10 @@
       "min_lt_max": "Doit être inférieur à la taille max",
       "overlap_lt_max": "Doit être inférieur à la taille max"
     },
-    "actions": { "save": "Enregistrer", "cancel": "Annuler" },
+    "actions": {
+      "save": "Enregistrer",
+      "cancel": "Annuler"
+    },
     "save": {
       "success": "Configuration enregistrée",
       "noChange": "Aucune modification",
@@ -262,7 +270,10 @@
         "labelCurrent": "Configuration actuelle :",
         "labelNew": "Nouvelle configuration :",
         "consequence": "Cette opération va supprimer tous les chunks existants et ré-indexer les documents. Cela peut prendre plusieurs minutes.",
-        "actions": { "cancel": "Annuler", "confirm": "Réindexer maintenant" }
+        "actions": {
+          "cancel": "Annuler",
+          "confirm": "Réindexer maintenant"
+        }
       }
     },
     "lastModified": "Dernière modification : {{when}}",

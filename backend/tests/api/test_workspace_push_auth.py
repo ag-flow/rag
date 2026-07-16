@@ -8,15 +8,7 @@ def _make_ws(client: TestClient, admin_headers: dict[str, str], name: str) -> st
     r = client.post(
         "/api/admin/workspaces",
         headers=admin_headers,
-        json={
-            "name": name,
-            "api_key_vault": "rag",
-            "indexer": {
-                "provider": "openai",
-                "model": "text-embedding-3-small",
-                "api_key_ref": "openai_embedding_key",
-            },
-        },
+        json={"name": name, "endpoint_id": client.default_endpoint_id},
     )
     assert r.status_code == 201, r.text
     return r.json()["api_key"]

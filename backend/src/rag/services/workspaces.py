@@ -19,7 +19,7 @@ from rag.db.workspace_schema import (
     drop_workspace_database,
     provision_workspace_schema,
 )
-from rag.schemas.admin import WorkspaceCreateRequest, WorkspacePatchRequest
+from rag.schemas.admin import WorkspaceCreateResolved, WorkspacePatchRequest
 from rag.secrets.refs import build_ref
 from rag.secrets.resolver import VaultLookupFailed
 from rag.services.harpocrate_vaults import HarpocrateVaultsService
@@ -61,7 +61,7 @@ async def _validate_ref_via_vault(
 
 async def create_workspace(
     *,
-    request: WorkspaceCreateRequest,
+    request: WorkspaceCreateResolved,
     config_pool: asyncpg.Pool,
     admin_dsn: str,
     resolver: _ResolverProtocol,
@@ -243,23 +243,35 @@ async def patch_workspace(
     resolver: _ResolverProtocol,
     default_vault_name: str = "rag",
 ) -> None:
-    """Met à jour `indexer.api_key_ref` (seul champ patchable en M2).
+    """Met à jour les `api_key_ref` (indexeur et/ou rerank) — rotation par
+    re-pointage. Provider/modèle restent immuables.
 
-    Eager validation de la nouvelle ref via Harpocrate avant UPDATE.
+    Eager validation de chaque nouvelle ref via Harpocrate avant UPDATE.
     Lève WorkspaceNotFound si le workspace n'existe pas.
     """
-    new_ref = request.indexer.api_key_ref
-    await _validate_ref_via_vault(resolver, new_ref, default_vault_name)
+    if request.indexer is None and request.rerank is None:
+        return
+    if request.indexer is not None:
+        await _validate_ref_via_vault(resolver, request.indexer.api_key_ref, default_vault_name)
+    if request.rerank is not None:
+        await _validate_ref_via_vault(resolver, request.rerank.api_key_ref, default_vault_name)
 
     async with config_pool.acquire() as conn:
         row = await conn.fetchrow("SELECT id FROM workspaces WHERE name=$1", name)
         if row is None:
             raise WorkspaceNotFound(name)
-        await conn.execute(
-            "UPDATE indexer_configs SET api_key_ref=$1 WHERE workspace_id=$2",
-            new_ref,
-            row["id"],
-        )
+        if request.indexer is not None:
+            await conn.execute(
+                "UPDATE indexer_configs SET api_key_ref=$1 WHERE workspace_id=$2",
+                request.indexer.api_key_ref,
+                row["id"],
+            )
+        if request.rerank is not None:
+            await conn.execute(
+                "UPDATE rerank_configs SET api_key_ref=$1 WHERE workspace_id=$2",
+                request.rerank.api_key_ref,
+                row["id"],
+            )
         await conn.execute("UPDATE workspaces SET updated_at=now() WHERE id=$1", row["id"])
 
     log.info("workspace.patched", name=name, field="api_key_ref")

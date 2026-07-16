@@ -18,7 +18,7 @@ from rag.api.errors import (
 )
 from rag.db.migrations import run_migrations
 from rag.db.workspace_schema import derive_workspace_dsn
-from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
+from rag.schemas.admin import IndexerSpec, WorkspaceCreateResolved
 from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.secrets.resolver import VaultLookupFailed
 from rag.services.workspaces import create_workspace
@@ -72,8 +72,8 @@ def _make_harpo_service(
     return service
 
 
-def _make_request(name: str = "ws_create_1") -> WorkspaceCreateRequest:
-    return WorkspaceCreateRequest(
+def _make_request(name: str = "ws_create_1") -> WorkspaceCreateResolved:
+    return WorkspaceCreateResolved(
         name=name,
         api_key_vault="rag",
         indexer=IndexerSpec(
@@ -202,7 +202,7 @@ async def test_create_workspace_unknown_model_raises(
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
     resolver = _StubResolver({"k": "v"})
     harpo = _make_harpo_service()
-    req = WorkspaceCreateRequest(
+    req = WorkspaceCreateResolved(
         name="ws_unknown",
         api_key_vault="rag",
         indexer=IndexerSpec(provider="nope", model="nope", api_key_ref="k"),
