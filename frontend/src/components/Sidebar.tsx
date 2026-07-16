@@ -86,6 +86,7 @@ export function Sidebar() {
           icon={<Settings />}
           label={t("items.harpocrate_vaults")}
         />
+        <NavItem to="/settings/api-keys" icon={<KeyRound />} label={t("items.api_keys")} />
         <NavItem to="/settings/oidc-config" icon={<KeyRound />} label={t("items.oidc_config")} />
       </nav>
     </aside>

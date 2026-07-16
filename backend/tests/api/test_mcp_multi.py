@@ -8,6 +8,25 @@ from fastapi.testclient import TestClient
 from pgvector.asyncpg import register_vector
 
 
+def _make_user_key(
+    client, admin_headers: dict[str, str], ws_id: str, name: str
+) -> str:
+    """Crée une clé utilisateur avec grant read+write sur le workspace."""
+    kr = client.post(
+        "/api/me/api-keys",
+        headers=admin_headers,
+        json={
+            "name": f"key-{name}",
+            "workspaces": [
+                {"workspace_id": ws_id, "can_read": True, "can_write": True}
+            ],
+        },
+    )
+    assert kr.status_code == 201, kr.text
+    return kr.json()["api_key"]
+
+
+
 def _run_async(coro):  # type: ignore[no-untyped-def]
     """Fresh event loop pour les sync tests appelant du code async,
     isolé du Runner pytest-asyncio session-scoped (cf. T10 lesson)."""
@@ -39,7 +58,7 @@ def _make_ws(
         json={"name": name, "api_key_vault": "rag", "indexer": indexer_body},
     )
     assert r.status_code == 201, r.text
-    return r.json()["api_key"]
+    return _make_user_key(client, admin_headers, r.json()["id"], name)
 
 
 class _FakeProvider:

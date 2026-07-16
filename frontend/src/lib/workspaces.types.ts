@@ -40,7 +40,6 @@ export type WorkspaceCreate = {
 export type WorkspaceCreateResponse = {
   id: string;
   name: string;
-  api_key: string;
   created_at: string;
 };
 
@@ -121,10 +120,6 @@ export type JobFilesResponse = {
   files: JobFileEntry[];
   total: number;
   limit: number;
-};
-
-export type ApiKeyRotateResponse = {
-  api_key: string;
 };
 
 export type DetectBranchesResponse = {

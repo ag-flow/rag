@@ -32,7 +32,6 @@ def build_mcp_router() -> APIRouter:
             min_score=payload.min_score,
             config_pool=request.app.state.pools.config_pool,
             pool_registry=request.app.state.pools,
-            apikey_cache=request.app.state.apikey_cache,
             secret_resolver=request.app.state.resolver,
             default_vault_name=default_vault,
         )

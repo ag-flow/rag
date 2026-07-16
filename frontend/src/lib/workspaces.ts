@@ -1,6 +1,5 @@
 import { api } from "@/lib/api";
 import type {
-  ApiKeyRotateResponse,
   DetectBranchesResponse,
   DocumentViewResponse,
   IndexKeysResponse,
@@ -31,7 +30,6 @@ export const workspacesApi = {
 
   delete: (name: string) => api.delete<void>(`${BASE}/${name}`),
 
-  revealApiKey: (name: string) => api.get<ApiKeyRotateResponse>(`${BASE}/${name}/apikey`),
 
   reindex: (name: string) => api.post<void>(`${BASE}/${name}/reindex?confirm=true`, {}),
 

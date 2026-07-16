@@ -3,6 +3,24 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 
+def _make_user_key(
+    client, admin_headers: dict[str, str], ws_id: str, name: str
+) -> str:
+    """Crée une clé utilisateur avec grant read+write sur le workspace."""
+    kr = client.post(
+        "/api/me/api-keys",
+        headers=admin_headers,
+        json={
+            "name": f"key-{name}",
+            "workspaces": [
+                {"workspace_id": ws_id, "can_read": True, "can_write": True}
+            ],
+        },
+    )
+    assert kr.status_code == 201, kr.text
+    return kr.json()["api_key"]
+
+
 def _make_ws(client: TestClient, admin_headers: dict[str, str], name: str) -> str:
     r = client.post(
         "/api/admin/workspaces",
@@ -18,7 +36,7 @@ def _make_ws(client: TestClient, admin_headers: dict[str, str], name: str) -> st
         },
     )
     assert r.status_code == 201
-    return r.json()["api_key"]
+    return _make_user_key(client, admin_headers, r.json()["id"], name)
 
 
 def test_push_returns_422_for_path_traversal(

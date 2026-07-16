@@ -17,12 +17,11 @@ from uuid import UUID
 import asyncpg
 import pytest
 
-from rag.auth.workspace_auth import ApiKeyCache
 from rag.db.pool import WorkspacePoolRegistry
 from rag.rerank.protocol import RerankProvider
 from rag.schemas.mcp import SearchHit
 from rag.services.mcp import McpWorkspaceRef, search
-from tests.integration._workspace_seed import seed_workspace
+from tests.integration._workspace_seed import seed_user_api_key, seed_workspace
 
 # ---------------------------------------------------------------------------
 # Constantes de test
@@ -113,6 +112,9 @@ async def ws_with_rerank(
             rag_cnx="postgresql://unused/test",
             rag_base="rag_test",
         )
+        await seed_user_api_key(
+            conn, api_key=_API_KEY, grants=[(ws_id, True, True)]
+        )
         await conn.execute(
             "INSERT INTO indexer_configs (workspace_id, provider, model, dimension) "
             "VALUES ($1, 'ollama', 'mxbai-embed-large', 4)",
@@ -145,6 +147,9 @@ async def ws_without_rerank(
             api_key=_API_KEY,
             rag_cnx="postgresql://unused/test",
             rag_base="rag_test",
+        )
+        await seed_user_api_key(
+            conn, api_key=_API_KEY, grants=[(ws_id, True, True)]
         )
         await conn.execute(
             "INSERT INTO indexer_configs (workspace_id, provider, model, dimension) "
@@ -186,7 +191,6 @@ async def test_rerank_changes_order_when_configured(
         min_score=0.0,
         config_pool=config_pool,
         pool_registry=registry,
-        apikey_cache=ApiKeyCache(),
         secret_resolver=_StubResolver(),
         provider_factory=_make_embedding_provider_factory(),
         rerank_factory=rerank_factory,
@@ -224,7 +228,6 @@ async def test_no_rerank_when_not_configured(
         min_score=0.0,
         config_pool=config_pool,
         pool_registry=registry,
-        apikey_cache=ApiKeyCache(),
         secret_resolver=_StubResolver(),
         provider_factory=_make_embedding_provider_factory(),
         rerank_factory=rerank_factory,
@@ -263,7 +266,6 @@ async def test_rerank_skipped_for_singleton(
         min_score=0.0,
         config_pool=config_pool,
         pool_registry=registry,
-        apikey_cache=ApiKeyCache(),
         secret_resolver=_StubResolver(),
         provider_factory=_make_embedding_provider_factory(),
         rerank_factory=rerank_factory,

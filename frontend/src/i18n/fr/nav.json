@@ -12,6 +12,7 @@
     "push": "Push activity",
     "mcp": "Recherche MCP",
     "harpocrate_vaults": "Coffres Harpocrate",
+    "api_keys": "Clés API",
     "oidc_config": "Config OIDC",
     "prompts": "Prompts"
   }

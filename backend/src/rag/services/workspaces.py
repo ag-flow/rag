@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Protocol
 
 import asyncpg
 import structlog
@@ -66,7 +66,6 @@ async def create_workspace(
     admin_dsn: str,
     resolver: _ResolverProtocol,
     harpocrate_vaults_service: HarpocrateVaultsService,
-    client_provider: Any,
 ) -> dict[str, str]:
     """Crée un workspace + sa base pgvector + sa table embeddings.
 
@@ -77,8 +76,9 @@ async def create_workspace(
       3. CREATE DATABASE rag_<name> (admin_dsn, hors transaction)
       4. CREATE EXTENSION + CREATE TABLE embeddings + INDEX ivfflat + migrations
          Sur échec : DELETE workspaces + DROP DATABASE
-      5. Crée la première clé API via workspace_apikeys.create_key
-      6. Retour { id, name, api_key, created_at } — api_key en clair UNIQUE
+      5. Retour { id, name, created_at } — les clés d'accès se créent
+         ensuite au niveau utilisateur (user_api_keys) avec un grant sur
+         ce workspace.
     """
     from rag.services.rerank_configs import upsert_rerank_config
 
@@ -88,8 +88,9 @@ async def create_workspace(
     )
 
     # 1b. Vérifier qu'un coffre Harpocrate par défaut existe AVANT tout DDL.
-    # Sans coffre, la création de la première API key échouerait après la création
-    # de la DB workspace (rollback impossible sur DDL Postgres) → workspace fantôme.
+    # Les secrets indexeur (api_key_ref) se résolvent via le coffre par défaut ;
+    # échouer après la création de la DB workspace laisserait un workspace fantôme
+    # (rollback impossible sur DDL Postgres).
     async with config_pool.acquire() as _vault_check_conn:
         _default_vault = await harpocrate_vaults_service.get_default(_vault_check_conn)
     if _default_vault is None:
@@ -182,25 +183,11 @@ async def create_workspace(
             default_vault_name=vault.name,
         )
 
-    # 5. Crée la première clé API
-    from rag.schemas.workspace_apikeys import ApiKeyCreate
-    from rag.services.workspace_apikeys import create_key as _create_ws_key
-
-    async with config_pool.acquire() as conn:
-        first_key = await _create_ws_key(
-            conn,
-            workspace_name=request.name,
-            req=ApiKeyCreate(name="default"),
-            vault_svc=harpocrate_vaults_service,
-            client_provider=client_provider,
-        )
-
     log.info("workspace.created", name=request.name, dimension=dimension)
 
     return {
         "id": str(ws_row["id"]),
         "name": request.name,
-        "api_key": first_key.api_key,
         "created_at": ws_row["created_at"].isoformat(),
     }
 

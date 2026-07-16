@@ -5,15 +5,13 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from hashlib import sha256
-from secrets import compare_digest
 from typing import Any, Protocol
 
 import asyncpg
 import structlog
 from fastapi import HTTPException, status
 
-from rag.api.errors import HarpocrateUnreachableForApikey, WorkspaceNotFound
-from rag.auth.workspace_auth import ApiKeyCache
+from rag.api.errors import WorkspaceNotFound
 from rag.db.pool import WorkspacePoolRegistry
 from rag.db.workspace_search import hybrid_search, vector_search
 from rag.indexer.providers.factory import make_provider
@@ -27,7 +25,6 @@ from rag.rerank.protocol import (
 from rag.rerank.providers.factory import make_rerank_provider as _make_rerank_default
 from rag.schemas.mcp import MultiWorkspaceRequest, SearchHit, SingleWorkspaceRequest
 from rag.secrets.refs import build_ref, is_vault_ref
-from rag.secrets.resolver import VaultLookupFailed
 
 log = structlog.get_logger(__name__)
 
@@ -62,39 +59,34 @@ def normalize_refs(
     return [McpWorkspaceRef(name=w.name, api_key=w.api_key) for w in req.workspaces]
 
 
-class _SecretResolverProtocolForAuth(Protocol):
-    async def resolve_with_retry(self, ref: str) -> str: ...
-
-
 async def _authenticate(
     *,
     ref: McpWorkspaceRef,
     config_pool: asyncpg.Pool,
-    apikey_cache: ApiKeyCache,
-    secret_resolver: _SecretResolverProtocolForAuth,
 ) -> _CacheEntry:
-    """Valide la paire (workspace_name, api_key) via fingerprint+cache+Harpocrate.
+    """Valide la paire (workspace_name, api_key) contre les clés utilisateur.
 
-    Lookup O(1) par fingerprint SHA-256 → résolution via cache process-lifetime
-    (puis Harpocrate sur miss) → comparaison timing-safe.
+    Lookup O(1) par fingerprint SHA-256 dans `user_api_keys` : la valeur de la
+    clé n'est jamais stockée en base. La recherche exige un grant `can_read`
+    sur le workspace demandé.
 
     Retourne un `_CacheEntry` (workspace_id, indexer_used, inserted_at).
-    - WorkspaceNotFound si workspace inconnu ou pas d'indexer_config.
-    - HTTPException 401 si la clé ne correspond pas.
-    - HarpocrateUnreachableForApikey si Harpocrate inaccessible sur cache miss.
+    - WorkspaceNotFound si workspace inconnu.
+    - HTTPException 401 si la clé est invalide ou sans grant can_read.
     """
     fingerprint = sha256(ref.api_key.encode("utf-8")).hexdigest()
 
     row = await config_pool.fetchrow(
         """
         SELECT w.id,
-               k.api_key_ref,
                ic.provider || '/' || ic.model AS indexer_used
         FROM workspaces w
-        JOIN workspace_api_keys k ON k.workspace_id = w.id
+        JOIN user_api_key_workspaces g ON g.workspace_id = w.id
+        JOIN user_api_keys k ON k.id = g.api_key_id
         JOIN indexer_configs ic ON ic.workspace_id = w.id
         WHERE w.name = $1
           AND k.fingerprint = $2
+          AND g.can_read
           AND k.revoked_at IS NULL
           AND (k.rotated_at IS NULL OR k.rotated_at > now() - interval '72 hours')
         """,
@@ -102,8 +94,7 @@ async def _authenticate(
         fingerprint,
     )
     if row is None:
-        # Workspace inconnu OU fingerprint ne matche pas → 401 uniforme.
-        # On fait un second SELECT pour distinguer WorkspaceNotFound de 401.
+        # Workspace inconnu OU clé/grant invalide : distinguer 404 de 401.
         exists = await config_pool.fetchval(
             "SELECT 1 FROM workspaces WHERE name = $1", ref.name
         )
@@ -113,32 +104,6 @@ async def _authenticate(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid_workspace_apikey",
         )
-
-    api_key_ref: str = row["api_key_ref"]
-    cached = apikey_cache.get(api_key_ref)
-    if cached is None:
-        try:
-            cached = await secret_resolver.resolve_with_retry(api_key_ref)
-        except (VaultLookupFailed, ConnectionError, TimeoutError) as e:
-            raise HarpocrateUnreachableForApikey() from e
-        apikey_cache.put(api_key_ref, cached)
-
-    if not compare_digest(cached, ref.api_key):
-        # Fingerprint matché mais clair non : cache potentiellement périmé
-        # (rotation Harpocrate hors-bande). Invalide et re-résout une fois
-        # avant de conclure à une clé invalide (BUG-026 : sinon 401 permanent
-        # jusqu'au restart du process).
-        apikey_cache.invalidate(api_key_ref)
-        try:
-            cached = await secret_resolver.resolve_with_retry(api_key_ref)
-        except (VaultLookupFailed, ConnectionError, TimeoutError) as e:
-            raise HarpocrateUnreachableForApikey() from e
-        apikey_cache.put(api_key_ref, cached)
-        if not compare_digest(cached, ref.api_key):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="invalid_workspace_apikey",
-            )
 
     return _CacheEntry(
         workspace_id=row["id"],
@@ -262,7 +227,6 @@ async def search(
     min_score: float,
     config_pool: asyncpg.Pool,
     pool_registry: WorkspacePoolRegistry,
-    apikey_cache: ApiKeyCache,
     secret_resolver: _ResolverProtocol,
     default_vault_name: str = "rag",
     provider_factory: Callable[..., EmbeddingProvider] | None = None,
@@ -296,7 +260,6 @@ async def search(
             min_score=min_score,
             config_pool=config_pool,
             pool_registry=pool_registry,
-            apikey_cache=apikey_cache,
             secret_resolver=secret_resolver,
             default_vault_name=default_vault_name,
             provider_factory=factory,
@@ -351,7 +314,6 @@ async def _search_one(
     min_score: float,
     config_pool: asyncpg.Pool,
     pool_registry: WorkspacePoolRegistry,
-    apikey_cache: ApiKeyCache,
     secret_resolver: _ResolverProtocol,
     default_vault_name: str,
     provider_factory: Callable[..., EmbeddingProvider],
@@ -362,8 +324,6 @@ async def _search_one(
     auth = await _authenticate(
         ref=ref,
         config_pool=config_pool,
-        apikey_cache=apikey_cache,
-        secret_resolver=secret_resolver,
     )
     ctx = await _load_workspace_context(config_pool, ref.name)
 

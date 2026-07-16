@@ -1,18 +1,15 @@
 from __future__ import annotations
 
 import asyncio
-from uuid import UUID
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel as _PydanticBase
 
-from rag.api.errors import HarpocrateUnreachableForApikey
 from rag.auth.admin_auth import require_admin
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.schemas.admin import (
-    ApiKeyRotateResponse,
     ChunkingConfigResponse,
     ChunkingConfigSpec,
     EngineResponse,
@@ -35,13 +32,6 @@ from rag.schemas.admin import (
     WorkspacePatchRequest,
     WorkspaceResponse,
 )
-from rag.schemas.workspace_apikeys import (
-    ApiKeyCreate,
-    ApiKeyCreated,
-    ApiKeyOut,
-    ApiKeyRotated,
-)
-from rag.secrets.refs import parse_ref
 from rag.secrets.resolver import VaultLookupFailed
 from rag.services.workspaces import (
     create_workspace,
@@ -112,7 +102,6 @@ def build_admin_router() -> APIRouter:
             admin_dsn=_admin_dsn(request),
             resolver=_resolver(request),  # type: ignore[arg-type]
             harpocrate_vaults_service=request.app.state.harpocrate_vaults_service,
-            client_provider=request.app.state.client_provider,
         )
         return WorkspaceCreateResponse.model_validate(resp)
 
@@ -125,50 +114,6 @@ def build_admin_router() -> APIRouter:
     async def get_workspace_detail(name: str, request: Request) -> WorkspaceResponse:
         row = await get_workspace(_config_pool(request), name=name)
         return WorkspaceResponse(**row)  # type: ignore[arg-type]
-
-    @router.get("/workspaces/{name}/apikey")
-    async def get_apikey_endpoint(name: str, request: Request) -> ApiKeyRotateResponse:
-        """Retourne l'api_key active du workspace. Idempotent.
-
-        Conforme spec 08 : sert à `init-rag.sh` côté ag.flow.docker pour
-        provisionner `.rag-client.json` au démarrage container.
-
-        Résolution via cache process-lifetime → Harpocrate sur miss.
-        Priorité à la clé non tournée la plus récente (non révoquée) ; à
-        défaut, la clé tournée la plus récente encore en fenêtre de grâce
-        (72h). Évite de renvoyer une clé sur le point d'expirer alors qu'une
-        clé active existe déjà (BUG-025).
-        """
-        pool = _config_pool(request)
-        row = await pool.fetchrow(
-            """
-            SELECT k.api_key_ref
-            FROM workspace_api_keys k
-            JOIN workspaces w ON w.id = k.workspace_id
-            WHERE w.name = $1
-              AND k.revoked_at IS NULL
-              AND k.api_key_ref <> 'pending'
-              AND (k.rotated_at IS NULL OR k.rotated_at > now() - interval '72 hours')
-            ORDER BY (k.rotated_at IS NOT NULL), k.created_at DESC
-            LIMIT 1
-            """,
-            name,
-        )
-        if row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="workspace_not_found",
-            )
-        cache = request.app.state.apikey_cache
-        api_key_ref: str = row["api_key_ref"]
-        cached = cache.get(api_key_ref)
-        if cached is None:
-            try:
-                cached = await request.app.state.resolver.resolve_with_retry(api_key_ref)
-            except (VaultLookupFailed, ConnectionError, TimeoutError) as e:
-                raise HarpocrateUnreachableForApikey() from e
-            cache.put(api_key_ref, cached)
-        return ApiKeyRotateResponse(api_key=cached)
 
     @router.patch("/workspaces/{name}")
     async def patch_workspace_endpoint(
@@ -187,36 +132,12 @@ def build_admin_router() -> APIRouter:
 
     @router.delete("/workspaces/{name}", status_code=status.HTTP_204_NO_CONTENT)
     async def delete_workspace_endpoint(name: str, request: Request) -> Response:
-        pool = _config_pool(request)
-        # Lire les api_key_ref actives AVANT suppression pour rollback Harpocrate.
-        key_rows = await pool.fetch(
-            """
-            SELECT k.api_key_ref
-            FROM workspace_api_keys k
-            JOIN workspaces w ON w.id = k.workspace_id
-            WHERE w.name = $1
-            """,
-            name,
-        )
+        # Les grants user_api_key_workspaces sont purgés par ON DELETE CASCADE.
         await delete_workspace(
             name=name,
-            config_pool=pool,
+            config_pool=_config_pool(request),
             admin_dsn=_admin_dsn(request),
         )
-        # Suppression best-effort des secrets Harpocrate (idempotent si absents).
-        for key_row in key_rows:
-            try:
-                vault_name, path = parse_ref(key_row["api_key_ref"])
-                async with pool.acquire() as conn:
-                    await request.app.state.harpocrate_vaults_service.delete_secret(
-                        conn, vault_name=vault_name, path=path
-                    )
-            except Exception:
-                import structlog as _structlog
-                _structlog.get_logger(__name__).warning(
-                    "workspace.delete.harpocrate_cleanup_failed",
-                    workspace=name,
-                )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     # ─── Sources ─────────────────────────────────────────────────────────────
@@ -846,69 +767,5 @@ def build_admin_router() -> APIRouter:
         except ValueError as exc:
             raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
         return {"secret": new_secret}
-
-    # ─── Workspace API keys (multi-clés) ────────────────────────────────────
-
-    @router.get("/workspaces/{name}/api-keys", response_model=list[ApiKeyOut])
-    async def list_api_keys(name: str, request: Request) -> list[ApiKeyOut]:
-        from rag.services.workspace_apikeys import list_keys
-
-        async with _config_pool(request).acquire() as conn:
-            return await list_keys(conn, workspace_name=name)
-
-    @router.post("/workspaces/{name}/api-keys", response_model=ApiKeyCreated, status_code=201)
-    async def create_api_key(
-        name: str, body: ApiKeyCreate, request: Request
-    ) -> ApiKeyCreated:
-        from rag.services.workspace_apikeys import create_key
-
-        pool = _config_pool(request)
-        async with pool.acquire() as conn:
-            try:
-                return await create_key(
-                    conn,
-                    workspace_name=name,
-                    req=body,
-                    vault_svc=request.app.state.harpocrate_vaults_service,
-                    client_provider=request.app.state.client_provider,
-                )
-            except ValueError as exc:
-                raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-
-    @router.post(
-        "/workspaces/{name}/api-keys/{key_id}/rotate", response_model=ApiKeyRotated
-    )
-    async def rotate_api_key(
-        name: str, key_id: UUID, request: Request
-    ) -> ApiKeyRotated:
-        from rag.services.workspace_apikeys import rotate_key
-
-        pool = _config_pool(request)
-        async with pool.acquire() as conn:
-            result = await rotate_key(
-                conn,
-                workspace_name=name,
-                key_id=str(key_id),
-                vault_svc=request.app.state.harpocrate_vaults_service,
-                client_provider=request.app.state.client_provider,
-            )
-        if result is None:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "api key not found")
-        return result
-
-    @router.delete("/workspaces/{name}/api-keys/{key_id}", status_code=204)
-    async def revoke_api_key(
-        name: str, key_id: UUID, request: Request
-    ) -> Response:
-        from rag.services.workspace_apikeys import revoke_key
-
-        async with _config_pool(request).acquire() as conn:
-            revoked = await revoke_key(conn, workspace_name=name, key_id=str(key_id))
-        if not revoked:
-            raise HTTPException(
-                status.HTTP_404_NOT_FOUND,
-                "api key not found or already revoked",
-            )
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return router

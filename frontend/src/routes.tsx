@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { WorkspacesPage } from "@/pages/WorkspacesPage";
+import { ApiKeysPage } from "@/pages/ApiKeysPage";
 import { HarpocrateVaultsPage } from "@/pages/HarpocrateVaultsPage";
 import { ModelsPage } from "@/pages/ModelsPage";
 import { OidcConfigPage } from "@/pages/OidcConfigPage";
@@ -13,6 +14,7 @@ export function AppRoutes() {
       <Route path="/workspaces" element={<WorkspacesPage />} />
       <Route path="/models" element={<ModelsPage />} />
       <Route path="/prompts" element={<PromptsPage />} />
+      <Route path="/settings/api-keys" element={<ApiKeysPage />} />
       <Route path="/settings/harpocrate-vaults" element={<HarpocrateVaultsPage />} />
       <Route path="/settings/oidc-config" element={<OidcConfigPage />} />
       <Route path="*" element={<NotFound />} />

@@ -101,18 +101,12 @@ class WorkspaceResponse(BaseModel):
 
 
 class WorkspaceCreateResponse(BaseModel):
-    """Réponse 201 POST /workspaces — `api_key` en clair, exposée UNE FOIS."""
+    """Réponse 201 POST /workspaces. Les clés d'accès se créent au niveau
+    utilisateur (user_api_keys), plus à la création du workspace."""
 
     id: UUID
     name: str
-    api_key: str
     created_at: str
-
-
-class ApiKeyRotateResponse(BaseModel):
-    """Réponse POST /workspaces/{name}/rotate-apikey."""
-
-    api_key: str
 
 
 class SourceCreateRequest(BaseModel):

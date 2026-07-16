@@ -41,7 +41,18 @@ def test_mcp_e2e_ollama_search_returns_relevant_doc(
         },
     )
     assert r.status_code == 201, r.text
-    api_key = r.json()["api_key"]
+    kr = admin_client.post(
+        "/api/me/api-keys",
+        headers=admin_headers,
+        json={
+            "name": "key-smoke",
+            "workspaces": [
+                {"workspace_id": r.json()["id"], "can_read": True, "can_write": True}
+            ],
+        },
+    )
+    assert kr.status_code == 201, kr.text
+    api_key = kr.json()["api_key"]
     push_headers = {"Authorization": f"Bearer {api_key}"}
 
     # 2. Push 2 documents distincts.

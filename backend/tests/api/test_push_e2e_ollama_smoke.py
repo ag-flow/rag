@@ -41,7 +41,18 @@ def test_push_e2e_indexes_embeddings_in_pgvector(
         },
     )
     assert r.status_code == 201, r.text
-    api_key = r.json()["api_key"]
+    kr = admin_client.post(
+        "/api/me/api-keys",
+        headers=admin_headers,
+        json={
+            "name": "key-smoke",
+            "workspaces": [
+                {"workspace_id": r.json()["id"], "can_read": True, "can_write": True}
+            ],
+        },
+    )
+    assert kr.status_code == 201, kr.text
+    api_key = kr.json()["api_key"]
 
     # 2. Push un doc.
     r2 = admin_client.post(

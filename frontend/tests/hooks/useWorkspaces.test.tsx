@@ -7,7 +7,6 @@ import {
   useWorkspaces,
   useCreateWorkspace,
   useDeleteWorkspace,
-  useRevealApiKey,
   useReindex,
 } from "@/hooks/useWorkspaces";
 
@@ -71,20 +70,6 @@ describe("useWorkspaces hooks", () => {
     result.current.mutate("ws_a");
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(deleteSpy).toHaveBeenCalledWith("/api/admin/workspaces/ws_a");
-  });
-
-  it("useRevealApiKey GETs and returns the key", async () => {
-    const getSpy = vi
-      .spyOn(apiModule.api, "get")
-      .mockResolvedValue({ api_key: "revealed-key" });
-
-    const { wrapper } = makeWrapper();
-    const { result } = renderHook(() => useRevealApiKey("ws_a"), { wrapper });
-
-    result.current.mutate();
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(getSpy).toHaveBeenCalledWith("/api/admin/workspaces/ws_a/apikey");
-    expect(result.current.data?.api_key).toBe("revealed-key");
   });
 
   it("useReindex POSTs with ?confirm=true", async () => {

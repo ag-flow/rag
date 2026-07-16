@@ -75,7 +75,6 @@ def _fake_hit(name: str) -> SearchHit:
 class TestSearchOneHybridDispatch:
     @pytest.mark.asyncio
     async def test_uses_vector_search_when_no_hybrid_config(self, monkeypatch):
-        from rag.auth.workspace_auth import ApiKeyCache
         from rag.services import mcp
 
         ws_id = uuid4()
@@ -99,7 +98,6 @@ class TestSearchOneHybridDispatch:
             min_score=0.3,
             config_pool=pool,
             pool_registry=registry,
-            apikey_cache=ApiKeyCache(),
             secret_resolver=MagicMock(**{"resolve_with_retry": AsyncMock(return_value="k")}),
             provider_factory=lambda **_: provider,
         )
@@ -108,7 +106,6 @@ class TestSearchOneHybridDispatch:
 
     @pytest.mark.asyncio
     async def test_uses_hybrid_search_when_enabled(self, monkeypatch):
-        from rag.auth.workspace_auth import ApiKeyCache
         from rag.services import mcp
 
         ws_id = uuid4()
@@ -136,7 +133,6 @@ class TestSearchOneHybridDispatch:
             min_score=0.3,
             config_pool=pool,
             pool_registry=registry,
-            apikey_cache=ApiKeyCache(),
             secret_resolver=MagicMock(**{"resolve_with_retry": AsyncMock(return_value="k")}),
             provider_factory=lambda **_: provider,
         )
@@ -145,7 +141,6 @@ class TestSearchOneHybridDispatch:
 
     @pytest.mark.asyncio
     async def test_uses_vector_search_when_hybrid_disabled(self, monkeypatch):
-        from rag.auth.workspace_auth import ApiKeyCache
         from rag.services import mcp
 
         ws_id = uuid4()
@@ -175,7 +170,6 @@ class TestSearchOneHybridDispatch:
             min_score=0.3,
             config_pool=pool,
             pool_registry=registry,
-            apikey_cache=ApiKeyCache(),
             secret_resolver=MagicMock(**{"resolve_with_retry": AsyncMock(return_value="k")}),
             provider_factory=lambda **_: provider,
         )

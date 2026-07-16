@@ -33,12 +33,12 @@ from rag.api.git_webhooks import build_git_webhooks_router
 from rag.api.health import build_health_router
 from rag.api.mcp import build_mcp_router
 from rag.api.mcp_standard import RagMcpDispatcher, build_mcp_asgi
+from rag.api.me_api_keys import build_me_api_keys_router
 from rag.api.playground import router_admin as playground_admin_router
 from rag.api.playground import router_chat as playground_chat_router
 from rag.api.setup import build_setup_router
 from rag.api.workspace import build_workspace_router
 from rag.api.ws import router as ws_router
-from rag.auth.workspace_auth import ApiKeyCache
 from rag.config import Settings
 from rag.db.migrations import run_migrations
 from rag.db.pool import WorkspacePoolRegistry
@@ -204,7 +204,6 @@ def build_app(
                 client_provider=app.state.client_provider,
             )
             app.state.indexer = indexer
-            app.state.apikey_cache = ApiKeyCache()
             app.state.job_log_bus = JobLogBus()
             _mcp_dispatcher.set_app_state(app.state)
 
@@ -269,6 +268,7 @@ def build_app(
     app.include_router(build_webhooks_router(), prefix="/api/admin")
     app.include_router(build_auth_router())
     app.include_router(build_auth_methods_router())
+    app.include_router(build_me_api_keys_router())
     app.include_router(build_setup_router())
     app.include_router(build_workspace_router())
     app.include_router(build_mcp_router())

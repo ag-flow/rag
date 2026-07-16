@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { workspacesApi } from "@/lib/workspaces";
 import type {
-  ApiKeyRotateResponse,
   Job,
   Source,
   SourceCreateRequest,
@@ -83,12 +82,6 @@ export function useDeleteWorkspace() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["workspaces"] });
     },
-  });
-}
-
-export function useRevealApiKey(name: string) {
-  return useMutation<ApiKeyRotateResponse, Error, void>({
-    mutationFn: () => workspacesApi.revealApiKey(name),
   });
 }
 

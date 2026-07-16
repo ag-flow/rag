@@ -4,7 +4,6 @@ import json
 from contextvars import ContextVar
 from dataclasses import dataclass
 from hashlib import sha256
-from secrets import compare_digest
 from typing import Any
 from uuid import UUID
 
@@ -356,7 +355,7 @@ class RagMcpDispatcher:
     """Dispatcher ASGI monté sur /mcp dans FastAPI.
 
     - Extrait workspace_id du path (/{workspace_id}/...)
-    - Valide le Bearer token via workspace_api_keys
+    - Valide le Bearer token via user_api_keys (grant can_read)
     - Injecte le contexte workspace dans _ws_ctx
     - Réécrit le path (supprime le segment workspace_id)
     - Délègue à l'inner FastMCP app
@@ -367,7 +366,6 @@ class RagMcpDispatcher:
         self._config_pool: asyncpg.Pool | None = None
         self._pool_registry: Any = None
         self._resolver: Any = None
-        self._apikey_cache: Any = None
         self._client_provider: Any = None
 
     def set_app_state(self, app_state: Any) -> None:
@@ -375,7 +373,6 @@ class RagMcpDispatcher:
         self._config_pool = app_state.pools.config_pool
         self._pool_registry = app_state.pools
         self._resolver = app_state.resolver
-        self._apikey_cache = app_state.apikey_cache
         self._client_provider = app_state.client_provider
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -421,20 +418,23 @@ class RagMcpDispatcher:
         assert self._config_pool is not None  # noqa: S101
         fingerprint = sha256(token.encode()).hexdigest()
 
+        # Clés utilisateur : seule l'empreinte SHA-256 est stockée. L'accès
+        # MCP (recherche) exige un grant `can_read` sur le workspace ciblé.
         row = await self._config_pool.fetchrow(
             """
             SELECT w.name, w.rag_cnx,
-                   k.api_key_ref,
                    ic.provider, ic.model,
                    ic.api_key_ref AS indexer_api_key_ref,
                    ic.base_url,
                    md.service
             FROM workspaces w
-            JOIN workspace_api_keys k ON k.workspace_id = w.id
+            JOIN user_api_key_workspaces g ON g.workspace_id = w.id
+            JOIN user_api_keys k ON k.id = g.api_key_id
             JOIN indexer_configs ic ON ic.workspace_id = w.id
             JOIN model_dimensions md ON md.provider = ic.provider AND md.model = ic.model
             WHERE w.id = $1::uuid
               AND k.fingerprint = $2
+              AND g.can_read
               AND k.revoked_at IS NULL
               AND (k.rotated_at IS NULL OR k.rotated_at > now() - interval '72 hours')
             """,
@@ -449,23 +449,6 @@ class RagMcpDispatcher:
             if not exists:
                 raise LookupError(workspace_id)
             raise PermissionError("invalid token")
-
-        api_key_ref: str = row["api_key_ref"]
-        cached = self._apikey_cache.get(api_key_ref)
-        if cached is None:
-            cached = await self._resolver.resolve_with_retry(api_key_ref)
-            self._apikey_cache.put(api_key_ref, cached)
-
-        if not compare_digest(cached, token):
-            # Fingerprint matché mais clair non : cache potentiellement
-            # périmé (rotation Harpocrate hors-bande). Invalide et
-            # re-résout une fois avant de conclure à un token invalide
-            # (BUG-026 : sinon 401 permanent jusqu'au restart du process).
-            self._apikey_cache.invalidate(api_key_ref)
-            cached = await self._resolver.resolve_with_retry(api_key_ref)
-            self._apikey_cache.put(api_key_ref, cached)
-            if not compare_digest(cached, token):
-                raise PermissionError("token mismatch")
 
         default_vault_name: str | None = None
         if self._client_provider is not None:
