@@ -1,26 +1,5 @@
 import { z } from "zod";
 
-const indexerSchema = z.object({
-  provider: z.string().min(1),
-  model: z.string().min(1),
-  api_key_ref: z.string().nullable().optional(),
-  base_url: z.string().nullable().optional(),
-});
-
-const rerankSchema = z.object({
-  provider: z.string().min(1),
-  model: z.string().min(1),
-  api_key_ref: z.string().nullable().optional(),
-  base_url: z.string().nullable().optional(),
-  top_k_pre_rerank: z.number().int().min(1).max(500).default(50),
-});
-
-export const workspaceCreateSchema = z.object({
-  name: z.string().regex(/^[a-z][a-z0-9_-]{0,62}$/),
-  indexer: indexerSchema,
-  rerank: rerankSchema.nullable().optional(),
-});
-
 export interface MeResponse {
   sub: string;
   email: string | null;

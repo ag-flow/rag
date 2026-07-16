@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { renderWithProviders } from "./testUtils";
 import { WorkspaceDetailTab } from "@/pages/workspace/WorkspaceDetailTab";
 import type { Workspace } from "@/lib/workspaces.types";
@@ -49,11 +49,11 @@ describe("WorkspaceDetailTab", () => {
     expect(screen.getByText("abc-123")).toBeInTheDocument();
   });
 
-  it("le bouton Enregistrer est désactivé initialement (non-dirty)", () => {
+  it("le bouton Changer la clé est désactivé tant que la valeur est inchangée", () => {
     renderWithProviders(
       <WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />,
     );
-    const saveBtn = screen.getByRole("button", { name: /enregistrer/i });
+    const saveBtn = screen.getByRole("button", { name: /changer la clé/i });
     expect(saveBtn).toBeDisabled();
   });
 
@@ -65,12 +65,19 @@ describe("WorkspaceDetailTab", () => {
     expect(input.value).toBe("openai_key");
   });
 
-  it("déclenche onReveal au click sur Révéler", () => {
-    const onReveal = vi.fn();
+  it("changer la clé : nouvelle référence → mutation indexer.api_key_ref", () => {
+    mockMutate.mockClear();
     renderWithProviders(
       <WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />,
     );
-    screen.getByRole("button", { name: /révéler/i }).click();
-    expect(onReveal).toHaveBeenCalledOnce();
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    fireEvent.change(input, { target: { value: "voyage_key" } });
+    const saveBtn = screen.getByRole("button", { name: /changer la clé/i });
+    expect(saveBtn).toBeEnabled();
+    fireEvent.click(saveBtn);
+    expect(mockMutate).toHaveBeenCalledWith(
+      { indexer: { api_key_ref: "voyage_key" } },
+      expect.anything(),
+    );
   });
 });

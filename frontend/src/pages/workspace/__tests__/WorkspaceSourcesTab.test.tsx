@@ -28,6 +28,12 @@ vi.mock("@/hooks/useWorkspaces", () => ({
   useDeleteSource: () => ({ mutate: vi.fn(), isPending: false }),
   useTestSourceConnection: () => ({ mutate: vi.fn(), isPending: false }),
   useTriggerSourceSync: () => ({ mutate: vi.fn(), isPending: false }),
+  useDetectBranches: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn().mockResolvedValue({ branches: [], default_branch: null }),
+    isPending: false,
+    reset: vi.fn(),
+  }),
 }));
 
 vi.mock("@/hooks/useJobLogs", () => ({
@@ -36,6 +42,8 @@ vi.mock("@/hooks/useJobLogs", () => ({
 
 vi.mock("@/hooks/useHarpocrateVaults", () => ({
   useVaults: () => ({ data: [] }),
+  useGitCredentialsByHost: () => ({ data: [] }),
+  useSshKeysAll: () => ({ data: [] }),
 }));
 
 vi.mock("@/hooks/useToast", () => ({

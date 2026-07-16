@@ -23,10 +23,18 @@ vi.mock("@/hooks/useWorkspaces", () => ({
   }),
   useUpdateSource: () => ({ mutate: vi.fn(), isPending: false }),
   useTestSourceConnection: () => ({ mutate: vi.fn(), isPending: false }),
+  useDetectBranches: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn().mockResolvedValue({ branches: [], default_branch: null }),
+    isPending: false,
+    reset: vi.fn(),
+  }),
 }));
 
 vi.mock("@/hooks/useHarpocrateVaults", () => ({
   useVaults: () => mockVaults,
+  useGitCredentialsByHost: () => ({ data: [] }),
+  useSshKeysAll: () => ({ data: [] }),
 }));
 
 vi.mock("@/hooks/useToast", () => ({
@@ -47,27 +55,26 @@ describe("AddSourceDialog", () => {
     expect(screen.getByText("Ajouter une source git")).toBeInTheDocument();
   });
 
-  it("affiche les champs Nom, Coffre, URL, Branche, Token", () => {
+  it("affiche les champs Nom, URL, Branche, Provider git", () => {
     renderWithProviders(
       <AddSourceDialog name="my-workspace" open={true} onOpenChange={() => {}} />,
     );
     expect(screen.getByText(/Nom de la source/)).toBeInTheDocument();
-    expect(screen.getByText(/Coffre Harpocrate/)).toBeInTheDocument();
     expect(screen.getByText(/^URL$/)).toBeInTheDocument();
     expect(screen.getByText(/^Branche$/)).toBeInTheDocument();
-    expect(screen.getByText(/Token GitHub/)).toBeInTheDocument();
+    expect(screen.getByText(/Provider Git/)).toBeInTheDocument();
   });
 
-  it("affiche une erreur de validation si l'URL est invalide", async () => {
+  it("ne soumet pas si l'URL est vide (champ requis)", async () => {
     renderWithProviders(
       <AddSourceDialog name="my-workspace" open={true} onOpenChange={() => {}} />,
     );
-    const urlInput = screen.getByPlaceholderText("https://github.com/...");
-    fireEvent.change(urlInput, { target: { value: "not-a-url" } });
-    const submitBtn = screen.getByRole("button", { name: /^ajouter$/i });
-    fireEvent.click(submitBtn);
+    fireEvent.change(screen.getByPlaceholderText(/ex\. mon-repo/), {
+      target: { value: "my-repo" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^ajouter$/i }));
     await waitFor(() => {
-      expect(screen.getByText("URL invalide.")).toBeInTheDocument();
+      expect(mockMutate).not.toHaveBeenCalled();
     });
   });
 
@@ -78,7 +85,7 @@ describe("AddSourceDialog", () => {
     fireEvent.change(screen.getByPlaceholderText(/ex\. mon-repo/), {
       target: { value: "my-repo" },
     });
-    fireEvent.change(screen.getByPlaceholderText("https://github.com/..."), {
+    fireEvent.change(screen.getByPlaceholderText("https://github.com/org/repo.git"), {
       target: { value: "https://github.com/org/repo" },
     });
     const submitBtn = screen.getByRole("button", { name: /^ajouter$/i });
@@ -95,14 +102,6 @@ describe("AddSourceDialog", () => {
     expect(screen.queryByText("Ajouter une source git")).not.toBeInTheDocument();
   });
 
-  it("affiche le lien vers GitHub PAT", () => {
-    renderWithProviders(
-      <AddSourceDialog name="my-workspace" open={true} onOpenChange={() => {}} />,
-    );
-    const link = screen.getByRole("link", { name: /Générer un token GitHub/i });
-    expect(link).toHaveAttribute("href", "https://github.com/settings/tokens/new");
-    expect(link).toHaveAttribute("target", "_blank");
-  });
 
   it("laisse la branche undefined quand le champ est vide", async () => {
     renderWithProviders(
@@ -111,7 +110,7 @@ describe("AddSourceDialog", () => {
     fireEvent.change(screen.getByPlaceholderText(/ex\. mon-repo/), {
       target: { value: "my-repo" },
     });
-    fireEvent.change(screen.getByPlaceholderText("https://github.com/..."), {
+    fireEvent.change(screen.getByPlaceholderText("https://github.com/org/repo.git"), {
       target: { value: "https://github.com/org/repo" },
     });
     fireEvent.click(screen.getByRole("button", { name: /^ajouter$/i }));
@@ -129,7 +128,7 @@ describe("AddSourceDialog", () => {
     fireEvent.change(screen.getByPlaceholderText(/ex\. mon-repo/), {
       target: { value: "my-repo" },
     });
-    fireEvent.change(screen.getByPlaceholderText("https://github.com/..."), {
+    fireEvent.change(screen.getByPlaceholderText("https://github.com/org/repo.git"), {
       target: { value: "https://github.com/org/repo" },
     });
     fireEvent.change(screen.getByPlaceholderText(/branche par défaut/i), {
@@ -151,7 +150,7 @@ describe("AddSourceDialog", () => {
     fireEvent.change(screen.getByPlaceholderText(/ex\. mon-repo/), {
       target: { value: "my-repo" },
     });
-    fireEvent.change(screen.getByPlaceholderText("https://github.com/..."), {
+    fireEvent.change(screen.getByPlaceholderText("https://github.com/org/repo.git"), {
       target: { value: "https://github.com/org/repo" },
     });
     fireEvent.click(screen.getByRole("button", { name: /^ajouter$/i }));
