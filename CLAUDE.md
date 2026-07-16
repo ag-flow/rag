@@ -1,22 +1,53 @@
-# agflow.docker — Instructions Claude Code
+# ragflow — Instructions Claude Code
+
+## mcp
+
+Tu es connecté au mcp du protail devpod via le serveur claude-code
+
+## Backlog
+
+La gatway mcp propose une api pour se connecter à docflow.
+docflow contient des workspaces qui contiennent des blocs de documents.
+workspace=ragflow et bloc=backlog tu as un backlog de tache à executer.
+
+- Quand on te demande de traiter le backlog tu te connectes Tu identifies les taches qui ne sont pas en status 'en review'
+- Quand tu prends une tache tu passes le statut à 'en cours'
+- Quand tu as finis tu passes le statut de la tache 'en review'.
+
+## Documentation
+
+La gatway mcp propose une api pour se connecter à docflow
+docflow contient des workspaces qui contiennent des blocs de documents.
+workspace=ragflow et bloc=Documentation tu as un espace de stockage pour enregistrer et lire la doc.
+
+Un espace de documentation globals cross projet (workspace=globals et bloc=Documentation) permet de lister les informations globals à tout les projets. A chaque fois que tu apprends quelques chose inscris le en article qui servira aux autres agents.
 
 ## Projet
 
-Plateforme d'instanciation d'agents IA packagés en Docker (claude-code, aider, codex, gemini, goose, mistral, open-code). Panneau d'administration en 7 modules (M0 Secrets, M1 Dockerfiles, M2 Rôles, M3 Catalogues MCP+Skills, M4 Composition, M5 API publique, M6 Supervision). Spec complète : `specs/home.md`.
+**ragflow** — service d'infrastructure RAG (Retrieval-Augmented Generation) autonome. Il indexe des corpus documentaires, stocke les embeddings dans PostgreSQL + pgvector (**une base isolée par workspace**) et expose une **recherche sémantique via MCP** (pour Claude Code et autres agents).
+
+Chaîne de traitement : **sources git** (GitHub, Azure DevOps) synchronisées (push + webhooks entrants) → **chunking** structure-aware (markdown / code tree-sitter / data) → **indexeurs** d'embeddings (OpenAI, Voyage AI, Ollama) → **pgvector**, avec **déduplication** SHA-256. À la requête : recherche **hybride** (vectorielle + FTS) puis **reranking** (Cohere / Voyage / Ollama). **Enrichissement LLM** par métadonnées (triggers par extension). **Playground** de chat ancré sur le corpus.
+
+Sécurité : secrets via **coffres Harpocrate** (chiffrés pgcrypto, zéro secret en clair en base) ; auth **OIDC Keycloak + compte local** (client secret OIDC et activation du login local pilotés depuis l'IHM, persistés dans `admin.env`).
+
+IHM d'administration React : Workspaces, Models, Prompts, Sources, Push activity, MCP search, Coffres Harpocrate, Config OIDC. Specs détaillées dans `specs/` (à partir de `00-overview.md`).
 
 **Standard de qualité** : code propre et bien fait, jamais la rapidité au détriment de la rigueur. Pas de raccourcis, pas de "c'est pas grave", pas de "on simplifiera plus tard". Chaque tâche est faite correctement ou pas du tout.
 
 **Pas de quick-and-dirty, JAMAIS.** Quand tu présentes des options de design, ne propose PAS d'option "quick & dirty" / "hardcode" / "wire-it-up-and-clean-later". On fait toujours propre, tant pis pour l'effort. Si tu sens qu'une tâche est déraisonnable (>3 mois, scope qui explose, dépendance hors d'atteinte), **alerte explicitement l'utilisateur** plutôt que de proposer un compromis dégradé. L'utilisateur préfère qu'on découpe le chantier et qu'on en fasse correctement la part qu'on prend, plutôt que tout faire à moitié.
+
 **Colibri** commence systématiquement tes réponses par 🎺
+
+**Ton** Tes réponses sont claires et concises. pas de logn discours. Tu es simple et direct.
 
 ## Stack technique
 
 - **Backend** : Python 3.12 + FastAPI + asyncpg (**pas SQLAlchemy**) + structlog JSON + pytest
 - **Frontend** : Vite + React 18 + TypeScript strict + react-router-dom + TanStack Query + Tailwind + shadcn/ui + i18next + Vitest
-- **BDD** : PostgreSQL 16 + pgcrypto (secrets) — source de vérité unique
-- **MOM** : Redis Streams (`redis.asyncio`) avec consumer groups — bus central de toutes les comms agents
-- **Docker runtime** : aiodocker (pas de subprocess)
-- **Reverse proxy prod** : Caddy (SSL géré par Cloudflare Tunnel en front)
+- **BDD** : PostgreSQL 16 + pgvector (embeddings) + pgcrypto (secrets) — source de vérité unique, une base par workspace
+- **Recherche** : pgvector (vectorielle) + FTS PostgreSQL (hybride) ; reranking providers (Cohere / Voyage / Ollama)
+- **Sync** : worker de jobs en base (pas de MOM externe) ; sources git via GitPython
+- **Reverse proxy** : Caddy (SSL géré par Cloudflare Tunnel en front)
 - **Registre externe MCP** : `https://mcp.yoops.org/api/v1`
 - **Observabilité** : Loki + Grafana sur LXC 116 (`agflow-logs`), exposé sur `https://log.yoops.org` via Cloudflare tunnel, auth SSO Keycloak (client `grafana` du realm `yoops`). Collecte via Grafana Alloy déployé sur tous les LXC actifs (Docker socket + journald). Rétention 7 jours. Config dans `infra/logs-stack/` (stack centrale) + `infra/alloy-agent/` (collecteur).
 
@@ -115,6 +146,7 @@ agflow.docker/
 ## Conventions de code
 
 ### Python (backend)
+
 - Python 3.12+, async/await partout
 - **Pas de SQLAlchemy** — asyncpg direct avec helpers `fetch_one` / `fetch_all` / `execute` dans `db/pool.py`
 - Pydantic v2 pour les DTOs, Pydantic Settings pour la config
@@ -125,6 +157,7 @@ agflow.docker/
 - Règles tests : `@docs/tests-python.md`
 
 ### TypeScript (frontend)
+
 - `strict: true`, `noUncheckedIndexedAccess: true`
 - Composants fonctionnels + hooks, pas de classes
 - React Query pour tout appel API, pas de `useEffect + fetch` direct
@@ -133,19 +166,23 @@ agflow.docker/
 - Props typées via `interface`, exports nommés
 
 ### Base de données
+
 - Migrations = fichiers SQL numérotés dans `backend/migrations/` (ex: `001_init.sql`, `002_secrets.sql`)
 - Schéma géré en SQL brut, pas d'ORM
 - Extensions requises : `pgcrypto` (secrets), `uuid-ossp` (ids)
 - Toute nouvelle table → migration SQL + test de migration
 
 ### Tests
+
 - **Backend** : pytest + pytest-asyncio ; fixture `client` (TestClient httpx)
 - **Frontend** : Vitest + React Testing Library ; `describe`/`it`, pas de `test`
 - **TDD** : test rouge → impl → test vert → commit
 - Couverture minimale par zone : voir `docs/tests-python.md`
 
 ### Indicateurs visuels secrets (convention spec)
+
 Partout où un secret est référencé par nom de variable d'env, afficher son statut via le composant `StatusIndicator` :
+
 - 🔴 Rouge : variable manquante (non déclarée dans les secrets)
 - 🟠 Orange : variable présente mais valeur vide
 - 🟢 Vert : variable présente et remplie
@@ -153,18 +190,23 @@ Partout où un secret est référencé par nom de variable d'env, afficher son s
 ## Règles de workflow
 
 ### Cycle de l'architecte
+
 **Cadrer → Comprendre → Planifier → Agir.** L'utilisateur est architecte. Une question n'est pas une commande d'exécution. Une discussion n'est pas un feu vert. Ne JAMAIS sauter d'étape.
 
 ### Branche de développement
+
 **Tout le code se fait sur la branche `dev`. Jamais `feat/*`, jamais sur `main` directement, jamais ailleurs.** Avant toute édition de code, vérifier `git branch --show-current` ; si autre branche, `git checkout dev`. Si `dev` n'existe pas localement, la créer depuis `main` à jour. Ne propose **jamais** `git checkout -b feat/...` — même si un workflow superpowers le suggère, la consigne utilisateur prime.
 
 ### Livraison
+
 - Ne livre **jamais** le code ni en test ni sur git sans demande explicite
 - Ne modifie pas `.env` sauf si demandé
 - Commit messages en français, format conventionnel (`feat:`, `fix:`, `chore:`, `docs:`, `test:`…)
 
 ### Vérification avant validation
+
 Avant de déclarer une tâche terminée, **toutes** ces étapes sont obligatoires :
+
 1. Le code s'exécute sans erreur (lint + build)
 2. Le cas nominal fonctionne (test unitaire ou manuel)
 3. Les imports ajoutés existent réellement
@@ -172,6 +214,7 @@ Avant de déclarer une tâche terminée, **toutes** ces étapes sont obligatoire
 5. Si modification frontend : la page charge sans erreur console
 
 ### Discipline d'exécution
+
 - Exécute directement, ne décris pas ce que tu vas faire — fais-le
 - N'explique pas les étapes intermédiaires. Rapporte uniquement le résultat final
 - Termine TOUTES les étapes d'un plan avant de faire un résumé
@@ -181,12 +224,15 @@ Avant de déclarer une tâche terminée, **toutes** ces étapes sont obligatoire
 ## Outils Claude Code
 
 ### Context7 — documentation live
+
 **Quand** : avant d'écrire du code qui utilise FastAPI, Pydantic v2, asyncpg, aiodocker, redis-py, React Query, Vite, React Router, i18next, Tailwind, etc. Les API évoluent, ne te fie pas à ta mémoire.
 
 ### Serena — navigation sémantique
+
 **Quand** : avant un refactor, pour comprendre les dépendances entre modules, ou pour trouver tous les usages d'une fonction/classe.
 
 ### Superpowers skills
+
 - `writing-plans` : rédiger un plan d'implémentation TDD avant de coder
 - `executing-plans` / `subagent-driven-development` : exécuter un plan tâche par tâche
 - `systematic-debugging` : méthode pour debug un bug ou test qui échoue
@@ -195,14 +241,17 @@ Avant de déclarer une tâche terminée, **toutes** ces étapes sont obligatoire
 - `verification-before-completion` : vérifier que le travail est réellement fini avant de le dire
 
 ### /review
+
 **Quand** : avant de présenter un changement multi-fichiers (>3 fichiers ou >100 lignes).
 
 ### /commit
+
 **Quand** : quand l'utilisateur demande explicitement de committer. Format français conventionnel.
 
 ## Auto-amélioration
 
 Quand tu fais une erreur ou que l'utilisateur te corrige :
+
 - Ajoute une leçon dans `LESSONS.md`
 - Format : `- [module] description courte de l'erreur et de la bonne pratique`
 - Relis `@LESSONS.md` en début de tâche qui touche un module mentionné
