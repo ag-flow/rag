@@ -5,6 +5,17 @@ ag-flow.rag supporte deux systèmes d'authentification complémentaires :
 1. **OIDC (Keycloak)** — pour l'interface web et le Playground (utilisateurs humains)
 2. **Bearer tokens** — pour l'API REST et le MCP (accès programmatique)
 
+Lorsqu'OIDC est configuré et que la connexion locale est active, la page de
+connexion propose les deux voies : le bouton **SSO Keycloak** et, en dessous, le
+formulaire **admin local** (username / mot de passe) :
+
+![Écran de connexion : bouton Keycloak et login admin local](img/login.png)
+
+*Le bouton SSO n'apparaît que si un client OIDC est configuré ; le formulaire
+local n'apparaît que si la connexion locale est activée (cf. la page de config
+OIDC de l'IHM). Si aucun utilisateur n'existe encore, cet écran est remplacé par
+le formulaire d'inscription du premier administrateur.*
+
 ---
 
 ## Vue d'ensemble

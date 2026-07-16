@@ -2,6 +2,19 @@
 
 Référence complète de tous les endpoints du service ag-flow.rag.
 
+> **Documentation interactive intégrée.** Le service expose sa propre référence
+> OpenAPI, toujours à jour car générée depuis le code :
+>
+> | Interface | URL | Usage |
+> |---|---|---|
+> | **Swagger UI** | `/docs` | Explorer et **essayer** les endpoints depuis le navigateur |
+> | **ReDoc** | `/redoc` | Lecture linéaire, schémas détaillés |
+> | **Schéma brut** | `/openapi.json` | Import dans Postman/Insomnia, génération de clients |
+
+![Swagger UI du service, endpoints health et admin](img/api-docs.png)
+
+*Swagger UI (`/docs`) : chaque endpoint est dépliable, testable, et documente ses paramètres et réponses. La capture ci-dessous en donne la vue d'ensemble.*
+
 ---
 
 ## Authentification
