@@ -152,10 +152,11 @@ Réponse `201 Created` :
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "name": "mon-projet",
-  "indexer": {"provider": "openai", "model": "text-embedding-3-small"},
-  "api_key": "ws_xxxxx"
+  "created_at": "2026-07-16T00:00:00Z"
 }
 ```
+
+> Les clés d'accès se créent séparément, au niveau utilisateur (voir « Clés API utilisateur » ci-dessous).
 
 ### GET /api/admin/workspaces/{name}
 
@@ -169,73 +170,58 @@ Modifie un workspace (sync_interval, etc.).
 
 Supprime un workspace et sa base pgvector.
 
-### GET /api/admin/workspaces/{name}/apikey
-
-Retourne la première clé API active du workspace (idempotent).
-
-```json
-{"workspace": "mon-projet", "api_key": "ws_xxxxx"}
-```
-
 ### POST /api/admin/workspaces/{name}/reindex
 
 Force une réindexation complète du workspace.
 
 ---
 
-## Administration — Clés API workspace
+## Clés API utilisateur
 
-### GET /api/admin/workspaces/{name}/api-keys
+Les clés d'accès sont personnelles et portent des grants par workspace
+(`can_read` = recherche MCP, `can_write` = indexation push). La valeur d'une
+clé n'est retournée **qu'à la création/rotation** — seule l'empreinte SHA-256
+est stockée. Authentification : session (IHM) ou master key.
 
-Liste toutes les clés API du workspace.
+### GET /api/me/api-keys
 
-```json
-[
-  {
-    "id": "uuid...",
-    "name": "agent-agflow",
-    "fingerprint_preview": "a3f2c1d4",
-    "status": "active",
-    "created_at": "2026-05-31T10:00:00Z"
-  }
-]
-```
+Liste vos clés (statut, grants avec permissions — jamais la valeur).
 
-### POST /api/admin/workspaces/{name}/api-keys
-
-Crée une nouvelle clé API.
+### POST /api/me/api-keys
 
 ```bash
-curl -X POST https://rag.votre-domaine.fr/api/admin/workspaces/mon-projet/api-keys \
+curl -X POST https://rag.votre-domaine.fr/api/me/api-keys \
   -H "Authorization: Bearer $RAG_MASTER_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"name": "claude-code"}'
+  -d '{
+    "name": "claude-code",
+    "workspaces": [
+      {"workspace_id": "550e8400-...", "can_read": true, "can_write": false}
+    ]
+  }'
 ```
 
-Réponse `201 Created` — la clé est retournée **une seule fois** :
+Réponse `201` — la clé est retournée **une seule fois** :
 ```json
-{
-  "id": "uuid...",
-  "name": "claude-code",
-  "api_key": "ws_xxxxx"
-}
+{"id": "uuid...", "name": "claude-code", "api_key": "xxxxx", "fingerprint_preview": "a3f2c1d4"}
 ```
 
-### POST /api/admin/workspaces/{name}/api-keys/{id}/rotate
+### POST /api/me/api-keys/{id}/rotate
 
-Effectue une rotation. L'ancienne clé reste valide 72h.
+Nouvelle clé avec les mêmes grants ; l'ancienne reste valide 72 h.
 
-```json
-{
-  "new_key_id": "uuid...",
-  "new_api_key": "ws_yyyyy",
-  "grace_until": "2026-06-02T10:00:00Z"
-}
+### DELETE /api/me/api-keys/{id}
+
+Révoque immédiatement la clé (tous workspaces).
+
+### PUT /api/me/api-keys/{id}/workspaces
+
+Remplace l'ensemble des grants de la clé.
+
+```bash
+curl -X PUT .../api/me/api-keys/{id}/workspaces \
+  -d '{"workspaces": [{"workspace_id": "...", "can_read": true, "can_write": true}]}'
 ```
-
-### DELETE /api/admin/workspaces/{name}/api-keys/{id}
-
-Révoque immédiatement une clé.
 
 ---
 
