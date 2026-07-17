@@ -28,7 +28,12 @@ from rag.indexer.chunking.tokens import HeuristicTokenEstimator
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
 from rag.secrets.refs import build_ref, is_vault_ref
-from rag.services.chunking_routing import build_strategy_chunker, load_routing, load_strategy
+from rag.services.chunking_routing import (
+    build_strategy_chunker,
+    load_routing,
+    load_strategy,
+    load_strategy_by_id,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -93,7 +98,7 @@ class RealIndexer:
         content_hash: str,
         indexer_used: str,
         title: str | None = None,
-        strategy_override: str | None = None,
+        strategy_id: UUID | None = None,
         extra_metadata: Mapping[str, Any] | None = None,
     ) -> int:
         ctx = await self._load_workspace_context(workspace_id)
@@ -103,7 +108,7 @@ class RealIndexer:
                 path=path,
                 content=content,
                 ctx=ctx,
-                strategy_override=strategy_override,
+                strategy_id=strategy_id,
                 extra_metadata=extra_metadata or {},
                 indexer_used=indexer_used,
             )
@@ -183,15 +188,20 @@ class RealIndexer:
         path: str,
         content: str,
         ctx: dict[str, Any],
-        strategy_override: str | None,
+        strategy_id: UUID | None,
         extra_metadata: Mapping[str, Any] = {},
         indexer_used: str = "",
     ) -> int:
-        routing = await load_routing(self._config_pool, workspace_id)
-        strategy_name = resolve_strategy_name(
-            path=path, override=strategy_override, routing=routing
-        )
-        record = await load_strategy(self._config_pool, workspace_id, strategy_name)
+        # Binding par id (spec chunking §5) : un push avec stratégie explicite
+        # arrive ici avec l'id déjà résolu côté API — StrategyBindingLostError
+        # si la stratégie a disparu depuis, jamais de repli sur l'extension.
+        if strategy_id is not None:
+            record = await load_strategy_by_id(self._config_pool, strategy_id)
+            strategy_name = str(strategy_id)
+        else:
+            routing = await load_routing(self._config_pool, workspace_id)
+            strategy_name = resolve_strategy_name(path=path, override=None, routing=routing)
+            record = await load_strategy(self._config_pool, workspace_id, strategy_name)
         estimator = HeuristicTokenEstimator(char_ratio=float(ctx["token_char_ratio"]))
         language = language_for_path(path) if record.algo in ("code", "data") else None
         chunker = await build_strategy_chunker(

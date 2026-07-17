@@ -16,9 +16,7 @@ from rag.auth.workspace_auth import AuthContext, require_workspace_apikey
 def _fake_request(headers: dict[str, str], pool):
     return SimpleNamespace(
         headers=headers,
-        app=SimpleNamespace(
-            state=SimpleNamespace(pools=SimpleNamespace(config_pool=pool))
-        ),
+        app=SimpleNamespace(state=SimpleNamespace(pools=SimpleNamespace(config_pool=pool))),
     )
 
 
@@ -56,8 +54,13 @@ async def test_no_matching_key_or_grant_raises_401_uniform() -> None:
 async def test_valid_key_with_write_grant_returns_context() -> None:
     ws_id = uuid4()
     pool = MagicMock()
+    owner = "c" * 64
     pool.fetchrow = AsyncMock(
-        return_value={"id": ws_id, "indexer_used": "openai/text-embedding-3-small"}
+        return_value={
+            "id": ws_id,
+            "indexer_used": "openai/text-embedding-3-small",
+            "owner_id": owner,
+        }
     )
     req = _fake_request({"Authorization": "Bearer good-key"}, pool)
 
@@ -66,10 +69,13 @@ async def test_valid_key_with_write_grant_returns_context() -> None:
     assert isinstance(ctx, AuthContext)
     assert ctx.workspace_id == ws_id
     assert ctx.indexer_used == "openai/text-embedding-3-small"
+    # Le propriétaire de la clé délimite la bibliothèque de stratégies (F4).
+    assert ctx.owner_id == owner
     # Le contrat SQL exige le grant d'écriture sur les clés utilisateur.
     sql = pool.fetchrow.await_args.args[0]
     assert "user_api_keys" in sql
     assert "can_write" in sql
+    assert "owner_id" in sql
 
 
 @pytest.mark.asyncio
@@ -77,7 +83,7 @@ async def test_write_lookup_never_touches_harpocrate() -> None:
     """Hash-only : un seul fetchrow, aucune résolution de secret."""
     pool = MagicMock()
     pool.fetchrow = AsyncMock(
-        return_value={"id": uuid4(), "indexer_used": "voyage/voyage-3"}
+        return_value={"id": uuid4(), "indexer_used": "voyage/voyage-3", "owner_id": "d" * 64}
     )
     req = _fake_request({"Authorization": "Bearer k"}, pool)
     await require_workspace_apikey("ws", req)  # type: ignore[arg-type]

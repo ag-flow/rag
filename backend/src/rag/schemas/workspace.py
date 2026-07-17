@@ -10,7 +10,10 @@ class PushRequest(BaseModel):
     path: str = Field(..., min_length=1, max_length=_PATH_MAX_LEN)
     content: str = Field(..., min_length=1)
     title: str | None = Field(default=None, min_length=1, max_length=512)
-    strategy: str | None = Field(default=None, min_length=1, max_length=63)
+    # Slug de stratégie (mode service, spec chunking §5) : résolu à l'acceptation
+    # dans la bibliothèque du caller puis côté système. 128 = borne des labels
+    # dont les slugs sont dérivés.
+    strategy: str | None = Field(default=None, min_length=1, max_length=128)
 
     @field_validator("content")
     @classmethod

@@ -30,11 +30,11 @@ class NoOpIndexer:
         content_hash: str,
         indexer_used: str,
         title: str | None = None,
-        strategy_override: str | None = None,
+        strategy_id: UUID | None = None,
         extra_metadata: Mapping[str, Any] | None = None,
     ) -> int:
         """INSERT/UPDATE `indexed_documents` via ON CONFLICT. Retourne 1
-        (1 chunk fictif). `content`, `strategy_override` et `extra_metadata`
+        (1 chunk fictif). `content`, `strategy_id` et `extra_metadata`
         ignorés en M3.
         """
         async with self._config_pool.acquire() as conn:

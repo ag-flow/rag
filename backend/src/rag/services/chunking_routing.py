@@ -18,6 +18,22 @@ from rag.indexer.chunking.tokens import TokenEstimator
 _STRATEGY_COLUMNS = "id, algo, params, parser_slug"
 
 
+class UnknownStrategySlugError(ValueError):
+    """Slug introuvable dans la bibliothèque du caller ni côté système.
+
+    Mode service (spec chunking §5) : erreur explicite à l'acceptation du
+    push — jamais de repli silencieux sur le routage par extension.
+    """
+
+
+class StrategyBindingLostError(RuntimeError):
+    """Id de stratégie lié introuvable (mode job, spec chunking §5).
+
+    Cas résiduel : la stratégie a été supprimée entre l'acceptation du push
+    et l'exécution du job. Le job échoue explicitement, pas de fallback.
+    """
+
+
 @dataclass(frozen=True)
 class StrategyRecord:
     """Stratégie du catalogue telle que chargée pour l'indexation."""
@@ -93,10 +109,11 @@ async def load_strategy(
 
 
 async def load_strategy_by_id(config_pool: asyncpg.Pool, strategy_id: UUID) -> StrategyRecord:
-    """Charge une stratégie par id (binding des routes de régions, spec §4).
+    """Charge une stratégie par id (binding routes de régions et push, spec §4-5).
 
     Le binding par id est la règle d'or : aucune restriction de portée ici —
-    une route ne peut référencer que des cibles validées à sa création.
+    un id lié a été validé à son écriture (route ou acceptation du push).
+    Lève `StrategyBindingLostError` si l'id ne résout plus (cas résiduel).
     """
     async with config_pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -104,7 +121,35 @@ async def load_strategy_by_id(config_pool: asyncpg.Pool, strategy_id: UUID) -> S
             strategy_id,
         )
     if row is None:
-        raise ValueError(f"chunking strategy not found: {strategy_id}")
+        raise StrategyBindingLostError(f"bound chunking strategy not found: {strategy_id}")
+    return _record_from_row(row)
+
+
+async def resolve_caller_strategy(
+    config_pool: asyncpg.Pool,
+    *,
+    owner_id: str,
+    slug: str,
+) -> StrategyRecord:
+    """Résolution user-aware du mode service (spec chunking §5, S4.1).
+
+    Portée : bibliothèque du caller (`owner_id`) prioritaire, puis stratégies
+    système. Introuvable → `UnknownStrategySlugError` explicite. Appelée à
+    l'acceptation du push : seul l'id résolu est lié au payload du job.
+    """
+    async with config_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            f"SELECT {_STRATEGY_COLUMNS} FROM chunking_strategies "  # noqa: S608
+            "WHERE slug = $1 AND workspace_id IS NULL "
+            "AND (owner_id = $2 OR owner_id IS NULL) "
+            "ORDER BY owner_id NULLS LAST LIMIT 1",
+            slug,
+            owner_id,
+        )
+    if row is None:
+        raise UnknownStrategySlugError(
+            f"stratégie inconnue : {slug!r} (ni dans la bibliothèque du caller, ni système)"
+        )
     return _record_from_row(row)
 
 

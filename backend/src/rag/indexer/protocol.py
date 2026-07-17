@@ -22,7 +22,7 @@ class IndexerProtocol(Protocol):
         content_hash: str,
         indexer_used: str,
         title: str | None = None,
-        strategy_override: str | None = None,
+        strategy_id: UUID | None = None,
         extra_metadata: Mapping[str, Any] | None = None,
     ) -> int:
         """Index un fichier. Retourne le nombre de chunks créés.
@@ -33,8 +33,10 @@ class IndexerProtocol(Protocol):
         - `content_hash` : `sha256:<hex>` du contenu.
         - `indexer_used` : `<provider>/<model>` au moment de l'indexation
           (sert à invalider les hashes si l'indexeur change).
-        - `strategy_override` : nom de stratégie forcé (ajout ad hoc API) ;
-          prime sur le routage par type. Ignoré en moteur `legacy`.
+        - `strategy_id` : stratégie LIÉE par id (spec chunking §5 — résolue
+          en amont, à l'acceptation du push) ; prime sur le routage par
+          extension. Ignoré en moteur `legacy`. Le mode job n'a jamais de
+          contexte utilisateur : seul un id déjà lié circule jusqu'ici.
         """
         ...
 

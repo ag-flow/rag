@@ -8,7 +8,11 @@ import pytest
 from rag.indexer.chunking.markdown_deep import MarkdownDeepChunker
 from rag.indexer.chunking.routing_chunker import RoutingChunker
 from rag.indexer.chunking.tokens import HeuristicTokenEstimator
-from rag.services.chunking_routing import StrategyRecord, build_strategy_chunker
+from rag.services.chunking_routing import (
+    StrategyBindingLostError,
+    StrategyRecord,
+    build_strategy_chunker,
+)
 
 _EST = HeuristicTokenEstimator(char_ratio=4.0)
 
@@ -145,7 +149,7 @@ async def test_missing_route_target_raises() -> None:
         ],
         strategies={},
     )
-    with pytest.raises(ValueError, match="strategy not found"):
+    with pytest.raises(StrategyBindingLostError, match="strategy not found"):
         await build_strategy_chunker(
             _FakePool(conn),  # type: ignore[arg-type]
             record,

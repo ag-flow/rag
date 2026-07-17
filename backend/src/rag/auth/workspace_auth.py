@@ -12,6 +12,7 @@ from fastapi import HTTPException, Request, status
 class AuthContext:
     workspace_id: UUID
     indexer_used: str
+    owner_id: str  # propriétaire de la clé API — sha256(email), scope de sa bibliothèque
 
 
 def _extract_bearer(request: Request) -> str:
@@ -35,7 +36,8 @@ def _extract_bearer(request: Request) -> str:
 # et api/mcp_standard.py avec g.can_read).
 _WRITE_LOOKUP_SQL = """
     SELECT w.id,
-           ic.provider || '/' || ic.model AS indexer_used
+           ic.provider || '/' || ic.model AS indexer_used,
+           k.owner_id
     FROM workspaces w
     JOIN user_api_key_workspaces g ON g.workspace_id = w.id
     JOIN user_api_keys k ON k.id = g.api_key_id
@@ -71,4 +73,8 @@ async def require_workspace_apikey(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid_workspace_apikey",
         )
-    return AuthContext(workspace_id=row["id"], indexer_used=row["indexer_used"])
+    return AuthContext(
+        workspace_id=row["id"],
+        indexer_used=row["indexer_used"],
+        owner_id=row["owner_id"],
+    )
