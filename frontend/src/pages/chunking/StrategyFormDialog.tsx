@@ -87,7 +87,13 @@ export function StrategyFormDialog({ open, onOpenChange, strategy }: Props) {
   const isEdit = strategy !== null;
   const parserAllowed = PARSER_ALGOS.includes(algo);
   const isPending = create.isPending || patch.isPending;
-  const usage = strategy !== null ? strategy.used_by_routes + strategy.used_by_categories : 0;
+  const usage =
+    strategy !== null
+      ? strategy.used_by_routes +
+        strategy.used_by_categories +
+        strategy.used_by_triggers +
+        strategy.used_by_workspaces
+      : 0;
 
   function buildParams(): Record<string, unknown> {
     const params: Record<string, unknown> = {};
@@ -146,15 +152,16 @@ export function StrategyFormDialog({ open, onOpenChange, strategy }: Props) {
           {isEdit && usage > 0 && (
             <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
               {t("form.linked_warning", {
-                usage: [
-                  strategy.used_by_routes > 0
-                    ? t("badges.used_by_routes", { count: strategy.used_by_routes })
-                    : null,
-                  strategy.used_by_categories > 0
-                    ? t("badges.used_by_categories", { count: strategy.used_by_categories })
-                    : null,
-                ]
-                  .filter(Boolean)
+                usage: (
+                  [
+                    ["badges.used_by_routes", strategy.used_by_routes],
+                    ["badges.used_by_categories", strategy.used_by_categories],
+                    ["badges.used_by_triggers", strategy.used_by_triggers],
+                    ["badges.used_by_workspaces", strategy.used_by_workspaces],
+                  ] as [string, number][]
+                )
+                  .filter(([, count]) => count > 0)
+                  .map(([key, count]) => t(key, { count }))
                   .join(" · "),
               })}
             </p>

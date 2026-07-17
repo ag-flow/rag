@@ -42,11 +42,22 @@ class InvalidStrategyError(Exception):
 class StrategyInUseError(Exception):
     """Suppression refusée : la stratégie est référencée (spec §4)."""
 
-    def __init__(self, *, used_by_routes: int, used_by_categories: int) -> None:
+    def __init__(
+        self,
+        *,
+        used_by_routes: int,
+        used_by_categories: int,
+        used_by_triggers: int = 0,
+        used_by_workspaces: int = 0,
+    ) -> None:
         self.used_by_routes = used_by_routes
         self.used_by_categories = used_by_categories
+        self.used_by_triggers = used_by_triggers
+        self.used_by_workspaces = used_by_workspaces
         super().__init__(
-            f"stratégie utilisée par {used_by_routes} route(s) et {used_by_categories} catégorie(s)"
+            f"stratégie utilisée par {used_by_routes} route(s), "
+            f"{used_by_categories} catégorie(s), {used_by_triggers} trigger(s) "
+            f"et {used_by_workspaces} workspace(s)"
         )
 
 
@@ -61,7 +72,11 @@ _OUT_COLUMNS = """
        WHERE r.target_strategy_id = s.id)::int AS used_by_routes,
     (CASE WHEN s.owner_id IS NULL THEN
        (SELECT count(*) FROM chunking_category_strategies c WHERE c.strategy_name = s.slug)
-     ELSE 0 END)::int AS used_by_categories
+     ELSE 0 END)::int AS used_by_categories,
+    (SELECT count(*) FROM workspace_extension_triggers wt
+       WHERE wt.strategy_id = s.id)::int AS used_by_triggers,
+    (SELECT count(*) FROM chunking_configs cc
+       WHERE cc.default_strategy_id = s.id)::int AS used_by_workspaces
 """
 _VISIBLE = "s.workspace_id IS NULL AND (s.owner_id IS NULL OR s.owner_id = $1)"
 
@@ -207,16 +222,28 @@ def _params_of(row: asyncpg.Record) -> dict[str, Any]:
 async def delete_strategy(conn: asyncpg.Connection, *, owner_id: str, strategy_id: UUID) -> None:
     async with conn.transaction():
         await _fetch_owned(conn, owner_id=owner_id, strategy_id=strategy_id)
-        used_by_routes = await conn.fetchval(
-            "SELECT count(*) FROM chunking_strategy_region_routes "
-            "WHERE target_strategy_id = $1 AND strategy_id <> $1",
+        counts = await conn.fetchrow(
+            "SELECT "
+            "(SELECT count(*) FROM chunking_strategy_region_routes "
+            "   WHERE target_strategy_id = $1 AND strategy_id <> $1)::int AS routes, "
+            "(SELECT count(*) FROM workspace_extension_triggers "
+            "   WHERE strategy_id = $1)::int AS triggers, "
+            "(SELECT count(*) FROM chunking_configs "
+            "   WHERE default_strategy_id = $1)::int AS workspaces",
             strategy_id,
         )
-        if int(used_by_routes) > 0:
-            raise StrategyInUseError(used_by_routes=int(used_by_routes), used_by_categories=0)
+        if counts is None:  # pragma: no cover — SELECT scalaire, toujours une ligne
+            raise RuntimeError("delete_strategy: usage counts query returned no row")
+        if counts["routes"] + counts["triggers"] + counts["workspaces"] > 0:
+            raise StrategyInUseError(
+                used_by_routes=counts["routes"],
+                used_by_categories=0,
+                used_by_triggers=counts["triggers"],
+                used_by_workspaces=counts["workspaces"],
+            )
         try:
             await conn.execute("DELETE FROM chunking_strategies WHERE id = $1", strategy_id)
-        except asyncpg.ForeignKeyViolationError as exc:  # course avec une route
+        except asyncpg.ForeignKeyViolationError as exc:  # course avec un binding
             raise StrategyInUseError(used_by_routes=1, used_by_categories=0) from exc
     log.info("chunking_strategy.deleted", strategy_id=str(strategy_id))
 

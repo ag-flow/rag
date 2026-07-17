@@ -57,6 +57,7 @@ class _FakePool:
 def _record(**overrides: Any) -> StrategyRecord:
     defaults: dict[str, Any] = {
         "id": uuid4(),
+        "slug": "ma-strategie",
         "algo": "prose",
         "params": {},
         "parser_slug": None,
@@ -119,6 +120,7 @@ async def test_route_targets_loaded_by_id() -> None:
         strategies={
             target_id: {
                 "id": target_id,
+                "slug": "cible",
                 "algo": "prose",
                 "params": {"child_target_tokens": 128},
                 "parser_slug": None,

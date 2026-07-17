@@ -23,17 +23,11 @@ from rag.db.workspace_structured import (
 from rag.indexer.chunking import Chunk, make_chunker
 from rag.indexer.chunking.hashing import compute_chunk_hash
 from rag.indexer.chunking.languages import language_for_path
-from rag.indexer.chunking.resolution import resolve_strategy_name
 from rag.indexer.chunking.tokens import HeuristicTokenEstimator
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
 from rag.secrets.refs import build_ref, is_vault_ref
-from rag.services.chunking_routing import (
-    build_strategy_chunker,
-    load_routing,
-    load_strategy,
-    load_strategy_by_id,
-)
+from rag.services.chunking_routing import build_strategy_chunker, resolve_strategy_for_file
 
 log = structlog.get_logger(__name__)
 
@@ -192,16 +186,17 @@ class RealIndexer:
         extra_metadata: Mapping[str, Any] = {},
         indexer_used: str = "",
     ) -> int:
-        # Binding par id (spec chunking §5) : un push avec stratégie explicite
-        # arrive ici avec l'id déjà résolu côté API — StrategyBindingLostError
-        # si la stratégie a disparu depuis, jamais de repli sur l'extension.
-        if strategy_id is not None:
-            record = await load_strategy_by_id(self._config_pool, strategy_id)
-            strategy_name = str(strategy_id)
-        else:
-            routing = await load_routing(self._config_pool, workspace_id)
-            strategy_name = resolve_strategy_name(path=path, override=None, routing=routing)
-            record = await load_strategy(self._config_pool, workspace_id, strategy_name)
+        # Cascade du mode job (spec chunking §5) : push lié par id > trigger de
+        # l'extension > cascade textuelle > défaut workspace lié par id.
+        # StrategyBindingLostError si un id lié ne résout plus — pas de repli.
+        record = await resolve_strategy_for_file(
+            self._config_pool,
+            workspace_id=workspace_id,
+            path=path,
+            strategy_id=strategy_id,
+            default_strategy_id=ctx["default_strategy_id"],
+        )
+        strategy_name = record.slug
         estimator = HeuristicTokenEstimator(char_ratio=float(ctx["token_char_ratio"]))
         language = language_for_path(path) if record.algo in ("code", "data") else None
         chunker = await build_strategy_chunker(
@@ -396,6 +391,7 @@ class RealIndexer:
                 md.max_input_tokens AS max_input_tokens,
                 md.token_char_ratio AS token_char_ratio,
                 cc.engine AS chunking_engine,
+                cc.default_strategy_id AS default_strategy_id,
                 cc.strategy AS chunking_strategy,
                 cc.max_chars AS chunking_max_chars,
                 cc.min_chars AS chunking_min_chars,

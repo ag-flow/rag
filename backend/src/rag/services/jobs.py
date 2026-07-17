@@ -525,3 +525,102 @@ async def apply_engine_change(
         job_id=str(job_row["id"]),
     )
     return ("reindex_triggered", _job_to_dict(job_row))
+class UnknownDefaultStrategyError(ValueError):
+    """Stratégie invisible pour ce caller (ni système ni la sienne)."""
+
+
+async def apply_default_strategy_change(
+    *,
+    name: str,
+    strategy_id: Any,
+    owner_id: str,
+    confirm: bool,
+    config_pool: asyncpg.Pool,
+) -> tuple[str, dict[str, Any]] | str:
+    """Change la stratégie par défaut LIÉE PAR ID d'un workspace (spec §5).
+
+    Même protocole de garde que `apply_engine_change` : le découpage des
+    documents déjà indexés change → invalidation `indexed_documents` + job
+    `reindex_chunking_change` derrière confirmation. `strategy_id` NULL retire
+    le binding (retour à la cascade textuelle).
+
+    - identique → ``"no_change"``.
+    - stratégie invisible (ni système ni au caller) → UnknownDefaultStrategyError.
+    - 0 doc → bascule immédiate → ``("updated", {...})``.
+    - >0 doc + ``confirm=False`` → lève :class:`ChunkingChangeRequiresReindex`.
+    - >0 doc + ``confirm=True`` → bascule + invalidation + job.
+    """
+    ws_row = await fetch_one(config_pool, "SELECT id FROM workspaces WHERE name = $1", name)
+    if ws_row is None:
+        raise WorkspaceNotFound(name)
+    workspace_id = ws_row["id"]
+
+    if strategy_id is not None:
+        visible = await config_pool.fetchval(
+            "SELECT 1 FROM chunking_strategies s "
+            "WHERE s.id = $1 AND s.workspace_id IS NULL "
+            "AND (s.owner_id IS NULL OR s.owner_id = $2)",
+            strategy_id,
+            owner_id,
+        )
+        if visible is None:
+            raise UnknownDefaultStrategyError(f"stratégie introuvable : {strategy_id}")
+
+    current = await config_pool.fetchval(
+        "SELECT default_strategy_id FROM chunking_configs WHERE workspace_id = $1",
+        workspace_id,
+    )
+    if current == strategy_id:
+        return "no_change"
+
+    body = {
+        "workspace_id": str(workspace_id),
+        "default_strategy_id": str(strategy_id) if strategy_id is not None else None,
+    }
+    docs = await config_pool.fetchval(
+        "SELECT COUNT(*) FROM indexed_documents WHERE workspace_id = $1", workspace_id
+    )
+    if int(docs or 0) == 0:
+        await config_pool.execute(
+            "UPDATE chunking_configs SET default_strategy_id=$1, updated_at=now() "
+            "WHERE workspace_id=$2",
+            strategy_id,
+            workspace_id,
+        )
+        log.info("chunking.default_strategy_changed", workspace=name, mode="no_reindex")
+        return ("updated", body)
+
+    if not confirm:
+        raise ChunkingChangeRequiresReindex(
+            workspace=name,
+            current=f"default_strategy_id={current}",
+            new=f"default_strategy_id={strategy_id}",
+        )
+
+    async with config_pool.acquire() as conn, conn.transaction():
+        await conn.execute(
+            "UPDATE chunking_configs SET default_strategy_id=$1, updated_at=now() "
+            "WHERE workspace_id=$2",
+            strategy_id,
+            workspace_id,
+        )
+        await conn.execute("DELETE FROM indexed_documents WHERE workspace_id=$1", workspace_id)
+        job_row = await conn.fetchrow(
+            """
+            INSERT INTO index_jobs (workspace_id, triggered_by, status)
+            VALUES ($1, 'reindex_chunking_change', 'pending')
+            RETURNING id, triggered_by, status, files_changed, files_skipped,
+                      error_message, started_at, finished_at, duration_ms
+            """,
+            workspace_id,
+        )
+    if job_row is None:
+        raise RuntimeError("apply_default_strategy_change: INSERT did not RETURN")
+
+    log.info(
+        "chunking.default_strategy_changed",
+        workspace=name,
+        mode="reindex_triggered",
+        job_id=str(job_row["id"]),
+    )
+    return ("reindex_triggered", _job_to_dict(job_row))

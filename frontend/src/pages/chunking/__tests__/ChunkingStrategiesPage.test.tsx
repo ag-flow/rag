@@ -39,6 +39,8 @@ function strategy(over: Partial<StrategyOut>): StrategyOut {
     is_system: true,
     used_by_routes: 0,
     used_by_categories: 1,
+    used_by_triggers: 0,
+    used_by_workspaces: 0,
     created_at: "2026-07-17T00:00:00Z",
     updated_at: "2026-07-17T00:00:00Z",
     ...over,

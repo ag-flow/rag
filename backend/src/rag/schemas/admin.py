@@ -404,5 +404,24 @@ class ChunkingConfigResponse(BaseModel):
     min_chars: int
     overlap_chars: int
     extras: dict[str, Any]
+    default_strategy_id: UUID | None = None
     created_at: str
     updated_at: str
+
+
+class DefaultStrategySpec(BaseModel):
+    """Payload PUT /workspaces/{name}/chunking-config/default-strategy.
+
+    `strategy_id` NULL retire le binding (retour à la cascade textuelle).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    strategy_id: UUID | None
+
+
+class DefaultStrategyResponse(BaseModel):
+    """Réponse bascule du défaut sans réindexation (0 doc indexé)."""
+
+    workspace_id: UUID
+    default_strategy_id: UUID | None

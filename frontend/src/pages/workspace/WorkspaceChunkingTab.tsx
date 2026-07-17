@@ -24,6 +24,7 @@ import { formatRelativeTime } from "@/lib/relativeTime";
 import type { Workspace } from "@/lib/workspaces.types";
 import { ChunkingConfirmReindexAlert } from "./ChunkingConfirmReindexAlert";
 import { CleaningOptionsPanel } from "./CleaningOptionsPanel";
+import { DefaultStrategyPanel } from "./DefaultStrategyPanel";
 import { CLEANING_KEYS, type CleaningOptions } from "./CleaningOptionsPanel.schema";
 import {
   CHUNKING_STRATEGIES,
@@ -173,6 +174,11 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
         <p className="mt-1 text-sm text-slate-600">{t("chunking.description")}</p>
       </div>
 
+      <DefaultStrategyPanel
+        workspaceName={workspace.name}
+        defaultStrategyId={data.default_strategy_id}
+      />
+
       <form
         onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-4 rounded-md border bg-white p-4"
@@ -190,7 +196,7 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
                 value={field.value}
                 onValueChange={(v) => field.onChange(v as ChunkingStrategy)}
               >
-                <SelectTrigger className="mt-1">
+                <SelectTrigger className="mt-1" aria-label={t("chunking.fields.strategy")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

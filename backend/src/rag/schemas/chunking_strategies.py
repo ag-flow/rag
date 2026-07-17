@@ -111,6 +111,8 @@ class StrategyOut(BaseModel):
     is_system: bool
     used_by_routes: int
     used_by_categories: int
+    used_by_triggers: int
+    used_by_workspaces: int
     created_at: datetime
     updated_at: datetime
 

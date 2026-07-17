@@ -28,5 +28,7 @@
   "field_order": "Ordre d'exécution",
   "prompt_add_save": "Ajouter",
   "prompt_delete_btn": "Retirer",
-  "add_prompt_error": "Erreur lors de l'ajout du prompt."
+  "add_prompt_error": "Erreur lors de l'ajout du prompt.",
+  "strategy_select": "Stratégie de chunking pour {{extension}}",
+  "strategy_cascade": "Cascade (par catégorie)"
 }

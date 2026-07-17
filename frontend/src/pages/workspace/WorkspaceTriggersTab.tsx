@@ -29,6 +29,7 @@ import {
   useDeleteTriggerPrompt,
   usePrompts,
 } from "@/hooks/useEnrichments";
+import { useChunkingStrategies } from "@/hooks/useChunkingStrategies";
 import { useLlmConfigs } from "@/hooks/usePlayground";
 import { useToast } from "@/hooks/useToast";
 import { AddTriggerDialog } from "./AddTriggerDialog";
@@ -162,10 +163,14 @@ interface Props {
   workspaceName: string;
 }
 
+// Sentinel du Select : pas de binding — cascade extension → catégorie.
+const CASCADE_STRATEGY = "__cascade__";
+
 export function WorkspaceTriggersTab({ workspaceName }: Props) {
   const { t } = useTranslation("triggers");
   const { toast } = useToast();
   const { data: triggers = [], isLoading } = useTriggers(workspaceName);
+  const { data: strategies = [] } = useChunkingStrategies();
   const patchMutation = usePatchTrigger(workspaceName);
   const deleteMutation = useDeleteTrigger(workspaceName);
   const [addOpen, setAddOpen] = useState(false);
@@ -224,6 +229,32 @@ export function WorkspaceTriggersTab({ workspaceName }: Props) {
                 <span className="font-mono text-sm font-semibold text-slate-700 flex-1">
                   {trigger.extension}
                 </span>
+                <Select
+                  value={trigger.strategy_id ?? CASCADE_STRATEGY}
+                  onValueChange={(v) =>
+                    patchMutation.mutate({
+                      triggerId: trigger.id,
+                      payload: { strategy_id: v === CASCADE_STRATEGY ? null : v },
+                    })
+                  }
+                >
+                  <SelectTrigger
+                    className="h-8 w-56 text-xs"
+                    aria-label={t("strategy_select", { extension: trigger.extension })}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CASCADE_STRATEGY} className="text-xs">
+                      {t("strategy_cascade")}
+                    </SelectItem>
+                    {strategies.map((s) => (
+                      <SelectItem key={s.id} value={s.id} className="text-xs">
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Switch
                   checked={trigger.enabled}
                   onCheckedChange={(enabled) =>

@@ -49,12 +49,18 @@ class TriggerCreate(BaseModel):
 
     extension: str = Field(min_length=2, max_length=16)
     enabled: bool = True
+    # Stratégie de chunking LIÉE PAR ID pour cette extension (spec chunking §5).
+    strategy_id: UUID | None = None
 
 
 class TriggerPatch(BaseModel):
+    """`strategy_id=None` explicite retire le binding — distingué de « champ
+    absent » via `model_fields_set` (même convention que StrategyPatch)."""
+
     model_config = ConfigDict(extra="forbid")
 
-    enabled: bool
+    enabled: bool | None = None
+    strategy_id: UUID | None = None
 
 
 class TriggerOut(BaseModel):
@@ -63,6 +69,7 @@ class TriggerOut(BaseModel):
     id: UUID
     extension: str
     enabled: bool
+    strategy_id: UUID | None = None
     created_at: datetime
 
 

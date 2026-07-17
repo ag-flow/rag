@@ -300,6 +300,15 @@
           "description": "Retire les balises (<p>, <div>…) et décode les entités HTML (&amp; → &, &lt; → <…). Utile pour les exports web ou les sources scrappées."
         }
       }
+    },
+    "defaultStrategy": {
+      "title": "Stratégie par défaut",
+      "description": "Stratégie du catalogue liée par id : elle traite les fichiers de la catégorie par défaut (prose et extensions inconnues). Les catégories spécialisées (code, table, data) gardent leur routage.",
+      "label": "Stratégie du catalogue",
+      "cascade": "— cascade par catégories (aucun binding) —",
+      "save": "Appliquer",
+      "saved": "Stratégie par défaut mise à jour.",
+      "error": "La mise à jour a échoué."
     }
   },
   "dialog": {

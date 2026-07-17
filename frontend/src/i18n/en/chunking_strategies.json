@@ -15,7 +15,9 @@
     "system": "System",
     "used_by_routes": "{{count}} route(s)",
     "used_by_categories": "{{count}} category(ies)",
-    "unused": "Unused"
+    "unused": "Unused",
+    "used_by_triggers": "{{count}} trigger(s)",
+    "used_by_workspaces": "{{count}} workspace(s)"
   },
   "actions": {
     "edit": "Edit",

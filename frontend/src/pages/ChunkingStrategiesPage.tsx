@@ -27,22 +27,23 @@ import { DeleteStrategyAlert } from "@/pages/chunking/DeleteStrategyAlert";
 
 function UsageBadges({ strategy }: { strategy: StrategyOut }) {
   const { t } = useTranslation("chunking_strategies");
-  const used = strategy.used_by_routes > 0 || strategy.used_by_categories > 0;
-  if (!used) {
+  const counters: [string, number][] = [
+    ["badges.used_by_routes", strategy.used_by_routes],
+    ["badges.used_by_categories", strategy.used_by_categories],
+    ["badges.used_by_triggers", strategy.used_by_triggers],
+    ["badges.used_by_workspaces", strategy.used_by_workspaces],
+  ];
+  const active = counters.filter(([, count]) => count > 0);
+  if (active.length === 0) {
     return <span className="text-xs text-slate-400">{t("badges.unused")}</span>;
   }
   return (
     <span className="flex flex-wrap gap-1">
-      {strategy.used_by_routes > 0 && (
-        <Badge variant="secondary">
-          {t("badges.used_by_routes", { count: strategy.used_by_routes })}
+      {active.map(([key, count]) => (
+        <Badge key={key} variant="secondary">
+          {t(key, { count })}
         </Badge>
-      )}
-      {strategy.used_by_categories > 0 && (
-        <Badge variant="secondary">
-          {t("badges.used_by_categories", { count: strategy.used_by_categories })}
-        </Badge>
-      )}
+      ))}
     </span>
   );
 }

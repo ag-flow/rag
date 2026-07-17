@@ -31,16 +31,19 @@ export type Trigger = {
   id: string;
   extension: string;
   enabled: boolean;
+  strategy_id: string | null;
   created_at: string;
 };
 
 export type TriggerCreate = {
   extension: string;
   enabled?: boolean;
+  strategy_id?: string | null;
 };
 
 export type TriggerPatch = {
-  enabled: boolean;
+  enabled?: boolean;
+  strategy_id?: string | null;
 };
 
 export type TriggerPrompt = {

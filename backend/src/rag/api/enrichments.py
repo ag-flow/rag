@@ -156,10 +156,16 @@ async def list_triggers(workspace_name: str, request: Request) -> list[TriggerOu
 async def create_trigger(
     workspace_name: str, body: TriggerCreate, request: Request
 ) -> TriggerOut:
+    from rag.services.triggers import UnknownTriggerStrategyError
     from rag.services.triggers import create_trigger as _create
+    owner_id = get_current_owner_id(request)
     async with _pool(request).acquire() as conn:
         try:
-            return await _create(conn, workspace_name=workspace_name, req=body)
+            return await _create(
+                conn, workspace_name=workspace_name, req=body, owner_id=owner_id
+            )
+        except UnknownTriggerStrategyError as exc:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
         except Exception as exc:
@@ -173,11 +179,20 @@ async def create_trigger(
 async def patch_trigger(
     workspace_name: str, trigger_id: UUID, body: TriggerPatch, request: Request
 ) -> TriggerOut:
+    from rag.services.triggers import UnknownTriggerStrategyError
     from rag.services.triggers import patch_trigger as _patch
+    owner_id = get_current_owner_id(request)
     async with _pool(request).acquire() as conn:
-        result = await _patch(
-            conn, workspace_name=workspace_name, trigger_id=str(trigger_id), req=body
-        )
+        try:
+            result = await _patch(
+                conn,
+                workspace_name=workspace_name,
+                trigger_id=str(trigger_id),
+                req=body,
+                owner_id=owner_id,
+            )
+        except UnknownTriggerStrategyError as exc:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
     if result is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "trigger not found")
     return result

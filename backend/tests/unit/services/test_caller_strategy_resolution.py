@@ -45,7 +45,13 @@ class _FakePool:
 async def test_resolve_caller_strategy_maps_record() -> None:
     sid = uuid4()
     conn = _FakeConn(
-        {"id": sid, "algo": "prose", "params": '{"child_target_tokens": 128}', "parser_slug": None}
+        {
+            "id": sid,
+            "slug": "ma-strategie",
+            "algo": "prose",
+            "params": '{"child_target_tokens": 128}',
+            "parser_slug": None,
+        }
     )
     record = await resolve_caller_strategy(
         _FakePool(conn),  # type: ignore[arg-type]

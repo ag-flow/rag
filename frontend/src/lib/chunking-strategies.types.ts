@@ -33,6 +33,8 @@ export interface StrategyOut {
   is_system: boolean;
   used_by_routes: number;
   used_by_categories: number;
+  used_by_triggers: number;
+  used_by_workspaces: number;
   created_at: string;
   updated_at: string;
 }

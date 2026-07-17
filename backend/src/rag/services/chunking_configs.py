@@ -39,7 +39,7 @@ async def get_chunking_config(
     row = await config_pool.fetchrow(
         """
         SELECT workspace_id, strategy, max_chars, min_chars, overlap_chars,
-               extras, created_at, updated_at
+               extras, default_strategy_id, created_at, updated_at
         FROM chunking_configs
         WHERE workspace_id = $1
         """,

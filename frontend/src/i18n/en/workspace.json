@@ -300,6 +300,15 @@
           "description": "Strips tags (<p>, <div>…) and decodes HTML entities (&amp; → &, &lt; → <…). Useful for web exports or scraped sources."
         }
       }
+    },
+    "defaultStrategy": {
+      "title": "Default strategy",
+      "description": "Catalog strategy bound by id: it handles files of the default category (prose and unknown extensions). Specialised categories (code, table, data) keep their routing.",
+      "label": "Catalog strategy",
+      "cascade": "— category cascade (no binding) —",
+      "save": "Apply",
+      "saved": "Default strategy updated.",
+      "error": "Update failed."
     }
   },
   "dialog": {

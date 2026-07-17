@@ -2,20 +2,27 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 from typing import Any
 from uuid import UUID
 
 import asyncpg
 
 from rag.indexer.chunking.region_routes import RegionRoute
-from rag.indexer.chunking.resolution import RoutingConfig, merge_maps
+from rag.indexer.chunking.resolution import (
+    DEFAULT_CATEGORY,
+    RoutingConfig,
+    merge_maps,
+    resolve_category,
+    resolve_strategy_name,
+)
 from rag.indexer.chunking.structured import StructuredChunkerProtocol
 from rag.indexer.chunking.structured_factory import make_structured_chunker
 from rag.indexer.chunking.tokens import TokenEstimator
 
 # Fragment SQL statique (aucun input utilisateur) — les noqa S608 ci-dessous
 # couvrent uniquement son interpolation.
-_STRATEGY_COLUMNS = "id, algo, params, parser_slug"
+_STRATEGY_COLUMNS = "id, slug, algo, params, parser_slug"
 
 
 class UnknownStrategySlugError(ValueError):
@@ -39,6 +46,7 @@ class StrategyRecord:
     """Stratégie du catalogue telle que chargée pour l'indexation."""
 
     id: UUID
+    slug: str
     algo: str
     params: dict[str, Any]
     parser_slug: str | None
@@ -78,7 +86,11 @@ def _record_from_row(row: asyncpg.Record) -> StrategyRecord:
     if isinstance(params, str):
         params = json.loads(params)
     return StrategyRecord(
-        id=row["id"], algo=row["algo"], params=params, parser_slug=row["parser_slug"]
+        id=row["id"],
+        slug=row["slug"],
+        algo=row["algo"],
+        params=params,
+        parser_slug=row["parser_slug"],
     )
 
 
@@ -176,6 +188,56 @@ async def load_region_routes(config_pool: asyncpg.Pool, strategy_id: UUID) -> li
         )
         for r in rows
     ]
+
+
+async def resolve_strategy_for_file(
+    config_pool: asyncpg.Pool,
+    *,
+    workspace_id: UUID,
+    path: str,
+    strategy_id: UUID | None = None,
+    default_strategy_id: UUID | None = None,
+) -> StrategyRecord:
+    """Cascade complète du mode job (spec chunking §5) — ids liés et défauts.
+
+    Priorité décroissante :
+    1. `strategy_id` — binding explicite du push (résolu à l'acceptation, F4) ;
+    2. `workspace_extension_triggers.strategy_id` — binding par extension du
+       workspace (trigger actif uniquement) ;
+    3. cascade textuelle extension → catégorie → stratégie (système/workspace)
+       pour les catégories spécialisées ;
+    4. `default_strategy_id` — défaut du workspace lié par id, qui remplace la
+       résolution de la catégorie par défaut ('prose') ;
+    5. défauts textuels globaux existants.
+    """
+    if strategy_id is not None:
+        return await load_strategy_by_id(config_pool, strategy_id)
+
+    trigger_binding = await _trigger_strategy_id(config_pool, workspace_id, path)
+    if trigger_binding is not None:
+        return await load_strategy_by_id(config_pool, trigger_binding)
+
+    routing = await load_routing(config_pool, workspace_id)
+    category = resolve_category(path=path, routing=routing)
+    if default_strategy_id is not None and category == DEFAULT_CATEGORY:
+        return await load_strategy_by_id(config_pool, default_strategy_id)
+
+    slug = resolve_strategy_name(path=path, override=None, routing=routing)
+    return await load_strategy(config_pool, workspace_id, slug)
+
+
+async def _trigger_strategy_id(
+    config_pool: asyncpg.Pool, workspace_id: UUID, path: str
+) -> UUID | None:
+    extension = PurePosixPath(path).suffix.lower()  # même convention que resolution.py
+    if not extension:
+        return None
+    return await config_pool.fetchval(
+        "SELECT strategy_id FROM workspace_extension_triggers "
+        "WHERE workspace_id = $1 AND extension = $2 AND enabled AND strategy_id IS NOT NULL",
+        workspace_id,
+        extension,
+    )
 
 
 async def build_strategy_chunker(

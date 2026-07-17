@@ -134,7 +134,11 @@ async def _load_visible_strategy(
         parser_slug=row["parser_slug"],
     )
     record = StrategyRecord(
-        id=row["id"], algo=row["algo"], params=params, parser_slug=row["parser_slug"]
+        id=row["id"],
+        slug=row["slug"],
+        algo=row["algo"],
+        params=params,
+        parser_slug=row["parser_slug"],
     )
     return ref, record
 

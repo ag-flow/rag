@@ -28,5 +28,7 @@
   "field_order": "Execution order",
   "prompt_add_save": "Add",
   "prompt_delete_btn": "Remove",
-  "add_prompt_error": "Failed to add prompt."
+  "add_prompt_error": "Failed to add prompt.",
+  "strategy_select": "Chunking strategy for {{extension}}",
+  "strategy_cascade": "Cascade (by category)"
 }

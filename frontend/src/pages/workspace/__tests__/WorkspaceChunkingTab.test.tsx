@@ -13,6 +13,11 @@ const upsertMutate = vi.fn();
 vi.mock("@/hooks/useChunking", () => ({
   useChunkingConfig: vi.fn(),
   useUpsertChunkingConfig: () => ({ mutate: upsertMutate, isPending: false }),
+  useSetDefaultStrategy: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
+vi.mock("@/hooks/useChunkingStrategies", () => ({
+  useChunkingStrategies: () => ({ data: [], isLoading: false }),
 }));
 
 const toastMock = vi.fn();
@@ -44,6 +49,7 @@ const mockConfig: ChunkingConfig = {
   min_chars: 200,
   overlap_chars: 200,
   extras: {},
+  default_strategy_id: null,
   created_at: "2026-05-19T10:00:00Z",
   updated_at: "2026-05-19T10:00:00Z",
 };
@@ -198,7 +204,7 @@ describe("WorkspaceChunkingTab", () => {
     const user = userEvent.setup();
     mockState(mockConfig);
     renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
-    await user.click(screen.getByRole("combobox"));
+    await user.click(screen.getByRole("combobox", { name: "Stratégie" }));
     expect(screen.getByRole("option", { name: /Paragraphes \(par défaut\)/i })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /^Markdown$/i })).toBeInTheDocument();
   });
@@ -207,7 +213,7 @@ describe("WorkspaceChunkingTab", () => {
     const user = userEvent.setup();
     mockState(mockConfig);
     renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
-    await user.click(screen.getByRole("combobox"));
+    await user.click(screen.getByRole("combobox", { name: "Stratégie" }));
     await user.click(screen.getByRole("option", { name: /^Markdown$/i }));
     expect(screen.getByText(/Respecte la structure d'un document Markdown/i)).toBeInTheDocument();
   });
@@ -216,7 +222,7 @@ describe("WorkspaceChunkingTab", () => {
     const user = userEvent.setup();
     mockState(mockConfig); // strategy: 'paragraph', extras: {}
     renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
-    await user.click(screen.getByRole("combobox"));
+    await user.click(screen.getByRole("combobox", { name: "Stratégie" }));
     await user.click(screen.getByRole("option", { name: /^Markdown$/i }));
     await user.click(screen.getByRole("button", { name: /^Enregistrer$/i }));
 

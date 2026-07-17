@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 
-_DEFAULT_CATEGORY = "prose"
+DEFAULT_CATEGORY = "prose"
+_DEFAULT_CATEGORY = DEFAULT_CATEGORY
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,21 @@ class RoutingConfig:
 def merge_maps(global_map: dict[str, str], workspace_map: dict[str, str]) -> dict[str, str]:
     """Fusionne global puis workspace : le workspace surcharge clé par clé."""
     return {**global_map, **workspace_map}
+
+
+def resolve_category(
+    *,
+    path: str | None,
+    routing: RoutingConfig,
+    default_category: str = _DEFAULT_CATEGORY,
+) -> str:
+    """Catégorie du fichier : extension connue → sa catégorie, sinon défaut.
+
+    Exposée pour le binding par id (spec chunking §5) : le défaut workspace
+    ne remplace que la catégorie par défaut, jamais les catégories
+    spécialisées (code/table/data).
+    """
+    return routing.extension_categories.get(_extension(path), default_category)
 
 
 def resolve_strategy_name(

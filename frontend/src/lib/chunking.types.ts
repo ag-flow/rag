@@ -11,6 +11,7 @@ export type ChunkingConfig = {
   min_chars: number;
   overlap_chars: number;
   extras: Record<string, unknown>;
+  default_strategy_id: string | null;
   created_at: string;
   updated_at: string;
 };

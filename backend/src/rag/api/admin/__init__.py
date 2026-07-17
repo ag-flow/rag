@@ -12,6 +12,8 @@ from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.schemas.admin import (
     ChunkingConfigResponse,
     ChunkingConfigSpec,
+    DefaultStrategyResponse,
+    DefaultStrategySpec,
     EngineResponse,
     EngineSpec,
     HybridConfigResponse,
@@ -616,6 +618,7 @@ def build_admin_router() -> APIRouter:
             min_chars=cfg["min_chars"],
             overlap_chars=cfg["overlap_chars"],
             extras=cfg["extras"],
+            default_strategy_id=cfg["default_strategy_id"],
             created_at=cfg["created_at"].isoformat(),
             updated_at=cfg["updated_at"].isoformat(),
         )
@@ -709,6 +712,55 @@ def build_admin_router() -> APIRouter:
                 status_code=status.HTTP_200_OK,
                 content=EngineResponse(
                     workspace_id=body["workspace_id"], engine=body["engine"]
+                ).model_dump(mode="json"),
+            )
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content=JobResponse(**body).model_dump(mode="json"),
+        )
+
+    @router.put("/workspaces/{name}/chunking-config/default-strategy")
+    async def put_default_strategy_endpoint(
+        name: str,
+        payload: DefaultStrategySpec,
+        request: Request,
+        confirm: bool = False,
+    ) -> Response:
+        """Change la stratégie par défaut LIÉE PAR ID du workspace (spec §5).
+
+        Même protocole que la bascule moteur : 204 (identique), 200 +
+        DefaultStrategyResponse (0 doc), 409 ``chunking_change_requires_reindex``
+        (docs > 0 sans confirm), 202 + JobResponse (confirm), 404 workspace,
+        422 stratégie invisible pour le caller.
+        """
+        from rag.auth.owner import get_current_owner_id
+        from rag.services.jobs import UnknownDefaultStrategyError, apply_default_strategy_change
+
+        config_pool = _config_pool(request)
+        owner_id = get_current_owner_id(request)
+        try:
+            result = await apply_default_strategy_change(
+                name=name,
+                strategy_id=payload.strategy_id,
+                owner_id=owner_id,
+                confirm=confirm,
+                config_pool=config_pool,
+            )
+        except UnknownDefaultStrategyError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+            ) from exc
+
+        if result == "no_change":
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+        tag, body = result
+        if tag == "updated":
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content=DefaultStrategyResponse(
+                    workspace_id=body["workspace_id"],
+                    default_strategy_id=body["default_strategy_id"],
                 ).model_dump(mode="json"),
             )
         return JSONResponse(
