@@ -176,3 +176,32 @@ class TestDefaults:
         )
         doc = chunker.chunk("# Guide\n\n## Sub\n\nbody")
         assert {p.section_key for p in doc.parents} == {"Guide", "Guide/Sub"}
+
+
+class TestValidateStrategySpec:
+    """Validation de spec sans construction (CRUD admin, F3)."""
+
+    def test_valid_spec_passes(self) -> None:
+        from rag.indexer.chunking.structured_factory import validate_strategy_spec
+
+        validate_strategy_spec(
+            algo="prose", params={"child_target_tokens": 256}, parser_slug="markdown"
+        )
+
+    def test_unknown_algo_raises(self) -> None:
+        from rag.indexer.chunking.structured_factory import validate_strategy_spec
+
+        with pytest.raises(ValueError, match="unknown chunking algo"):
+            validate_strategy_spec(algo="quantum", params={})
+
+    def test_parser_on_non_prose_algo_raises(self) -> None:
+        from rag.indexer.chunking.structured_factory import validate_strategy_spec
+
+        with pytest.raises(ValueError, match="parser_slug requires a prose algo"):
+            validate_strategy_spec(algo="table", params={}, parser_slug="markdown")
+
+    def test_unknown_param_raises(self) -> None:
+        from rag.indexer.chunking.structured_factory import validate_strategy_spec
+
+        with pytest.raises(ValueError, match="unknown params"):
+            validate_strategy_spec(algo="table", params={"heading_levels": [1]})

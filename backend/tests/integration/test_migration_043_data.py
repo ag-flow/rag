@@ -20,7 +20,7 @@ async def test_data_category_uses_data_strategy(session_pool: asyncpg.Pool) -> N
         )
         algo = await conn.fetchval(
             "SELECT algo FROM chunking_strategies "
-            "WHERE name='data-structured' AND workspace_id IS NULL"
+            "WHERE slug='data-structured' AND workspace_id IS NULL"
         )
     assert strat == "data-structured"
     assert algo == "data"
@@ -32,11 +32,11 @@ async def test_data_algo_allowed_by_check(session_pool: asyncpg.Pool) -> None:
     async with session_pool.acquire() as conn:
         # l'algo 'data' est désormais accepté par la contrainte CHECK
         await conn.execute(
-            "INSERT INTO chunking_strategies (workspace_id, name, algo) "
-            "VALUES (NULL, 'tmp-data', 'data')"
+            "INSERT INTO chunking_strategies (workspace_id, label, slug, algo) "
+            "VALUES (NULL, 'tmp-data', 'tmp-data', 'data')"
         )
         with pytest.raises(asyncpg.CheckViolationError):
             await conn.execute(
-                "INSERT INTO chunking_strategies (workspace_id, name, algo) "
-                "VALUES (NULL, 'tmp-bad', 'quantum')"
+                "INSERT INTO chunking_strategies (workspace_id, label, slug, algo) "
+                "VALUES (NULL, 'tmp-bad', 'tmp-bad', 'quantum')"
             )

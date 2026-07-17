@@ -14,8 +14,8 @@ MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 async def _seed_strategy(conn: asyncpg.Connection, name: str) -> UUID:
     return await conn.fetchval(
-        "INSERT INTO chunking_strategies (name, algo, params) "
-        "VALUES ($1, 'prose', '{}'::jsonb) RETURNING id",
+        "INSERT INTO chunking_strategies (label, slug, algo, params) "
+        "VALUES ($1, $1, 'prose', '{}'::jsonb) RETURNING id",
         name,
     )
 

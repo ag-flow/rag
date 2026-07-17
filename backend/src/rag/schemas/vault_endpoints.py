@@ -1,24 +1,22 @@
 from __future__ import annotations
 
-import re
-import unicodedata
 from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-_SLUG_STRIP_RE = re.compile(r"[^a-z0-9]+")
+from rag.schemas.slug import slugify
 
-
-def slugify(label: str) -> str:
-    """Calcule le slug d'un endpoint depuis son label.
-
-    Minuscules, accents translittérés, tout caractère non alphanumérique
-    devient un tiret. Ex : « Docs internes (Ollama) » → `docs-internes-ollama`.
-    """
-    normalized = unicodedata.normalize("NFKD", label)
-    ascii_only = normalized.encode("ascii", "ignore").decode("ascii").lower()
-    return _SLUG_STRIP_RE.sub("-", ascii_only).strip("-")
+# Ré-export : la dérivation de slug est devenue transverse (endpoints de
+# coffre, stratégies de chunking) et vit dans `rag.schemas.slug`.
+__all__ = [
+    "EndpointCreate",
+    "EndpointIndexerSpec",
+    "EndpointOut",
+    "EndpointRerankSpec",
+    "EndpointUpdate",
+    "slugify",
+]
 
 
 class EndpointIndexerSpec(BaseModel):

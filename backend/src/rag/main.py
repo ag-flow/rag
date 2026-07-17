@@ -13,6 +13,7 @@ from rag.admin_env import AdminEnvStore
 from rag.api.admin import build_admin_router
 from rag.api.admin.circuit_breaker import build_circuit_breaker_router
 from rag.api.admin_auth_config import build_admin_auth_config_router
+from rag.api.admin_chunking_strategies import build_chunking_strategies_router
 from rag.api.admin_git_credentials import router as admin_git_credentials_router
 from rag.api.admin_git_credentials import router_global as admin_git_creds_global_router
 from rag.api.admin_harpocrate_vaults import router as admin_harpocrate_vaults_router
@@ -268,6 +269,7 @@ def build_app(
     app.include_router(build_index_keys_router(), prefix="/api/admin")
     app.include_router(build_circuit_breaker_router(), prefix="/api/admin")
     app.include_router(build_webhooks_router(), prefix="/api/admin")
+    app.include_router(build_chunking_strategies_router())
     app.include_router(build_auth_router())
     app.include_router(build_auth_methods_router())
     app.include_router(build_me_api_keys_router())

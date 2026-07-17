@@ -24,12 +24,11 @@ from rag.indexer.chunking import Chunk, make_chunker
 from rag.indexer.chunking.hashing import compute_chunk_hash
 from rag.indexer.chunking.languages import language_for_path
 from rag.indexer.chunking.resolution import resolve_strategy_name
-from rag.indexer.chunking.structured_factory import make_structured_chunker
 from rag.indexer.chunking.tokens import HeuristicTokenEstimator
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
 from rag.secrets.refs import build_ref, is_vault_ref
-from rag.services.chunking_routing import load_routing, load_strategy
+from rag.services.chunking_routing import build_strategy_chunker, load_routing, load_strategy
 
 log = structlog.get_logger(__name__)
 
@@ -192,12 +191,12 @@ class RealIndexer:
         strategy_name = resolve_strategy_name(
             path=path, override=strategy_override, routing=routing
         )
-        algo, params = await load_strategy(self._config_pool, workspace_id, strategy_name)
+        record = await load_strategy(self._config_pool, workspace_id, strategy_name)
         estimator = HeuristicTokenEstimator(char_ratio=float(ctx["token_char_ratio"]))
-        language = language_for_path(path) if algo in ("code", "data") else None
-        chunker = make_structured_chunker(
-            algo=algo,
-            params=params,
+        language = language_for_path(path) if record.algo in ("code", "data") else None
+        chunker = await build_strategy_chunker(
+            self._config_pool,
+            record,
             estimator=estimator,
             provider_max_input_tokens=int(ctx["max_input_tokens"]),
             language=language,

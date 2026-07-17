@@ -7,6 +7,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from rag.auth.bearer import require_master_key_or_authenticated_admin
+from rag.auth.owner import get_current_owner_id
 from rag.schemas.enrichments import (
     PromptTemplateCreate,
     PromptTemplateOut,
@@ -46,7 +47,7 @@ def _pool(request: Request) -> asyncpg.Pool:
     return request.app.state.pools.config_pool  # type: ignore[no-any-return]
 
 
-# ─── Bibliothèque globale de prompts ──────────────────────────────────────────
+# ─── Bibliothèque de prompts (système + utilisateur, spec chunking §4) ────────
 
 router_prompts = APIRouter(
     prefix="/api/admin/prompts",
@@ -58,16 +59,18 @@ router_prompts = APIRouter(
 @router_prompts.get("", response_model=list[PromptTemplateOut])
 async def list_prompts(request: Request) -> list[PromptTemplateOut]:
     from rag.services.prompt_templates import list_prompt_templates
+    owner_id = get_current_owner_id(request)
     async with _pool(request).acquire() as conn:
-        return await list_prompt_templates(conn)
+        return await list_prompt_templates(conn, owner_id=owner_id)
 
 
 @router_prompts.post("", response_model=PromptTemplateOut, status_code=201)
 async def create_prompt(body: PromptTemplateCreate, request: Request) -> PromptTemplateOut:
     from rag.services.prompt_templates import create_prompt_template
+    owner_id = get_current_owner_id(request)
     async with _pool(request).acquire() as conn:
         try:
-            return await create_prompt_template(conn, body)
+            return await create_prompt_template(conn, owner_id=owner_id, req=body)
         except Exception as exc:
             if "unique" in str(exc).lower():
                 raise HTTPException(status.HTTP_409_CONFLICT, "name already exists") from exc
@@ -77,8 +80,9 @@ async def create_prompt(body: PromptTemplateCreate, request: Request) -> PromptT
 @router_prompts.get("/{template_id}", response_model=PromptTemplateOut)
 async def get_prompt(template_id: UUID, request: Request) -> PromptTemplateOut:
     from rag.services.prompt_templates import get_prompt_template
+    owner_id = get_current_owner_id(request)
     async with _pool(request).acquire() as conn:
-        result = await get_prompt_template(conn, str(template_id))
+        result = await get_prompt_template(conn, owner_id=owner_id, template_id=str(template_id))
     if result is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "template not found")
     return result
@@ -88,21 +92,47 @@ async def get_prompt(template_id: UUID, request: Request) -> PromptTemplateOut:
 async def patch_prompt(
     template_id: UUID, body: PromptTemplatePatch, request: Request
 ) -> PromptTemplateOut:
-    from rag.services.prompt_templates import patch_prompt_template
+    from rag.services.prompt_templates import (
+        TemplateImmutableError,
+        TemplateNotFoundError,
+        patch_prompt_template,
+    )
+    owner_id = get_current_owner_id(request)
     async with _pool(request).acquire() as conn:
-        result = await patch_prompt_template(conn, str(template_id), body)
-    if result is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "template not found")
-    return result
+        try:
+            return await patch_prompt_template(
+                conn, owner_id=owner_id, template_id=str(template_id), req=body
+            )
+        except TemplateNotFoundError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "template not found") from exc
+        except TemplateImmutableError as exc:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN, "template système non modifiable"
+            ) from exc
 
 
 @router_prompts.delete("/{template_id}", status_code=204)
 async def delete_prompt(template_id: UUID, request: Request) -> Response:
-    from rag.services.prompt_templates import delete_prompt_template
+    from rag.services.prompt_templates import (
+        TemplateImmutableError,
+        TemplateInUseError,
+        TemplateNotFoundError,
+        delete_prompt_template,
+    )
+    owner_id = get_current_owner_id(request)
     async with _pool(request).acquire() as conn:
-        deleted = await delete_prompt_template(conn, str(template_id))
-    if not deleted:
-        raise HTTPException(status.HTTP_409_CONFLICT, "template referenced by active trigger")
+        try:
+            await delete_prompt_template(
+                conn, owner_id=owner_id, template_id=str(template_id)
+            )
+        except TemplateNotFoundError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "template not found") from exc
+        except TemplateImmutableError as exc:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN, "template système non supprimable"
+            ) from exc
+        except TemplateInUseError as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

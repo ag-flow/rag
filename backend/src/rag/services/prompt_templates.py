@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import asyncpg
 import structlog
 
@@ -8,78 +10,145 @@ from rag.schemas.enrichments import PromptTemplateCreate, PromptTemplateOut, Pro
 log = structlog.get_logger(__name__)
 
 
-async def list_prompt_templates(conn: asyncpg.Connection) -> list[PromptTemplateOut]:
+class TemplateNotFoundError(Exception):
+    """Template inexistant ou invisible pour cet utilisateur."""
+
+
+class TemplateImmutableError(Exception):
+    """Template système : visible de tous, ni éditable ni supprimable."""
+
+
+class TemplateInUseError(Exception):
+    """Suppression refusée : le template est référencé par des triggers."""
+
+    def __init__(self, used_by_triggers: int) -> None:
+        self.used_by_triggers = used_by_triggers
+        super().__init__(f"template utilisé par {used_by_triggers} trigger(s)")
+
+
+# Portée bibliothèque (spec chunking §4, S3.3) : templates système (owner
+# NULL) + ceux de l'utilisateur. Le binding des triggers reste PAR ID.
+# Fragments SQL statiques (aucun input utilisateur) — les noqa S608 couvrent
+# uniquement leur interpolation.
+_OUT_COLUMNS = """
+    t.id, t.name, t.language, t.description, t.metadata_key, t.result_type,
+    t.result_schema, t.prompt, (t.owner_id IS NULL) AS is_system,
+    (SELECT count(*) FROM workspace_extension_trigger_prompts p
+       WHERE p.template_id = t.id)::int AS used_by_triggers,
+    t.created_at, t.updated_at
+"""
+_VISIBLE = "(t.owner_id IS NULL OR t.owner_id = $1)"
+
+
+def _to_out(row: asyncpg.Record) -> PromptTemplateOut:
+    data = dict(row)
+    if isinstance(data["result_schema"], str):
+        data["result_schema"] = json.loads(data["result_schema"])
+    return PromptTemplateOut.model_validate(data)
+
+
+async def list_prompt_templates(
+    conn: asyncpg.Connection, *, owner_id: str
+) -> list[PromptTemplateOut]:
     rows = await conn.fetch(
-        "SELECT id, name, language, description, metadata_key, result_type, "
-        "result_schema, prompt, created_at, updated_at "
-        "FROM prompt_templates ORDER BY language, name"
+        f"SELECT {_OUT_COLUMNS} FROM prompt_templates t WHERE {_VISIBLE} "  # noqa: S608
+        "ORDER BY t.language, t.name",
+        owner_id,
     )
-    return [PromptTemplateOut.model_validate(dict(r)) for r in rows]
+    return [_to_out(r) for r in rows]
 
 
 async def get_prompt_template(
-    conn: asyncpg.Connection, template_id: str
+    conn: asyncpg.Connection, *, owner_id: str, template_id: str
 ) -> PromptTemplateOut | None:
     row = await conn.fetchrow(
-        "SELECT id, name, language, description, metadata_key, result_type, "
-        "result_schema, prompt, created_at, updated_at "
-        "FROM prompt_templates WHERE id = $1::uuid",
+        f"SELECT {_OUT_COLUMNS} FROM prompt_templates t "  # noqa: S608
+        f"WHERE {_VISIBLE} AND t.id = $2::uuid",
+        owner_id,
         template_id,
     )
-    return PromptTemplateOut.model_validate(dict(row)) if row else None
+    return _to_out(row) if row else None
 
 
 async def create_prompt_template(
-    conn: asyncpg.Connection, req: PromptTemplateCreate
+    conn: asyncpg.Connection, *, owner_id: str, req: PromptTemplateCreate
 ) -> PromptTemplateOut:
-    import json
-    row = await conn.fetchrow(
+    template_id = await conn.fetchval(
         "INSERT INTO prompt_templates "
-        "(name, language, description, metadata_key, result_type, result_schema, prompt) "
-        "VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7) "
-        "RETURNING id, name, language, description, metadata_key, result_type, "
-        "result_schema, prompt, created_at, updated_at",
-        req.name, req.language, req.description, req.metadata_key,
+        "(owner_id, name, language, description, metadata_key, result_type, "
+        " result_schema, prompt) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8) RETURNING id",
+        owner_id,
+        req.name,
+        req.language,
+        req.description,
+        req.metadata_key,
         req.result_type,
         json.dumps(req.result_schema) if req.result_schema else None,
         req.prompt,
     )
     log.info("prompt_template.created", name=req.name)
-    return PromptTemplateOut.model_validate(dict(row))
+    result = await get_prompt_template(conn, owner_id=owner_id, template_id=str(template_id))
+    if result is None:  # pragma: no cover — la ligne vient d'être insérée
+        raise RuntimeError("create_prompt_template: inserted row not found")
+    return result
+
+
+async def _fetch_owned(
+    conn: asyncpg.Connection, *, owner_id: str, template_id: str
+) -> asyncpg.Record:
+    """Charge un template pour modification : le sien uniquement.
+
+    Système → immutable ; inexistant ou d'un autre user → introuvable.
+    """
+    row = await conn.fetchrow(
+        "SELECT t.id, t.owner_id FROM prompt_templates t "  # noqa: S608
+        f"WHERE {_VISIBLE} AND t.id = $2::uuid FOR UPDATE",
+        owner_id,
+        template_id,
+    )
+    if row is None:
+        raise TemplateNotFoundError(template_id)
+    if row["owner_id"] is None:
+        raise TemplateImmutableError(template_id)
+    return row
 
 
 async def patch_prompt_template(
-    conn: asyncpg.Connection, template_id: str, req: PromptTemplatePatch
-) -> PromptTemplateOut | None:
-    import json
-    row = await conn.fetchrow(
-        "UPDATE prompt_templates SET "
-        "description = COALESCE($2, description), "
-        "prompt = COALESCE($3, prompt), "
-        "result_schema = COALESCE($4::jsonb, result_schema), "
-        "updated_at = now() "
-        "WHERE id = $1::uuid "
-        "RETURNING id, name, language, description, metadata_key, result_type, "
-        "result_schema, prompt, created_at, updated_at",
-        template_id,
-        req.description,
-        req.prompt,
-        json.dumps(req.result_schema) if req.result_schema else None,
-    )
-    return PromptTemplateOut.model_validate(dict(row)) if row else None
+    conn: asyncpg.Connection, *, owner_id: str, template_id: str, req: PromptTemplatePatch
+) -> PromptTemplateOut:
+    async with conn.transaction():
+        await _fetch_owned(conn, owner_id=owner_id, template_id=template_id)
+        await conn.execute(
+            "UPDATE prompt_templates SET "
+            "description = COALESCE($2, description), "
+            "prompt = COALESCE($3, prompt), "
+            "result_schema = COALESCE($4::jsonb, result_schema), "
+            "updated_at = now() "
+            "WHERE id = $1::uuid",
+            template_id,
+            req.description,
+            req.prompt,
+            json.dumps(req.result_schema) if req.result_schema else None,
+        )
+    result = await get_prompt_template(conn, owner_id=owner_id, template_id=template_id)
+    if result is None:  # pragma: no cover — verrouillé par _fetch_owned
+        raise TemplateNotFoundError(template_id)
+    return result
 
 
 async def delete_prompt_template(
-    conn: asyncpg.Connection, template_id: str
-) -> bool:
-    """Supprime si non référencé par un trigger. Retourne False si référencé."""
-    ref_count = await conn.fetchval(
-        "SELECT count(*) FROM workspace_extension_trigger_prompts WHERE template_id = $1::uuid",
-        template_id,
-    )
-    if int(ref_count or 0) > 0:
-        return False
-    result = await conn.execute(
-        "DELETE FROM prompt_templates WHERE id = $1::uuid", template_id
-    )
-    return result != "DELETE 0"
+    conn: asyncpg.Connection, *, owner_id: str, template_id: str
+) -> None:
+    """Supprime un template de l'utilisateur, refusé s'il est référencé."""
+    async with conn.transaction():
+        await _fetch_owned(conn, owner_id=owner_id, template_id=template_id)
+        ref_count = await conn.fetchval(
+            "SELECT count(*) FROM workspace_extension_trigger_prompts "
+            "WHERE template_id = $1::uuid",
+            template_id,
+        )
+        if int(ref_count or 0) > 0:
+            raise TemplateInUseError(int(ref_count))
+        await conn.execute("DELETE FROM prompt_templates WHERE id = $1::uuid", template_id)
+    log.info("prompt_template.deleted", template_id=template_id)

@@ -38,6 +38,8 @@ class PromptTemplateOut(BaseModel):
     result_type: str
     result_schema: dict[str, Any] | None
     prompt: str
+    is_system: bool
+    used_by_triggers: int
     created_at: datetime
     updated_at: datetime
 

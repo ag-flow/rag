@@ -59,6 +59,28 @@ _DEFAULT_HEADING_LEVELS = (1, 2)
 _DEFAULT_MAX_ROWS = 50
 
 
+def validate_strategy_spec(
+    *,
+    algo: str,
+    params: Mapping[str, Any],
+    parser_slug: str | None = None,
+) -> None:
+    """Valide (algo, params, parser) sans construire de chunker.
+
+    Même règles que `make_structured_chunker` — utilisée par le CRUD admin
+    pour refuser une stratégie invalide à l'écriture plutôt qu'à l'indexation.
+    Lève `ValueError` sur algo inconnu, param non autorisé pour l'algo, ou
+    parser posé sur un algo non prose.
+    """
+    if algo not in _ALLOWED:
+        raise ValueError(f"unknown chunking algo: {algo!r}")
+    if parser_slug is not None and algo not in ("prose", "markdown"):
+        raise ValueError(f"parser_slug requires a prose algo, got {algo!r}")
+    unknown = set(params) - _ALLOWED[algo]
+    if unknown:
+        raise ValueError(f"unknown params for algo {algo!r}: {sorted(unknown)}")
+
+
 def make_structured_chunker(
     *,
     algo: str,
@@ -85,13 +107,7 @@ def make_structured_chunker(
     Toutes à ``False`` par défaut — aucun changement de comportement pour les
     stratégies existantes. Le wrapper est posé si au moins une option est activée.
     """
-    if algo not in _ALLOWED:
-        raise ValueError(f"unknown chunking algo: {algo!r}")
-    if parser_slug is not None and algo not in ("prose", "markdown"):
-        raise ValueError(f"parser_slug requires a prose algo, got {algo!r}")
-    unknown = set(params) - _ALLOWED[algo]
-    if unknown:
-        raise ValueError(f"unknown params for algo {algo!r}: {sorted(unknown)}")
+    validate_strategy_spec(algo=algo, params=params, parser_slug=parser_slug)
     if provider_max_input_tokens <= 0:
         raise ValueError("provider_max_input_tokens must be > 0")
     if not 0 < safety_factor <= 1:
