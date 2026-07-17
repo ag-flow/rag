@@ -2,43 +2,74 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useRerankConfig } from "@/hooks/useRerank";
+import { useProviderKeysByProvider } from "@/hooks/useHarpocrateVaults";
 import { useUpdateApiKeyRef } from "@/hooks/useWorkspaces";
 import { useToast } from "@/hooks/useToast";
 import type { Workspace } from "@/lib/workspaces.types";
 import { formatRelativeTime } from "@/lib/relativeTime";
 
-/** Champ éditable de référence de clé API (rotation par re-pointage). */
+/** Sélecteur de clé API par référence (rotation par re-pointage).
+
+ * Les options sont les clés provider des coffres (label + coffre) ; la clé
+ * couramment référencée est résolue vers son label. Une référence hors
+ * référentiel reste sélectionnable (affichée brute).
+ */
 function KeyRefEditor({
   current,
+  provider,
   onSave,
   saving,
-  label,
+  saveLabel,
+  ariaLabel,
 }: {
   current: string | null;
+  provider: string;
   onSave: (ref: string) => void;
   saving: boolean;
-  label: string;
+  saveLabel: string;
+  ariaLabel: string;
 }) {
+  const { t } = useTranslation("workspace");
+  const { data: keys = [] } = useProviderKeysByProvider(provider);
   const [value, setValue] = useState(current ?? "");
+
+  const known = keys.some((k) => k.harpo_path === (current ?? ""));
   return (
     <div className="flex items-center gap-2">
-      <Input
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        className="flex-1 font-mono text-xs"
-        aria-label={label}
-      />
+      <Select value={value} onValueChange={setValue}>
+        <SelectTrigger className="flex-1 text-xs" aria-label={ariaLabel}>
+          <SelectValue placeholder={t("detail.keyref.none")} />
+        </SelectTrigger>
+        <SelectContent>
+          {current && !known && (
+            <SelectItem value={current} className="font-mono text-xs">
+              {t("detail.keyref.custom", { ref: current })}
+            </SelectItem>
+          )}
+          {keys.map((k) => (
+            <SelectItem key={k.harpo_path} value={k.harpo_path}>
+              {k.label} — {k.vault_label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <Button
         type="button"
         variant="outline"
         size="sm"
-        disabled={saving || value.trim() === "" || value === (current ?? "")}
-        onClick={() => onSave(value.trim())}
+        disabled={saving || value === "" || value === (current ?? "")}
+        onClick={() => onSave(value)}
       >
-        {label}
+        {saveLabel}
       </Button>
     </div>
   );
@@ -120,8 +151,10 @@ export function WorkspaceDetailTab({ workspace, enabled }: Props) {
             <dd>
               <KeyRefEditor
                 current={rerankData.api_key_ref}
+                provider={rerankData.provider}
                 saving={patchMutation.isPending}
-                label={t("detail.keyref.save")}
+                saveLabel={t("detail.keyref.save")}
+                ariaLabel={t("rerank.fields.apiKeyRef")}
                 onSave={(ref) => saveKeyRef({ rerank: { api_key_ref: ref } })}
               />
             </dd>
@@ -151,8 +184,10 @@ export function WorkspaceDetailTab({ workspace, enabled }: Props) {
           <dd>
             <KeyRefEditor
               current={workspace.indexer.api_key_ref}
+              provider={workspace.indexer.provider}
               saving={patchMutation.isPending}
-              label={t("detail.keyref.save")}
+              saveLabel={t("detail.keyref.save")}
+              ariaLabel={t("model.api_key_ref")}
               onSave={(ref) => saveKeyRef({ indexer: { api_key_ref: ref } })}
             />
           </dd>

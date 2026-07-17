@@ -17,6 +17,33 @@ vi.mock("@/hooks/useToast", () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
+vi.mock("@/hooks/useHarpocrateVaults", () => ({
+  useProviderKeysByProvider: () => ({
+    data: [
+      {
+        id: "pk-1",
+        key_id: "openai-prod",
+        label: "OpenAI prod",
+        provider: "openai",
+        harpo_path: "openai_key",
+        vault_name: "rag",
+        vault_label: "Coffre RAG",
+        created_at: "2026-01-01T00:00:00Z",
+      },
+      {
+        id: "pk-2",
+        key_id: "voyage-prod",
+        label: "Voyage prod",
+        provider: "openai",
+        harpo_path: "voyage_key",
+        vault_name: "rag",
+        vault_label: "Coffre RAG",
+        created_at: "2026-01-01T00:00:00Z",
+      },
+    ],
+  }),
+}));
+
 const mockWorkspace: Workspace = {
   id: "abc-123",
   name: "my-workspace",
@@ -57,21 +84,21 @@ describe("WorkspaceDetailTab", () => {
     expect(saveBtn).toBeDisabled();
   });
 
-  it("affiche le champ api_key_ref avec la valeur initiale", () => {
+  it("affiche le label de la clé couramment référencée", () => {
     renderWithProviders(
       <WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />,
     );
-    const input = screen.getByRole<HTMLInputElement>("textbox");
-    expect(input.value).toBe("openai_key");
+    // openai_key est résolu vers son label + coffre dans le sélecteur.
+    expect(screen.getByText("OpenAI prod — Coffre RAG")).toBeInTheDocument();
   });
 
-  it("changer la clé : nouvelle référence → mutation indexer.api_key_ref", () => {
+  it("changer la clé : autre clé sélectionnée → mutation indexer.api_key_ref", async () => {
     mockMutate.mockClear();
     renderWithProviders(
       <WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />,
     );
-    const input = screen.getByRole<HTMLInputElement>("textbox");
-    fireEvent.change(input, { target: { value: "voyage_key" } });
+    fireEvent.click(screen.getByRole("combobox", { name: /Référence de clé API/i }));
+    fireEvent.click(await screen.findByText("Voyage prod — Coffre RAG"));
     const saveBtn = screen.getByRole("button", { name: /changer la clé/i });
     expect(saveBtn).toBeEnabled();
     fireEvent.click(saveBtn);

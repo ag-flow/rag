@@ -64,7 +64,9 @@
     "keyref": {
       "save": "Change key",
       "saved": "Key reference updated.",
-      "error": "Failed to update the key."
+      "error": "Failed to update the key.",
+      "custom": "Custom reference: {{ref}}",
+      "none": "No key"
     }
   },
   "sources": {
@@ -163,7 +165,7 @@
     "provider": "provider",
     "model": "model",
     "base_url": "base_url",
-    "api_key_ref": "api_key_ref",
+    "api_key_ref": "API key reference",
     "immutableNote": "The model is immutable. Changing provider or model would invalidate all vector dimensions and require a full reindex, not supported in this version."
   },
   "rerank": {
@@ -190,7 +192,7 @@
       "baseUrl": "Base URL (Ollama)",
       "baseUrlPlaceholder": "https://ollama.example.com",
       "baseUrlNotApplicable": "— not applicable —",
-      "apiKeyRef": "Harpocrate API key reference",
+      "apiKeyRef": "API key reference",
       "apiKeyRefPlaceholder": "cohere_rerank_key",
       "apiKeyRefNotApplicable": "— not applicable —",
       "topK": "top_k pre-rerank",

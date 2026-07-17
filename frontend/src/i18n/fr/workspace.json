@@ -64,7 +64,9 @@
     "keyref": {
       "save": "Changer la clé",
       "saved": "Référence de clé mise à jour.",
-      "error": "Échec de la mise à jour de la clé."
+      "error": "Échec de la mise à jour de la clé.",
+      "custom": "Référence personnalisée : {{ref}}",
+      "none": "Aucune clé"
     }
   },
   "sources": {
@@ -163,7 +165,7 @@
     "provider": "provider",
     "model": "model",
     "base_url": "base_url",
-    "api_key_ref": "api_key_ref",
+    "api_key_ref": "Référence de clé API",
     "immutableNote": "Le modèle est immutable. Changer provider ou model invaliderait toutes les dimensions vecteurs et nécessiterait une réindexation complète, non supportée dans cette version."
   },
   "rerank": {
@@ -190,7 +192,7 @@
       "baseUrl": "Base URL (Ollama)",
       "baseUrlPlaceholder": "https://ollama.example.com",
       "baseUrlNotApplicable": "— non applicable —",
-      "apiKeyRef": "Référence clé API Harpocrate",
+      "apiKeyRef": "Référence de clé API",
       "apiKeyRefPlaceholder": "cohere_rerank_key",
       "apiKeyRefNotApplicable": "— non applicable —",
       "topK": "top_k pré-rerank",

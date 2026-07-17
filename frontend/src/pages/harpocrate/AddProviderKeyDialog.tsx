@@ -21,6 +21,7 @@ import { useCreateProviderKey } from "@/hooks/useHarpocrateVaults";
 import { useModels } from "@/hooks/useModels";
 import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/lib/api";
+import { slugifyLabel } from "@/lib/slugify";
 
 const KEY_ID_RE = /^[a-zA-Z0-9_-]+$/;
 
@@ -41,6 +42,7 @@ export function AddProviderKeyDialog({ vaultId, open, onOpenChange }: Props) {
   const [label, setLabel] = useState("");
   const [value, setValue] = useState("");
   const [keyIdError, setKeyIdError] = useState("");
+  const [keyIdTouched, setKeyIdTouched] = useState(false);
   const [validDays, setValidDays] = useState("");
 
   // Providers distincts depuis model_dimensions
@@ -65,7 +67,18 @@ export function AddProviderKeyDialog({ vaultId, open, onOpenChange }: Props) {
       setLabel("");
       setValue("");
       setKeyIdError("");
+      setKeyIdTouched(false);
       setValidDays("");
+    }
+  }
+
+  // Le label remplit automatiquement le slug tant qu'il n'a pas été édité.
+  function handleLabelChange(next: string) {
+    setLabel(next);
+    if (!keyIdTouched) {
+      const slug = slugifyLabel(next);
+      setKeyId(slug);
+      validateKeyId(slug);
     }
   }
 
@@ -108,20 +121,15 @@ export function AddProviderKeyDialog({ vaultId, open, onOpenChange }: Props) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label className="text-xs uppercase tracking-wider text-slate-600">
-              {t("apikeys.field_provider")}
+              {t("apikeys.field_label")}
             </Label>
-            <Select value={provider} onValueChange={setProvider}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="openai, voyage, mistral…" />
-              </SelectTrigger>
-              <SelectContent>
-                {providers.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              value={label}
+              onChange={(e) => handleLabelChange(e.target.value)}
+              placeholder="OpenAI production"
+              className="mt-1"
+              autoFocus
+            />
           </div>
 
           <div>
@@ -131,6 +139,7 @@ export function AddProviderKeyDialog({ vaultId, open, onOpenChange }: Props) {
             <Input
               value={keyId}
               onChange={(e) => {
+                setKeyIdTouched(true);
                 setKeyId(e.target.value);
                 validateKeyId(e.target.value);
               }}
@@ -146,14 +155,20 @@ export function AddProviderKeyDialog({ vaultId, open, onOpenChange }: Props) {
 
           <div>
             <Label className="text-xs uppercase tracking-wider text-slate-600">
-              {t("apikeys.field_label")}
+              {t("apikeys.field_provider")}
             </Label>
-            <Input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="OpenAI production"
-              className="mt-1"
-            />
+            <Select value={provider} onValueChange={setProvider}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="openai, voyage, mistral…" />
+              </SelectTrigger>
+              <SelectContent>
+                {providers.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
