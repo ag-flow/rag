@@ -91,6 +91,9 @@ def _make_stub_harpocrate_vaults_service(
     vault.base_url = "http://harpocrate-stub:8200"
     vault.name = "rag"
     service.get_by_name = AsyncMock(return_value=vault)
+    # create_workspace vérifie l'existence d'un coffre par défaut AVANT tout
+    # DDL (chantier endpoints, cac2b8e) — le stub doit répondre en async.
+    service.get_default = AsyncMock(return_value=vault)
 
     async def _write_secret(_conn, *, vault_name: str, path: str, value: str) -> None:
         secret_store[path] = value
@@ -127,8 +130,8 @@ async def seed_endpoint(
         vault_id = await conn.fetchval(
             """
             INSERT INTO harpocrate_vaults
-                (name, label, base_url, api_key_id, api_key_encrypted, is_default)
-            VALUES ('rag', 'rag', 'http://harpocrate.test', 'k-test',
+                (id, name, label, base_url, api_key_id, api_key_encrypted, is_default)
+            VALUES (gen_random_uuid(), 'rag', 'rag', 'http://harpocrate.test', 'k-test',
                     pgp_sym_encrypt('tok-test', 'passphrase-of-at-least-32-characters-long'),
                     true)
             ON CONFLICT (name) DO UPDATE SET label = EXCLUDED.label
@@ -239,17 +242,30 @@ def admin_headers() -> dict[str, str]:
 
 @pytest.fixture
 def cleanup_ws_dbs_api(pg_container: str) -> Iterator[None]:
+    """Droppe les bases workspace créées par LE test (celles de sa config DB).
+
+    Précis et sûr sur un Postgres partagé : on lit `workspaces.rag_base` dans
+    la config DB jetable du test — jamais de pattern global qui raterait des
+    noms (fuite → collision au run suivant) ou toucherait d'autres bases.
+    """
     yield
     import asyncio
 
     async def _cleanup() -> None:
+        config = await asyncpg.connect(pg_container)
+        try:
+            bases = [r["rag_base"] for r in await config.fetch("SELECT rag_base FROM workspaces")]
+        finally:
+            await config.close()
+        if not bases:
+            return
         admin = await asyncpg.connect(pg_container.rsplit("/", 1)[0] + "/postgres")
         try:
-            for r in await admin.fetch(
-                "SELECT datname FROM pg_database WHERE datname LIKE 'rag_ws_%'"
-            ):
-                await admin.execute(f'DROP DATABASE IF EXISTS "{r["datname"]}" WITH (FORCE)')
+            for base in bases:
+                await admin.execute(f'DROP DATABASE IF EXISTS "{base}" WITH (FORCE)')
         finally:
             await admin.close()
 
-    asyncio.get_event_loop().run_until_complete(_cleanup())
+    # Python 3.12 : get_event_loop() hors boucle courante renvoie une boucle
+    # fermée par pytest-asyncio → RuntimeError en teardown. Boucle dédiée.
+    asyncio.run(_cleanup())

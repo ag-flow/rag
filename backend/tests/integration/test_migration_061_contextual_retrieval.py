@@ -6,6 +6,7 @@ import asyncpg
 import pytest
 
 from rag.db.migrations import run_migrations
+from tests.integration._workspace_seed import seed_workspace
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
@@ -62,10 +63,7 @@ async def test_context_cache_pk_and_cascade(session_pool: asyncpg.Pool) -> None:
         template_id = await _insert_template(
             conn, name="ctx-cache-061", target="chunk", timing="embedding_inline"
         )
-        ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_ref, api_key_fingerprint, rag_cnx, rag_base) "
-            "VALUES ('ws-ctx-061', 'ref', 'fp', 'c', 'b') RETURNING id"
-        )
+        ws_id = await seed_workspace(conn, name="ws-ctx-061")
         await conn.execute(
             "INSERT INTO chunk_context_cache "
             "(workspace_id, source_hash, template_id, prompt_version, context, "

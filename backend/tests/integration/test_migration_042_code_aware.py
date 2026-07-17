@@ -16,7 +16,7 @@ async def test_code_aware_uses_code_algo(session_pool: asyncpg.Pool) -> None:
     async with session_pool.acquire() as conn:
         algo = await conn.fetchval(
             "SELECT algo FROM chunking_strategies "
-            "WHERE name='code-aware' AND workspace_id IS NULL"
+            "WHERE slug='code-aware' AND workspace_id IS NULL AND owner_id IS NULL"
         )
         # le couple catégorie->stratégie reste inchangé
         code_strategy = await conn.fetchval(

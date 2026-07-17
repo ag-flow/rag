@@ -92,11 +92,12 @@ async def test_global_seeds_present(session_pool: asyncpg.Pool) -> None:
 @pytest.mark.asyncio
 async def test_system_strategy_slug_unique(session_pool: asyncpg.Pool) -> None:
     await run_migrations(session_pool, MIGRATIONS_DIR)
-    async with session_pool.acquire() as conn, pytest.raises(asyncpg.UniqueViolationError):
-        await conn.execute(
-            "INSERT INTO chunking_strategies (workspace_id, label, slug, algo) "
-            "VALUES (NULL, 'markdown-deep', 'markdown-deep', 'prose')"
-        )
+    async with session_pool.acquire() as conn:
+        with pytest.raises(asyncpg.UniqueViolationError):
+            await conn.execute(
+                "INSERT INTO chunking_strategies (workspace_id, label, slug, algo) "
+                "VALUES (NULL, 'markdown-deep', 'markdown-deep', 'prose')"
+            )
 
 
 @pytest.mark.asyncio
