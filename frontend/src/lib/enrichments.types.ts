@@ -7,6 +7,9 @@ export type PromptTemplate = {
   result_type: "text" | "json";
   result_schema: object | null;
   prompt: string;
+  target: string;
+  timing: "post_index_metadata" | "embedding_inline";
+  prompt_version: number;
   created_at: string;
   updated_at: string;
 };
@@ -19,6 +22,8 @@ export type PromptTemplateCreate = {
   result_type: "text" | "json";
   result_schema?: object | null;
   prompt: string;
+  target?: string;
+  timing?: "post_index_metadata" | "embedding_inline";
 };
 
 export type PromptTemplatePatch = {

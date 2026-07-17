@@ -11,6 +11,7 @@ _JOB_MODE_PATHS = [
     SRC / "indexer",
     SRC / "sync",
     SRC / "services" / "chunking_routing.py",
+    SRC / "services" / "inline_context.py",
 ]
 _FORBIDDEN = ("rag.auth", "from rag import auth")
 

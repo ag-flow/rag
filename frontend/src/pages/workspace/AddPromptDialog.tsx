@@ -39,6 +39,9 @@ export function AddPromptDialog({ open, onOpenChange }: Props) {
   const [resultType, setResultType] = useState<"text" | "json">("text");
   const [prompt, setPrompt] = useState("");
   const [description, setDescription] = useState("");
+  const [mode, setMode] = useState<"document" | "chunk" | "region">("document");
+  const [regionType, setRegionType] = useState("code_fence");
+  const [regionQualifier, setRegionQualifier] = useState("");
 
   function handleClose(next: boolean) {
     onOpenChange(next);
@@ -49,7 +52,22 @@ export function AddPromptDialog({ open, onOpenChange }: Props) {
       setResultType("text");
       setPrompt("");
       setDescription("");
+      setMode("document");
+      setRegionType("code_fence");
+      setRegionQualifier("");
     }
+  }
+
+  // Axes contextual retrieval (spec « Prompt B ») : le mode dérive le couple
+  // (target, timing) — seules les combinaisons supportées sont proposables.
+  function buildAxes(): { target: string; timing: "post_index_metadata" | "embedding_inline" } {
+    if (mode === "document") return { target: "document", timing: "post_index_metadata" };
+    if (mode === "chunk") return { target: "chunk", timing: "embedding_inline" };
+    const qualifier = regionQualifier.trim();
+    return {
+      target: qualifier ? `region:${regionType}:${qualifier}` : `region:${regionType}`,
+      timing: "embedding_inline",
+    };
   }
 
   const canSubmit =
@@ -70,6 +88,7 @@ export function AddPromptDialog({ open, onOpenChange }: Props) {
         result_type: resultType,
         prompt: prompt.trim(),
         description: description.trim() || null,
+        ...buildAxes(),
       });
       handleClose(false);
     } catch (err) {
@@ -150,6 +169,61 @@ export function AddPromptDialog({ open, onOpenChange }: Props) {
               </div>
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-slate-600">
+                {t("field_mode")}
+              </Label>
+              <Select value={mode} onValueChange={(v) => setMode(v as typeof mode)}>
+                <SelectTrigger className="mt-1" aria-label={t("field_mode")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="document">{t("mode_document")}</SelectItem>
+                  <SelectItem value="chunk">{t("mode_chunk")}</SelectItem>
+                  <SelectItem value="region">{t("mode_region")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {mode === "region" && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs uppercase tracking-wider text-slate-600">
+                    {t("field_region_type")}
+                  </Label>
+                  <Select value={regionType} onValueChange={setRegionType}>
+                    <SelectTrigger className="mt-1" aria-label={t("field_region_type")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["prose", "code_fence", "table", "frontmatter", "html_block"].map(
+                        (rt) => (
+                          <SelectItem key={rt} value={rt}>
+                            {rt}
+                          </SelectItem>
+                        ),
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs uppercase tracking-wider text-slate-600">
+                    {t("field_region_qualifier")}
+                  </Label>
+                  <Input
+                    value={regionQualifier}
+                    onChange={(e) => setRegionQualifier(e.target.value)}
+                    placeholder="mermaid"
+                    className="mt-1 font-mono"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          {mode !== "document" && (
+            <p className="text-xs text-slate-500">{t("mode_inline_hint")}</p>
+          )}
 
           <div>
             <Label className="text-xs uppercase tracking-wider text-slate-600">

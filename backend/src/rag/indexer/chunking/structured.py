@@ -34,11 +34,33 @@ class ChildChunk:
 
 
 @dataclass(frozen=True)
+class DroppedRegion:
+    """Région exclue de l'embedding par une route `parent_only` (spec §3).
+
+    Restituée au LLM via la section parente, elle reste candidate au
+    contextual retrieval « Prompt B » : un enrichissement `region:<type>` en
+    `embedding_inline` peut embedder une description LLM à sa place.
+    """
+
+    region_type: str
+    qualifier: str | None
+    content: str
+    parent_key: str
+    crumb: tuple[str, ...]
+    breadcrumb_depth: int
+
+
+@dataclass(frozen=True)
 class ChunkedDocument:
-    """Résultat d'un découpage structure-aware : parents + enfants liés."""
+    """Résultat d'un découpage structure-aware : parents + enfants liés.
+
+    `dropped_regions` : régions `parent_only` (vide pour les chunkers sans
+    passe régions — comportement historique inchangé).
+    """
 
     parents: list[ParentSection]
     children: list[ChildChunk]
+    dropped_regions: list[DroppedRegion] = field(default_factory=list)
 
 
 class StructuredChunkerProtocol(Protocol):

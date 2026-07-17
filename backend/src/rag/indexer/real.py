@@ -28,6 +28,7 @@ from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
 from rag.secrets.refs import build_ref, is_vault_ref
 from rag.services.chunking_routing import build_strategy_chunker, resolve_strategy_for_file
+from rag.services.inline_context import apply_inline_context
 
 log = structlog.get_logger(__name__)
 
@@ -207,6 +208,16 @@ class RealIndexer:
             language=language,
         )
         doc = chunker.chunk(content)
+        # Contextual retrieval « Prompt B » : injection du contexte LLM dans le
+        # texte embeddé (cache par hash source — no-op sans binding explicite).
+        doc = await apply_inline_context(
+            self._config_pool,
+            workspace_id=workspace_id,
+            path=path,
+            content=content,
+            doc=doc,
+            resolver=self._secret_resolver,
+        )
         ordered = _dedupe_by_hash(doc.children)
 
         ws_pool = await self._pool_registry.get_workspace_pool(

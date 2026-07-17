@@ -26,5 +26,12 @@
   "save": "Créer",
   "cancel": "Annuler",
   "error_toast": "Erreur lors de la création.",
-  "error_duplicate": "Un prompt avec ce nom existe déjà."
+  "error_duplicate": "Un prompt avec ce nom existe déjà.",
+  "field_mode": "Mode",
+  "mode_document": "Document — métadonnée post-index",
+  "mode_chunk": "Chunk — contexte injecté à l'embedding",
+  "mode_region": "Région — description embeddée à sa place",
+  "field_region_type": "Type de région",
+  "field_region_qualifier": "Qualifier (optionnel)",
+  "mode_inline_hint": "Injecté dans le texte embeddé (placeholders {chunk} et {document}) : jamais actif par défaut, activez-le via un trigger. Le résultat est mis en cache par hash du chunk source."
 }

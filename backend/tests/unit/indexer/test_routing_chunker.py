@@ -231,3 +231,27 @@ class TestOverflowPolicies:
         )
         result = chunker.chunk(doc)
         assert len(result.children) > 1
+
+
+class TestDroppedRegions:
+    """Les régions `parent_only` sont rapportées pour le contextual retrieval."""
+
+    def test_parent_only_region_reported_with_anchor(self) -> None:
+        chunker = _routing(
+            routes=[
+                RegionRoute(
+                    region_type="code_fence", qualifier="mermaid", overflow_policy="parent_only"
+                )
+            ]
+        )
+        doc = chunker.chunk("# Archi\n\nIntro.\n\n```mermaid\ngraph TD; A-->B;\n```\n")
+        assert len(doc.dropped_regions) == 1
+        dropped = doc.dropped_regions[0]
+        assert (dropped.region_type, dropped.qualifier) == ("code_fence", "mermaid")
+        assert "graph TD" in dropped.content
+        assert dropped.parent_key == "Archi"
+        assert dropped.crumb == ("Archi",)
+
+    def test_no_routes_no_dropped_regions(self) -> None:
+        doc = _routing().chunk("# T\n\n```mermaid\ngraph TD; A-->B;\n```\n")
+        assert doc.dropped_regions == []

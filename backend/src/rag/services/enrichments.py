@@ -70,6 +70,7 @@ async def run_enrichments(
           AND t.enabled = true
           AND tp.enabled = true
           AND lc.enabled = true
+          AND pt.timing = 'post_index_metadata'
         ORDER BY tp.order_index
         """,
         workspace_id,

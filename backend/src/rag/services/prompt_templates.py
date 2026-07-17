@@ -32,7 +32,8 @@ class TemplateInUseError(Exception):
 # uniquement leur interpolation.
 _OUT_COLUMNS = """
     t.id, t.name, t.language, t.description, t.metadata_key, t.result_type,
-    t.result_schema, t.prompt, (t.owner_id IS NULL) AS is_system,
+    t.result_schema, t.prompt, t.target, t.timing, t.prompt_version,
+    (t.owner_id IS NULL) AS is_system,
     (SELECT count(*) FROM workspace_extension_trigger_prompts p
        WHERE p.template_id = t.id)::int AS used_by_triggers,
     t.created_at, t.updated_at
@@ -76,8 +77,8 @@ async def create_prompt_template(
     template_id = await conn.fetchval(
         "INSERT INTO prompt_templates "
         "(owner_id, name, language, description, metadata_key, result_type, "
-        " result_schema, prompt) "
-        "VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8) RETURNING id",
+        " result_schema, prompt, target, timing) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10) RETURNING id",
         owner_id,
         req.name,
         req.language,
@@ -86,6 +87,8 @@ async def create_prompt_template(
         req.result_type,
         json.dumps(req.result_schema) if req.result_schema else None,
         req.prompt,
+        req.target,
+        req.timing,
     )
     log.info("prompt_template.created", name=req.name)
     result = await get_prompt_template(conn, owner_id=owner_id, template_id=str(template_id))
@@ -119,9 +122,13 @@ async def patch_prompt_template(
 ) -> PromptTemplateOut:
     async with conn.transaction():
         await _fetch_owned(conn, owner_id=owner_id, template_id=template_id)
+        # prompt_version invalide le cache de contexte (spec « Prompt B ») :
+        # bump automatique dès que le TEXTE du prompt change réellement.
         await conn.execute(
             "UPDATE prompt_templates SET "
             "description = COALESCE($2, description), "
+            "prompt_version = prompt_version + "
+            "  CASE WHEN $3::text IS NOT NULL AND $3::text <> prompt THEN 1 ELSE 0 END, "
             "prompt = COALESCE($3, prompt), "
             "result_schema = COALESCE($4::jsonb, result_schema), "
             "updated_at = now() "

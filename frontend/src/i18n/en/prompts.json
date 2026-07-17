@@ -26,5 +26,12 @@
   "save": "Create",
   "cancel": "Cancel",
   "error_toast": "Creation error.",
-  "error_duplicate": "A prompt with this name already exists."
+  "error_duplicate": "A prompt with this name already exists.",
+  "field_mode": "Mode",
+  "mode_document": "Document — post-index metadata",
+  "mode_chunk": "Chunk — context injected at embedding",
+  "mode_region": "Region — description embedded in its place",
+  "field_region_type": "Region type",
+  "field_region_qualifier": "Qualifier (optional)",
+  "mode_inline_hint": "Injected into the embedded text ({chunk} and {document} placeholders): never active by default, enable via a trigger. Results are cached by source-chunk hash."
 }

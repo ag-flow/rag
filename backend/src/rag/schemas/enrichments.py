@@ -1,13 +1,28 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+TEMPLATE_TIMINGS: frozenset[str] = frozenset({"post_index_metadata", "embedding_inline"})
+_REGION_TARGET_RE = re.compile(
+    r"^region:(prose|code_fence|table|frontmatter|html_block)(:[A-Za-z0-9_-]+)?$"
+)
 
 
 class PromptTemplateCreate(BaseModel):
+    """Deux axes contextual retrieval (spec « Prompt B ») :
+
+    - `target` : `document` | `chunk` | `region:<type>[:<qualifier>]` ;
+    - `timing` : `post_index_metadata` (métadonnée séparée, existant) |
+      `embedding_inline` (injecté dans le texte embeddé).
+    Combinaisons supportées : (document, post_index_metadata),
+    (chunk | region:*, embedding_inline).
+    """
+
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=128)
@@ -17,6 +32,33 @@ class PromptTemplateCreate(BaseModel):
     result_type: str = Field(default="text")
     result_schema: dict[str, Any] | None = None
     prompt: str = Field(min_length=1)
+    target: str = "document"
+    timing: str = "post_index_metadata"
+
+    @field_validator("target")
+    @classmethod
+    def _known_target(cls, v: str) -> str:
+        if v in ("document", "chunk") or _REGION_TARGET_RE.fullmatch(v):
+            return v
+        raise ValueError(f"target inconnu : {v!r}")
+
+    @field_validator("timing")
+    @classmethod
+    def _known_timing(cls, v: str) -> str:
+        if v not in TEMPLATE_TIMINGS:
+            raise ValueError(f"timing inconnu : {v!r}")
+        return v
+
+    @model_validator(mode="after")
+    def _supported_combo(self) -> PromptTemplateCreate:
+        metadata_combo = self.timing == "post_index_metadata" and self.target == "document"
+        inline_combo = self.timing == "embedding_inline" and self.target != "document"
+        if not (metadata_combo or inline_combo):
+            raise ValueError(
+                "combinaison non supportée : document↔post_index_metadata, "
+                "chunk|region:*↔embedding_inline"
+            )
+        return self
 
 
 class PromptTemplatePatch(BaseModel):
@@ -38,6 +80,9 @@ class PromptTemplateOut(BaseModel):
     result_type: str
     result_schema: dict[str, Any] | None
     prompt: str
+    target: str
+    timing: str
+    prompt_version: int
     is_system: bool
     used_by_triggers: int
     created_at: datetime

@@ -178,3 +178,68 @@ async def _call_ollama(
             "completion_tokens": data.get("eval_count", 0),
         },
     }
+
+
+# ─── Contextual retrieval « Prompt B » ────────────────────────────────────────
+# Prompt caching validé sur la doc Anthropic (2026-07) avant câblage (spec §2) :
+# `cache_control: ephemeral`, TTL 5 min (d'où le traitement en rafale des
+# chunks d'un même document), minimum cacheable 1024 tokens (2048 sur Haiku),
+# écriture du cache +25 %, lecture -90 %. Le marqueur n'est posé que si le
+# préfixe document atteint le seuil — en dessous, il coûterait sans servir.
+_CACHE_MIN_PREFIX_TOKENS = 2048
+_CACHE_CHAR_RATIO = 4  # heuristique len/4, cohérente avec HeuristicTokenEstimator
+CONTEXT_MAX_TOKENS = 120  # spec : contexte ≤ 100 tokens, marge de fin de phrase
+
+
+async def call_llm_with_cached_prefix(
+    *,
+    provider: str,
+    model: str,
+    api_key: str | None,
+    base_url: str | None,
+    cached_prefix: str,
+    prompt: str,
+    max_tokens: int = CONTEXT_MAX_TOKENS,
+) -> str:
+    """Un appel court avec un gros préfixe partagé (document complet).
+
+    Claude : préfixe marqué `cache_control` au-delà du seuil — les appels en
+    rafale sur le même document ne paient le document qu'une fois. Autres
+    providers : concaténation simple (OpenAI cache automatiquement les longs
+    préfixes identiques ; Ollama est local, pas de facturation).
+    """
+    use_anthropic_cache = (
+        provider == "claude"
+        and anthropic is not None
+        and len(cached_prefix) // _CACHE_CHAR_RATIO >= _CACHE_MIN_PREFIX_TOKENS
+    )
+    if use_anthropic_cache:
+        client = anthropic.AsyncAnthropic(api_key=api_key)
+        response = await client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": cached_prefix,
+                            "cache_control": {"type": "ephemeral"},
+                        },
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ],
+        )
+        return response.content[0].text
+
+    result = await call_llm(
+        provider=provider,
+        model=model,
+        api_key=api_key,
+        base_url=base_url,
+        system_prompt="",
+        messages=[{"role": "user", "content": f"{cached_prefix}\n\n{prompt}"}],
+    )
+    return str(result["answer"] or "")
