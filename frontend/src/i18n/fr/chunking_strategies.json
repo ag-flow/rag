@@ -104,5 +104,38 @@
     "deleted": "Stratégie supprimée.",
     "duplicated": "Stratégie dupliquée.",
     "routes_saved": "Routes enregistrées."
+  },
+  "algo_info": {
+    "best_for_label": "Idéal pour :",
+    "prose": {
+      "title": "Prose — hiérarchique small-to-big",
+      "description": "Le document est découpé selon ses titres en sections parentes, puis en chunks enfants bornés en tokens (cible, plancher, chevauchement). Le fil de titres (breadcrumb) est injecté dans le texte embeddé : chaque chunk garde son ancrage dans le document. À la recherche, le chunk matche mais c'est la section parente qui est restituée au LLM.",
+      "best_for": "documentation, wikis, README, articles — tout texte structuré par des titres.",
+      "tip": "Cible 384 tokens, titres H1-H2. Ajoutez un parser de régions pour router fences et tables."
+    },
+    "markdown": {
+      "title": "Markdown — alias de prose",
+      "description": "Même moteur que « prose » (sections par titres, small-to-big, breadcrumb). L'alias existe pour nommer clairement les stratégies du catalogue dédiées aux documents Markdown. Les blocs de code (```) ne sont jamais coupés.",
+      "best_for": "corpus exclusivement Markdown, quand le nom de la stratégie doit le dire.",
+      "tip": "Comportement identique à prose — choisissez l'un ou l'autre, pas les deux."
+    },
+    "table": {
+      "title": "Table — groupes de lignes",
+      "description": "Découpe les données tabulaires (CSV/TSV, tables pipe) par paquets de lignes, en répétant l'en-tête sur chaque chunk : chaque morceau reste interprétable seul, avec ses noms de colonnes.",
+      "best_for": "exports CSV/TSV, tables de référence, données tabulaires volumineuses.",
+      "tip": "Ajustez « lignes max par chunk » (50 par défaut) selon la largeur des lignes."
+    },
+    "code": {
+      "title": "Code — symboles tree-sitter",
+      "description": "Analyse syntaxique réelle (tree-sitter) : découpe aux frontières naturelles du code — fonctions, classes, méthodes — avec un breadcrumb de portée (module › classe › méthode) injecté à l'embedding. Repli gracieux vers prose si le langage n'est pas supporté.",
+      "best_for": "code source (Python, TS, Go, Java, C#…), scripts SQL et shell.",
+      "tip": "Chevauchement 0 (les frontières de symboles suffisent), plancher 128 tokens pour filtrer les micro-stubs."
+    },
+    "data": {
+      "title": "Data — clés de premier niveau",
+      "description": "Structure les formats de données (JSON, YAML, TOML) via tree-sitter et découpe par clés de premier niveau : un chunk = une entrée cohérente de la structure, jamais un objet coupé en deux. Repli prose si le format n'est pas supporté.",
+      "best_for": "fichiers de configuration, exports JSON/YAML, manifestes.",
+      "tip": "Chevauchement 0 recommandé — les clés sont des unités autonomes."
+    }
   }
 }

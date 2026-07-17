@@ -104,5 +104,38 @@
     "deleted": "Strategy deleted.",
     "duplicated": "Strategy duplicated.",
     "routes_saved": "Routes saved."
+  },
+  "algo_info": {
+    "best_for_label": "Best for:",
+    "prose": {
+      "title": "Prose — hierarchical small-to-big",
+      "description": "The document is split by its headings into parent sections, then into child chunks bounded in tokens (target, floor, overlap). The heading trail (breadcrumb) is injected into the embedded text so every chunk keeps its anchor. At query time the chunk matches, but the parent section is returned to the LLM.",
+      "best_for": "documentation, wikis, READMEs, articles — any text structured by headings.",
+      "tip": "Target 384 tokens, H1-H2 headings. Add a region parser to route fences and tables."
+    },
+    "markdown": {
+      "title": "Markdown — alias of prose",
+      "description": "Same engine as “prose” (heading sections, small-to-big, breadcrumb). The alias exists to name catalog strategies dedicated to Markdown corpora clearly. Code fences (```) are never split.",
+      "best_for": "Markdown-only corpora, when the strategy name should say so.",
+      "tip": "Identical behaviour to prose — pick one or the other, not both."
+    },
+    "table": {
+      "title": "Table — row groups",
+      "description": "Splits tabular data (CSV/TSV, pipe tables) into row batches, repeating the header on every chunk: each piece stays interpretable on its own, with its column names.",
+      "best_for": "CSV/TSV exports, reference tables, large tabular data.",
+      "tip": "Tune “max rows per chunk” (default 50) to your row width."
+    },
+    "code": {
+      "title": "Code — tree-sitter symbols",
+      "description": "Real syntax analysis (tree-sitter): splits at the code's natural boundaries — functions, classes, methods — with a scope breadcrumb (module › class › method) injected at embedding. Graceful fallback to prose when the language is unsupported.",
+      "best_for": "source code (Python, TS, Go, Java, C#…), SQL and shell scripts.",
+      "tip": "Overlap 0 (symbol boundaries are enough), floor 128 tokens to filter micro-stubs."
+    },
+    "data": {
+      "title": "Data — top-level keys",
+      "description": "Parses data formats (JSON, YAML, TOML) with tree-sitter and splits by top-level keys: one chunk = one coherent entry of the structure, never an object cut in half. Prose fallback when the format is unsupported.",
+      "best_for": "configuration files, JSON/YAML exports, manifests.",
+      "tip": "Overlap 0 recommended — keys are self-contained units."
+    }
   }
 }

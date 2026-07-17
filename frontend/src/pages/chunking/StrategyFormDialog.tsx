@@ -25,6 +25,7 @@ import {
 } from "@/hooks/useChunkingStrategies";
 import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/lib/api";
+import { AlgoInfoPanel } from "@/pages/chunking/AlgoInfoPanel";
 import {
   CHUNKING_ALGOS,
   type ChunkingAlgo,
@@ -144,121 +145,125 @@ export function StrategyFormDialog({ open, onOpenChange, strategy }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px]">
+      <DialogContent className="sm:max-w-[920px] max-h-[88vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? t("form.edit_title") : t("form.create_title")}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {isEdit && usage > 0 && (
-            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              {t("form.linked_warning", {
-                usage: (
-                  [
-                    ["badges.used_by_routes", strategy.used_by_routes],
-                    ["badges.used_by_categories", strategy.used_by_categories],
-                    ["badges.used_by_triggers", strategy.used_by_triggers],
-                    ["badges.used_by_workspaces", strategy.used_by_workspaces],
-                  ] as [string, number][]
-                )
-                  .filter(([, count]) => count > 0)
-                  .map(([key, count]) => t(key, { count }))
-                  .join(" · "),
-              })}
-            </p>
-          )}
-          <div className="space-y-1.5">
-            <Label htmlFor="strategy-label">{t("form.label")}</Label>
-            <Input
-              id="strategy-label"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder={t("form.label_placeholder")}
-              maxLength={128}
-            />
-            <p className="text-xs text-slate-500">
-              {isEdit ? `${t("form.slug")} : ${strategy.slug} — ` : ""}
-              {t("form.slug_hint")}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="grid gap-6 md:grid-cols-[1fr_300px]">
+          <div className="space-y-4">
+            {isEdit && usage > 0 && (
+              <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                {t("form.linked_warning", {
+                  usage: (
+                    [
+                      ["badges.used_by_routes", strategy.used_by_routes],
+                      ["badges.used_by_categories", strategy.used_by_categories],
+                      ["badges.used_by_triggers", strategy.used_by_triggers],
+                      ["badges.used_by_workspaces", strategy.used_by_workspaces],
+                    ] as [string, number][]
+                  )
+                    .filter(([, count]) => count > 0)
+                    .map(([key, count]) => t(key, { count }))
+                    .join(" · "),
+                })}
+              </p>
+            )}
             <div className="space-y-1.5">
-              <Label>{t("form.algo")}</Label>
-              <Select
-                value={algo}
-                onValueChange={(v) => setAlgo(v as ChunkingAlgo)}
-                disabled={isEdit}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CHUNKING_ALGOS.map((a) => (
-                    <SelectItem key={a} value={a}>
-                      {a}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {isEdit && <p className="text-xs text-slate-500">{t("form.algo_locked")}</p>}
+              <Label htmlFor="strategy-label">{t("form.label")}</Label>
+              <Input
+                id="strategy-label"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder={t("form.label_placeholder")}
+                maxLength={128}
+              />
+              <p className="text-xs text-slate-500">
+                {isEdit ? `${t("form.slug")} : ${strategy.slug} — ` : ""}
+                {t("form.slug_hint")}
+              </p>
             </div>
-            <div className="space-y-1.5">
-              <Label>{t("form.parser")}</Label>
-              <Select
-                value={parserAllowed ? parserSlug : NONE}
-                onValueChange={setParserSlug}
-                disabled={!parserAllowed}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>{t("form.parser_none")}</SelectItem>
-                  {(parsers ?? []).map((p) => (
-                    <SelectItem key={p.slug} value={p.slug}>
-                      {p.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-slate-500">{t("form.parser_hint")}</p>
-            </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label>{t("form.params_title")}</Label>
-            <div className="grid grid-cols-2 gap-3">
-              {numericKeys.map((key) => (
-                <div key={key} className="space-y-1">
-                  <Label htmlFor={`param-${key}`} className="text-xs font-normal">
-                    {t(`form.params.${key}`)}
-                  </Label>
-                  <Input
-                    id={`param-${key}`}
-                    type="number"
-                    value={numbers[key] ?? ""}
-                    onChange={(e) => setNumbers({ ...numbers, [key]: e.target.value })}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>{t("form.algo")}</Label>
+                <Select
+                  value={algo}
+                  onValueChange={(v) => setAlgo(v as ChunkingAlgo)}
+                  disabled={isEdit}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CHUNKING_ALGOS.map((a) => (
+                      <SelectItem key={a} value={a}>
+                        {a}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {isEdit && <p className="text-xs text-slate-500">{t("form.algo_locked")}</p>}
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t("form.parser")}</Label>
+                <Select
+                  value={parserAllowed ? parserSlug : NONE}
+                  onValueChange={setParserSlug}
+                  disabled={!parserAllowed}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>{t("form.parser_none")}</SelectItem>
+                    {(parsers ?? []).map((p) => (
+                      <SelectItem key={p.slug} value={p.slug}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-slate-500">{t("form.parser_hint")}</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>{t("form.params_title")}</Label>
+              <div className="grid grid-cols-2 gap-3">
+                {numericKeys.map((key) => (
+                  <div key={key} className="space-y-1">
+                    <Label htmlFor={`param-${key}`} className="text-xs font-normal">
+                      {t(`form.params.${key}`)}
+                    </Label>
+                    <Input
+                      id={`param-${key}`}
+                      type="number"
+                      value={numbers[key] ?? ""}
+                      onChange={(e) => setNumbers({ ...numbers, [key]: e.target.value })}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>{t("form.cleaning_title")}</Label>
+              {CLEANING_PARAMS.map((key) => (
+                <div key={key} className="flex items-center justify-between">
+                  <span className="text-sm text-slate-700">{t(`form.cleaning.${key}`)}</span>
+                  <Switch
+                    checked={cleaning[key] ?? false}
+                    onCheckedChange={(v) => setCleaning({ ...cleaning, [key]: v })}
+                    aria-label={key}
                   />
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>{t("form.cleaning_title")}</Label>
-            {CLEANING_PARAMS.map((key) => (
-              <div key={key} className="flex items-center justify-between">
-                <span className="text-sm text-slate-700">{t(`form.cleaning.${key}`)}</span>
-                <Switch
-                  checked={cleaning[key] ?? false}
-                  onCheckedChange={(v) => setCleaning({ ...cleaning, [key]: v })}
-                  aria-label={key}
-                />
-              </div>
-            ))}
-          </div>
+          <AlgoInfoPanel algo={algo} />
 
-          <DialogFooter>
+          <DialogFooter className="md:col-span-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t("form.cancel")}
             </Button>
