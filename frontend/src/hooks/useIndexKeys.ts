@@ -10,11 +10,7 @@ export function useIndexKeys(workspaceName: string, enabled: boolean) {
   });
 }
 
-export function useIndexKeyDetail(
-  workspaceName: string,
-  path: string,
-  enabled: boolean,
-) {
+export function useIndexKeyDetail(workspaceName: string, path: string, enabled: boolean) {
   return useQuery({
     queryKey: ["workspace", workspaceName, "index-keys", path],
     queryFn: () => workspacesApi.getIndexKeyDetail(workspaceName, path),
@@ -22,11 +18,7 @@ export function useIndexKeyDetail(
   });
 }
 
-export function useDocumentView(
-  workspaceName: string,
-  path: string,
-  enabled: boolean,
-) {
+export function useDocumentView(workspaceName: string, path: string, enabled: boolean) {
   return useQuery<DocumentViewResponse>({
     queryKey: ["workspace", workspaceName, "document-view", path],
     queryFn: () => workspacesApi.getDocumentView(workspaceName, path),

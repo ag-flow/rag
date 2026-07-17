@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { ChunkingStrategiesPage } from "@/pages/ChunkingStrategiesPage";
 import { WorkspacesPage } from "@/pages/WorkspacesPage";
 import { ApiKeysPage } from "@/pages/ApiKeysPage";
 import { HarpocrateVaultsPage } from "@/pages/HarpocrateVaultsPage";
@@ -14,6 +15,7 @@ export function AppRoutes() {
       <Route path="/workspaces" element={<WorkspacesPage />} />
       <Route path="/models" element={<ModelsPage />} />
       <Route path="/prompts" element={<PromptsPage />} />
+      <Route path="/chunking-strategies" element={<ChunkingStrategiesPage />} />
       <Route path="/settings/api-keys" element={<ApiKeysPage />} />
       <Route path="/settings/harpocrate-vaults" element={<HarpocrateVaultsPage />} />
       <Route path="/settings/oidc-config" element={<OidcConfigPage />} />

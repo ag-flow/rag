@@ -24,12 +24,7 @@ interface VaultDetailTabProps {
   onRetire: () => void;
 }
 
-export function VaultDetailTab({
-  vault,
-  onReveal,
-  onReplaceKey,
-  onRetire,
-}: VaultDetailTabProps) {
+export function VaultDetailTab({ vault, onReveal, onReplaceKey, onRetire }: VaultDetailTabProps) {
   const { t } = useTranslation("harpocrate");
   const { toast } = useToast();
   const updateMutation = useUpdateVault(vault.id);

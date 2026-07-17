@@ -60,14 +60,8 @@ export function WebhookForm({ onSubmit, onCancel, loading }: Props) {
     });
   }
 
-  function updateHeader(
-    idx: number,
-    field: keyof WebhookHeaderIn,
-    value: string | boolean | null,
-  ) {
-    setHeaders((h) =>
-      h.map((item, i) => (i === idx ? { ...item, [field]: value } : item)),
-    );
+  function updateHeader(idx: number, field: keyof WebhookHeaderIn, value: string | boolean | null) {
+    setHeaders((h) => h.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
   }
 
   function handleSubmit() {
@@ -80,19 +74,11 @@ export function WebhookForm({ onSubmit, onCancel, loading }: Props) {
     <div className="space-y-4">
       <div>
         <Label>{t("webhooks.name")}</Label>
-        <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="agflow-notify"
-        />
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="agflow-notify" />
       </div>
       <div>
         <Label>{t("webhooks.url")}</Label>
-        <Input
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://..."
-        />
+        <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." />
       </div>
 
       <div>
@@ -118,22 +104,12 @@ export function WebhookForm({ onSubmit, onCancel, loading }: Props) {
                 className="flex-1"
                 onChange={(e) => updateHeader(i, "value", e.target.value)}
               />
-              <Button
-                variant="ghost"
-                size="sm"
-                type="button"
-                onClick={() => removeHeader(i)}
-              >
+              <Button variant="ghost" size="sm" type="button" onClick={() => removeHeader(i)}>
                 &times;
               </Button>
             </div>
           ))}
-          <Button
-            variant="outline"
-            size="sm"
-            type="button"
-            onClick={addHeader}
-          >
+          <Button variant="outline" size="sm" type="button" onClick={addHeader}>
             {t("webhooks.add_header")}
           </Button>
         </div>

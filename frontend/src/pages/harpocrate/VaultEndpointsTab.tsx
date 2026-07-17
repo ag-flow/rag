@@ -151,9 +151,7 @@ export function VaultEndpointsTab({ vaultId }: Props) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("endpoints.delete_confirm_title")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("endpoints.delete_confirm_body")}
-            </AlertDialogDescription>
+            <AlertDialogDescription>{t("endpoints.delete_confirm_body")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("endpoints.cancel")}</AlertDialogCancel>

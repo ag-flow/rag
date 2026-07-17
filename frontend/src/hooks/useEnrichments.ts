@@ -10,8 +10,7 @@ import type {
 
 const PROMPTS_KEY = ["prompts"] as const;
 const triggersKey = (ws: string) => ["triggers", ws] as const;
-const triggerPromptsKey = (ws: string, tid: string) =>
-  ["trigger-prompts", ws, tid] as const;
+const triggerPromptsKey = (ws: string, tid: string) => ["trigger-prompts", ws, tid] as const;
 
 export function usePrompts() {
   return useQuery({
@@ -24,8 +23,7 @@ export function usePrompts() {
 export function useCreatePrompt() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: PromptTemplateCreate) =>
-      enrichmentsApi.createPrompt(payload),
+    mutationFn: (payload: PromptTemplateCreate) => enrichmentsApi.createPrompt(payload),
     onSuccess: () => void qc.invalidateQueries({ queryKey: PROMPTS_KEY }),
   });
 }
@@ -58,10 +56,8 @@ export function useTriggers(workspaceName: string) {
 export function useCreateTrigger(workspaceName: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: TriggerCreate) =>
-      enrichmentsApi.createTrigger(workspaceName, payload),
-    onSuccess: () =>
-      void qc.invalidateQueries({ queryKey: triggersKey(workspaceName) }),
+    mutationFn: (payload: TriggerCreate) => enrichmentsApi.createTrigger(workspaceName, payload),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: triggersKey(workspaceName) }),
   });
 }
 
@@ -70,18 +66,15 @@ export function usePatchTrigger(workspaceName: string) {
   return useMutation({
     mutationFn: ({ triggerId, payload }: { triggerId: string; payload: TriggerPatch }) =>
       enrichmentsApi.patchTrigger(workspaceName, triggerId, payload),
-    onSuccess: () =>
-      void qc.invalidateQueries({ queryKey: triggersKey(workspaceName) }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: triggersKey(workspaceName) }),
   });
 }
 
 export function useDeleteTrigger(workspaceName: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (triggerId: string) =>
-      enrichmentsApi.deleteTrigger(workspaceName, triggerId),
-    onSuccess: () =>
-      void qc.invalidateQueries({ queryKey: triggersKey(workspaceName) }),
+    mutationFn: (triggerId: string) => enrichmentsApi.deleteTrigger(workspaceName, triggerId),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: triggersKey(workspaceName) }),
   });
 }
 

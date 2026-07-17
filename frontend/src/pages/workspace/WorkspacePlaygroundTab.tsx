@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlaygroundLlmConfigTab } from "./PlaygroundLlmConfigTab";
 import { PlaygroundChatTab } from "./PlaygroundChatTab";
+import { PlaygroundChunkPreviewTab } from "./PlaygroundChunkPreviewTab";
 
 interface Props {
   workspaceName: string;
@@ -17,12 +18,16 @@ export function WorkspacePlaygroundTab({ workspaceName }: Props) {
       <TabsList>
         <TabsTrigger value="chat">{t("tabs.chat")}</TabsTrigger>
         <TabsTrigger value="config">{t("tabs.config")}</TabsTrigger>
+        <TabsTrigger value="chunk-preview">{t("tabs.chunkPreview")}</TabsTrigger>
       </TabsList>
       <TabsContent value="chat" className="pt-4">
         <PlaygroundChatTab workspaceName={workspaceName} />
       </TabsContent>
       <TabsContent value="config" className="pt-4">
         <PlaygroundLlmConfigTab workspaceName={workspaceName} />
+      </TabsContent>
+      <TabsContent value="chunk-preview" className="pt-4">
+        <PlaygroundChunkPreviewTab workspaceName={workspaceName} />
       </TabsContent>
     </Tabs>
   );

@@ -5,7 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { useLlmConfigs, usePlaygroundChat } from "@/hooks/usePlayground";
 import { useToast } from "@/hooks/useToast";
@@ -131,7 +135,11 @@ export function PlaygroundChatTab({ workspaceName }: Props) {
             </SelectTrigger>
             <SelectContent>
               {enabledConfigs.map((c) => (
-                <SelectItem key={c.id} value={`${c.provider}/${c.model}`} className="text-xs font-mono">
+                <SelectItem
+                  key={c.id}
+                  value={`${c.provider}/${c.model}`}
+                  className="text-xs font-mono"
+                >
                   {c.provider} / {c.model}
                 </SelectItem>
               ))}

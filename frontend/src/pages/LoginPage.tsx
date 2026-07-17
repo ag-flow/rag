@@ -185,9 +185,7 @@ export function LoginPage() {
       <div className="w-full max-w-md rounded-md border bg-white p-6 shadow-sm">
         <h1 className="text-xl font-semibold text-slate-900 mb-4">{t("title")}</h1>
 
-        {!showOidc && !showLocal && (
-          <p className="text-sm text-red-600">{t("errors.no_method")}</p>
-        )}
+        {!showOidc && !showLocal && <p className="text-sm text-red-600">{t("errors.no_method")}</p>}
 
         {showOidc && (
           <Button type="button" onClick={handleSsoClick} className="w-full mb-4">

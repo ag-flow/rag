@@ -99,12 +99,7 @@ export type ProviderApiKeyUpdate = {
   valid_days?: number | null;
 };
 
-export type GitHost =
-  | "github"
-  | "gitlab"
-  | "gitea"
-  | "bitbucket"
-  | "azure-devops";
+export type GitHost = "github" | "gitlab" | "gitea" | "bitbucket" | "azure-devops";
 
 export type GitCredential = {
   id: string;

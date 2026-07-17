@@ -1,0 +1,106 @@
+{
+  "title": "Chunking strategies",
+  "subtitle": "Library of chunking profiles: system strategies as a base, yours on top.",
+  "add_btn": "New strategy",
+  "empty": "No strategies.",
+  "table": {
+    "label": "Label",
+    "slug": "Slug",
+    "algo": "Algo",
+    "parser": "Parser",
+    "usage": "Usage",
+    "updated": "Updated"
+  },
+  "badges": {
+    "system": "System",
+    "used_by_routes": "{{count}} route(s)",
+    "used_by_categories": "{{count}} category(ies)",
+    "unused": "Unused"
+  },
+  "actions": {
+    "edit": "Edit",
+    "routes": "Region routes",
+    "duplicate": "Duplicate",
+    "delete": "Delete"
+  },
+  "form": {
+    "create_title": "New strategy",
+    "edit_title": "Edit strategy",
+    "label": "Label",
+    "label_placeholder": "e.g. Internal docs (mermaid apart)",
+    "slug": "Slug",
+    "slug_hint": "Derived from the label server-side, never typed.",
+    "algo": "Algorithm",
+    "algo_locked": "The algorithm is frozen after creation.",
+    "parser": "Region parser",
+    "parser_none": "None (no region pass)",
+    "parser_hint": "Enables intra-document routing (prose/markdown only).",
+    "params_title": "Parameters",
+    "params": {
+      "child_target_tokens": "Target chunk size (tokens)",
+      "floor_tokens": "Floor (tokens)",
+      "overlap_tokens": "Overlap (tokens)",
+      "breadcrumb_depth": "Breadcrumb depth (-1 = full)",
+      "max_rows_per_chunk": "Max rows per chunk (table)"
+    },
+    "cleaning_title": "Cleaning",
+    "cleaning": {
+      "clean_content": "General content cleaning",
+      "strip_separators": "Strip separators",
+      "strip_boilerplate": "Strip boilerplate",
+      "strip_html": "Strip HTML"
+    },
+    "linked_warning": "This strategy is in use ({{usage}}): editing it changes the shared indexing behaviour immediately.",
+    "save": "Save",
+    "create": "Create",
+    "cancel": "Cancel"
+  },
+  "routes": {
+    "title": "Region routes — {{label}}",
+    "subtitle": "Routes each region (type, qualifier) to its processing. Resolution: exact > wildcard > inline.",
+    "no_parser": "This strategy has no region parser: enable one to route.",
+    "empty": "No routes — all regions are processed inline.",
+    "region_type": "Region type",
+    "qualifier": "Qualifier",
+    "qualifier_hint": "* = all; e.g. mermaid, python…",
+    "target": "Target strategy",
+    "target_inline": "Inline (none)",
+    "atomic": "Atomic",
+    "policy": "Overflow",
+    "policies": {
+      "keep_whole": "keep_whole — error if too large",
+      "split_fallback": "split_fallback — gives up atomicity",
+      "parent_only": "parent_only — restored, never embedded"
+    },
+    "add": "Add a route",
+    "remove": "Remove",
+    "save": "Save routes",
+    "duplicate_key": "Two routes share the same (type, qualifier) pair."
+  },
+  "duplicate": {
+    "title": "Duplicate “{{label}}”",
+    "hint": "Copies parameters and routes into your library.",
+    "label": "Copy label",
+    "submit": "Duplicate"
+  },
+  "delete": {
+    "title": "Delete “{{label}}”?",
+    "description": "Deletion is refused if the strategy is referenced by routes.",
+    "confirm": "Delete",
+    "cancel": "Cancel"
+  },
+  "errors": {
+    "conflict": "Slug already used in your library.",
+    "in_use": "Strategy referenced — deletion refused.",
+    "system_immutable": "System strategy: read-only.",
+    "invalid": "Invalid configuration.",
+    "generic": "An error occurred."
+  },
+  "toasts": {
+    "created": "Strategy created.",
+    "updated": "Strategy updated.",
+    "deleted": "Strategy deleted.",
+    "duplicated": "Strategy duplicated.",
+    "routes_saved": "Routes saved."
+  }
+}

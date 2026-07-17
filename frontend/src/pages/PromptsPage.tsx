@@ -2,12 +2,23 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Trash2 } from "lucide-react";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { usePrompts, useDeletePrompt } from "@/hooks/useEnrichments";
 import { useToast } from "@/hooks/useToast";
@@ -78,11 +89,13 @@ export function PromptsPage() {
                     {p.metadata_key}
                   </TableCell>
                   <TableCell>
-                    <span className={`rounded px-2 py-0.5 text-xs font-medium ${
-                      p.result_type === "json"
-                        ? "bg-amber-100 text-amber-700"
-                        : "bg-slate-100 text-slate-700"
-                    }`}>
+                    <span
+                      className={`rounded px-2 py-0.5 text-xs font-medium ${
+                        p.result_type === "json"
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-slate-100 text-slate-700"
+                      }`}
+                    >
                       {p.result_type}
                     </span>
                   </TableCell>
@@ -108,7 +121,12 @@ export function PromptsPage() {
 
       <AddPromptDialog open={addOpen} onOpenChange={setAddOpen} />
 
-      <AlertDialog open={!!toDelete} onOpenChange={(o) => { if (!o) setToDelete(null); }}>
+      <AlertDialog
+        open={!!toDelete}
+        onOpenChange={(o) => {
+          if (!o) setToDelete(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("delete_confirm_title")}</AlertDialogTitle>

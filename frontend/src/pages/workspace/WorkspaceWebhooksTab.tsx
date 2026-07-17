@@ -16,18 +16,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  createWebhook,
-  deleteWebhook,
-  listWebhooks,
-  patchWebhook,
-} from "@/lib/webhooks";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { createWebhook, deleteWebhook, listWebhooks, patchWebhook } from "@/lib/webhooks";
 import type { Webhook, WebhookCreatePayload } from "@/lib/webhooks.types";
 import { WebhookForm } from "./WebhookForm";
 import { WebhookCallsLog } from "./WebhookCallsLog";
@@ -49,31 +39,25 @@ export function WorkspaceWebhooksTab({ workspaceName }: Props) {
   });
 
   const createMutation = useMutation({
-    mutationFn: (payload: WebhookCreatePayload) =>
-      createWebhook(workspaceName, payload),
+    mutationFn: (payload: WebhookCreatePayload) => createWebhook(workspaceName, payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["webhooks", workspaceName] });
       setShowForm(false);
     },
-    onError: () =>
-      toast({ title: t("webhooks.create_error"), variant: "destructive" }),
+    onError: () => toast({ title: t("webhooks.create_error"), variant: "destructive" }),
   });
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
       patchWebhook(workspaceName, id, { enabled }),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["webhooks", workspaceName] }),
-    onError: () =>
-      toast({ title: t("webhooks.toggle_error"), variant: "destructive" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["webhooks", workspaceName] }),
+    onError: () => toast({ title: t("webhooks.toggle_error"), variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteWebhook(workspaceName, id),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["webhooks", workspaceName] }),
-    onError: () =>
-      toast({ title: t("webhooks.delete_error"), variant: "destructive" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["webhooks", workspaceName] }),
+    onError: () => toast({ title: t("webhooks.delete_error"), variant: "destructive" }),
   });
 
   return (
@@ -92,16 +76,11 @@ export function WorkspaceWebhooksTab({ workspaceName }: Props) {
 
       <TabsContent value="list">
         {webhooks.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {t("webhooks.empty")}
-          </p>
+          <p className="text-sm text-muted-foreground">{t("webhooks.empty")}</p>
         ) : (
           <div className="space-y-2">
             {webhooks.map((wh: Webhook) => (
-              <div
-                key={wh.id}
-                className="flex items-center justify-between border rounded p-3"
-              >
+              <div key={wh.id} className="flex items-center justify-between border rounded p-3">
                 <div>
                   <span className="font-medium">{wh.name}</span>
                   <span className="text-xs text-muted-foreground ml-2 truncate max-w-[200px] inline-block align-bottom">
@@ -124,12 +103,8 @@ export function WorkspaceWebhooksTab({ workspaceName }: Props) {
                       })
                     }
                   >
-                    <Badge
-                      variant={wh.enabled ? "default" : "secondary"}
-                    >
-                      {wh.enabled
-                        ? t("webhooks.enabled")
-                        : t("webhooks.disabled")}
+                    <Badge variant={wh.enabled ? "default" : "secondary"}>
+                      {wh.enabled ? t("webhooks.enabled") : t("webhooks.disabled")}
                     </Badge>
                   </Button>
                   <AlertDialog>
@@ -140,20 +115,14 @@ export function WorkspaceWebhooksTab({ workspaceName }: Props) {
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>
-                          {t("webhooks.delete_confirm")}
-                        </AlertDialogTitle>
+                        <AlertDialogTitle>{t("webhooks.delete_confirm")}</AlertDialogTitle>
                         <AlertDialogDescription>
                           {t("webhooks.delete_confirm_description")}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>
-                          {t("webhooks.cancel")}
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => deleteMutation.mutate(wh.id)}
-                        >
+                        <AlertDialogCancel>{t("webhooks.cancel")}</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => deleteMutation.mutate(wh.id)}>
                           {t("webhooks.delete_confirm")}
                         </AlertDialogAction>
                       </AlertDialogFooter>

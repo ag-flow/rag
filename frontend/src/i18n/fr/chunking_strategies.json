@@ -1,0 +1,106 @@
+{
+  "title": "Stratégies de chunking",
+  "subtitle": "Bibliothèque de profils de découpage : stratégies système en socle, vos stratégies par-dessus.",
+  "add_btn": "Nouvelle stratégie",
+  "empty": "Aucune stratégie.",
+  "table": {
+    "label": "Label",
+    "slug": "Slug",
+    "algo": "Algo",
+    "parser": "Parser",
+    "usage": "Utilisation",
+    "updated": "Modifiée"
+  },
+  "badges": {
+    "system": "Système",
+    "used_by_routes": "{{count}} route(s)",
+    "used_by_categories": "{{count}} catégorie(s)",
+    "unused": "Non utilisée"
+  },
+  "actions": {
+    "edit": "Modifier",
+    "routes": "Routes de régions",
+    "duplicate": "Dupliquer",
+    "delete": "Supprimer"
+  },
+  "form": {
+    "create_title": "Nouvelle stratégie",
+    "edit_title": "Modifier la stratégie",
+    "label": "Label",
+    "label_placeholder": "ex. Docs internes (mermaid à part)",
+    "slug": "Slug",
+    "slug_hint": "Dérivé du label côté serveur, jamais saisi.",
+    "algo": "Algorithme",
+    "algo_locked": "L'algorithme est figé après création.",
+    "parser": "Parser de régions",
+    "parser_none": "Aucun (pas de passe régions)",
+    "parser_hint": "Active le routage intra-document (prose/markdown uniquement).",
+    "params_title": "Paramètres",
+    "params": {
+      "child_target_tokens": "Taille cible des chunks (tokens)",
+      "floor_tokens": "Plancher (tokens)",
+      "overlap_tokens": "Chevauchement (tokens)",
+      "breadcrumb_depth": "Profondeur du breadcrumb (-1 = complet)",
+      "max_rows_per_chunk": "Lignes max par chunk (table)"
+    },
+    "cleaning_title": "Nettoyage",
+    "cleaning": {
+      "clean_content": "Nettoyage général du contenu",
+      "strip_separators": "Retirer les séparateurs",
+      "strip_boilerplate": "Retirer le boilerplate",
+      "strip_html": "Retirer le HTML"
+    },
+    "linked_warning": "Cette stratégie est utilisée ({{usage}}) : la modifier change le comportement d'indexation partagé en direct.",
+    "save": "Enregistrer",
+    "create": "Créer",
+    "cancel": "Annuler"
+  },
+  "routes": {
+    "title": "Routes de régions — {{label}}",
+    "subtitle": "Dirige chaque région (type, qualifier) vers son traitement. Résolution : exact > wildcard > inline.",
+    "no_parser": "Cette stratégie n'a pas de parser de régions : activez-en un pour router.",
+    "empty": "Aucune route — toutes les régions sont traitées inline.",
+    "region_type": "Type de région",
+    "qualifier": "Qualifier",
+    "qualifier_hint": "* = toutes ; ex. mermaid, python…",
+    "target": "Stratégie cible",
+    "target_inline": "Inline (aucune)",
+    "atomic": "Atomique",
+    "policy": "Débordement",
+    "policies": {
+      "keep_whole": "keep_whole — erreur si trop grand",
+      "split_fallback": "split_fallback — renonce à l'atomicité",
+      "parent_only": "parent_only — restituée, jamais embeddée"
+    },
+    "add": "Ajouter une route",
+    "remove": "Retirer",
+    "save": "Enregistrer les routes",
+    "duplicate_key": "Deux routes portent le même couple (type, qualifier)."
+  },
+  "duplicate": {
+    "title": "Dupliquer « {{label}} »",
+    "hint": "Copie les paramètres et les routes dans votre bibliothèque.",
+    "label": "Label de la copie",
+    "submit": "Dupliquer"
+  },
+  "delete": {
+    "title": "Supprimer « {{label}} » ?",
+    "description": "La suppression est refusée si la stratégie est référencée par des routes.",
+    "confirm": "Supprimer",
+    "cancel": "Annuler"
+  },
+  "errors": {
+    "conflict": "Slug déjà utilisé dans votre bibliothèque.",
+    "in_use": "Stratégie référencée — suppression refusée.",
+    "system_immutable": "Stratégie système : lecture seule.",
+    "invalid": "Configuration invalide.",
+    "generic": "Une erreur est survenue."
+  },
+  "toasts": {
+    "created": "Stratégie créée.",
+    "updated": "Stratégie mise à jour.",
+    "deleted": "Stratégie supprimée.",
+    "duplicated": "Stratégie dupliquée.",
+    "routes_saved": "Routes enregistrées."
+  }
+}

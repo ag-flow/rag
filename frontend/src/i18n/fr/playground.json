@@ -1,7 +1,8 @@
 {
   "tabs": {
     "config": "Config LLM",
-    "chat": "Chat"
+    "chat": "Chat",
+    "chunkPreview": "Preview découpage"
   },
   "config": {
     "title": "Configurations LLM",
@@ -39,5 +40,22 @@
     "tokens": "Tokens : prompt={{prompt}} / completion={{completion}}",
     "thinking": "Réflexion en cours…",
     "error_toast": "Erreur lors de l'appel LLM."
+  },
+  "chunkPreview": {
+    "strategy_a": "Stratégie",
+    "strategy_b": "Comparer avec…",
+    "compare_none": "— pas de comparaison —",
+    "content_label": "Document échantillon (markdown)",
+    "content_placeholder": "Collez ici un document pour prévisualiser son découpage…",
+    "run": "Prévisualiser",
+    "running": "Découpage…",
+    "totals": "{{chunks}} chunks · ~{{tokens}} tokens",
+    "diff_summary": "{{common}} chunks communs · {{onlyA}} uniquement A · {{onlyB}} uniquement B",
+    "chunk_title": "chunk {{index}} · ~{{tokens}} tok",
+    "region_badge": "{{type}}{{qualifier}}",
+    "parents": "{{count}} section(s) parente(s)",
+    "only_this_side": "absent de l'autre stratégie",
+    "error": "La preview a échoué : {{message}}",
+    "empty_hint": "Choisissez une stratégie et collez un document."
   }
 }

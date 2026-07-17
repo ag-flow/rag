@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { playgroundApi } from "@/lib/playground";
-import type { LlmConfigCreate, LlmConfigPatch, PlaygroundChatRequest } from "@/lib/playground.types";
+import type {
+  LlmConfigCreate,
+  LlmConfigPatch,
+  PlaygroundChatRequest,
+} from "@/lib/playground.types";
 
 const ROOT = (name: string) => ["playground", name, "llm-configs"] as const;
 
@@ -15,8 +19,7 @@ export function useLlmConfigs(workspaceName: string) {
 export function useAddLlmConfig(workspaceName: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: LlmConfigCreate) =>
-      playgroundApi.createConfig(workspaceName, payload),
+    mutationFn: (payload: LlmConfigCreate) => playgroundApi.createConfig(workspaceName, payload),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ROOT(workspaceName) }),
   });
 }
@@ -40,7 +43,6 @@ export function useDeleteLlmConfig(workspaceName: string) {
 
 export function usePlaygroundChat(workspaceName: string) {
   return useMutation({
-    mutationFn: (payload: PlaygroundChatRequest) =>
-      playgroundApi.chat(workspaceName, payload),
+    mutationFn: (payload: PlaygroundChatRequest) => playgroundApi.chat(workspaceName, payload),
   });
 }

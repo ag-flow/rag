@@ -1,13 +1,21 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { useAddLlmConfig } from "@/hooks/usePlayground";
 import { useProviderKeysByProvider } from "@/hooks/useHarpocrateVaults";
@@ -56,13 +64,19 @@ export function AddLlmConfigDialog({ workspaceName, open, onOpenChange }: Props)
   function handleClose(next: boolean) {
     onOpenChange(next);
     if (!next) {
-      setProvider(""); setModel(""); setBaseUrl(""); setSelectedKey(""); setOllamaModel("");
+      setProvider("");
+      setModel("");
+      setBaseUrl("");
+      setSelectedKey("");
+      setOllamaModel("");
     }
   }
 
   const effectiveModel = provider === "ollama" ? ollamaModel : model;
   const canSubmit =
-    !!provider && !!effectiveModel && !mutation.isPending &&
+    !!provider &&
+    !!effectiveModel &&
+    !mutation.isPending &&
     (!needsBaseUrl || !!baseUrl) &&
     (!needsKey || keys.length === 0 || !!selectedKey);
 
@@ -111,7 +125,9 @@ export function AddLlmConfigDialog({ workspaceName, open, onOpenChange }: Props)
               </SelectTrigger>
               <SelectContent>
                 {PROVIDERS.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                  <SelectItem key={p.value} value={p.value}>
+                    {p.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -128,7 +144,9 @@ export function AddLlmConfigDialog({ workspaceName, open, onOpenChange }: Props)
                 </SelectTrigger>
                 <SelectContent>
                   {MODELS_BY_PROVIDER[provider as LlmProvider].map((m) => (
-                    <SelectItem key={m} value={m} className="font-mono">{m}</SelectItem>
+                    <SelectItem key={m} value={m} className="font-mono">
+                      {m}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>

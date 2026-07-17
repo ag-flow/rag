@@ -1,9 +1,5 @@
 import { api } from "@/lib/api";
-import type {
-  EndpointCreate,
-  EndpointUpdate,
-  VaultEndpoint,
-} from "@/lib/vault-endpoints.types";
+import type { EndpointCreate, EndpointUpdate, VaultEndpoint } from "@/lib/vault-endpoints.types";
 
 const BASE = "/api/admin/harpocrate-vaults";
 

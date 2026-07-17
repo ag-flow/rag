@@ -20,11 +20,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/useToast";
-import { useAddSource, useUpdateSource, useTestSourceConnection, useDetectBranches } from "@/hooks/useWorkspaces";
 import {
-  useGitCredentialsByHost,
-  useSshKeysAll,
-} from "@/hooks/useHarpocrateVaults";
+  useAddSource,
+  useUpdateSource,
+  useTestSourceConnection,
+  useDetectBranches,
+} from "@/hooks/useWorkspaces";
+import { useGitCredentialsByHost, useSshKeysAll } from "@/hooks/useHarpocrateVaults";
 import type { Source, SourceCreateRequest, SourceUpdateRequest } from "@/lib/workspaces.types";
 
 // ─── Constantes ────────────────────────────────────────────────────────────
@@ -51,7 +53,10 @@ const DEFAULT_SSH_USER: Record<GitProvider, string> = {
 // ─── Schemas ────────────────────────────────────────────────────────────────
 
 const createSchema = z.object({
-  source_name: z.string().min(1).regex(/^[a-z0-9_-]+$/, "invalid_slug"),
+  source_name: z
+    .string()
+    .min(1)
+    .regex(/^[a-z0-9_-]+$/, "invalid_slug"),
   url: z.string().min(1, "required"),
   branch: z.string().optional(),
   git_provider: z.string().min(1, "required"),
@@ -79,7 +84,10 @@ type EditValues = z.infer<typeof editSchema>;
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const splitCsv = (s: string | undefined): string[] =>
-  (s ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  (s ?? "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
 
 const branchOrUndefined = (b: string | undefined): string | undefined => {
   const trimmed = (b ?? "").trim();
@@ -247,7 +255,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
         branch: (cfg["branch"] as string) ?? "",
         git_provider: (cfg["git_provider"] as GitProvider) ?? "github",
         auth_type: (cfg["auth_type"] as AuthType) ?? "token",
-        credential_ref: ((cfg["auth_ref"] as string) ?? (cfg["ssh_key_ref"] as string) ?? ""),
+        credential_ref: (cfg["auth_ref"] as string) ?? (cfg["ssh_key_ref"] as string) ?? "",
         ssh_username: (cfg["ssh_username"] as string) ?? "git",
         include: ((cfg["include"] as string[]) ?? []).join(", "),
         exclude: ((cfg["exclude"] as string[]) ?? []).join(", "),
@@ -283,8 +291,8 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
       detectBranches.mutate(
         {
           url: watchedUrl,
-          auth_ref: authType === "token" ? (watchedCredential || null) : null,
-          ssh_key_ref: authType === "ssh" ? (watchedCredential || null) : null,
+          auth_ref: authType === "token" ? watchedCredential || null : null,
+          ssh_key_ref: authType === "ssh" ? watchedCredential || null : null,
           ssh_username: watchedSshUser || null,
         },
         {
@@ -314,9 +322,9 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
 
   function buildCreatePayload(v: CreateValues): SourceCreateRequest {
     const branch = branchOrUndefined(v.branch);
-    const authRef = v.auth_type === "token" ? (v.credential_ref || undefined) : undefined;
-    const sshKeyRef = v.auth_type === "ssh" ? (v.credential_ref || undefined) : undefined;
-    const sshUsername = v.auth_type === "ssh" ? (v.ssh_username || undefined) : undefined;
+    const authRef = v.auth_type === "token" ? v.credential_ref || undefined : undefined;
+    const sshKeyRef = v.auth_type === "ssh" ? v.credential_ref || undefined : undefined;
+    const sshUsername = v.auth_type === "ssh" ? v.ssh_username || undefined : undefined;
     return {
       name: v.source_name,
       type: "git",
@@ -336,9 +344,9 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
 
   function buildUpdatePayload(v: EditValues): SourceUpdateRequest {
     const branch = branchOrUndefined(v.branch);
-    const authRef = v.auth_type === "token" ? (v.credential_ref || undefined) : undefined;
-    const sshKeyRef = v.auth_type === "ssh" ? (v.credential_ref || undefined) : undefined;
-    const sshUsername = v.auth_type === "ssh" ? (v.ssh_username || undefined) : undefined;
+    const authRef = v.auth_type === "token" ? v.credential_ref || undefined : undefined;
+    const sshKeyRef = v.auth_type === "ssh" ? v.credential_ref || undefined : undefined;
+    const sshUsername = v.auth_type === "ssh" ? v.ssh_username || undefined : undefined;
     return {
       ...(v.git_provider !== undefined && { git_provider: v.git_provider }),
       ...(v.auth_type !== undefined && { auth_type: v.auth_type }),
@@ -384,8 +392,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
             setTestResult(null);
             testConnection.mutate(source!.id, {
               onSuccess: (r) => setTestResult(r),
-              onError: () =>
-                setTestResult({ success: false, message: t("sources.test.error") }),
+              onError: () => setTestResult({ success: false, message: t("sources.test.error") }),
             });
           }
         },
@@ -472,9 +479,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
             <IncludeExclude register={register} t={t} />
 
             {/* Résultat test */}
-            {testResult !== null && (
-              <TestResultBanner testResult={testResult} t={t} />
-            )}
+            {testResult !== null && <TestResultBanner testResult={testResult} t={t} />}
 
             <DialogFooter className="gap-2">
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
@@ -526,9 +531,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
                 )}
               </p>
             )}
-            <p className="text-xs text-slate-400 mt-0.5">
-              {t("sources.fields.source_name_hint")}
-            </p>
+            <p className="text-xs text-slate-400 mt-0.5">{t("sources.fields.source_name_hint")}</p>
           </div>
 
           {/* Bloc auth */}
@@ -545,9 +548,7 @@ export function AddSourceDialog({ name, open, onOpenChange, source }: Props) {
 
           {/* URL */}
           <div>
-            <label className="text-xs font-medium text-slate-700">
-              {t("sources.fields.url")}
-            </label>
+            <label className="text-xs font-medium text-slate-700">{t("sources.fields.url")}</label>
             <Input {...register("url")} placeholder="https://github.com/org/repo.git" />
             {formState.errors.url && (
               <p className="text-xs text-red-600">
@@ -691,9 +692,7 @@ function AuthBlock({
           control={control}
           render={({ field }) =>
             credentialItems.length === 0 ? (
-              <p className="text-xs text-amber-600 mt-1">
-                {t("sources.fields.credential_none")}
-              </p>
+              <p className="text-xs text-amber-600 mt-1">{t("sources.fields.credential_none")}</p>
             ) : (
               <Select value={(field.value as string) ?? ""} onValueChange={field.onChange}>
                 <SelectTrigger className="mt-1">

@@ -10,8 +10,7 @@ import type {
 const BASE = (name: string) => `/api/admin/workspaces/${name}/llm-configs`;
 
 export const playgroundApi = {
-  listConfigs: (workspaceName: string) =>
-    api.get<LlmConfig[]>(BASE(workspaceName)),
+  listConfigs: (workspaceName: string) => api.get<LlmConfig[]>(BASE(workspaceName)),
 
   createConfig: (workspaceName: string, payload: LlmConfigCreate) =>
     api.post<LlmConfig>(BASE(workspaceName), payload),
@@ -23,8 +22,5 @@ export const playgroundApi = {
     api.delete<void>(`${BASE(workspaceName)}/${configId}`),
 
   chat: (workspaceName: string, payload: PlaygroundChatRequest) =>
-    api.post<PlaygroundChatResponse>(
-      `/api/workspaces/${workspaceName}/playground/chat`,
-      payload,
-    ),
+    api.post<PlaygroundChatResponse>(`/api/workspaces/${workspaceName}/playground/chat`, payload),
 };

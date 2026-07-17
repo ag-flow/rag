@@ -66,7 +66,11 @@ describe("JobDetailPanel", () => {
   });
 
   it("affiche le message d'erreur du job en erreur", () => {
-    mockFiles.value = { data: { files: [], total: 0, limit: 1000 }, isLoading: false, isError: false };
+    mockFiles.value = {
+      data: { files: [], total: 0, limit: 1000 },
+      isLoading: false,
+      isError: false,
+    };
     const errored: Job = { ...baseJob, status: "error", error_message: "boom" };
     renderWithProviders(<JobDetailPanel name="wrk1" job={errored} />);
     expect(screen.getByText("boom")).toBeInTheDocument();

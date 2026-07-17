@@ -86,7 +86,10 @@ export function WorkspaceDetailTab({ workspace, enabled }: Props) {
   const { data: rerankData, isLoading: rerankLoading } = useRerankConfig(workspace.name, enabled);
   const patchMutation = useUpdateApiKeyRef(workspace.name);
 
-  function saveKeyRef(payload: { indexer?: { api_key_ref: string }; rerank?: { api_key_ref: string } }) {
+  function saveKeyRef(payload: {
+    indexer?: { api_key_ref: string };
+    rerank?: { api_key_ref: string };
+  }) {
     patchMutation.mutate(payload, {
       onSuccess: () => toast({ title: t("detail.keyref.saved") }),
       onError: () => toast({ title: t("detail.keyref.error"), variant: "destructive" }),
@@ -136,7 +139,9 @@ export function WorkspaceDetailTab({ workspace, enabled }: Props) {
           {t("rerank.title")}
         </h3>
         {rerankLoading ? (
-          <div className="flex h-12 items-center"><LoadingSpinner /></div>
+          <div className="flex h-12 items-center">
+            <LoadingSpinner />
+          </div>
         ) : !rerankData ? (
           <p className="text-sm text-slate-500">{t("rerank.description.empty")}</p>
         ) : (

@@ -30,7 +30,6 @@ export const workspacesApi = {
 
   delete: (name: string) => api.delete<void>(`${BASE}/${name}`),
 
-
   reindex: (name: string) => api.post<void>(`${BASE}/${name}/reindex?confirm=true`, {}),
 
   listSources: (name: string) => api.get<Source[]>(`${BASE}/${name}/sources`),
@@ -65,8 +64,7 @@ export const workspacesApi = {
     ssh_username?: string | null;
   }) => api.post<DetectBranchesResponse>("/api/admin/sources/detect-branches", payload),
 
-  listIndexKeys: (name: string) =>
-    api.get<IndexKeysResponse>(`${BASE}/${name}/index-keys`),
+  listIndexKeys: (name: string) => api.get<IndexKeysResponse>(`${BASE}/${name}/index-keys`),
 
   getIndexKeyDetail: (name: string, path: string) =>
     api.get<PathDetailResponse>(`${BASE}/${name}/index-keys/${encodeURIComponent(path)}`),

@@ -48,8 +48,7 @@ export function AddProviderKeyDialog({ vaultId, open, onOpenChange }: Props) {
   // Providers distincts depuis model_dimensions
   const providers = [...new Set(models.map((m) => m.provider))].sort();
 
-  const harpoPath =
-    provider && keyId ? `/${provider}/${keyId}` : "";
+  const harpoPath = provider && keyId ? `/${provider}/${keyId}` : "";
 
   function validateKeyId(v: string) {
     if (v && !KEY_ID_RE.test(v)) {

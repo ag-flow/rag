@@ -1,14 +1,22 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { useCreatePrompt, useLanguages } from "@/hooks/useEnrichments";
 import { useToast } from "@/hooks/useToast";
@@ -35,8 +43,12 @@ export function AddPromptDialog({ open, onOpenChange }: Props) {
   function handleClose(next: boolean) {
     onOpenChange(next);
     if (!next) {
-      setName(""); setLanguage(""); setMetadataKey("");
-      setResultType("text"); setPrompt(""); setDescription("");
+      setName("");
+      setLanguage("");
+      setMetadataKey("");
+      setResultType("text");
+      setPrompt("");
+      setDescription("");
     }
   }
 

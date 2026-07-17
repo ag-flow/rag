@@ -37,9 +37,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function grantLabel(g: WorkspaceGrantOut): string {
-  const perms = [g.can_read ? "R" : null, g.can_write ? "W" : null]
-    .filter(Boolean)
-    .join("/");
+  const perms = [g.can_read ? "R" : null, g.can_write ? "W" : null].filter(Boolean).join("/");
   return `${g.workspace_name} (${perms || "—"})`;
 }
 
@@ -112,9 +110,7 @@ export function ApiKeysPage() {
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {k.workspaces.length === 0 ? (
-                        <span className="text-xs text-slate-400">
-                          {t("no_grants")}
-                        </span>
+                        <span className="text-xs text-slate-400">{t("no_grants")}</span>
                       ) : (
                         k.workspaces.map((g) => (
                           <Badge key={g.workspace_id} variant="secondary">
@@ -125,9 +121,7 @@ export function ApiKeysPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className={STATUS_COLORS[k.status] ?? ""}>
-                      {t(`status_${k.status}`)}
-                    </span>
+                    <span className={STATUS_COLORS[k.status] ?? ""}>{t(`status_${k.status}`)}</span>
                   </TableCell>
                   <TableCell className="text-sm text-slate-500">
                     {new Date(k.created_at).toLocaleDateString()}
@@ -173,10 +167,7 @@ export function ApiKeysPage() {
       )}
 
       <CreateUserApiKeyDialog open={createOpen} onOpenChange={setCreateOpen} />
-      <RotateUserApiKeyDialog
-        apiKey={toRotate}
-        onOpenChange={(o) => !o && setToRotate(null)}
-      />
+      <RotateUserApiKeyDialog apiKey={toRotate} onOpenChange={(o) => !o && setToRotate(null)} />
       <EditGrantsDialog apiKey={toEdit} onOpenChange={(o) => !o && setToEdit(null)} />
 
       <AlertDialog open={toRevoke !== null} onOpenChange={(o) => !o && setToRevoke(null)}>

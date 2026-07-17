@@ -120,16 +120,12 @@ export function ModelsPage() {
   const getProviderPricing = (provider: string): ProviderPricing | undefined =>
     pricingData?.providers?.[provider];
 
-  const getModelPricingEntry = (
-    provider: string,
-    model: string,
-  ): ModelPricingEntry | undefined => {
+  const getModelPricingEntry = (provider: string, model: string): ModelPricingEntry | undefined => {
     const prov = getProviderPricing(provider);
     return prov?.models.find((m) => m.name === model);
   };
 
-  const getLang = (): "fr" | "en" =>
-    i18n.language.startsWith("fr") ? "fr" : "en";
+  const getLang = (): "fr" | "en" => (i18n.language.startsWith("fr") ? "fr" : "en");
 
   const getDescription = (pricingEntry: ModelPricingEntry | undefined): string | undefined => {
     if (!pricingEntry?.description) return undefined;
@@ -205,10 +201,7 @@ export function ModelsPage() {
                       const pricingEntry = getModelPricingEntry(entry.provider, entry.model);
                       const description = getDescription(pricingEntry);
                       return (
-                        <li
-                          key={`${entry.provider}/${entry.model}`}
-                          className="px-4 py-2"
-                        >
+                        <li key={`${entry.provider}/${entry.model}`} className="px-4 py-2">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 text-sm">
                               <code className="font-mono text-slate-800">{entry.model}</code>

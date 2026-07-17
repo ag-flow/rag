@@ -2,13 +2,24 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Trash2 } from "lucide-react";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useLlmConfigs, useDeleteLlmConfig, usePatchLlmConfig } from "@/hooks/usePlayground";
 import { useToast } from "@/hooks/useToast";
@@ -78,7 +89,7 @@ export function PlaygroundLlmConfigTab({ workspaceName }: Props) {
                   </TableCell>
                   <TableCell className="font-mono text-sm">{cfg.model}</TableCell>
                   <TableCell className="text-xs text-slate-400">
-                    {cfg.api_key_ref ? cfg.api_key_ref.split("/").pop() ?? "—" : "—"}
+                    {cfg.api_key_ref ? (cfg.api_key_ref.split("/").pop() ?? "—") : "—"}
                   </TableCell>
                   <TableCell>
                     <Switch
@@ -104,13 +115,14 @@ export function PlaygroundLlmConfigTab({ workspaceName }: Props) {
         </div>
       )}
 
-      <AddLlmConfigDialog
-        workspaceName={workspaceName}
-        open={addOpen}
-        onOpenChange={setAddOpen}
-      />
+      <AddLlmConfigDialog workspaceName={workspaceName} open={addOpen} onOpenChange={setAddOpen} />
 
-      <AlertDialog open={!!toDelete} onOpenChange={(o) => { if (!o) setToDelete(null); }}>
+      <AlertDialog
+        open={!!toDelete}
+        onOpenChange={(o) => {
+          if (!o) setToDelete(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("config.delete_confirm_title")}</AlertDialogTitle>

@@ -53,9 +53,7 @@ describe("WorkspaceRerankTab", () => {
     mockUseRerankConfig.mockReturnValue({ data: undefined, isLoading: false });
     renderWithProviders(<WorkspaceRerankTab workspace={mockWorkspace} enabled />);
 
-    expect(
-      screen.getByText(/Ajoute une seconde passe de tri/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Ajoute une seconde passe de tri/)).toBeInTheDocument();
   });
 
   it("affiche l'avertissement d'immutabilité", () => {

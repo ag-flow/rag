@@ -16,6 +16,7 @@ import frPrompts from "@/i18n/fr/prompts.json";
 import frTriggers from "@/i18n/fr/triggers.json";
 import frApikeys from "@/i18n/fr/apikeys.json";
 import frGitWebhooks from "@/i18n/fr/git_webhooks.json";
+import frChunkingStrategies from "@/i18n/fr/chunking_strategies.json";
 
 import enCommon from "@/i18n/en/common.json";
 import enAuth from "@/i18n/en/auth.json";
@@ -31,6 +32,7 @@ import enPrompts from "@/i18n/en/prompts.json";
 import enTriggers from "@/i18n/en/triggers.json";
 import enApikeys from "@/i18n/en/apikeys.json";
 import enGitWebhooks from "@/i18n/en/git_webhooks.json";
+import enChunkingStrategies from "@/i18n/en/chunking_strategies.json";
 
 void i18n
   .use(LanguageDetector)
@@ -53,6 +55,7 @@ void i18n
       "triggers",
       "apikeys",
       "git_webhooks",
+      "chunking_strategies",
     ],
     defaultNS: "common",
     resources: {
@@ -71,6 +74,7 @@ void i18n
         triggers: frTriggers,
         apikeys: frApikeys,
         git_webhooks: frGitWebhooks,
+        chunking_strategies: frChunkingStrategies,
       },
       en: {
         common: enCommon,
@@ -87,6 +91,7 @@ void i18n
         triggers: enTriggers,
         apikeys: enApikeys,
         git_webhooks: enGitWebhooks,
+        chunking_strategies: enChunkingStrategies,
       },
     },
     interpolation: { escapeValue: false },

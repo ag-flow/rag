@@ -1,7 +1,8 @@
 {
   "tabs": {
     "config": "LLM Config",
-    "chat": "Chat"
+    "chat": "Chat",
+    "chunkPreview": "Chunking preview"
   },
   "config": {
     "title": "LLM Configurations",
@@ -39,5 +40,22 @@
     "tokens": "Tokens: prompt={{prompt}} / completion={{completion}}",
     "thinking": "Thinking…",
     "error_toast": "LLM call failed."
+  },
+  "chunkPreview": {
+    "strategy_a": "Strategy",
+    "strategy_b": "Compare with…",
+    "compare_none": "— no comparison —",
+    "content_label": "Sample document (markdown)",
+    "content_placeholder": "Paste a document here to preview its chunking…",
+    "run": "Preview",
+    "running": "Chunking…",
+    "totals": "{{chunks}} chunks · ~{{tokens}} tokens",
+    "diff_summary": "{{common}} common chunks · {{onlyA}} only A · {{onlyB}} only B",
+    "chunk_title": "chunk {{index}} · ~{{tokens}} tok",
+    "region_badge": "{{type}}{{qualifier}}",
+    "parents": "{{count}} parent section(s)",
+    "only_this_side": "absent from the other strategy",
+    "error": "Preview failed: {{message}}",
+    "empty_hint": "Pick a strategy and paste a document."
   }
 }

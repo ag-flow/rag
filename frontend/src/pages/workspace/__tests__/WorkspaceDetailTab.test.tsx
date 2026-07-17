@@ -61,42 +61,32 @@ const mockWorkspace: Workspace = {
 
 describe("WorkspaceDetailTab", () => {
   it("affiche les statistiques du workspace", () => {
-    renderWithProviders(
-      <WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />);
     expect(screen.getByText(/3 sources/)).toBeInTheDocument();
     expect(screen.getByText(/150 documents/)).toBeInTheDocument();
   });
 
   it("affiche le nom et l'id du workspace", () => {
-    renderWithProviders(
-      <WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />);
     expect(screen.getByText("my-workspace")).toBeInTheDocument();
     expect(screen.getByText("abc-123")).toBeInTheDocument();
   });
 
   it("le bouton Changer la clé est désactivé tant que la valeur est inchangée", () => {
-    renderWithProviders(
-      <WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />);
     const saveBtn = screen.getByRole("button", { name: /changer la clé/i });
     expect(saveBtn).toBeDisabled();
   });
 
   it("affiche le label de la clé couramment référencée", () => {
-    renderWithProviders(
-      <WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />);
     // openai_key est résolu vers son label + coffre dans le sélecteur.
     expect(screen.getByText("OpenAI prod — Coffre RAG")).toBeInTheDocument();
   });
 
   it("changer la clé : autre clé sélectionnée → mutation indexer.api_key_ref", async () => {
     mockMutate.mockClear();
-    renderWithProviders(
-      <WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />);
     fireEvent.click(screen.getByRole("combobox", { name: /Référence de clé API/i }));
     fireEvent.click(await screen.findByText("Voyage prod — Coffre RAG"));
     const saveBtn = screen.getByRole("button", { name: /changer la clé/i });

@@ -48,15 +48,16 @@ export function ImportSshKeyDialog({ vaultId, open, onOpenChange }: Props) {
   function handleClose(next: boolean) {
     onOpenChange(next);
     if (!next) {
-      setName(""); setKeyId(""); setPrivateKey("");
-      setPublicKey(""); setPassphrase(""); setKeyIdError("");
+      setName("");
+      setKeyId("");
+      setPrivateKey("");
+      setPublicKey("");
+      setPassphrase("");
+      setKeyIdError("");
     }
   }
 
-  function readFile(
-    e: ChangeEvent<HTMLInputElement>,
-    setter: (v: string) => void,
-  ) {
+  function readFile(e: ChangeEvent<HTMLInputElement>, setter: (v: string) => void) {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
@@ -120,7 +121,10 @@ export function ImportSshKeyDialog({ vaultId, open, onOpenChange }: Props) {
             </Label>
             <Input
               value={keyId}
-              onChange={(e) => { setKeyId(e.target.value); validateKeyId(e.target.value); }}
+              onChange={(e) => {
+                setKeyId(e.target.value);
+                validateKeyId(e.target.value);
+              }}
               placeholder="deploy-prod"
               className="mt-1 font-mono"
             />

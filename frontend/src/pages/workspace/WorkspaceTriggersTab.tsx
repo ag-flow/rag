@@ -4,15 +4,29 @@ import { Trash2, ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  useTriggers, usePatchTrigger, useDeleteTrigger,
-  useTriggerPrompts, useCreateTriggerPrompt, useDeleteTriggerPrompt,
+  useTriggers,
+  usePatchTrigger,
+  useDeleteTrigger,
+  useTriggerPrompts,
+  useCreateTriggerPrompt,
+  useDeleteTriggerPrompt,
   usePrompts,
 } from "@/hooks/useEnrichments";
 import { useLlmConfigs } from "@/hooks/usePlayground";
@@ -38,8 +52,7 @@ function TriggerPromptsPanel({ trigger, workspaceName }: TriggerPromptsPanelProp
   const [selectedLlm, setSelectedLlm] = useState("");
   const [addOpen, setAddOpen] = useState(false);
 
-  const nextOrder =
-    triggerPrompts.reduce((max, tp) => Math.max(max, tp.order_index), 0) + 1;
+  const nextOrder = triggerPrompts.reduce((max, tp) => Math.max(max, tp.order_index), 0) + 1;
 
   async function handleAddPrompt() {
     if (!selectedTemplate || !selectedLlm) return;
@@ -65,10 +78,15 @@ function TriggerPromptsPanel({ trigger, workspaceName }: TriggerPromptsPanelProp
       ) : (
         <div className="space-y-1">
           {triggerPrompts.map((tp) => (
-            <div key={tp.id} className="flex items-center gap-2 rounded bg-white border border-slate-200 px-3 py-1.5 text-xs">
+            <div
+              key={tp.id}
+              className="flex items-center gap-2 rounded bg-white border border-slate-200 px-3 py-1.5 text-xs"
+            >
               <span className="text-slate-400 w-5">{tp.order_index}.</span>
               <span className="font-medium text-slate-700 flex-1">{tp.template_name}</span>
-              <span className="text-slate-400">{tp.llm_provider}/{tp.llm_model}</span>
+              <span className="text-slate-400">
+                {tp.llm_provider}/{tp.llm_model}
+              </span>
               <Button
                 variant="ghost"
                 size="sm"
@@ -107,19 +125,30 @@ function TriggerPromptsPanel({ trigger, workspaceName }: TriggerPromptsPanelProp
               <SelectValue placeholder={t("field_llm")} />
             </SelectTrigger>
             <SelectContent>
-              {llmConfigs.filter((l) => l.enabled).map((l) => (
-                <SelectItem key={l.id} value={l.id} className="text-xs font-mono">
-                  {l.provider}/{l.model}
-                </SelectItem>
-              ))}
+              {llmConfigs
+                .filter((l) => l.enabled)
+                .map((l) => (
+                  <SelectItem key={l.id} value={l.id} className="text-xs font-mono">
+                    {l.provider}/{l.model}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
           <div className="flex gap-2">
-            <Button size="sm" className="text-xs h-7" onClick={handleAddPrompt}
-              disabled={!selectedTemplate || !selectedLlm || addPrompt.isPending}>
+            <Button
+              size="sm"
+              className="text-xs h-7"
+              onClick={handleAddPrompt}
+              disabled={!selectedTemplate || !selectedLlm || addPrompt.isPending}
+            >
               {t("prompt_add_save")}
             </Button>
-            <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setAddOpen(false)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs h-7"
+              onClick={() => setAddOpen(false)}
+            >
               {t("cancel")}
             </Button>
           </div>
@@ -146,7 +175,8 @@ export function WorkspaceTriggersTab({ workspaceName }: Props) {
   function toggleExpand(id: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -185,9 +215,11 @@ export function WorkspaceTriggersTab({ workspaceName }: Props) {
                   className="text-slate-400 hover:text-slate-600"
                   onClick={() => toggleExpand(trigger.id)}
                 >
-                  {expanded.has(trigger.id)
-                    ? <ChevronDown className="h-4 w-4" />
-                    : <ChevronRight className="h-4 w-4" />}
+                  {expanded.has(trigger.id) ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
                 </button>
                 <span className="font-mono text-sm font-semibold text-slate-700 flex-1">
                   {trigger.extension}
@@ -215,13 +247,14 @@ export function WorkspaceTriggersTab({ workspaceName }: Props) {
         </div>
       )}
 
-      <AddTriggerDialog
-        workspaceName={workspaceName}
-        open={addOpen}
-        onOpenChange={setAddOpen}
-      />
+      <AddTriggerDialog workspaceName={workspaceName} open={addOpen} onOpenChange={setAddOpen} />
 
-      <AlertDialog open={!!toDelete} onOpenChange={(o) => { if (!o) setToDelete(null); }}>
+      <AlertDialog
+        open={!!toDelete}
+        onOpenChange={(o) => {
+          if (!o) setToDelete(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("delete_confirm_title")}</AlertDialogTitle>

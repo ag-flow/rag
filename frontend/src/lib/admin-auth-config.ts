@@ -7,8 +7,7 @@ export type ClientSecretStatus = { configured: boolean };
 export type LocalLoginState = { enabled: boolean };
 
 export const adminAuthConfigApi = {
-  getClientSecretStatus: () =>
-    api.get<ClientSecretStatus>(`${BASE}/oidc/client-secret`),
+  getClientSecretStatus: () => api.get<ClientSecretStatus>(`${BASE}/oidc/client-secret`),
   setClientSecret: (value: string) =>
     api.put<ClientSecretStatus>(`${BASE}/oidc/client-secret`, { value }),
   getLocalLogin: () => api.get<LocalLoginState>(`${BASE}/auth/local-login`),

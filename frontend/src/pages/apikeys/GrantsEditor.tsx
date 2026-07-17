@@ -25,11 +25,7 @@ export function GrantsEditor({ workspaces, value, onChange }: Props) {
   }
 
   function togglePerm(wsId: string, perm: "can_read" | "can_write") {
-    onChange(
-      value.map((g) =>
-        g.workspace_id === wsId ? { ...g, [perm]: !g[perm] } : g,
-      ),
-    );
+    onChange(value.map((g) => (g.workspace_id === wsId ? { ...g, [perm]: !g[perm] } : g)));
   }
 
   if (workspaces.length === 0) {

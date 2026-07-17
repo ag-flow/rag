@@ -32,8 +32,7 @@ export function WebhookCallsLog({ workspaceName }: Props) {
 
   const purgeMutation = useMutation({
     mutationFn: () => purgeWebhookCalls(workspaceName),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["webhook-calls", workspaceName] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["webhook-calls", workspaceName] }),
   });
 
   return (
@@ -85,9 +84,7 @@ export function WebhookCallsLog({ workspaceName }: Props) {
       </div>
 
       {calls.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {t("webhooks.calls_empty")}
-        </p>
+        <p className="text-sm text-muted-foreground">{t("webhooks.calls_empty")}</p>
       ) : (
         <Table>
           <TableHeader>
@@ -108,16 +105,12 @@ export function WebhookCallsLog({ workspaceName }: Props) {
                 <TableCell>{c.webhook_name}</TableCell>
                 <TableCell>
                   {c.http_status != null ? (
-                    <Badge variant={c.success ? "default" : "destructive"}>
-                      {c.http_status}
-                    </Badge>
+                    <Badge variant={c.success ? "default" : "destructive"}>{c.http_status}</Badge>
                   ) : (
                     <Badge variant="destructive">ERR</Badge>
                   )}
                 </TableCell>
-                <TableCell>
-                  {c.duration_ms != null ? `${c.duration_ms}ms` : "—"}
-                </TableCell>
+                <TableCell>{c.duration_ms != null ? `${c.duration_ms}ms` : "—"}</TableCell>
                 <TableCell className="font-mono text-xs truncate max-w-[120px]">
                   {c.correlation_id}
                 </TableCell>

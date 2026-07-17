@@ -12,6 +12,8 @@ import frNav from "@/i18n/fr/nav.json";
 import frWorkspaces from "@/i18n/fr/workspaces.json";
 import frWorkspace from "@/i18n/fr/workspace.json";
 import frHarpocrate from "@/i18n/fr/harpocrate.json";
+import frPlayground from "@/i18n/fr/playground.json";
+import frChunkingStrategies from "@/i18n/fr/chunking_strategies.json";
 
 import enCommon from "@/i18n/en/common.json";
 import enAuth from "@/i18n/en/auth.json";
@@ -19,6 +21,8 @@ import enNav from "@/i18n/en/nav.json";
 import enWorkspaces from "@/i18n/en/workspaces.json";
 import enWorkspace from "@/i18n/en/workspace.json";
 import enHarpocrate from "@/i18n/en/harpocrate.json";
+import enPlayground from "@/i18n/en/playground.json";
+import enChunkingStrategies from "@/i18n/en/chunking_strategies.json";
 
 // i18n instance isolée pour les tests, forcée en FR
 const testI18n = i18next.createInstance();
@@ -27,7 +31,16 @@ void testI18n.use(initReactI18next).init({
   lng: "fr",
   fallbackLng: "fr",
   supportedLngs: ["fr", "en"],
-  ns: ["common", "auth", "nav", "workspaces", "workspace", "harpocrate"],
+  ns: [
+    "common",
+    "auth",
+    "nav",
+    "workspaces",
+    "workspace",
+    "harpocrate",
+    "playground",
+    "chunking_strategies",
+  ],
   defaultNS: "common",
   resources: {
     fr: {
@@ -37,6 +50,8 @@ void testI18n.use(initReactI18next).init({
       workspaces: frWorkspaces,
       workspace: frWorkspace,
       harpocrate: frHarpocrate,
+      playground: frPlayground,
+      chunking_strategies: frChunkingStrategies,
     },
     en: {
       common: enCommon,
@@ -45,6 +60,8 @@ void testI18n.use(initReactI18next).init({
       workspaces: enWorkspaces,
       workspace: enWorkspace,
       harpocrate: enHarpocrate,
+      playground: enPlayground,
+      chunking_strategies: enChunkingStrategies,
     },
   },
   interpolation: { escapeValue: false },

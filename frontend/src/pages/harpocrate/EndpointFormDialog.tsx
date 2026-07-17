@@ -21,10 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useProviderKeys } from "@/hooks/useHarpocrateVaults";
 import { useModels } from "@/hooks/useModels";
-import {
-  MODELS_BY_PROVIDER,
-  RERANK_PROVIDERS,
-} from "@/pages/workspace/WorkspaceRerankTab.schema";
+import { MODELS_BY_PROVIDER, RERANK_PROVIDERS } from "@/pages/workspace/WorkspaceRerankTab.schema";
 import type { RerankProvider } from "@/lib/rerank.types";
 import { useCreateEndpoint, useUpdateEndpoint } from "@/hooks/useVaultEndpoints";
 import { useToast } from "@/hooks/useToast";
@@ -94,16 +91,15 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
     .map((m) => m.model)
     .sort();
   // En édition, une valeur hors référentiel reste sélectionnable (pas de perte).
-  const providerOptions = provider && !embedProviders.includes(provider)
-    ? [provider, ...embedProviders]
-    : embedProviders;
-  const modelOptions = model && !embedModels.includes(model)
-    ? [model, ...embedModels]
-    : embedModels;
+  const providerOptions =
+    provider && !embedProviders.includes(provider) ? [provider, ...embedProviders] : embedProviders;
+  const modelOptions =
+    model && !embedModels.includes(model) ? [model, ...embedModels] : embedModels;
   const rerankModels = MODELS_BY_PROVIDER[rerankProvider as RerankProvider] ?? [];
-  const rerankModelOptions = rerankModel && !rerankModels.includes(rerankModel)
-    ? [rerankModel, ...rerankModels]
-    : rerankModels;
+  const rerankModelOptions =
+    rerankModel && !rerankModels.includes(rerankModel)
+      ? [rerankModel, ...rerankModels]
+      : rerankModels;
 
   function handleProviderChange(next: string) {
     setProvider(next);
@@ -117,8 +113,11 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
   }
 
   const slug = endpoint?.slug ?? slugifyLabel(label);
-  const valid = label.trim().length > 0 && model.trim().length > 0 && slug.length > 0
-    && (!rerankOn || rerankModel.trim().length > 0);
+  const valid =
+    label.trim().length > 0 &&
+    model.trim().length > 0 &&
+    slug.length > 0 &&
+    (!rerankOn || rerankModel.trim().length > 0);
 
   function buildPayload() {
     return {
@@ -215,7 +214,9 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                   </SelectTrigger>
                   <SelectContent>
                     {providerOptions.map((pv) => (
-                      <SelectItem key={pv} value={pv}>{pv}</SelectItem>
+                      <SelectItem key={pv} value={pv}>
+                        {pv}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -228,7 +229,9 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                   </SelectTrigger>
                   <SelectContent>
                     {modelOptions.map((m) => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -240,8 +243,12 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
             </div>
             <div className="mt-3">
               <Label className="text-xs text-slate-600">{t("endpoints.base_url")}</Label>
-              <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)}
-                className="mt-1 font-mono" placeholder="http://ollama:11434 (optionnel)" />
+              <Input
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                className="mt-1 font-mono"
+                placeholder="http://ollama:11434 (optionnel)"
+              />
             </div>
           </fieldset>
 
@@ -270,7 +277,9 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                       </SelectTrigger>
                       <SelectContent>
                         {RERANK_PROVIDERS.map((pv) => (
-                          <SelectItem key={pv} value={pv}>{pv}</SelectItem>
+                          <SelectItem key={pv} value={pv}>
+                            {pv}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -283,7 +292,9 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                       </SelectTrigger>
                       <SelectContent>
                         {rerankModelOptions.map((m) => (
-                          <SelectItem key={m} value={m}>{m}</SelectItem>
+                          <SelectItem key={m} value={m}>
+                            {m}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -296,15 +307,22 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                 <div className="mt-3 grid grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs text-slate-600">{t("endpoints.base_url")}</Label>
-                    <Input value={rerankBaseUrl}
+                    <Input
+                      value={rerankBaseUrl}
                       onChange={(e) => setRerankBaseUrl(e.target.value)}
-                      className="mt-1 font-mono" />
+                      className="mt-1 font-mono"
+                    />
                   </div>
                   <div>
                     <Label className="text-xs text-slate-600">{t("endpoints.top_k")}</Label>
-                    <Input type="number" min={1} max={200} value={rerankTopK}
+                    <Input
+                      type="number"
+                      min={1}
+                      max={200}
+                      value={rerankTopK}
                       onChange={(e) => setRerankTopK(Number(e.target.value))}
-                      className="mt-1" />
+                      className="mt-1"
+                    />
                   </div>
                 </div>
               </>
@@ -316,8 +334,11 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t("endpoints.cancel")}
           </Button>
-          <Button type="button" onClick={() => void handleSubmit()}
-            disabled={!valid || createMutation.isPending || updateMutation.isPending}>
+          <Button
+            type="button"
+            onClick={() => void handleSubmit()}
+            disabled={!valid || createMutation.isPending || updateMutation.isPending}
+          >
             {endpoint ? t("endpoints.save") : t("endpoints.create")}
           </Button>
         </DialogFooter>

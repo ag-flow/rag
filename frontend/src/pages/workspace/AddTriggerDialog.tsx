@@ -1,7 +1,11 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,21 +16,21 @@ import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const COMMON_EXTENSIONS: { ext: string; label: string }[] = [
-  { ext: ".cs",   label: "C#" },
-  { ext: ".py",   label: "Python" },
-  { ext: ".ts",   label: "TypeScript" },
-  { ext: ".tsx",  label: "TSX" },
-  { ext: ".js",   label: "JavaScript" },
-  { ext: ".jsx",  label: "JSX" },
+  { ext: ".cs", label: "C#" },
+  { ext: ".py", label: "Python" },
+  { ext: ".ts", label: "TypeScript" },
+  { ext: ".tsx", label: "TSX" },
+  { ext: ".js", label: "JavaScript" },
+  { ext: ".jsx", label: "JSX" },
   { ext: ".java", label: "Java" },
-  { ext: ".go",   label: "Go" },
-  { ext: ".rs",   label: "Rust" },
-  { ext: ".md",   label: "Markdown" },
+  { ext: ".go", label: "Go" },
+  { ext: ".rs", label: "Rust" },
+  { ext: ".md", label: "Markdown" },
   { ext: ".json", label: "JSON" },
   { ext: ".yaml", label: "YAML" },
-  { ext: ".yml",  label: "YAML" },
-  { ext: ".sql",  label: "SQL" },
-  { ext: ".sh",   label: "Shell" },
+  { ext: ".yml", label: "YAML" },
+  { ext: ".sql", label: "SQL" },
+  { ext: ".sh", label: "Shell" },
 ];
 
 interface Props {
@@ -44,15 +48,15 @@ export function AddTriggerDialog({ workspaceName, open, onOpenChange }: Props) {
 
   function handleClose(next: boolean) {
     onOpenChange(next);
-    if (!next) { setExtension(""); setCustom(""); }
+    if (!next) {
+      setExtension("");
+      setCustom("");
+    }
   }
 
   // La valeur finale : badge cliqué OU champ custom
   const finalExt = extension || custom.trim();
-  const canSubmit =
-    finalExt.startsWith(".") &&
-    finalExt.length >= 2 &&
-    !mutation.isPending;
+  const canSubmit = finalExt.startsWith(".") && finalExt.length >= 2 && !mutation.isPending;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -85,7 +89,10 @@ export function AddTriggerDialog({ workspaceName, open, onOpenChange }: Props) {
                 <button
                   key={ext}
                   type="button"
-                  onClick={() => { setExtension(ext); setCustom(""); }}
+                  onClick={() => {
+                    setExtension(ext);
+                    setCustom("");
+                  }}
                   className={cn(
                     "rounded border px-2.5 py-1 text-xs font-mono transition-colors",
                     extension === ext
@@ -106,7 +113,10 @@ export function AddTriggerDialog({ workspaceName, open, onOpenChange }: Props) {
             </Label>
             <Input
               value={custom}
-              onChange={(e) => { setCustom(e.target.value); setExtension(""); }}
+              onChange={(e) => {
+                setCustom(e.target.value);
+                setExtension("");
+              }}
               placeholder={t("field_extension_placeholder")}
               className="mt-1 font-mono"
             />
@@ -114,7 +124,8 @@ export function AddTriggerDialog({ workspaceName, open, onOpenChange }: Props) {
 
           {finalExt && (
             <p className="text-xs text-slate-500">
-              {t("field_extension_selected")} <span className="font-mono font-semibold text-slate-700">{finalExt}</span>
+              {t("field_extension_selected")}{" "}
+              <span className="font-mono font-semibold text-slate-700">{finalExt}</span>
             </p>
           )}
 

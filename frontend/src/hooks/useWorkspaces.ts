@@ -151,7 +151,6 @@ export function useDetectBranches() {
       auth_ref?: string | null;
       ssh_key_ref?: string | null;
       ssh_username?: string | null;
-    }) =>
-      workspacesApi.detectBranches(payload),
+    }) => workspacesApi.detectBranches(payload),
   });
 }

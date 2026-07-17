@@ -3,12 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIndexKeyDetail, useIndexKeys, usePatchStrategy } from "@/hooks/useIndexKeys";
 import type { PathStrategyEntry } from "@/lib/workspaces.types";
 import { DocumentChunkViewer } from "./DocumentChunkViewer";
@@ -114,9 +109,7 @@ function PathRow({ entry, workspaceName, isOpen, onToggle }: PathRowProps) {
           <code className="font-mono text-xs truncate">{entry.path}</code>
           <span
             className={`rounded px-1.5 py-0.5 text-xs font-medium shrink-0 ${
-              isAppend
-                ? "bg-blue-100 text-blue-700"
-                : "bg-slate-100 text-slate-500"
+              isAppend ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500"
             }`}
           >
             {isAppend ? t("index.strategy_append") : t("index.strategy_replace")}
@@ -134,10 +127,7 @@ function PathRow({ entry, workspaceName, isOpen, onToggle }: PathRowProps) {
           </span>
         </div>
 
-        <div
-          className="flex items-center gap-2 shrink-0"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
           {isFromFile ? (
             <TooltipProvider>
               <Tooltip>

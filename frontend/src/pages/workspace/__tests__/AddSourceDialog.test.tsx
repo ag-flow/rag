@@ -102,7 +102,6 @@ describe("AddSourceDialog", () => {
     expect(screen.queryByText("Ajouter une source git")).not.toBeInTheDocument();
   });
 
-
   it("laisse la branche undefined quand le champ est vide", async () => {
     renderWithProviders(
       <AddSourceDialog name="my-workspace" open={true} onOpenChange={() => {}} />,
@@ -162,7 +161,8 @@ describe("AddSourceDialog", () => {
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "Source ajoutée.",
-        description: "Branche par défaut non détectée, « main » utilisé. Vérifiez si la synchronisation échoue.",
+        description:
+          "Branche par défaut non détectée, « main » utilisé. Vérifiez si la synchronisation échoue.",
       }),
     );
   });

@@ -27,10 +27,7 @@ function makeEntry(overrides: Partial<PathStrategyEntry>): PathStrategyEntry {
   };
 }
 
-function mockIndexKeys(
-  paths: PathStrategyEntry[],
-  isLoading = false,
-) {
+function mockIndexKeys(paths: PathStrategyEntry[], isLoading = false) {
   vi.mocked(useIndexKeys).mockReturnValue({
     data: { paths, total: paths.length },
     isLoading,
@@ -44,22 +41,14 @@ describe("WorkspaceIndexTab", () => {
 
   it("affiche 'Aucun fichier indexé' quand la liste est vide", async () => {
     mockIndexKeys([]);
-    renderWithProviders(
-      <WorkspaceIndexTab workspaceName="my-ws" enabled={true} />,
-    );
-    await waitFor(() =>
-      expect(screen.getByText("Aucun fichier indexé.")).toBeInTheDocument(),
-    );
+    renderWithProviders(<WorkspaceIndexTab workspaceName="my-ws" enabled={true} />);
+    await waitFor(() => expect(screen.getByText("Aucun fichier indexé.")).toBeInTheDocument());
   });
 
   it("affiche les paths indexés", async () => {
     mockIndexKeys([makeEntry({ path: "LESSONS.md", chunk_count: 3 })]);
-    renderWithProviders(
-      <WorkspaceIndexTab workspaceName="my-ws" enabled={true} />,
-    );
-    await waitFor(() =>
-      expect(screen.getByText("LESSONS.md")).toBeInTheDocument(),
-    );
+    renderWithProviders(<WorkspaceIndexTab workspaceName="my-ws" enabled={true} />);
+    await waitFor(() => expect(screen.getByText("LESSONS.md")).toBeInTheDocument());
   });
 
   it("filtre les paths selon la saisie", async () => {
@@ -68,17 +57,13 @@ describe("WorkspaceIndexTab", () => {
       makeEntry({ path: "LESSONS.md" }),
       makeEntry({ path: "docs/api.md", chunk_count: 2 }),
     ]);
-    renderWithProviders(
-      <WorkspaceIndexTab workspaceName="my-ws" enabled={true} />,
-    );
+    renderWithProviders(<WorkspaceIndexTab workspaceName="my-ws" enabled={true} />);
     await waitFor(() => expect(screen.getByText("LESSONS.md")).toBeInTheDocument());
 
     const input = screen.getByPlaceholderText("Filtrer par chemin…");
     await user.type(input, "docs");
 
-    await waitFor(() =>
-      expect(screen.queryByText("LESSONS.md")).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.queryByText("LESSONS.md")).not.toBeInTheDocument());
     expect(screen.getByText("docs/api.md")).toBeInTheDocument();
   });
 
@@ -86,32 +71,25 @@ describe("WorkspaceIndexTab", () => {
     mockIndexKeys([
       makeEntry({ path: "LESSONS.md", strategy: "append", updated_by: "strategy_file" }),
     ]);
-    renderWithProviders(
-      <WorkspaceIndexTab workspaceName="my-ws" enabled={true} />,
-    );
-    await waitFor(() =>
-      expect(screen.getByText("LESSONS.md")).toBeInTheDocument(),
-    );
+    renderWithProviders(<WorkspaceIndexTab workspaceName="my-ws" enabled={true} />);
+    await waitFor(() => expect(screen.getByText("LESSONS.md")).toBeInTheDocument());
     // Le Switch rendu quand strategy_file est disabled
     const switches = document.querySelectorAll('[role="switch"]');
     expect(switches.length).toBeGreaterThan(0);
     const disabledSwitch = Array.from(switches).find(
-      (el) => el.hasAttribute("disabled") || el.getAttribute("aria-disabled") === "true" || el.getAttribute("data-disabled") === "",
+      (el) =>
+        el.hasAttribute("disabled") ||
+        el.getAttribute("aria-disabled") === "true" ||
+        el.getAttribute("data-disabled") === "",
     );
     expect(disabledSwitch).toBeDefined();
   });
 
   it("appelle patchIndexKeyStrategy au clic du toggle actif", async () => {
     const user = userEvent.setup();
-    mockIndexKeys([
-      makeEntry({ path: "README.md", strategy: "replace", updated_by: "ui" }),
-    ]);
-    renderWithProviders(
-      <WorkspaceIndexTab workspaceName="my-ws" enabled={true} />,
-    );
-    await waitFor(() =>
-      expect(screen.getByText("README.md")).toBeInTheDocument(),
-    );
+    mockIndexKeys([makeEntry({ path: "README.md", strategy: "replace", updated_by: "ui" })]);
+    renderWithProviders(<WorkspaceIndexTab workspaceName="my-ws" enabled={true} />);
+    await waitFor(() => expect(screen.getByText("README.md")).toBeInTheDocument());
 
     const switches = document.querySelectorAll('[role="switch"]');
     expect(switches.length).toBeGreaterThan(0);

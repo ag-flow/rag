@@ -23,9 +23,7 @@ describe("WorkspaceWebhooksTab", () => {
 
   it("affiche l'état vide quand aucun webhook n'est configuré", async () => {
     renderWithProviders(<WorkspaceWebhooksTab workspaceName="ws1" />);
-    expect(
-      await screen.findByText("Aucun webhook configuré."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Aucun webhook configuré.")).toBeInTheDocument();
   });
 
   it("affiche les onglets Webhooks et Audit log", async () => {

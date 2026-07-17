@@ -46,9 +46,7 @@ export function WorkspaceApiKeysTab({ workspaceName, workspaceId }: Props) {
   return (
     <div className="space-y-6">
       <section className="rounded-md border border-slate-200 bg-slate-50 p-4">
-        <h3 className="text-sm font-semibold text-slate-800">
-          {t("mcp_section_title")}
-        </h3>
+        <h3 className="text-sm font-semibold text-slate-800">{t("mcp_section_title")}</h3>
         <div className="mt-3">
           <Label className="text-xs text-slate-500">{t("mcp_url_label")}</Label>
           <div className="mt-1 flex items-center gap-2">
@@ -90,9 +88,7 @@ export function WorkspaceApiKeysTab({ workspaceName, workspaceId }: Props) {
         <div className="flex items-start gap-3">
           <KeyRound className="mt-0.5 h-4 w-4 flex-shrink-0 text-sky-600" />
           <div>
-            <h3 className="text-sm font-semibold text-sky-900">
-              {t("keys_moved_title")}
-            </h3>
+            <h3 className="text-sm font-semibold text-sky-900">{t("keys_moved_title")}</h3>
             <p className="mt-1 text-sm text-sky-800">{t("keys_moved_body")}</p>
             <Button asChild variant="outline" size="sm" className="mt-3">
               <Link to="/settings/api-keys">{t("keys_moved_link")}</Link>
