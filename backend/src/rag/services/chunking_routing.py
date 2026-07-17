@@ -6,6 +6,7 @@ from uuid import UUID
 
 import asyncpg
 
+from rag.indexer.chunking.region_routes import RegionRoute
 from rag.indexer.chunking.resolution import RoutingConfig, merge_maps
 
 
@@ -61,3 +62,28 @@ async def load_strategy(
     if isinstance(params, str):
         params = json.loads(params)
     return row["algo"], params
+
+
+async def load_region_routes(config_pool: asyncpg.Pool, strategy_id: UUID) -> list[RegionRoute]:
+    """Charge les routes de régions d'une stratégie (spec chunking §3).
+
+    L'ordre est stable (type puis qualifier) mais sans effet sur la
+    résolution : la spécificité est gérée par `resolve_region_route`.
+    """
+    async with config_pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT region_type, qualifier, target_strategy_id, atomic, overflow_policy "
+            "FROM chunking_strategy_region_routes WHERE strategy_id = $1 "
+            "ORDER BY region_type, qualifier",
+            strategy_id,
+        )
+    return [
+        RegionRoute(
+            region_type=r["region_type"],
+            qualifier=r["qualifier"],
+            target_strategy_id=r["target_strategy_id"],
+            atomic=r["atomic"],
+            overflow_policy=r["overflow_policy"],
+        )
+        for r in rows
+    ]

@@ -47,10 +47,10 @@ class MarkdownDeepChunker:
         seen: Counter[str] = Counter()
 
         for section in sections:
-            key = self._section_key(section, seen)
-            meta = self._meta(section)
+            key = section_key(section, seen)
+            meta = section_meta(section)
             parents.append(ParentSection(section_key=key, content=section.content, metadata=meta))
-            crumb_path = self._crumb_path(section)
+            crumb_path = section_crumb_path(section)
             for piece in self._normalizer.normalize(split_blocks(section.content)):
                 children.append(
                     ChildChunk(
@@ -62,23 +62,30 @@ class MarkdownDeepChunker:
 
         return ChunkedDocument(parents=parents, children=children)
 
-    @staticmethod
-    def _meta(section: Section) -> dict[str, Any]:
-        return {
-            "section_title": section.title,
-            "section_path": section.path,
-            "heading_level": section.level,
-        }
 
-    @staticmethod
-    def _crumb_path(section: Section) -> list[str]:
-        own = [section.title] if section.title else []
-        return [*section.path, *own]
+def section_meta(section: Section) -> dict[str, Any]:
+    """Métadonnées communes portées par la section et ses enfants."""
+    return {
+        "section_title": section.title,
+        "section_path": section.path,
+        "heading_level": section.level,
+    }
 
-    @staticmethod
-    def _section_key(section: Section, seen: Counter[str]) -> str:
-        titles = [t for t in [*section.path, section.title] if t and t.strip()]
-        base = "/".join(titles) if titles else _ROOT_KEY
-        seen[base] += 1
-        occurrence = seen[base]
-        return base if occurrence == 1 else f"{base}#{occurrence}"
+
+def section_crumb_path(section: Section) -> list[str]:
+    """Chemin de breadcrumb : ancêtres + titre propre de la section."""
+    own = [section.title] if section.title else []
+    return [*section.path, *own]
+
+
+def section_key(section: Section, seen: Counter[str]) -> str:
+    """Identité stable de la section (slug du chemin, suffixé `#n` si doublon).
+
+    `seen` est le compteur d'occurrences partagé sur tout le document —
+    obligatoire pour la stabilité des clés en cas de titres dupliqués.
+    """
+    titles = [t for t in [*section.path, section.title] if t and t.strip()]
+    base = "/".join(titles) if titles else _ROOT_KEY
+    seen[base] += 1
+    occurrence = seen[base]
+    return base if occurrence == 1 else f"{base}#{occurrence}"
