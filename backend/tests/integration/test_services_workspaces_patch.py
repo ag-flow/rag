@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import re
 from collections.abc import Iterator
 from pathlib import Path
@@ -12,8 +13,8 @@ import pytest
 from rag.api.errors import RefNotFoundInVault, WorkspaceNotFound
 from rag.db.migrations import run_migrations
 from rag.schemas.admin import (
+    IndexerCreateSpec,
     IndexerPatchSpec,
-    IndexerSpec,
     WorkspaceCreateResolved,
     WorkspacePatchRequest,
 )
@@ -25,6 +26,8 @@ MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 
 class _Resolver:
+    """Résolveur en mémoire : ne connaît que les clés logiques de `known`."""
+
     def __init__(self, known: set[str]) -> None:
         self._known = known
 
@@ -38,19 +41,29 @@ class _Resolver:
 
 
 def _make_harpo_service() -> MagicMock:
+    """Stub HarpocrateVaultsService : get_default (await par create_workspace)
+    doit être un AsyncMock."""
     service = MagicMock()
     vault = MagicMock(spec=VaultSummary)
     vault.id = uuid4()
+    vault.name = "rag"
     service.get_by_name = AsyncMock(return_value=vault)
-    service.write_secret = AsyncMock(return_value=None)
-    service.delete_secret = AsyncMock(return_value=None)
+    service.get_default = AsyncMock(return_value=vault)
     return service
+
+
+def _make_request(name: str, *, api_key_ref: str) -> WorkspaceCreateResolved:
+    return WorkspaceCreateResolved(
+        name=name,
+        indexer=IndexerCreateSpec(
+            provider="openai", model="text-embedding-3-small", api_key_ref=api_key_ref
+        ),
+    )
 
 
 @pytest.fixture
 def cleanup_ws_dbs(pg_container: str) -> Iterator[None]:
     yield
-    import asyncio
 
     async def _cleanup() -> None:
         admin = await asyncpg.connect(pg_container.rsplit("/", 1)[0] + "/postgres")
@@ -62,7 +75,7 @@ def cleanup_ws_dbs(pg_container: str) -> Iterator[None]:
         finally:
             await admin.close()
 
-    asyncio.get_event_loop().run_until_complete(_cleanup())
+    asyncio.run(_cleanup())
 
 
 @pytest.mark.asyncio
@@ -74,13 +87,7 @@ async def test_patch_api_key_ref_updates_indexer_config(
     resolver = _Resolver({"old_key", "new_key"})
 
     await create_workspace(
-        request=WorkspaceCreateResolved(
-            name="ws_patch",
-            api_key_vault="rag",
-            indexer=IndexerSpec(
-                provider="openai", model="text-embedding-3-small", api_key_ref="old_key"
-            ),
-        ),
+        request=_make_request("ws_patch", api_key_ref="old_key"),
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=resolver,  # type: ignore[arg-type]
@@ -122,13 +129,7 @@ async def test_patch_workspace_new_ref_not_in_vault_raises(
     resolver = _Resolver({"old_key"})
 
     await create_workspace(
-        request=WorkspaceCreateResolved(
-            name="ws_patch_bad",
-            api_key_vault="rag",
-            indexer=IndexerSpec(
-                provider="openai", model="text-embedding-3-small", api_key_ref="old_key"
-            ),
-        ),
+        request=_make_request("ws_patch_bad", api_key_ref="old_key"),
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=resolver,  # type: ignore[arg-type]

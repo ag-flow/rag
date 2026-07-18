@@ -6,6 +6,7 @@ import asyncpg
 import pytest
 
 from rag.db.migrations import run_migrations
+from tests.integration._workspace_seed import seed_workspace
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
@@ -40,10 +41,7 @@ async def test_index_jobs_columns(session_pool: asyncpg.Pool) -> None:
 async def test_index_jobs_status_default(session_pool: asyncpg.Pool) -> None:
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
-        ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_encrypted, api_key_fingerprint, rag_cnx, rag_base) "
-            "VALUES ('w_mig003', pgp_sym_encrypt('k', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'::text)::bytea, 'fp_w_mig003', 'c', 'b') RETURNING id"
-        )
+        ws_id = await seed_workspace(conn, name="w_mig003")
         job_id = await conn.fetchval(
             "INSERT INTO index_jobs (workspace_id, triggered_by) "
             "VALUES ($1, 'manual') RETURNING id",
@@ -51,7 +49,6 @@ async def test_index_jobs_status_default(session_pool: asyncpg.Pool) -> None:
         )
         status = await conn.fetchval("SELECT status FROM index_jobs WHERE id = $1", job_id)
         assert status == "pending"
-        await conn.execute("DELETE FROM workspaces WHERE id = $1", ws_id)
 
 
 @pytest.mark.asyncio
@@ -60,26 +57,19 @@ async def test_index_jobs_invalid_triggered_by_rejected(
 ) -> None:
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
-        ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_encrypted, api_key_fingerprint, rag_cnx, rag_base) "
-            "VALUES ('w_mig003_bad', pgp_sym_encrypt('k', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'::text)::bytea, 'fp_w_mig003_bad', 'c', 'b') RETURNING id"
-        )
+        ws_id = await seed_workspace(conn, name="w_mig003_bad")
         with pytest.raises(asyncpg.CheckViolationError):
             await conn.execute(
                 "INSERT INTO index_jobs (workspace_id, triggered_by) VALUES ($1, 'invalid')",
                 ws_id,
             )
-        await conn.execute("DELETE FROM workspaces WHERE id = $1", ws_id)
 
 
 @pytest.mark.asyncio
 async def test_indexed_documents_unique_ws_path(session_pool: asyncpg.Pool) -> None:
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
-        ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_encrypted, api_key_fingerprint, rag_cnx, rag_base) "
-            "VALUES ('w_mig003b', pgp_sym_encrypt('k', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'::text)::bytea, 'fp_w_mig003b', 'c', 'b') RETURNING id"
-        )
+        ws_id = await seed_workspace(conn, name="w_mig003b")
         await conn.execute(
             "INSERT INTO indexed_documents (workspace_id, path, content_hash, indexer_used) "
             "VALUES ($1, 'a.md', 'hash1', 'openai/x')",
@@ -91,7 +81,6 @@ async def test_indexed_documents_unique_ws_path(session_pool: asyncpg.Pool) -> N
                 "VALUES ($1, 'a.md', 'hash2', 'openai/x')",
                 ws_id,
             )
-        await conn.execute("DELETE FROM workspaces WHERE id = $1", ws_id)
 
 
 @pytest.mark.asyncio

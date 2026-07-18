@@ -6,6 +6,7 @@ import asyncpg
 import pytest
 
 from rag.db.migrations import run_migrations
+from tests.integration._workspace_seed import seed_workspace
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
@@ -17,10 +18,7 @@ async def test_migration_020_webhook_calls_table(
     await run_migrations(session_pool, MIGRATIONS_DIR)
 
     async with session_pool.acquire() as conn:
-        ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_ref, api_key_fingerprint, rag_cnx, rag_base) "
-            "VALUES ('mig020', 'ref', 'fp', 'c', 'b') RETURNING id"
-        )
+        ws_id = await seed_workspace(conn, name="mig020")
         job_id = await conn.fetchval(
             "INSERT INTO index_jobs (workspace_id, triggered_by, status) "
             "VALUES ($1, 'push', 'done') RETURNING id",

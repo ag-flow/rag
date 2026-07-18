@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import re
+import asyncio
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -11,7 +11,7 @@ import pytest
 
 from rag.api.errors import WorkspaceNotFound
 from rag.db.migrations import run_migrations
-from rag.schemas.admin import IndexerSpec, WorkspaceCreateResolved
+from rag.schemas.admin import IndexerCreateSpec, WorkspaceCreateResolved
 from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.workspaces import create_workspace, delete_workspace
 
@@ -20,24 +20,33 @@ MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 class _Resolver:
     async def resolve_with_retry(self, ref: str) -> str:
-        assert re.fullmatch(r"\$\{vault://[^:]+:[^}]+\}", ref)
         return "sk-x"
 
 
 def _make_harpo_service() -> MagicMock:
+    """Stub HarpocrateVaultsService : get_default (await par create_workspace)
+    doit être un AsyncMock."""
     service = MagicMock()
     vault = MagicMock(spec=VaultSummary)
     vault.id = uuid4()
+    vault.name = "rag"
     service.get_by_name = AsyncMock(return_value=vault)
-    service.write_secret = AsyncMock(return_value=None)
-    service.delete_secret = AsyncMock(return_value=None)
+    service.get_default = AsyncMock(return_value=vault)
     return service
+
+
+def _make_request(name: str) -> WorkspaceCreateResolved:
+    return WorkspaceCreateResolved(
+        name=name,
+        indexer=IndexerCreateSpec(
+            provider="openai", model="text-embedding-3-small", api_key_ref="k"
+        ),
+    )
 
 
 @pytest.fixture
 def cleanup_ws_dbs(pg_container: str) -> Iterator[None]:
     yield
-    import asyncio
 
     async def _cleanup() -> None:
         admin = await asyncpg.connect(pg_container.rsplit("/", 1)[0] + "/postgres")
@@ -49,7 +58,7 @@ def cleanup_ws_dbs(pg_container: str) -> Iterator[None]:
         finally:
             await admin.close()
 
-    asyncio.get_event_loop().run_until_complete(_cleanup())
+    asyncio.run(_cleanup())
 
 
 @pytest.mark.asyncio
@@ -60,11 +69,7 @@ async def test_delete_workspace_drops_db_and_config(
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
 
     await create_workspace(
-        request=WorkspaceCreateResolved(
-            name="ws_del",
-            api_key_vault="rag",
-            indexer=IndexerSpec(provider="openai", model="text-embedding-3-small", api_key_ref="k"),
-        ),
+        request=_make_request("ws_del"),
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
@@ -102,11 +107,7 @@ async def test_delete_workspace_idempotent_retry_after_partial_failure(
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
 
     await create_workspace(
-        request=WorkspaceCreateResolved(
-            name="ws_orphan",
-            api_key_vault="rag",
-            indexer=IndexerSpec(provider="openai", model="text-embedding-3-small", api_key_ref="k"),
-        ),
+        request=_make_request("ws_orphan"),
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import re
+import asyncio
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -11,7 +11,7 @@ import pytest
 
 from rag.api.errors import WorkspaceNotFound
 from rag.db.migrations import run_migrations
-from rag.schemas.admin import IndexerSpec, WorkspaceCreateResolved
+from rag.schemas.admin import IndexerCreateSpec, WorkspaceCreateResolved
 from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.workspaces import create_workspace, get_workspace, list_workspaces
 
@@ -20,25 +20,24 @@ MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 class _StubResolver:
     async def resolve_with_retry(self, ref: str) -> str:
-        m = re.fullmatch(r"\$\{vault://[^:]+:([^}]+)\}", ref)
-        assert m
         return "sk-stub"
 
 
 def _make_harpo_service() -> MagicMock:
+    """Stub HarpocrateVaultsService : get_default (await par create_workspace)
+    doit être un AsyncMock."""
     service = MagicMock()
     vault = MagicMock(spec=VaultSummary)
     vault.id = uuid4()
+    vault.name = "rag"
     service.get_by_name = AsyncMock(return_value=vault)
-    service.write_secret = AsyncMock(return_value=None)
-    service.delete_secret = AsyncMock(return_value=None)
+    service.get_default = AsyncMock(return_value=vault)
     return service
 
 
 @pytest.fixture
 def cleanup_ws_dbs(pg_container: str) -> Iterator[None]:
     yield
-    import asyncio
 
     async def _cleanup() -> None:
         admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
@@ -52,7 +51,7 @@ def cleanup_ws_dbs(pg_container: str) -> Iterator[None]:
         finally:
             await admin.close()
 
-    asyncio.get_event_loop().run_until_complete(_cleanup())
+    asyncio.run(_cleanup())
 
 
 @pytest.mark.asyncio
@@ -72,8 +71,7 @@ async def test_list_workspaces_includes_created(
         await create_workspace(
             request=WorkspaceCreateResolved(
                 name=name,
-                api_key_vault="rag",
-                indexer=IndexerSpec(
+                indexer=IndexerCreateSpec(
                     provider="openai", model="text-embedding-3-small", api_key_ref="k"
                 ),
             ),
@@ -90,7 +88,7 @@ async def test_list_workspaces_includes_created(
     assert a["sources_count"] == 0
     assert a["documents_count"] == 0
     assert a["last_indexed_at"] is None
-    assert a["indexer"]["provider"] == "openai"
+    assert a["indexer"]["provider"] == "openai"  # type: ignore[index]
 
 
 @pytest.mark.asyncio
@@ -102,8 +100,9 @@ async def test_get_workspace_returns_detail(
     await create_workspace(
         request=WorkspaceCreateResolved(
             name="ws_detail",
-            api_key_vault="rag",
-            indexer=IndexerSpec(provider="voyage", model="voyage-3", api_key_ref="voyage_api_key"),
+            indexer=IndexerCreateSpec(
+                provider="voyage", model="voyage-3", api_key_ref="voyage_api_key"
+            ),
         ),
         config_pool=session_pool,
         admin_dsn=admin_dsn,
@@ -113,8 +112,8 @@ async def test_get_workspace_returns_detail(
 
     detail = await get_workspace(session_pool, name="ws_detail")
     assert detail["name"] == "ws_detail"
-    assert detail["indexer"]["provider"] == "voyage"
-    assert detail["indexer"]["model"] == "voyage-3"
+    assert detail["indexer"]["provider"] == "voyage"  # type: ignore[index]
+    assert detail["indexer"]["model"] == "voyage-3"  # type: ignore[index]
     assert detail["sources_count"] == 0
 
 

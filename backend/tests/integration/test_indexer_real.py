@@ -11,6 +11,7 @@ import pytest_asyncio
 
 from rag.db.migrations import run_migrations
 from rag.db.pool import WorkspacePoolRegistry
+from rag.db.workspace_migrations import apply_pending
 from rag.indexer.providers.protocol import (
     EmbeddingAuthError,
     EmbeddingProvider,
@@ -89,6 +90,10 @@ async def real_indexer_setup(
         )
     finally:
         await ws_setup.close()
+
+    # Migrations workspace (sections, chunk_hash, FTS…) : delete_file s'appuie
+    # sur la table `sections` depuis le pipeline structuré.
+    await apply_pending(ws_dsn)
 
     # Crée le workspace en config DB
     async with session_pool.acquire() as conn:
@@ -251,11 +256,20 @@ async def test_real_indexer_index_file_empty_content_returns_zero(
     assert n == 0
     assert stub.calls == []  # pas d'appel provider
 
-    # indexed_documents : pas de ligne (rien à indexer)
+    # indexed_documents : le document est tout de même enregistré (dédup par
+    # hash — un fichier vide inchangé ne sera pas retraité au prochain sync)
     row = await session_pool.fetchrow(
-        "SELECT 1 FROM indexed_documents WHERE path='empty.md'",
+        "SELECT content_hash FROM indexed_documents WHERE path='empty.md'",
     )
-    assert row is None
+    assert row is not None
+    assert row["content_hash"] == "h0"
+
+    # embeddings : aucun chunk pour ce path
+    ws_pool = await setup["registry"].get_workspace_pool(
+        setup["workspace_name"],
+        setup["ws_dsn"],
+    )
+    assert await ws_pool.fetch("SELECT 1 FROM embeddings WHERE path='empty.md'") == []
 
 
 @pytest.mark.asyncio

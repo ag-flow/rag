@@ -7,22 +7,14 @@ import asyncpg
 import pytest
 
 from rag.db.path_strategies import get_strategy, upsert_strategies_batch, upsert_strategy
+from tests.integration._workspace_seed import seed_workspace
 
 
 @pytest.fixture
 async def ws_id(migrated: asyncpg.Pool) -> UUID:
     """Insère un workspace minimal et retourne son id."""
-    wid = uuid.uuid4()
     async with migrated.acquire() as conn:
-        await conn.execute(
-            """
-            INSERT INTO workspaces (id, name, rag_cnx)
-            VALUES ($1, $2, 'postgresql://localhost/rag_test')
-            """,
-            wid,
-            f"ws_{wid.hex[:8]}",
-        )
-    return wid
+        return await seed_workspace(conn, name=f"ws_{uuid.uuid4().hex[:8]}")
 
 
 @pytest.mark.asyncio

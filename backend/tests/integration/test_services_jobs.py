@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import re
+import asyncio
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -11,34 +11,44 @@ import pytest
 
 from rag.api.errors import JobNotFound, WorkspaceNotFound
 from rag.db.migrations import run_migrations
-from rag.schemas.admin import IndexerSpec, WorkspaceCreateResolved
+from rag.schemas.admin import IndexerCreateSpec, WorkspaceCreateResolved
 from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.jobs import create_pending_job, list_job_files, list_jobs
 from rag.services.workspaces import create_workspace
+from tests.integration._workspace_seed import seed_workspace
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
 
 class _Resolver:
     async def resolve_with_retry(self, ref: str) -> str:
-        assert re.fullmatch(r"\$\{vault://[^:]+:[^}]+\}", ref)
         return "sk-x"
 
 
 def _make_harpo_service() -> MagicMock:
+    """Stub HarpocrateVaultsService : get_default (await par create_workspace)
+    doit être un AsyncMock."""
     service = MagicMock()
     vault = MagicMock(spec=VaultSummary)
     vault.id = uuid4()
+    vault.name = "rag"
     service.get_by_name = AsyncMock(return_value=vault)
-    service.write_secret = AsyncMock(return_value=None)
-    service.delete_secret = AsyncMock(return_value=None)
+    service.get_default = AsyncMock(return_value=vault)
     return service
+
+
+def _make_request(name: str) -> WorkspaceCreateResolved:
+    return WorkspaceCreateResolved(
+        name=name,
+        indexer=IndexerCreateSpec(
+            provider="openai", model="text-embedding-3-small", api_key_ref="k"
+        ),
+    )
 
 
 @pytest.fixture
 def cleanup_ws_dbs(pg_container: str) -> Iterator[None]:
     yield
-    import asyncio
 
     async def _cleanup() -> None:
         admin = await asyncpg.connect(pg_container.rsplit("/", 1)[0] + "/postgres")
@@ -50,7 +60,7 @@ def cleanup_ws_dbs(pg_container: str) -> Iterator[None]:
         finally:
             await admin.close()
 
-    asyncio.get_event_loop().run_until_complete(_cleanup())
+    asyncio.run(_cleanup())
 
 
 @pytest.mark.asyncio
@@ -61,11 +71,7 @@ async def test_create_pending_job_inserts_row(
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
 
     await create_workspace(
-        request=WorkspaceCreateResolved(
-            name="ws_jobs",
-            api_key_vault="rag",
-            indexer=IndexerSpec(provider="openai", model="text-embedding-3-small", api_key_ref="k"),
-        ),
+        request=_make_request("ws_jobs"),
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
@@ -107,11 +113,7 @@ async def test_list_jobs_ordered_desc(
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
 
     await create_workspace(
-        request=WorkspaceCreateResolved(
-            name="ws_jobs_order",
-            api_key_vault="rag",
-            indexer=IndexerSpec(provider="openai", model="text-embedding-3-small", api_key_ref="k"),
-        ),
+        request=_make_request("ws_jobs_order"),
         config_pool=session_pool,
         admin_dsn=admin_dsn,
         resolver=_Resolver(),  # type: ignore[arg-type]
@@ -138,17 +140,10 @@ async def test_list_jobs_ordered_desc(
 
 
 @pytest.mark.asyncio
-async def test_list_job_files_returns_files(
-    pg_container: str, session_pool: asyncpg.Pool, cleanup_ws_dbs: None
-) -> None:
+async def test_list_job_files_returns_files(session_pool: asyncpg.Pool) -> None:
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
-        ws_id = await conn.fetchval(
-            "INSERT INTO workspaces"
-            " (name, api_key_encrypted, api_key_fingerprint, rag_cnx, rag_base) "
-            "VALUES ('ws_jf', pgp_sym_encrypt('k'::text, 'x'::text)::bytea, 'fp', 'c', 'b') "
-            "RETURNING id"
-        )
+        ws_id = await seed_workspace(conn, name="ws_jf")
         job_id = await conn.fetchval(
             "INSERT INTO index_jobs (workspace_id, triggered_by, status) "
             "VALUES ($1, 'manual', 'done') RETURNING id",
@@ -172,19 +167,10 @@ async def test_list_job_files_returns_files(
 
 
 @pytest.mark.asyncio
-async def test_list_job_files_unknown_job_raises(
-    pg_container: str, session_pool: asyncpg.Pool, cleanup_ws_dbs: None
-) -> None:
+async def test_list_job_files_unknown_job_raises(session_pool: asyncpg.Pool) -> None:
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
-        await conn.execute(
-            "INSERT INTO workspaces"
-            " (name, api_key_encrypted, api_key_fingerprint, rag_cnx, rag_base) "
-            "VALUES ('ws_jf2', pgp_sym_encrypt('k'::text, 'x'::text)::bytea, 'fp2', 'c', 'b')"
-        )
-    from uuid import uuid4
+        await seed_workspace(conn, name="ws_jf2")
 
     with pytest.raises(JobNotFound):
-        await list_job_files(
-            config_pool=session_pool, workspace_name="ws_jf2", job_id=str(uuid4())
-        )
+        await list_job_files(config_pool=session_pool, workspace_name="ws_jf2", job_id=str(uuid4()))
