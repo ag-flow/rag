@@ -97,9 +97,15 @@ class TestEquivalenceWithoutRoutes:
         assert _routing(bounds=bounds).chunk(doc) == _deep(bounds=bounds).chunk(doc)
 
     def test_explicit_inline_route_matches_default_behaviour(self) -> None:
+        # La garantie porte sur le CONTENU embeddé (parents + enfants) —
+        # `routed_regions` est un rapport méta (S6.3), pas du texte embeddé.
         doc = "# T\n\navant\n\n| a |\n| - |\n\naprès"
         inline = RegionRoute(region_type="table", qualifier="*")
-        assert _routing(routes=[inline]).chunk(doc) == _deep().chunk(doc)
+        routed = _routing(routes=[inline]).chunk(doc)
+        baseline = _deep().chunk(doc)
+        assert routed.parents == baseline.parents
+        assert routed.children == baseline.children
+        assert len(routed.routed_regions) == 1  # la route inline est rapportée
 
 
 class TestAtomicInline:
@@ -233,8 +239,8 @@ class TestOverflowPolicies:
         assert len(result.children) > 1
 
 
-class TestDroppedRegions:
-    """Les régions `parent_only` sont rapportées pour le contextual retrieval."""
+class TestRoutedRegions:
+    """Toute région routée est rapportée pour le contextual retrieval (S6.3)."""
 
     def test_parent_only_region_reported_with_anchor(self) -> None:
         chunker = _routing(
@@ -245,13 +251,22 @@ class TestDroppedRegions:
             ]
         )
         doc = chunker.chunk("# Archi\n\nIntro.\n\n```mermaid\ngraph TD; A-->B;\n```\n")
-        assert len(doc.dropped_regions) == 1
-        dropped = doc.dropped_regions[0]
-        assert (dropped.region_type, dropped.qualifier) == ("code_fence", "mermaid")
-        assert "graph TD" in dropped.content
-        assert dropped.parent_key == "Archi"
-        assert dropped.crumb == ("Archi",)
+        assert len(doc.routed_regions) == 1
+        region = doc.routed_regions[0]
+        assert (region.region_type, region.qualifier) == ("code_fence", "mermaid")
+        assert "graph TD" in region.content
+        assert region.parent_key == "Archi"
+        assert region.crumb == ("Archi",)
+        assert region.source_embedded is False  # parent_only : jamais embeddée
 
-    def test_no_routes_no_dropped_regions(self) -> None:
+    def test_atomic_route_reported_with_source_embedded(self) -> None:
+        chunker = _routing(
+            routes=[RegionRoute(region_type="code_fence", qualifier="*", atomic=True)]
+        )
+        doc = chunker.chunk("# T\n\n```python\nprint(1)\n```\n")
+        assert len(doc.routed_regions) == 1
+        assert doc.routed_regions[0].source_embedded is True
+
+    def test_no_routes_no_routed_regions(self) -> None:
         doc = _routing().chunk("# T\n\n```mermaid\ngraph TD; A-->B;\n```\n")
-        assert doc.dropped_regions == []
+        assert doc.routed_regions == []

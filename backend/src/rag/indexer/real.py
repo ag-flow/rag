@@ -28,7 +28,8 @@ from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
 from rag.secrets.refs import build_ref, is_vault_ref
 from rag.services.chunking_routing import build_strategy_chunker, resolve_strategy_for_file
-from rag.services.inline_context import apply_inline_context
+from rag.services.inline_context import apply_inline_context, load_inline_bindings
+from rag.services.llm_clients import CONTEXT_MAX_TOKENS
 
 log = structlog.get_logger(__name__)
 
@@ -200,12 +201,19 @@ class RealIndexer:
         strategy_name = record.slug
         estimator = HeuristicTokenEstimator(char_ratio=float(ctx["token_char_ratio"]))
         language = language_for_path(path) if record.algo in ("code", "data") else None
+        # Bindings inline chargés AVANT découpage : un contexte par chunk
+        # consomme du budget tokens → le normaliseur le réserve (S6.1).
+        inline_bindings = await load_inline_bindings(
+            self._config_pool, workspace_id=workspace_id, path=path
+        )
+        reserved = CONTEXT_MAX_TOKENS if any(b.target == "chunk" for b in inline_bindings) else 0
         chunker = await build_strategy_chunker(
             self._config_pool,
             record,
             estimator=estimator,
             provider_max_input_tokens=int(ctx["max_input_tokens"]),
             language=language,
+            reserved_tokens=reserved,
         )
         doc = chunker.chunk(content)
         # Contextual retrieval « Prompt B » : injection du contexte LLM dans le
@@ -217,6 +225,7 @@ class RealIndexer:
             content=content,
             doc=doc,
             resolver=self._secret_resolver,
+            bindings=inline_bindings,
         )
         ordered = _dedupe_by_hash(doc.children)
 

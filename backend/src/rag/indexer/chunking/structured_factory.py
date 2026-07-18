@@ -92,6 +92,7 @@ def make_structured_chunker(
     parser_slug: str | None = None,
     region_routes: Sequence[RegionRoute] = (),
     route_targets: Mapping[UUID, StructuredChunkerProtocol] | None = None,
+    reserved_tokens: int = 0,
 ) -> StructuredChunkerProtocol:
     """Construit un chunker structure-aware depuis (algo + params nommés).
 
@@ -112,6 +113,8 @@ def make_structured_chunker(
         raise ValueError("provider_max_input_tokens must be > 0")
     if not 0 < safety_factor <= 1:
         raise ValueError("safety_factor must be in (0, 1]")
+    if reserved_tokens < 0:
+        raise ValueError("reserved_tokens must be >= 0")
 
     opts = CleaningOptions(
         clean_content=bool(params.get("clean_content", False)),
@@ -120,7 +123,10 @@ def make_structured_chunker(
         strip_html=bool(params.get("strip_html", False)),
     )
 
-    hard = max(1, math.floor(safety_factor * provider_max_input_tokens))
+    # `reserved_tokens` : budget retranché du plafond dur — le contexte inline
+    # (contextual retrieval) injecté APRÈS découpage doit tenir dans la limite
+    # provider, donc le normaliseur borne les chunks en le déduisant (S6.1).
+    hard = max(1, math.floor(safety_factor * provider_max_input_tokens) - reserved_tokens)
     target = max(1, min(int(params.get("child_target_tokens", _DEFAULT_TARGET)), hard))
 
     if algo == "table":

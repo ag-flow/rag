@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from rag.indexer.chunking.structured import ChildChunk, ChunkedDocument, DroppedRegion
+from rag.indexer.chunking.structured import ChildChunk, ChunkedDocument, RoutedRegion
 from rag.services import inline_context
 from rag.services.inline_context import apply_inline_context
 
@@ -59,14 +59,15 @@ def _doc() -> ChunkedDocument:
             ChildChunk(embed_text="Guide\n\nInstallez le paquet.", parent_key="Guide"),
             ChildChunk(embed_text="Guide\n\nLancez ensuite le service.", parent_key="Guide"),
         ],
-        dropped_regions=[
-            DroppedRegion(
+        routed_regions=[
+            RoutedRegion(
                 region_type="code_fence",
                 qualifier="mermaid",
                 content="graph TD; A-->B;",
                 parent_key="Guide/Archi",
                 crumb=("Guide", "Archi"),
                 breadcrumb_depth=-1,
+                source_embedded=False,
             )
         ],
     )
@@ -182,3 +183,85 @@ async def test_region_target_qualifier_mismatch_is_noop(fake_llm: list) -> None:
     )
     assert len(result.children) == 2
     assert fake_llm == []
+
+
+@pytest.mark.asyncio
+async def test_llm_failure_indexes_chunk_without_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Politique S6.2 : échec LLM → chunk indexé SANS contexte + warning,
+    jamais d'échec du job complet."""
+
+    async def _boom(**kwargs: Any) -> str:
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr(inline_context, "call_llm_with_cached_prefix", _boom)
+    pool = _FakePool(bindings=[_binding_row(uuid4(), target="chunk")])
+    doc = _doc()
+    result = await apply_inline_context(
+        pool,  # type: ignore[arg-type]
+        workspace_id=_WS,
+        path="guide.md",
+        content="# Guide",
+        doc=doc,
+        resolver=_FakeResolver(),
+    )
+    # aucun contexte injecté, mais les chunks d'origine sont bien là
+    assert [c.embed_text for c in result.children] == [c.embed_text for c in doc.children]
+    assert pool.inserts == 0  # rien de mis en cache sur échec
+
+
+@pytest.mark.asyncio
+async def test_region_binding_specificity_exact_beats_generic(fake_llm: list) -> None:
+    """S6.3 : `region:type:qualifier` exact > `region:type` — UNE description."""
+    exact = _binding_row(uuid4(), target="region:code_fence:mermaid")
+    exact["metadata_key"] = "exact"
+    generic = _binding_row(uuid4(), target="region:code_fence")
+    generic["metadata_key"] = "generic"
+    pool = _FakePool(bindings=[generic, exact])  # le générique arrive en premier
+    result = await apply_inline_context(
+        pool,  # type: ignore[arg-type]
+        workspace_id=_WS,
+        path="guide.md",
+        content="# Guide",
+        doc=_doc(),
+        resolver=_FakeResolver(),
+    )
+    synthetic = [c for c in result.children if c.metadata.get("region_type")]
+    assert len(synthetic) == 1  # une seule description malgré deux bindings
+    assert synthetic[0].metadata["inline_context"] == "exact"
+
+
+@pytest.mark.asyncio
+async def test_source_embedded_region_gets_additive_description(fake_llm: list) -> None:
+    """S6.3 : politique non parent_only → le source EST embeddé et la
+    description s'AJOUTE (chunk synthétique en plus)."""
+    doc = ChunkedDocument(
+        parents=[],
+        children=[ChildChunk(embed_text="T\n\n```python\nprint(1)\n```", parent_key="T")],
+        routed_regions=[
+            RoutedRegion(
+                region_type="code_fence",
+                qualifier="python",
+                content="print(1)",
+                parent_key="T",
+                crumb=("T",),
+                breadcrumb_depth=-1,
+                source_embedded=True,  # route atomique keep_whole
+            )
+        ],
+    )
+    pool = _FakePool(bindings=[_binding_row(uuid4(), target="region:code_fence")])
+    result = await apply_inline_context(
+        pool,  # type: ignore[arg-type]
+        workspace_id=_WS,
+        path="guide.md",
+        content="# Guide",
+        doc=doc,
+        resolver=_FakeResolver(),
+    )
+    assert len(result.children) == 2  # source intact + description additive
+    assert "print(1)" in result.children[0].embed_text
+    described = result.children[1]
+    assert described.metadata["region_source_embedded"] is True
+    assert "[ctx 1]" in described.embed_text

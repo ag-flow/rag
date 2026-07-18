@@ -247,6 +247,7 @@ async def build_strategy_chunker(
     estimator: TokenEstimator,
     provider_max_input_tokens: int,
     language: str | None = None,
+    reserved_tokens: int = 0,
 ) -> StructuredChunkerProtocol:
     """Construit le chunker d'une stratégie, passe régions comprise (spec §3).
 
@@ -264,6 +265,7 @@ async def build_strategy_chunker(
             estimator=estimator,
             provider_max_input_tokens=provider_max_input_tokens,
             language=language,
+            reserved_tokens=reserved_tokens,
         )
 
     routes = await load_region_routes(config_pool, record.id)
@@ -275,6 +277,7 @@ async def build_strategy_chunker(
             params=target.params,
             estimator=estimator,
             provider_max_input_tokens=provider_max_input_tokens,
+            reserved_tokens=reserved_tokens,
         )
     return make_structured_chunker(
         algo=record.algo,
@@ -285,4 +288,5 @@ async def build_strategy_chunker(
         parser_slug=record.parser_slug,
         region_routes=routes,
         route_targets=targets,
+        reserved_tokens=reserved_tokens,
     )

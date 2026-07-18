@@ -10,7 +10,7 @@ import structlog
 
 from rag.indexer.chunking.breadcrumb import prepend_breadcrumb
 from rag.indexer.chunking.hashing import compute_chunk_hash
-from rag.indexer.chunking.structured import ChildChunk, ChunkedDocument, DroppedRegion
+from rag.indexer.chunking.structured import ChildChunk, ChunkedDocument, RoutedRegion
 from rag.secrets.refs import is_vault_ref
 from rag.services.llm_clients import call_llm_with_cached_prefix
 
@@ -88,38 +88,49 @@ async def apply_inline_context(
     content: str,
     doc: ChunkedDocument,
     resolver: _ResolverProtocol,
+    bindings: list[InlineBinding] | None = None,
 ) -> ChunkedDocument:
     """Applique les enrichissements `embedding_inline` au document découpé.
 
     - `target=chunk` : contexte LLM préfixé au texte embeddé de chaque chunk ;
-    - `target=region:<type>[:<qualifier>]` : description LLM embeddée à la
-      place des régions `parent_only` correspondantes (chunk synthétique).
+    - `target=region:<type>[:<qualifier>]` : description LLM de chaque région
+      ROUTÉE correspondante, embeddée en chunk synthétique — elle REMPLACE le
+      source pour `parent_only`, s'AJOUTE au source sinon (S6.3). Résolution
+      de spécificité alignée sur les routes : qualifier exact > type seul.
 
     Idempotence (spec « Prompt B ») : chaque contexte est mis en cache sous
     (workspace, hash du texte SOURCE, template, prompt_version) — un chunk
     source inchangé réutilise son contexte, le diff ensembliste reste vide.
-    Sans binding : retourne `doc` tel quel, zéro appel LLM.
+    Échec LLM sur un chunk/une région → élément indexé SANS contexte +
+    warning, jamais d'échec du job complet (S6.2). Sans binding : retourne
+    `doc` tel quel, zéro appel LLM. `bindings` préchargés acceptés (le caller
+    les a déjà lus pour réserver le budget tokens du normaliseur).
     """
-    bindings = await load_inline_bindings(config_pool, workspace_id=workspace_id, path=path)
+    if bindings is None:
+        bindings = await load_inline_bindings(config_pool, workspace_id=workspace_id, path=path)
     if not bindings:
         return doc
 
     children = list(doc.children)
-    for binding in bindings:
+    for binding in (b for b in bindings if b.target == "chunk"):
         api_key = await _resolve_key(binding, resolver)
-        if binding.target == "chunk":
-            children = [
-                await _contextualize_chunk(
-                    config_pool, workspace_id, content, child, binding, api_key
-                )
-                for child in children
-            ]
-        else:
-            children.extend(
-                await _describe_regions(
-                    config_pool, workspace_id, content, doc.dropped_regions, binding, api_key
-                )
-            )
+        children = [
+            await _contextualize_chunk(config_pool, workspace_id, content, child, binding, api_key)
+            for child in children
+        ]
+
+    region_bindings = [b for b in bindings if b.target != "chunk"]
+    for region in doc.routed_regions:
+        binding = _resolve_region_binding(region, region_bindings)
+        if binding is None:
+            continue
+        api_key = await _resolve_key(binding, resolver)
+        described = await _describe_region(
+            config_pool, workspace_id, content, region, binding, api_key
+        )
+        if described is not None:
+            children.append(described)
+
     log.info(
         "inline_context.applied",
         workspace_id=str(workspace_id),
@@ -128,6 +139,25 @@ async def apply_inline_context(
         chunks=len(children),
     )
     return replace(doc, children=children)
+
+
+def _resolve_region_binding(
+    region: RoutedRegion, bindings: list[InlineBinding]
+) -> InlineBinding | None:
+    """Spécificité décroissante (S6.3) : `region:type:qualifier` exact >
+    `region:type` > rien. À spécificité égale, le premier binding (ordre
+    `order_index` de la requête) gagne — un seul contexte par région."""
+    generic: InlineBinding | None = None
+    for binding in bindings:
+        wanted_type, wanted_qualifier = _parse_region_target(binding.target)
+        if wanted_type != region.region_type:
+            continue
+        if wanted_qualifier is not None:
+            if region.qualifier == wanted_qualifier:
+                return binding
+        elif generic is None:
+            generic = binding
+    return generic
 
 
 async def _resolve_key(binding: InlineBinding, resolver: _ResolverProtocol) -> str | None:
@@ -163,47 +193,38 @@ async def _contextualize_chunk(
     )
 
 
-async def _describe_regions(
+async def _describe_region(
     config_pool: asyncpg.Pool,
     workspace_id: UUID,
     document: str,
-    dropped: list[DroppedRegion],
+    region: RoutedRegion,
     binding: InlineBinding,
     api_key: str | None,
-) -> list[ChildChunk]:
-    wanted_type, wanted_qualifier = _parse_region_target(binding.target)
-    out: list[ChildChunk] = []
-    for region in dropped:
-        if region.region_type != wanted_type:
-            continue
-        if wanted_qualifier is not None and region.qualifier != wanted_qualifier:
-            continue
-        source_hash = compute_chunk_hash(region.content)
-        description = await _get_or_generate(
-            config_pool,
-            workspace_id=workspace_id,
-            source_hash=source_hash,
-            source_text=region.content,
-            document=document,
-            binding=binding,
-            api_key=api_key,
-        )
-        if not description:
-            continue
-        out.append(
-            ChildChunk(
-                embed_text=prepend_breadcrumb(
-                    description, list(region.crumb), depth=region.breadcrumb_depth
-                ),
-                parent_key=region.parent_key,
-                metadata={
-                    "region_type": region.region_type,
-                    "region_qualifier": region.qualifier,
-                    "inline_context": binding.metadata_key,
-                },
-            )
-        )
-    return out
+) -> ChildChunk | None:
+    source_hash = compute_chunk_hash(region.content)
+    description = await _get_or_generate(
+        config_pool,
+        workspace_id=workspace_id,
+        source_hash=source_hash,
+        source_text=region.content,
+        document=document,
+        binding=binding,
+        api_key=api_key,
+    )
+    if not description:
+        return None
+    return ChildChunk(
+        embed_text=prepend_breadcrumb(
+            description, list(region.crumb), depth=region.breadcrumb_depth
+        ),
+        parent_key=region.parent_key,
+        metadata={
+            "region_type": region.region_type,
+            "region_qualifier": region.qualifier,
+            "inline_context": binding.metadata_key,
+            "region_source_embedded": region.source_embedded,
+        },
+    )
 
 
 def _parse_region_target(target: str) -> tuple[str, str | None]:
@@ -233,16 +254,25 @@ async def _get_or_generate(
         return str(cached)
 
     prompt = binding.prompt.replace("{chunk}", source_text).replace("{document}", "")
-    context = (
-        await call_llm_with_cached_prefix(
-            provider=binding.llm_provider,
-            model=binding.llm_model,
-            api_key=api_key,
-            base_url=binding.llm_base_url,
-            cached_prefix=document,
-            prompt=prompt,
+    try:
+        context = (
+            await call_llm_with_cached_prefix(
+                provider=binding.llm_provider,
+                model=binding.llm_model,
+                api_key=api_key,
+                base_url=binding.llm_base_url,
+                cached_prefix=document,
+                prompt=prompt,
+            )
+        ).strip()
+    except Exception as exc:  # politique S6.2 : jamais d'échec du job complet
+        log.warning(
+            "inline_context.llm_failed",
+            workspace_id=str(workspace_id),
+            template_id=str(binding.template_id),
+            error=type(exc).__name__,
         )
-    ).strip()
+        return ""
     if not context:
         return ""
     await config_pool.execute(

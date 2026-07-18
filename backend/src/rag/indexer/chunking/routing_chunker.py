@@ -15,8 +15,8 @@ from rag.indexer.chunking.regions import Region, RegionParser
 from rag.indexer.chunking.structured import (
     ChildChunk,
     ChunkedDocument,
-    DroppedRegion,
     ParentSection,
+    RoutedRegion,
     StructuredChunkerProtocol,
 )
 from rag.indexer.chunking.tokens import TokenEstimator
@@ -62,17 +62,17 @@ class RoutingChunker:
 
         parents: list[ParentSection] = []
         children: list[ChildChunk] = []
-        dropped: list[DroppedRegion] = []
+        routed: list[RoutedRegion] = []
         seen: Counter[str] = Counter()
         for section in sections:
             key = section_key(section, seen)
             meta = section_meta(section)
             parents.append(ParentSection(section_key=key, content=section.content, metadata=meta))
-            children.extend(self._section_children(section, key, meta, dropped))
-        return ChunkedDocument(parents=parents, children=children, dropped_regions=dropped)
+            children.extend(self._section_children(section, key, meta, routed))
+        return ChunkedDocument(parents=parents, children=children, routed_regions=routed)
 
     def _section_children(
-        self, section: Section, key: str, meta: dict[str, Any], dropped: list[DroppedRegion]
+        self, section: Section, key: str, meta: dict[str, Any], routed: list[RoutedRegion]
     ) -> list[ChildChunk]:
         out: list[ChildChunk] = []
         blocks: list[Block] = []
@@ -86,7 +86,7 @@ class RoutingChunker:
                 inline.append(region.content)
                 continue
             self._flush_inline(inline, blocks)
-            self._apply_route(route, region, section, key, meta, crumb, blocks, out, dropped)
+            self._apply_route(route, region, section, key, meta, crumb, blocks, out, routed)
         self._flush_inline(inline, blocks)
         self._emit_blocks(blocks, crumb, key, meta, out)
         return out
@@ -101,22 +101,23 @@ class RoutingChunker:
         crumb: list[str],
         blocks: list[Block],
         out: list[ChildChunk],
-        dropped: list[DroppedRegion],
+        routed: list[RoutedRegion],
     ) -> None:
-        if route.overflow_policy == "parent_only":
-            # Restituée via le parent, jamais embeddée — mais rapportée pour
-            # le contextual retrieval (description LLM embeddable à la place).
-            dropped.append(
-                DroppedRegion(
-                    region_type=region.type,
-                    qualifier=region.qualifier,
-                    content=region.content,
-                    parent_key=key,
-                    crumb=tuple([*section.path, *region.heading_path]),
-                    breadcrumb_depth=self._depth,
-                )
+        # Toute région routée est rapportée (contextual retrieval, spec S6.3) :
+        # description embeddable quelle que soit la politique de débordement.
+        routed.append(
+            RoutedRegion(
+                region_type=region.type,
+                qualifier=region.qualifier,
+                content=region.content,
+                parent_key=key,
+                crumb=tuple([*section.path, *region.heading_path]),
+                breadcrumb_depth=self._depth,
+                source_embedded=route.overflow_policy != "parent_only",
             )
-            return
+        )
+        if route.overflow_policy == "parent_only":
+            return  # restituée via le parent, jamais embeddée
         if route.target_strategy_id is not None:
             self._emit_blocks(blocks, crumb, key, meta, out)  # préserve l'ordre document
             self._emit_target(route, region, section, key, meta, out)
