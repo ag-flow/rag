@@ -112,9 +112,7 @@ def build_admin_router() -> APIRouter:
         async with pool.acquire() as conn:
             endpoint = await get_endpoint(conn, endpoint_id=payload.endpoint_id)
         if endpoint is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="endpoint_not_found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="endpoint_not_found")
         resolved = WorkspaceCreateResolved(
             name=payload.name,
             indexer=IndexerCreateSpec(
@@ -279,6 +277,7 @@ def build_admin_router() -> APIRouter:
         # l'api_key_id, puis client_provider.get_client(api_key_id).
         async def _resolve_secret(ref: str) -> str | None:
             from rag.secrets.refs import parse_ref as _parse_ref
+
             _vault_name, _secret_path = _parse_ref(ref)
             _pool = _config_pool(request)
             _svc = request.app.state.harpocrate_vaults_service
@@ -523,7 +522,6 @@ def build_admin_router() -> APIRouter:
         await delete_rerank_config(ws_row["id"], _config_pool(request))
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-
     # ─── Hybrid search config ───────────────────────────────────────────────
 
     @router.get("/workspaces/{name}/hybrid-config")
@@ -537,7 +535,8 @@ def build_admin_router() -> APIRouter:
         if ws is None:
             raise HTTPException(status_code=404, detail="workspace not found")
         row = await pool.fetchrow(
-            "SELECT workspace_id, enabled, rrf_k, fts_config, created_at, updated_at "
+            "SELECT workspace_id, enabled, rrf_k, weight_lexical, weight_vector, "
+            "lexical_engine, created_at, updated_at "
             "FROM hybrid_configs WHERE workspace_id = $1",
             ws["id"],
         )
@@ -547,7 +546,9 @@ def build_admin_router() -> APIRouter:
             workspace_id=str(row["workspace_id"]),
             enabled=row["enabled"],
             rrf_k=row["rrf_k"],
-            fts_config=row["fts_config"],
+            weight_lexical=float(row["weight_lexical"]),
+            weight_vector=float(row["weight_vector"]),
+            lexical_engine=row["lexical_engine"],
             created_at=str(row["created_at"]),
             updated_at=str(row["updated_at"]),
         )
@@ -563,23 +564,63 @@ def build_admin_router() -> APIRouter:
         ws = await pool.fetchrow("SELECT id FROM workspaces WHERE name = $1", name)
         if ws is None:
             raise HTTPException(status_code=404, detail="workspace not found")
+        # Bascule de moteur (D5) : vérifier la DISPONIBILITÉ avant d'écrire,
+        # et reconstruire l'index lexical par un job — jamais de ré-embedding.
+        previous = await pool.fetchval(
+            "SELECT lexical_engine FROM hybrid_configs WHERE workspace_id = $1", ws["id"]
+        )
+        engine_changed = previous is not None and previous != spec.lexical_engine
+        first_config = previous is None and spec.lexical_engine != "fts"
+        rebuild_job_id: str | None = None
+        if engine_changed or first_config:
+            from rag.db.lexical_engines import get_lexical_engine
+
+            ws_row = await pool.fetchrow("SELECT rag_cnx FROM workspaces WHERE id = $1", ws["id"])
+            engine = get_lexical_engine(spec.lexical_engine)
+            registry = request.app.state.pools
+            ws_pool = await registry.get_workspace_pool(name, ws_row["rag_cnx"])
+            async with ws_pool.acquire() as ws_conn:
+                if not await engine.is_available(ws_conn):
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail={
+                            "error": "lexical_engine_unavailable",
+                            "engine": spec.lexical_engine,
+                            "hint": "extension pg_search absente de cette instance "
+                            "Postgres — voir l'aide de l'onglet Recherche",
+                        },
+                    )
+            rebuild_job_id = str(
+                await pool.fetchval(
+                    "INSERT INTO index_jobs (workspace_id, triggered_by, status) "
+                    "VALUES ($1, 'rebuild_lexical_index', 'pending') RETURNING id",
+                    ws["id"],
+                )
+            )
+
         await pool.execute(
             """
-            INSERT INTO hybrid_configs (workspace_id, enabled, rrf_k, fts_config)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO hybrid_configs
+                (workspace_id, enabled, rrf_k, weight_lexical, weight_vector, lexical_engine)
+            VALUES ($1, $2, $3, $4, $5, $6)
             ON CONFLICT (workspace_id) DO UPDATE
             SET enabled = EXCLUDED.enabled,
                 rrf_k = EXCLUDED.rrf_k,
-                fts_config = EXCLUDED.fts_config,
+                weight_lexical = EXCLUDED.weight_lexical,
+                weight_vector = EXCLUDED.weight_vector,
+                lexical_engine = EXCLUDED.lexical_engine,
                 updated_at = now()
             """,
             ws["id"],
             spec.enabled,
             spec.rrf_k,
-            spec.fts_config,
+            spec.weight_lexical,
+            spec.weight_vector,
+            spec.lexical_engine,
         )
         row = await pool.fetchrow(
-            "SELECT workspace_id, enabled, rrf_k, fts_config, created_at, updated_at "
+            "SELECT workspace_id, enabled, rrf_k, weight_lexical, weight_vector, "
+            "lexical_engine, created_at, updated_at "
             "FROM hybrid_configs WHERE workspace_id = $1",
             ws["id"],
         )
@@ -587,7 +628,10 @@ def build_admin_router() -> APIRouter:
             workspace_id=str(row["workspace_id"]),
             enabled=row["enabled"],
             rrf_k=row["rrf_k"],
-            fts_config=row["fts_config"],
+            weight_lexical=float(row["weight_lexical"]),
+            weight_vector=float(row["weight_vector"]),
+            lexical_engine=row["lexical_engine"],
+            rebuild_job_id=rebuild_job_id,
             created_at=str(row["created_at"]),
             updated_at=str(row["updated_at"]),
         )
@@ -807,9 +851,7 @@ def build_admin_router() -> APIRouter:
         "/workspaces/{name}/sources/{source_name}/webhook/disable",
         status_code=status.HTTP_204_NO_CONTENT,
     )
-    async def disable_source_webhook(
-        name: str, source_name: str, request: Request
-    ) -> Response:
+    async def disable_source_webhook(name: str, source_name: str, request: Request) -> Response:
         from rag.services.source_webhooks import (
             WebhookNotEnabledError,
             disable_webhook,
@@ -834,9 +876,7 @@ def build_admin_router() -> APIRouter:
         "/workspaces/{name}/sources/{source_name}/webhook/rotate-secret",
         response_model=dict,
     )
-    async def rotate_source_webhook_secret(
-        name: str, source_name: str, request: Request
-    ) -> dict:
+    async def rotate_source_webhook_secret(name: str, source_name: str, request: Request) -> dict:
         from rag.services.source_webhooks import (
             WebhookNotEnabledError,
             rotate_webhook_secret,

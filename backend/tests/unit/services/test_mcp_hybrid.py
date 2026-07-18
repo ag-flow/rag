@@ -26,10 +26,22 @@ class TestLoadHybridConfig:
 
         pool = MagicMock()
         pool.fetchrow = AsyncMock(
-            return_value={"enabled": True, "rrf_k": 60, "fts_config": "simple"}
+            return_value={
+                "enabled": True,
+                "rrf_k": 60,
+                "weight_lexical": 0.5,
+                "weight_vector": 0.5,
+                "lexical_engine": "fts",
+            }
         )
         result = await _load_hybrid_config(pool, uuid4())
-        assert result == {"enabled": True, "rrf_k": 60, "fts_config": "simple"}
+        assert result == {
+            "enabled": True,
+            "rrf_k": 60,
+            "weight_lexical": 0.5,
+            "weight_vector": 0.5,
+            "lexical_engine": "fts",
+        }
 
 
 def _build_config_pool(ws_id: object, api_key: str, name: str) -> MagicMock:
@@ -114,13 +126,25 @@ class TestSearchOneHybridDispatch:
         registry.get_workspace_pool = AsyncMock(return_value=MagicMock())
 
         fake_vector = AsyncMock(return_value=[])
-        fake_hybrid = AsyncMock(return_value=[_fake_hit("ws")])
+        from rag.db.workspace_search import HybridResult
+
+        fake_hybrid = AsyncMock(
+            return_value=HybridResult(hits=[_fake_hit("ws")], vector_channel=[], lexical_channel=[])
+        )
         monkeypatch.setattr(mcp, "vector_search", fake_vector)
         monkeypatch.setattr(mcp, "hybrid_search", fake_hybrid)
         monkeypatch.setattr(
             mcp,
             "_load_hybrid_config",
-            AsyncMock(return_value={"enabled": True, "rrf_k": 60, "fts_config": "simple"}),
+            AsyncMock(
+                return_value={
+                    "enabled": True,
+                    "rrf_k": 60,
+                    "weight_lexical": 0.5,
+                    "weight_vector": 0.5,
+                    "lexical_engine": "fts",
+                }
+            ),
         )
 
         provider = MagicMock()
@@ -156,7 +180,13 @@ class TestSearchOneHybridDispatch:
             mcp,
             "_load_hybrid_config",
             AsyncMock(
-                return_value={"enabled": False, "rrf_k": 60, "fts_config": "simple"}
+                return_value={
+                    "enabled": False,
+                    "rrf_k": 60,
+                    "weight_lexical": 0.5,
+                    "weight_vector": 0.5,
+                    "lexical_engine": "fts",
+                }
             ),
         )
 

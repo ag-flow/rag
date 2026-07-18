@@ -26,8 +26,8 @@ class TestGetHybridConfig:
         pool = MagicMock()
         pool.fetchrow = AsyncMock(
             side_effect=[
-                {"id": ws_id},   # workspace lookup
-                None,            # hybrid_configs lookup → absent
+                {"id": ws_id},  # workspace lookup
+                None,  # hybrid_configs lookup → absent
             ]
         )
         client = TestClient(_app_with_pool(pool))
@@ -44,7 +44,9 @@ class TestGetHybridConfig:
                     "workspace_id": ws_id,
                     "enabled": True,
                     "rrf_k": 60,
-                    "fts_config": "simple",
+                    "weight_lexical": 0.5,
+                    "weight_vector": 0.5,
+                    "lexical_engine": "fts",
                     "created_at": "2026-01-01T00:00:00Z",
                     "updated_at": "2026-01-01T00:00:00Z",
                 },
@@ -56,7 +58,8 @@ class TestGetHybridConfig:
         data = resp.json()
         assert data["enabled"] is True
         assert data["rrf_k"] == 60
-        assert data["fts_config"] == "simple"
+        assert data["lexical_engine"] == "fts"
+        assert data["weight_lexical"] == 0.5
 
 
 class TestPutHybridConfig:
@@ -65,22 +68,31 @@ class TestPutHybridConfig:
         pool = MagicMock()
         pool.fetchrow = AsyncMock(
             side_effect=[
-                {"id": ws_id},   # workspace lookup
+                {"id": ws_id},  # workspace lookup
                 {
                     "workspace_id": ws_id,
                     "enabled": True,
                     "rrf_k": 30,
-                    "fts_config": "french",
+                    "weight_lexical": 0.7,
+                    "weight_vector": 0.3,
+                    "lexical_engine": "fts",
                     "created_at": "2026-01-01T00:00:00Z",
                     "updated_at": "2026-01-02T00:00:00Z",
                 },
             ]
         )
         pool.execute = AsyncMock()
+        pool.fetchval = AsyncMock(return_value="fts")  # moteur inchangé → pas de rebuild
         client = TestClient(_app_with_pool(pool))
         resp = client.put(
             "/admin/workspaces/myws/hybrid-config",
-            json={"enabled": True, "rrf_k": 30, "fts_config": "french"},
+            json={
+                "enabled": True,
+                "rrf_k": 30,
+                "weight_lexical": 0.7,
+                "weight_vector": 0.3,
+                "lexical_engine": "fts",
+            },
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -92,6 +104,6 @@ class TestPutHybridConfig:
         client = TestClient(_app_with_pool(pool))
         resp = client.put(
             "/admin/workspaces/noexist/hybrid-config",
-            json={"enabled": True, "rrf_k": 60, "fts_config": "simple"},
+            json={"enabled": True, "rrf_k": 60},
         )
         assert resp.status_code == 404

@@ -144,7 +144,7 @@ async def test_search_single_workspace_returns_hits(monkeypatch) -> None:
     from rag.services import mcp
 
     monkeypatch.setattr(mcp, "vector_search", fake_vector_search)
-    hits = await search(
+    hits, _channels = await search(
         refs=[McpWorkspaceRef(name="ws_a", api_key=api_key)],
         query="hello",
         top_k=5,
@@ -247,7 +247,7 @@ async def test_search_multi_workspace_concat_in_order(monkeypatch) -> None:
     monkeypatch.setattr(mcp, "vector_search", _vector_search)
     # Resolver retourne la bonne api_key par workspace ref
     resolver = _MapResolver({"ws_a_apikey": "k1", "ws_b_apikey": "k2"})
-    hits = await search(
+    hits, _channels = await search(
         refs=[
             McpWorkspaceRef(name="ws_a", api_key="k1"),
             McpWorkspaceRef(name="ws_b", api_key="k2"),

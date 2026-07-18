@@ -25,7 +25,7 @@ def build_mcp_router() -> APIRouter:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail={"error": "no_default_vault_configured"},
             )
-        hits = await search(
+        hits, channels = await search(
             refs=refs,
             query=payload.query,
             top_k=payload.top_k,
@@ -35,6 +35,10 @@ def build_mcp_router() -> APIRouter:
             secret_resolver=request.app.state.resolver,
             default_vault_name=default_vault,
         )
-        return McpResponse(query=payload.query, results=hits)
+        return McpResponse(
+            query=payload.query,
+            results=hits,
+            channels=channels if payload.debug else None,
+        )
 
     return router

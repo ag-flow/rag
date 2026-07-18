@@ -137,7 +137,7 @@ _BACKOFF_LIMIT_SECONDS = 4 * 3600  # 4 heures
 
 def _backoff_delay(retry_count: int) -> int:
     """30s * 2^retry_count : 30s, 60s, 120s, 240s ... jusqu'a ~4h."""
-    return _BACKOFF_BASE_SECONDS * (2 ** retry_count)
+    return _BACKOFF_BASE_SECONDS * (2**retry_count)
 
 
 def _should_retry(retry_count: int) -> bool:
@@ -223,9 +223,7 @@ async def _reschedule_job(
     retry_count: int,
     delay_seconds: int,
 ) -> None:
-    retry_after = datetime.datetime.now(datetime.UTC) + datetime.timedelta(
-        seconds=delay_seconds
-    )
+    retry_after = datetime.datetime.now(datetime.UTC) + datetime.timedelta(seconds=delay_seconds)
     await config_pool.execute(
         """
         UPDATE index_jobs
@@ -315,6 +313,7 @@ async def _execute_push_job(
             # Enrichissements LLM post-indexation
             try:
                 from rag.services.enrichments import run_enrichments
+
                 async with config_pool.acquire() as _enrich_conn:
                     _enrichments = await run_enrichments(
                         conn=_enrich_conn,
@@ -374,9 +373,7 @@ async def _execute_push_job(
                 error=error_message,
             )
         else:
-            await _mark_job_error(
-                config_pool, job_id=job.job_id, error_message=error_message
-            )
+            await _mark_job_error(config_pool, job_id=job.job_id, error_message=error_message)
             final_status = "error"
             if family in ("blocking", "transient"):
                 # transient ici = retries épuisés → même traitement que blocking
@@ -419,6 +416,54 @@ async def _execute_push_job(
         resolver=resolver,
         enrichments=enrichment_results,
     )
+
+
+async def _execute_rebuild_lexical_job(
+    *,
+    job: JobToProcess,
+    config_pool: asyncpg.Pool,
+) -> None:
+    """Reconstruit l'index lexical du workspace après bascule de moteur (D5).
+
+    Lit le moteur cible dans hybrid_configs et applique `ensure_index` sur la
+    base workspace — jamais de ré-embedding. Erreur → job en error avec
+    message explicite (l'ancien index reste utilisable).
+    """
+    from rag.db.lexical_engines import get_lexical_engine
+
+    jid = str(job.job_id)
+    try:
+        row = await config_pool.fetchrow(
+            "SELECT w.name, w.rag_cnx, hc.lexical_engine "
+            "FROM workspaces w JOIN hybrid_configs hc ON hc.workspace_id = w.id "
+            "WHERE w.id = $1",
+            job.workspace_id,
+        )
+        if row is None:
+            raise RuntimeError(f"hybrid_configs introuvable pour le job {jid}")
+        engine = get_lexical_engine(row["lexical_engine"])
+        # Connexion directe one-shot : le DDL de reconstruction n'a pas besoin
+        # d'un pool du registre (réservé au chemin de recherche).
+        conn = await asyncpg.connect(row["rag_cnx"])
+        try:
+            await engine.ensure_index(conn)
+        finally:
+            await conn.close()
+        await config_pool.execute(
+            "UPDATE index_jobs SET status='done', finished_at=now(), files_changed=0, "
+            "duration_ms=CASE WHEN started_at IS NOT NULL THEN "
+            "EXTRACT(MILLISECONDS FROM (now() - started_at))::int ELSE 0 END "
+            "WHERE id=$1",
+            job.job_id,
+        )
+        log.info("sync.rebuild_lexical.done", job_id=jid, engine=engine.slug)
+    except Exception as exc:
+        await config_pool.execute(
+            "UPDATE index_jobs SET status='error', error_message=$2, finished_at=now() WHERE id=$1",
+            job.job_id,
+            _format_error(exc),
+        )
+        log.error("sync.rebuild_lexical.failed", job_id=jid, error=str(exc))
 
 
 async def _execute_delete_job(
@@ -512,9 +557,7 @@ async def _execute_delete_job(
                 error=error_message,
             )
         else:
-            await _mark_job_error(
-                config_pool, job_id=job.job_id, error_message=error_message
-            )
+            await _mark_job_error(config_pool, job_id=job.job_id, error_message=error_message)
             final_status = "error"
             if family in ("blocking", "transient"):
                 await open_circuit(
@@ -591,6 +634,8 @@ async def execute_next_pending_job(
                 resolver=resolver,
                 client_provider=client_provider,
             )
+        elif job.triggered_by == "rebuild_lexical_index":
+            await _execute_rebuild_lexical_job(job=job, config_pool=config_pool)
         elif job.triggered_by == "delete":
             await _execute_delete_job(
                 job=job,
@@ -736,13 +781,13 @@ async def _execute_git_job(
             dest.rmdir()
         _log("info", f"git clone {url}…")
         await clone(
-                    url=url,
-                    branch=branch,
-                    token=token,
-                    dest=dest,
-                    ssh_key=ssh_key,
-                    ssh_username=ssh_username,
-                )
+            url=url,
+            branch=branch,
+            token=token,
+            dest=dest,
+            ssh_key=ssh_key,
+            ssh_username=ssh_username,
+        )
         was_fresh_clone = True
 
     current = await head_commit(dest)
@@ -850,6 +895,7 @@ async def _execute_git_job(
         # Enrichissements LLM post-indexation
         try:
             from rag.services.enrichments import run_enrichments
+
             async with config_pool.acquire() as _enrich_conn:
                 _enrichments = await run_enrichments(
                     conn=_enrich_conn,

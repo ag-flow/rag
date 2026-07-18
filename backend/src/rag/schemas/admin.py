@@ -44,9 +44,7 @@ class RerankCreateSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
-    provider: Literal[
-        "cohere", "voyage", "ollama", "jina", "dashscope", "azure-foundry"
-    ]
+    provider: Literal["cohere", "voyage", "ollama", "jina", "dashscope", "azure-foundry"]
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
     base_url: str | None = Field(
@@ -252,9 +250,7 @@ class RerankSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
-    provider: Literal[
-        "cohere", "voyage", "ollama", "jina", "dashscope", "azure-foundry"
-    ]
+    provider: Literal["cohere", "voyage", "ollama", "jina", "dashscope", "azure-foundry"]
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
     base_url: str | None = Field(
@@ -284,16 +280,23 @@ class RerankConfigResponse(BaseModel):
 
 
 class HybridConfigSpec(BaseModel):
+    """Config de recherche du workspace (D5/D6) — onglet Recherche."""
+
     enabled: bool = True
     rrf_k: int = Field(default=60, gt=0)
-    fts_config: str = Field(default="simple", min_length=1, max_length=63)
+    weight_lexical: float = Field(default=0.5, ge=0.0, le=1.0)
+    weight_vector: float = Field(default=0.5, ge=0.0, le=1.0)
+    lexical_engine: Literal["fts", "bm25"] = "fts"
 
 
 class HybridConfigResponse(BaseModel):
     workspace_id: str
     enabled: bool
     rrf_k: int
-    fts_config: str
+    weight_lexical: float
+    weight_vector: float
+    lexical_engine: str
+    rebuild_job_id: str | None = None  # posé quand la bascule de moteur enqueue un job
     created_at: str
     updated_at: str
 
@@ -371,8 +374,7 @@ class ChunkingConfigSpec(BaseModel):
             unknown = set(v.keys()) - _CLEANING_KEYS
             if unknown:
                 raise ValueError(
-                    "paragraph strategy only accepts cleaning options, "
-                    f"got unknown keys: {unknown}"
+                    f"paragraph strategy only accepts cleaning options, got unknown keys: {unknown}"
                 )
             return _validate_cleaning_extras(v)
         if strategy == "markdown":

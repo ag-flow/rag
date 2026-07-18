@@ -12,8 +12,9 @@ import structlog
 from fastapi import HTTPException, status
 
 from rag.api.errors import WorkspaceNotFound
+from rag.db.lexical_engines import get_lexical_engine
 from rag.db.pool import WorkspacePoolRegistry
-from rag.db.workspace_search import hybrid_search, vector_search
+from rag.db.workspace_search import ChannelEntry, hybrid_search, vector_search
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
 from rag.rerank.protocol import (
@@ -23,7 +24,13 @@ from rag.rerank.protocol import (
     RerankResult,
 )
 from rag.rerank.providers.factory import make_rerank_provider as _make_rerank_default
-from rag.schemas.mcp import MultiWorkspaceRequest, SearchHit, SingleWorkspaceRequest
+from rag.schemas.mcp import (
+    ChannelHit,
+    DebugChannels,
+    MultiWorkspaceRequest,
+    SearchHit,
+    SingleWorkspaceRequest,
+)
 from rag.secrets.refs import build_ref, is_vault_ref
 
 log = structlog.get_logger(__name__)
@@ -95,9 +102,7 @@ async def _authenticate(
     )
     if row is None:
         # Workspace inconnu OU clé/grant invalide : distinguer 404 de 401.
-        exists = await config_pool.fetchval(
-            "SELECT 1 FROM workspaces WHERE name = $1", ref.name
-        )
+        exists = await config_pool.fetchval("SELECT 1 FROM workspaces WHERE name = $1", ref.name)
         if exists is None:
             raise WorkspaceNotFound(ref.name)
         raise HTTPException(
@@ -163,8 +168,13 @@ async def _load_workspace_context(
     else:
         ctx["rerank"] = None
     # Cleanup : retirer les clés intermédiaires
-    for k in ("rerank_provider", "rerank_model", "rerank_api_key_ref",
-              "rerank_base_url", "rerank_top_k_pre_rerank"):
+    for k in (
+        "rerank_provider",
+        "rerank_model",
+        "rerank_api_key_ref",
+        "rerank_base_url",
+        "rerank_top_k_pre_rerank",
+    ):
         ctx.pop(k, None)
     return ctx
 
@@ -175,12 +185,13 @@ async def _load_hybrid_config(
 ) -> dict[str, object] | None:
     """Charge la config hybride depuis hybrid_configs. None = vectoriel pur."""
     row = await config_pool.fetchrow(
-        "SELECT enabled, rrf_k, fts_config FROM hybrid_configs WHERE workspace_id = $1",
+        "SELECT enabled, rrf_k, weight_lexical, weight_vector, lexical_engine "
+        "FROM hybrid_configs WHERE workspace_id = $1",
         workspace_id,
     )
     if row is None:
         return None
-    return {"enabled": row["enabled"], "rrf_k": row["rrf_k"], "fts_config": row["fts_config"]}
+    return dict(row)
 
 
 # ---------------------------------------------------------------------------
@@ -217,6 +228,7 @@ class _WorkspaceResult:
     workspace_name: str
     indexer_used: str
     hits: list[SearchHit]
+    channels: tuple[list[ChannelEntry], list[ChannelEntry]] | None = None
 
 
 async def search(
@@ -233,8 +245,12 @@ async def search(
     rerank_factory: Callable[..., RerankProvider] | None = None,
     scope: str = "both",
     enrichment_keys: list[str] | None = None,
-) -> list[SearchHit]:
+) -> tuple[list[SearchHit], DebugChannels | None]:
     """Orchestre la recherche MCP multi-workspace.
+
+    Retourne (hits, canaux). Les listes par canal (D8) ne sont renvoyées
+    que pour une recherche single-workspace en mode hybride — en multi,
+    les rangs par canal de workspaces différents ne sont pas comparables.
 
     Fail-fast : la première exception remontée par un workspace (auth, embedding,
     accès DB…) propage via `asyncio.gather` et annule les autres tasks. Aucun
@@ -270,7 +286,15 @@ async def search(
         for r in refs
     ]
     results = await asyncio.gather(*tasks)
-    return [hit for ws_result in results for hit in ws_result.hits]
+    hits = [hit for ws_result in results for hit in ws_result.hits]
+    channels: DebugChannels | None = None
+    if len(results) == 1 and results[0].channels is not None:
+        vector, lexical = results[0].channels
+        channels = DebugChannels(
+            vector=[ChannelHit(**vars(c)) for c in vector],
+            lexical=[ChannelHit(**vars(c)) for c in lexical],
+        )
+    return hits, channels
 
 
 def _validate_rerank_results(
@@ -348,8 +372,9 @@ async def _search_one(
     hybrid_cfg = await _load_hybrid_config(config_pool, auth.workspace_id)
     ws_pool = await pool_registry.get_workspace_pool(ref.name, ctx["rag_cnx"])
 
+    channels: tuple[list[ChannelEntry], list[ChannelEntry]] | None = None
     if hybrid_cfg and hybrid_cfg["enabled"]:
-        hits = await hybrid_search(
+        result = await hybrid_search(
             ws_pool,
             query_vec=query_vec,
             query=query,
@@ -357,12 +382,15 @@ async def _search_one(
             min_score=min_score,
             workspace_name=ref.name,
             indexer_used=auth.indexer_used,
+            lexical_engine=get_lexical_engine(str(hybrid_cfg["lexical_engine"])),
             rrf_k=int(hybrid_cfg["rrf_k"]),
-            fts_config=str(hybrid_cfg["fts_config"]),
-            debug=False,
+            w_vector=float(hybrid_cfg["weight_vector"]),
+            w_lexical=float(hybrid_cfg["weight_lexical"]),
             scope=scope,
             enrichment_keys=enrichment_keys,
         )
+        hits = result.hits
+        channels = (result.vector_channel, result.lexical_channel)
     else:
         hits = await vector_search(
             ws_pool,
@@ -449,4 +477,5 @@ async def _search_one(
         workspace_name=ref.name,
         indexer_used=auth.indexer_used,
         hits=hits[:top_k],
+        channels=channels,
     )
