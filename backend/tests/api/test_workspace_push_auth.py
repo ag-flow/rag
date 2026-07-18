@@ -2,16 +2,13 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from tests.api._helpers import make_ws_with_user_key
+
 
 def _make_ws(client: TestClient, admin_headers: dict[str, str], name: str) -> str:
-    """Crée un workspace et retourne l'api_key clair."""
-    r = client.post(
-        "/api/admin/workspaces",
-        headers=admin_headers,
-        json={"name": name, "endpoint_id": client.default_endpoint_id},
-    )
-    assert r.status_code == 201, r.text
-    return r.json()["api_key"]
+    """Crée un workspace + clé utilisateur avec grant d'écriture → clé claire."""
+    _, api_key = make_ws_with_user_key(client, admin_headers, name)
+    return api_key
 
 
 def test_push_returns_401_for_unknown_workspace(
@@ -94,27 +91,7 @@ def test_push_cross_workspace_key_returns_401(
     assert r.json()["detail"] == "invalid_workspace_apikey"
 
 
-def test_rotate_apikey_invalidates_cache(
-    admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
-) -> None:
-    api_key_v1 = _make_ws(admin_client, admin_headers, "ws_rot")
-
-    # 1er push : succes avec v1 → met en cache
-    r = admin_client.post(
-        "/workspaces/ws_rot/index",
-        headers={"Authorization": f"Bearer {api_key_v1}"},
-        json={"path": "a.md", "content": "x"},
-    )
-    assert r.status_code == 202
-
-    # rotate la cle
-    r2 = admin_client.post("/api/admin/workspaces/ws_rot/rotate-apikey", headers=admin_headers)
-    assert r2.status_code == 200
-
-    # push avec l'ancienne cle : doit echouer 401 (cache invalide + nouveau hash en DB)
-    r3 = admin_client.post(
-        "/workspaces/ws_rot/index",
-        headers={"Authorization": f"Bearer {api_key_v1}"},
-        json={"path": "a.md", "content": "y"},
-    )
-    assert r3.status_code == 401
+# test_rotate_apikey_invalidates_cache supprimé : la rotation d'api_key PAR
+# WORKSPACE (POST /api/admin/workspaces/{name}/rotate-apikey) n'existe plus
+# depuis le chantier clés utilisateur (444308a) — la rotation est couverte
+# côté clés user dans test_me_api_keys.py.

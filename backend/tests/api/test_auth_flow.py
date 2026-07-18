@@ -100,9 +100,12 @@ def _seed_oidc_config(client: TestClient, admin_headers: dict[str, str]) -> None
 
 
 def _stub_secret_resolver(client: TestClient) -> None:
-    """Le stub resolver de conftest accepte déjà certaines refs ;
-    on ajoute kc_test_secret."""
-    client.app.state.resolver.known.add("kc_test_secret")  # type: ignore[attr-defined]
+    """Injecte le client secret OIDC.
+
+    Le secret n'est plus résolu via Harpocrate mais lu depuis admin.env
+    (RAG_OIDC_CLIENT_SECRET) via un provider injecté au service — on
+    substitue le provider, même pattern que _http_client plus haut."""
+    client.app.state.oidc._client_secret_provider = lambda: "kc_test_secret"  # type: ignore[attr-defined]
 
 
 def test_auth_login_redirects_to_keycloak_with_state_and_nonce(

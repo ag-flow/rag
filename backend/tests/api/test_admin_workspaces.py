@@ -48,7 +48,10 @@ def test_post_workspaces_422_unknown_model(
             "name": "ws_unknown_model",
             "endpoint_id": seed_endpoint_sync(
                 os.environ["DATABASE_URL"],
-                slug="ep-nope", provider="nope", model="nope", api_key_ref="k",
+                slug="ep-nope",
+                provider="nope",
+                model="nope",
+                api_key_ref="k",
             ),
         },
     )
@@ -57,23 +60,10 @@ def test_post_workspaces_422_unknown_model(
     assert body["error"] == "model_not_supported"
 
 
-def test_post_workspaces_422_ref_not_in_vault(
-    admin_client: TestClient, admin_headers: dict[str, str]
-) -> None:
-    r = admin_client.post(
-        "/api/admin/workspaces",
-        headers=admin_headers,
-        json={
-            "name": "ws_bad_ref",
-            "endpoint_id": seed_endpoint_sync(
-                os.environ["DATABASE_URL"],
-                slug="ep-bad-ref", provider="openai",
-                model="text-embedding-3-small", api_key_ref="ref_absente_du_vault",
-            ),
-        },
-    )
-    assert r.status_code == 422
-    assert r.json()["error"] == "ref_not_found_in_vault"
+# test_post_workspaces_422_ref_not_in_vault supprimé : la validation eager de
+# l'api_key_ref à la création n'existe plus — la ref vient du préréglage
+# d'endpoint du coffre (chantier endpoints/clés user) ; l'eager validation ne
+# subsiste que sur PATCH (couvert par les tests patch ci-dessous).
 
 
 def test_post_workspaces_409_duplicate(

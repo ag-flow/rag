@@ -26,7 +26,9 @@ def _setup_ws_with_doc(client: TestClient, headers: dict[str, str], name: str) -
         finally:
             await conn.close()
 
-    asyncio.get_event_loop().run_until_complete(_insert_doc())
+    # Python 3.12 : get_event_loop() hors boucle courante renvoie une boucle
+    # fermée par pytest-asyncio → RuntimeError. Boucle dédiée via asyncio.run.
+    asyncio.run(_insert_doc())
 
 
 def test_post_reindex_no_change_202_pending(

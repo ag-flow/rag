@@ -33,8 +33,10 @@ def _create_ws(client: TestClient, headers: dict[str, str], name: str) -> str:
             "name": name,
             "endpoint_id": seed_endpoint_sync(
                 os.environ["DATABASE_URL"],
-                slug="ep-ollama-stub", provider="ollama",
-                model="mxbai-embed-large", api_key_ref=None,
+                slug="ep-ollama-stub",
+                provider="ollama",
+                model="mxbai-embed-large",
+                api_key_ref=None,
                 base_url="http://stub:11434",
             ),
         },
@@ -62,7 +64,9 @@ def _insert_doc(workspace_name: str) -> None:
         finally:
             await conn.close()
 
-    asyncio.get_event_loop().run_until_complete(_go())
+    # Python 3.12 : get_event_loop() hors boucle courante renvoie une boucle
+    # fermée par pytest-asyncio → RuntimeError. Boucle dédiée via asyncio.run.
+    asyncio.run(_go())
 
 
 def test_get_chunking_config_returns_default(

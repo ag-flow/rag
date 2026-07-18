@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Bench de retrieval — hit@5 / MRR@10 sur un golden set (docs/retrieval-measurement.md).
+"""Bench de retrieval — recall@k / MRR par famille (protocole D9, SR1.2).
 
-Mesure la qualité de la recherche MCP AVANT/APRÈS activation d'une
-configuration (stratégie de chunking, contexte inline…) : même golden set,
-mêmes métriques, décision chiffrée.
+Runner de campagne : exécute un jeu de requêtes-vérité contre la recherche
+MCP et calcule recall@1/5/10 et MRR, globaux et PAR FAMILLE de questions
+(littérale / paraphrasée / indirecte — D9.2). Le verdict est arithmétique :
+présence du document source attendu dans le top-k, aucun jugement LLM.
+`--report` écrit le rapport markdown à déposer dans le bloc Recherche.
 
 Usage (depuis la racine du repo) :
 
@@ -13,12 +15,15 @@ Usage (depuis la racine du repo) :
         --golden golden/queries.yaml \
         [--api-key … | env RAG_BENCH_API_KEY] [--passes 3] [--top-k 10]
 
-Golden set YAML — une entrée par question, chemins attendus (match sur
-`path` OU `source_path` pour couvrir les documents d'enrichissement) :
+Jeu YAML — une entrée par question. `family` ∈ litterale|paraphrasee|
+indirecte (optionnel : jeux hors D9). Match : `expected_paths` (exact sur
+`path`/`source_path`) et/ou `expected_path_contains` (sous-chaîne — ex. l'id
+docflow du document source dans le path poussé) :
 
     - query: "Comment créer un workspace ?"
-      expected_paths:
-        - manuel/02-workspaces.md
+      family: paraphrasee
+      expected_paths: [manuel/02-workspaces.md]
+      expected_path_contains: ["6a398cd2"]
 """
 
 from __future__ import annotations
@@ -32,7 +37,7 @@ from typing import Any
 import httpx
 import yaml
 
-HIT_AT = 5
+RECALL_KS = (1, 5, 10)
 DEFAULT_TOP_K = 10
 DEFAULT_PASSES = 3  # le reranking peut varier → moyenne sur plusieurs passes
 
@@ -43,8 +48,9 @@ def load_golden(path: str) -> list[dict[str, Any]]:
     if not isinstance(entries, list) or not entries:
         sys.exit(f"golden set vide ou invalide : {path}")
     for i, entry in enumerate(entries):
-        if not entry.get("query") or not entry.get("expected_paths"):
-            sys.exit(f"entrée {i} invalide (query + expected_paths requis)")
+        has_expected = entry.get("expected_paths") or entry.get("expected_path_contains")
+        if not entry.get("query") or not has_expected:
+            sys.exit(f"entrée {i} invalide (query + expected_paths/_contains requis)")
     return entries
 
 
@@ -60,10 +66,15 @@ def search(
     return list(resp.json()["results"])
 
 
-def first_relevant_rank(hits: list[dict[str, Any]], expected: set[str]) -> int | None:
-    """Rang (1-indexé) du premier hit dont path OU source_path est attendu."""
+def first_relevant_rank(hits: list[dict[str, Any]], entry: dict[str, Any]) -> int | None:
+    """Rang (1-indexé) du premier hit provenant du document attendu."""
+    exact = set(entry.get("expected_paths") or [])
+    fragments = list(entry.get("expected_path_contains") or [])
     for rank, hit in enumerate(hits, start=1):
-        if hit.get("path") in expected or hit.get("source_path") in expected:
+        paths = [p for p in (hit.get("path"), hit.get("source_path")) if p]
+        if any(p in exact for p in paths):
+            return rank
+        if any(frag in p for frag in fragments for p in paths):
             return rank
     return None
 
@@ -76,23 +87,62 @@ def run_pass(
     api_key: str,
     golden: list[dict[str, Any]],
     top_k: int,
-) -> tuple[float, float, list[str]]:
-    """Une passe complète : (hit@5, MRR@top_k, requêtes en échec)."""
-    hits_at_5 = 0
-    reciprocal_ranks: list[float] = []
-    misses: list[str] = []
-    for entry in golden:
-        results = search(client, base_url, workspace, api_key, entry["query"], top_k)
-        rank = first_relevant_rank(results, set(entry["expected_paths"]))
-        if rank is not None and rank <= HIT_AT:
-            hits_at_5 += 1
-        if rank is None:
-            misses.append(entry["query"])
-            reciprocal_ranks.append(0.0)
-        else:
-            reciprocal_ranks.append(1.0 / rank)
-    n = len(golden)
-    return hits_at_5 / n, sum(reciprocal_ranks) / n, misses
+) -> list[int | None]:
+    """Une passe complète : rang du doc attendu par question (None = absent)."""
+    return [
+        first_relevant_rank(
+            search(client, base_url, workspace, api_key, entry["query"], top_k), entry
+        )
+        for entry in golden
+    ]
+
+
+def metrics(ranks: list[int | None]) -> dict[str, float]:
+    """recall@k (k ∈ RECALL_KS) et MRR — verdict arithmétique (D9.1)."""
+    n = len(ranks) or 1
+    out = {f"recall@{k}": sum(1 for r in ranks if r is not None and r <= k) / n for k in RECALL_KS}
+    out["mrr"] = sum(1.0 / r for r in ranks if r is not None) / n
+    return out
+
+
+def render_report(
+    golden: list[dict[str, Any]],
+    all_ranks: list[list[int | None]],
+    *,
+    workspace: str,
+    top_k: int,
+) -> str:
+    """Rapport markdown à déposer dans le bloc Recherche (SR1.2)."""
+
+    def avg(rows: list[dict[str, float]]) -> dict[str, float]:
+        keys = rows[0].keys()
+        return {k: statistics.mean(r[k] for r in rows) for k in keys}
+
+    lines = [
+        "# Rapport de campagne de recherche",
+        "",
+        f"- Workspace : `{workspace}` — top_k={top_k}, passes={len(all_ranks)}",
+        f"- Jeu : {len(golden)} question(s)",
+        "",
+        "## Métriques globales",
+        "",
+    ]
+    overall = avg([metrics(ranks) for ranks in all_ranks])
+    lines += [f"- **{k}** : {v:.3f}" for k, v in overall.items()]
+    families = sorted({e.get("family", "sans-famille") for e in golden})
+    if len(families) > 1:
+        lines += ["", "## Par famille", ""]
+        for family in families:
+            idx = [i for i, e in enumerate(golden) if e.get("family", "sans-famille") == family]
+            fam = avg([metrics([ranks[i] for i in idx]) for ranks in all_ranks])
+            fam_str = "  ".join(f"{k}={v:.3f}" for k, v in fam.items())
+            lines.append(f"- **{family}** ({len(idx)} q) : {fam_str}")
+    last = all_ranks[-1]
+    misses = [golden[i]["query"] for i, r in enumerate(last) if r is None]
+    if misses:
+        lines += ["", f"## Échecs (dernière passe : {len(misses)})", ""]
+        lines += [f"- {q}" for q in misses]
+    return "\n".join(lines) + "\n"
 
 
 def main() -> None:
@@ -103,19 +153,18 @@ def main() -> None:
     parser.add_argument("--api-key", default=os.environ.get("RAG_BENCH_API_KEY"))
     parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K)
     parser.add_argument("--passes", type=int, default=DEFAULT_PASSES)
+    parser.add_argument("--report", help="chemin du rapport markdown (bloc Recherche)")
     args = parser.parse_args()
     if not args.api_key:
         sys.exit("clé API requise : --api-key ou env RAG_BENCH_API_KEY")
 
     golden = load_golden(args.golden)
-    print(f"Golden set : {len(golden)} question(s) — {args.passes} passe(s), top_k={args.top_k}")
+    print(f"Jeu : {len(golden)} question(s) — {args.passes} passe(s), top_k={args.top_k}")
 
-    hit5_scores: list[float] = []
-    mrr_scores: list[float] = []
-    last_misses: list[str] = []
+    all_ranks: list[list[int | None]] = []
     with httpx.Client() as client:
         for i in range(args.passes):
-            hit5, mrr, misses = run_pass(
+            ranks = run_pass(
                 client,
                 base_url=args.base_url,
                 workspace=args.workspace,
@@ -123,17 +172,17 @@ def main() -> None:
                 golden=golden,
                 top_k=args.top_k,
             )
-            hit5_scores.append(hit5)
-            mrr_scores.append(mrr)
-            last_misses = misses
-            print(f"  passe {i + 1}: hit@{HIT_AT}={hit5:.3f}  MRR@{args.top_k}={mrr:.3f}")
+            all_ranks.append(ranks)
+            pass_metrics = metrics(ranks)
+            summary = "  ".join(f"{k}={v:.3f}" for k, v in pass_metrics.items())
+            print(f"  passe {i + 1}: {summary}")
 
-    print(f"\nhit@{HIT_AT}  : {statistics.mean(hit5_scores):.3f}")
-    print(f"MRR@{args.top_k} : {statistics.mean(mrr_scores):.3f}")
-    if last_misses:
-        print(f"\n{len(last_misses)} question(s) sans aucun hit attendu (dernière passe) :")
-        for query in last_misses:
-            print(f"  - {query}")
+    report = render_report(golden, all_ranks, workspace=args.workspace, top_k=args.top_k)
+    print("\n" + report)
+    if args.report:
+        with open(args.report, "w", encoding="utf-8") as fh:
+            fh.write(report)
+        print(f"Rapport écrit : {args.report}")
 
 
 if __name__ == "__main__":

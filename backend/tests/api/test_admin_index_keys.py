@@ -18,8 +18,10 @@ def _create_ws(client: TestClient, headers: dict[str, str], name: str) -> dict:
             "name": name,
             "endpoint_id": seed_endpoint_sync(
                 os.environ["DATABASE_URL"],
-                slug="ep-ollama-stub", provider="ollama",
-                model="mxbai-embed-large", api_key_ref=None,
+                slug="ep-ollama-stub",
+                provider="ollama",
+                model="mxbai-embed-large",
+                api_key_ref=None,
                 base_url="http://stub:11434",
             ),
         },
@@ -32,9 +34,7 @@ def _insert_doc(workspace_name: str, path: str = "LESSONS.md") -> None:
     async def _go() -> None:
         conn = await asyncpg.connect(os.environ["DATABASE_URL"])
         try:
-            ws_id = await conn.fetchval(
-                "SELECT id FROM workspaces WHERE name=$1", workspace_name
-            )
+            ws_id = await conn.fetchval("SELECT id FROM workspaces WHERE name=$1", workspace_name)
             await conn.execute(
                 "INSERT INTO indexed_documents (workspace_id, path, content_hash, indexer_used) "
                 "VALUES ($1, $2, 'sha256:0', 'ollama/mxbai-embed-large')",
@@ -44,7 +44,9 @@ def _insert_doc(workspace_name: str, path: str = "LESSONS.md") -> None:
         finally:
             await conn.close()
 
-    asyncio.get_event_loop().run_until_complete(_go())
+    # Python 3.12 : get_event_loop() hors boucle courante renvoie une boucle
+    # fermée par pytest-asyncio → RuntimeError. Boucle dédiée via asyncio.run.
+    asyncio.run(_go())
 
 
 def test_get_index_keys_empty(
@@ -86,9 +88,7 @@ def test_get_index_keys_default_strategy_replace(
     _create_ws(admin_client, admin_headers, "ws_ik_defstrat")
     _insert_doc("ws_ik_defstrat", "README.md")
 
-    r = admin_client.get(
-        "/api/admin/workspaces/ws_ik_defstrat/index-keys", headers=admin_headers
-    )
+    r = admin_client.get("/api/admin/workspaces/ws_ik_defstrat/index-keys", headers=admin_headers)
     assert r.status_code == 200
     entry = r.json()["paths"][0]
     assert entry["strategy"] == "replace"
@@ -110,9 +110,7 @@ def test_patch_strategy_and_read_back(
     )
     assert r.status_code == 204
 
-    r2 = admin_client.get(
-        "/api/admin/workspaces/ws_ik_patch/index-keys", headers=admin_headers
-    )
+    r2 = admin_client.get("/api/admin/workspaces/ws_ik_patch/index-keys", headers=admin_headers)
     entry = next(e for e in r2.json()["paths"] if e["path"] == "LESSONS.md")
     assert entry["strategy"] == "append"
     assert entry["updated_by"] == "ui"
@@ -139,9 +137,7 @@ def test_get_index_keys_404_unknown_workspace(
     admin_client: TestClient,
     admin_headers: dict[str, str],
 ) -> None:
-    r = admin_client.get(
-        "/api/admin/workspaces/nonexistent/index-keys", headers=admin_headers
-    )
+    r = admin_client.get("/api/admin/workspaces/nonexistent/index-keys", headers=admin_headers)
     assert r.status_code == 404
 
 

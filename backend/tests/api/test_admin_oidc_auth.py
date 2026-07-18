@@ -100,7 +100,9 @@ def _seed_and_login(
         },
     )
     assert r.status_code == 201, r.text
-    client.app.state.resolver.known.add("kc_test_secret")  # type: ignore[attr-defined]
+    # Le client secret OIDC est lu depuis admin.env via un provider injecté
+    # au service (plus de résolution Harpocrate) — on substitue le provider.
+    client.app.state.oidc._client_secret_provider = lambda: "kc_test_secret"  # type: ignore[attr-defined]
 
     _install_keycloak_mock(client, roles=roles)
 

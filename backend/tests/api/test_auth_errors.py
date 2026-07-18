@@ -5,11 +5,12 @@ from urllib.parse import parse_qs, urlparse
 from fastapi.testclient import TestClient
 
 
-def test_auth_login_503_when_oidc_not_configured(
+def test_auth_login_404_when_oidc_not_configured(
     admin_client: TestClient,
 ) -> None:
+    # e92c5e7 : « oidc non configuré » est passé de 503 à 404 (ressource absente).
     r = admin_client.get("/auth/login", follow_redirects=False)
-    assert r.status_code == 503
+    assert r.status_code == 404
     assert r.json()["error"] == "oidc_not_configured"
 
 
@@ -52,13 +53,13 @@ def test_refresh_401_without_session(
     assert r.json()["error"] == "oidc_session_missing"
 
 
-def test_auth_callback_503_when_oidc_not_configured(
+def test_auth_callback_404_when_oidc_not_configured(
     admin_client: TestClient,
 ) -> None:
-    """Callback sans config OIDC → 503 (branche OidcNotConfigured ligne 58)."""
+    """Callback sans config OIDC → 404 (branche OidcNotConfigured, 503→404 e92c5e7)."""
     # Pas de config OIDC du tout — déclenche OidcNotConfigured dans callback
     r = admin_client.get("/auth/callback?code=x&state=y", follow_redirects=False)
-    assert r.status_code == 503
+    assert r.status_code == 404
     assert r.json()["error"] == "oidc_not_configured"
 
 
@@ -125,14 +126,14 @@ def test_auth_callback_400_state_mismatch(
     assert cb_r.json()["error"] == "oidc_state_mismatch"
 
 
-def test_refresh_503_when_oidc_not_configured(admin_client: TestClient) -> None:
-    """POST /auth/refresh sans config OIDC → 503 (ligne 88).
+def test_refresh_404_when_oidc_not_configured(admin_client: TestClient) -> None:
+    """POST /auth/refresh sans config OIDC → 404 (503→404, e92c5e7).
 
     Le refresh vérifie d'abord get_config() (avant la session), donc même
-    sans session, si OIDC n'est pas configuré on obtient 503.
+    sans session, si OIDC n'est pas configuré on obtient 404.
     """
     r = admin_client.post("/auth/refresh")
-    assert r.status_code == 503
+    assert r.status_code == 404
     assert r.json()["error"] == "oidc_not_configured"
 
 

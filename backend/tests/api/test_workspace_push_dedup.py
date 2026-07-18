@@ -5,15 +5,13 @@ import asyncio
 import asyncpg
 from fastapi.testclient import TestClient
 
+from tests.api._helpers import make_ws_with_user_key
+
 
 def _make_ws(client: TestClient, admin_headers: dict[str, str], name: str) -> str:
-    r = client.post(
-        "/api/admin/workspaces",
-        headers=admin_headers,
-        json={"name": name, "endpoint_id": client.default_endpoint_id},
-    )
-    assert r.status_code == 201
-    return r.json()["api_key"]
+    """Crée un workspace + clé utilisateur avec grant d'écriture → clé claire."""
+    _, api_key = make_ws_with_user_key(client, admin_headers, name)
+    return api_key
 
 
 def test_push_returns_202_with_job_id(

@@ -17,11 +17,12 @@ def test_post_oidc_creates_config(admin_client: TestClient, admin_headers: dict[
     assert body["client_id"] == "rag-service"
 
 
-def test_get_oidc_returns_503_when_not_configured(
+def test_get_oidc_returns_404_when_not_configured(
     admin_client: TestClient, admin_headers: dict[str, str]
 ) -> None:
+    # e92c5e7 : « oidc non configuré » est passé de 503 à 404 (ressource absente).
     r = admin_client.get("/api/admin/oidc", headers=admin_headers)
-    assert r.status_code == 503
+    assert r.status_code == 404
     assert r.json()["error"] == "oidc_not_configured"
 
 
