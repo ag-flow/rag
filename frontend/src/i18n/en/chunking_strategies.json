@@ -43,7 +43,8 @@
       "floor_tokens": "Floor (tokens)",
       "overlap_tokens": "Overlap (tokens)",
       "breadcrumb_depth": "Breadcrumb depth (-1 = full)",
-      "max_rows_per_chunk": "Max rows per chunk (table)"
+      "max_rows_per_chunk": "Max rows per chunk (table)",
+      "heading_levels": "Heading levels (e.g. 1,2)"
     },
     "cleaning_title": "Cleaning",
     "cleaning": {
@@ -61,7 +62,8 @@
       "floor_tokens": "Minimum chunk size: smaller fragments are merged with their neighbours to avoid crumb-chunks with no semantic value (a lone heading, a single line). Default: 64 — 128 recommended for code.",
       "overlap_tokens": "Overlap between consecutive chunks: the end of a chunk is repeated at the start of the next so an idea is never cut at the boundary. Pointless when boundaries are natural: 0 recommended for code and data. Default: 64.",
       "breadcrumb_depth": "Depth of the heading trail (breadcrumb) injected at the top of the embedded text, e.g. “Guide › Install”. It anchors the chunk in its document and clearly improves retrieval. -1 = full path (recommended).",
-      "max_rows_per_chunk": "Maximum number of data rows per chunk; the table header is repeated on every chunk so each stays interpretable on its own. Default: 50 — lower it for wide rows."
+      "max_rows_per_chunk": "Maximum number of data rows per chunk; the table header is repeated on every chunk so each stays interpretable on its own. Default: 50 — lower it for wide rows.",
+      "heading_levels": "Markdown heading levels that delimit parent sections: “1,2” = H1 and H2 open a section (H3+ stay in the content). Adding 3 refines the split of large documents. Default: 1,2."
     },
     "params_help_aria": "Help: {{param}}"
   },

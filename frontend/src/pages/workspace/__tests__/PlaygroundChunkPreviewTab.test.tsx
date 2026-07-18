@@ -57,7 +57,18 @@ function previewResult(): PreviewResult {
         region_qualifier: "mermaid",
       },
     ],
-    regions: [],
+    regions: [
+      {
+        region_type: "code_fence",
+        qualifier: "mermaid",
+        start_line: 5,
+        end_line: 9,
+        routed: true,
+        atomic: false,
+        overflow_policy: "parent_only",
+        target_strategy_id: null,
+      },
+    ],
     total_chunks: 1,
     total_tokens: 42,
   };
@@ -82,7 +93,9 @@ describe("PlaygroundChunkPreviewTab", () => {
     renderWithProviders(<PlaygroundChunkPreviewTab workspaceName="ws" />);
 
     expect(screen.getByText(/1 chunks · ~42 tokens/)).toBeInTheDocument();
-    expect(screen.getByText("code_fence:mermaid")).toBeInTheDocument();
+    expect(screen.getAllByText("code_fence:mermaid").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/1 région\(s\) détectée\(s\)/)).toBeInTheDocument();
+    expect(screen.getByText(/parent_only — restituée au LLM/)).toBeInTheDocument();
     expect(screen.getByText(/Contenu du chunk/)).toBeInTheDocument();
   });
 });

@@ -56,6 +56,12 @@
     "parents": "{{count}} parent section(s)",
     "only_this_side": "absent from the other strategy",
     "error": "Preview failed: {{message}}",
-    "empty_hint": "Pick a strategy and paste a document."
+    "empty_hint": "Pick a strategy and paste a document.",
+    "regions_title": "{{count}} detected region(s)",
+    "region_inline": "inline (no route)",
+    "region_inline_explicit": "inline (explicit route)",
+    "region_atomic": "atomic · {{policy}}",
+    "region_parent_only": "parent_only — returned to the LLM, never embedded",
+    "region_target": "routed to “{{label}}”"
   }
 }

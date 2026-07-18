@@ -56,6 +56,12 @@
     "parents": "{{count}} section(s) parente(s)",
     "only_this_side": "absent de l'autre stratégie",
     "error": "La preview a échoué : {{message}}",
-    "empty_hint": "Choisissez une stratégie et collez un document."
+    "empty_hint": "Choisissez une stratégie et collez un document.",
+    "regions_title": "{{count}} région(s) détectée(s)",
+    "region_inline": "inline (aucune route)",
+    "region_inline_explicit": "inline (route explicite)",
+    "region_atomic": "atomique · {{policy}}",
+    "region_parent_only": "parent_only — restituée au LLM, jamais embeddée",
+    "region_target": "routée vers « {{label}} »"
   }
 }

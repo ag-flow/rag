@@ -37,6 +37,24 @@ import {
 
 const INLINE = "__inline__";
 
+// Info-strings de fences les plus courants — suggestions, pas une liste fermée
+// (le qualifier reste libre : n'importe quel info-string peut être routé).
+const QUALIFIER_SUGGESTIONS = [
+  "*",
+  "mermaid",
+  "python",
+  "typescript",
+  "javascript",
+  "csharp",
+  "go",
+  "java",
+  "sql",
+  "bash",
+  "json",
+  "yaml",
+  "xml",
+] as const;
+
 interface Props {
   strategy: StrategyOut;
   open: boolean;
@@ -123,6 +141,7 @@ export function RoutesEditorDialog({ strategy, open, onOpenChange }: Props) {
                   onChange={(e) => update(i, { qualifier: e.target.value })}
                   placeholder={t("routes.qualifier_hint")}
                   aria-label={t("routes.qualifier")}
+                  list="route-qualifier-suggestions"
                 />
                 <Select
                   value={route.target_strategy_id ?? INLINE}
@@ -180,6 +199,12 @@ export function RoutesEditorDialog({ strategy, open, onOpenChange }: Props) {
             </Button>
           </div>
         )}
+
+        <datalist id="route-qualifier-suggestions">
+          {QUALIFIER_SUGGESTIONS.map((q) => (
+            <option key={q} value={q} />
+          ))}
+        </datalist>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

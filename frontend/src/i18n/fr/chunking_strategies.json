@@ -43,7 +43,8 @@
       "floor_tokens": "Plancher (tokens)",
       "overlap_tokens": "Chevauchement (tokens)",
       "breadcrumb_depth": "Profondeur du breadcrumb (-1 = complet)",
-      "max_rows_per_chunk": "Lignes max par chunk (table)"
+      "max_rows_per_chunk": "Lignes max par chunk (table)",
+      "heading_levels": "Niveaux de titres (ex. 1,2)"
     },
     "cleaning_title": "Nettoyage",
     "cleaning": {
@@ -61,7 +62,8 @@
       "floor_tokens": "Taille minimale d'un chunk : les fragments plus petits sont fusionnés avec leurs voisins pour éviter les chunks-miettes sans valeur sémantique (un titre isolé, une ligne). Défaut : 64 — 128 recommandé pour le code.",
       "overlap_tokens": "Recouvrement entre chunks consécutifs : la fin d'un chunk est répétée au début du suivant pour ne pas couper une idée à la frontière. Inutile quand les frontières sont naturelles : 0 recommandé pour code et data. Défaut : 64.",
       "breadcrumb_depth": "Profondeur du fil de titres (breadcrumb) injecté en tête du texte embeddé, ex. « Guide › Installation ». Il ancre le chunk dans son document et améliore nettement le retrieval. -1 = chemin complet (recommandé).",
-      "max_rows_per_chunk": "Nombre maximum de lignes de données par chunk ; l'en-tête du tableau est répété sur chaque chunk pour que chacun reste interprétable seul. Défaut : 50 — à réduire si les lignes sont larges."
+      "max_rows_per_chunk": "Nombre maximum de lignes de données par chunk ; l'en-tête du tableau est répété sur chaque chunk pour que chacun reste interprétable seul. Défaut : 50 — à réduire si les lignes sont larges.",
+      "heading_levels": "Niveaux de titres Markdown qui délimitent les sections parentes : « 1,2 » = H1 et H2 ouvrent une section (H3+ restent dans le contenu). Ajouter 3 affine le découpage des gros documents. Défaut : 1,2."
     },
     "params_help_aria": "Aide : {{param}}"
   },

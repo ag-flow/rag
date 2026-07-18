@@ -76,6 +76,7 @@ export function StrategyFormDialog({ open, onOpenChange, strategy }: Props) {
   const [algo, setAlgo] = useState<ChunkingAlgo>("prose");
   const [parserSlug, setParserSlug] = useState<string>(NONE);
   const [numbers, setNumbers] = useState<Record<string, string>>({});
+  const [headingLevels, setHeadingLevels] = useState("");
   const [cleaning, setCleaning] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -84,6 +85,8 @@ export function StrategyFormDialog({ open, onOpenChange, strategy }: Props) {
     setAlgo(strategy?.algo ?? "prose");
     setParserSlug(strategy?.parser_slug ?? NONE);
     setNumbers(numericDefaults(strategy));
+    const levels = strategy?.params["heading_levels"];
+    setHeadingLevels(Array.isArray(levels) ? levels.join(",") : "");
     setCleaning(cleaningDefaults(strategy));
   }, [open, strategy]);
 
@@ -107,6 +110,13 @@ export function StrategyFormDialog({ open, onOpenChange, strategy }: Props) {
       params["breadcrumb_depth"] = Number(numbers["breadcrumb_depth"]);
     if (algo === "table" && numbers["max_rows_per_chunk"]) {
       params["max_rows_per_chunk"] = Number(numbers["max_rows_per_chunk"]);
+    }
+    if (PARSER_ALGOS.includes(algo) && headingLevels.trim()) {
+      const levels = headingLevels
+        .split(",")
+        .map((v) => Number(v.trim()))
+        .filter((n) => Number.isInteger(n) && n >= 1 && n <= 6);
+      if (levels.length > 0) params["heading_levels"] = levels;
     }
     for (const key of CLEANING_PARAMS) {
       if (cleaning[key]) params[key] = true;
@@ -264,6 +274,37 @@ export function StrategyFormDialog({ open, onOpenChange, strategy }: Props) {
                       />
                     </div>
                   ))}
+                  {PARSER_ALGOS.includes(algo) && (
+                    <div className="space-y-1">
+                      <span className="flex items-center gap-1">
+                        <Label htmlFor="param-heading-levels" className="text-xs font-normal">
+                          {t("form.params.heading_levels")}
+                        </Label>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              aria-label={t("form.params_help_aria", {
+                                param: t("form.params.heading_levels"),
+                              })}
+                              className="text-slate-400 hover:text-slate-600"
+                            >
+                              <HelpCircle className="h-3.5 w-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-[280px] text-xs">
+                            {t("form.params_help.heading_levels")}
+                          </TooltipContent>
+                        </Tooltip>
+                      </span>
+                      <Input
+                        id="param-heading-levels"
+                        value={headingLevels}
+                        onChange={(e) => setHeadingLevels(e.target.value)}
+                        placeholder="1,2"
+                      />
+                    </div>
+                  )}
                 </div>
               </TooltipProvider>
             </div>

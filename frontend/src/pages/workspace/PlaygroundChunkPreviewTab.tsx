@@ -17,9 +17,61 @@ import {
   usePreviewChunking,
 } from "@/hooks/useChunkingStrategies";
 import { ApiError } from "@/lib/api";
-import type { PreviewChunk, PreviewResult } from "@/lib/chunking-strategies.types";
+import type {
+  PreviewChunk,
+  PreviewRegion,
+  PreviewResult,
+  StrategyOut,
+} from "@/lib/chunking-strategies.types";
 
 const NONE = "__none__";
+
+function RegionsPanel({
+  regions,
+  strategiesById,
+}: {
+  regions: PreviewRegion[];
+  strategiesById: Map<string, StrategyOut>;
+}) {
+  const { t } = useTranslation("playground");
+  if (regions.length === 0) return null;
+
+  function regionRouteLabel(region: PreviewRegion): string {
+    if (!region.routed) return t("chunkPreview.region_inline");
+    if (region.overflow_policy === "parent_only") return t("chunkPreview.region_parent_only");
+    if (region.target_strategy_id !== null) {
+      const target = strategiesById.get(region.target_strategy_id);
+      return t("chunkPreview.region_target", {
+        label: target?.label ?? region.target_strategy_id,
+      });
+    }
+    if (region.atomic) return t("chunkPreview.region_atomic", { policy: region.overflow_policy });
+    return t("chunkPreview.region_inline_explicit");
+  }
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+      <p className="mb-1 text-xs font-semibold text-slate-600">
+        {t("chunkPreview.regions_title", { count: regions.length })}
+      </p>
+      <div className="space-y-1">
+        {regions.map((region, i) => (
+          <div key={i} className="flex flex-wrap items-center gap-2 text-xs">
+            <Badge variant={region.routed ? "secondary" : "outline"}>
+              {region.region_type}
+              {region.qualifier ? `:${region.qualifier}` : ""}
+            </Badge>
+            <span className="font-mono text-slate-400">
+              l.{region.start_line}-{region.end_line}
+            </span>
+            <span className={region.routed ? "text-sky-700" : "text-slate-500"}>
+              {regionRouteLabel(region)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function ChunkCard({ chunk, missing }: { chunk: PreviewChunk; missing: boolean }) {
   const { t } = useTranslation("playground");
@@ -53,9 +105,11 @@ function ChunkCard({ chunk, missing }: { chunk: PreviewChunk; missing: boolean }
 function PreviewColumn({
   result,
   missingHashes,
+  strategiesById,
 }: {
   result: PreviewResult;
   missingHashes: Set<string>;
+  strategiesById: Map<string, StrategyOut>;
 }) {
   const { t } = useTranslation("playground");
   return (
@@ -71,6 +125,7 @@ function PreviewColumn({
           {t("chunkPreview.parents", { count: result.parents.length })}
         </span>
       </div>
+      <RegionsPanel regions={result.regions} strategiesById={strategiesById} />
       <div className="space-y-2">
         {result.chunks.map((chunk) => (
           <ChunkCard
@@ -98,6 +153,7 @@ export function PlaygroundChunkPreviewTab(_props: Props) {
   const [strategyB, setStrategyB] = useState<string>(NONE);
   const [content, setContent] = useState("");
 
+  const strategiesById = new Map((strategies ?? []).map((s) => [s.id, s]));
   const isComparing = strategyB !== NONE;
   const isPending = preview.isPending || compare.isPending;
   const canRun = strategyA !== "" && content.trim() !== "" && !isPending;
@@ -176,7 +232,13 @@ export function PlaygroundChunkPreviewTab(_props: Props) {
         <p className="text-sm text-red-600">{t("chunkPreview.error", { message: errorMessage })}</p>
       )}
 
-      {preview.data && <PreviewColumn result={preview.data} missingHashes={new Set()} />}
+      {preview.data && (
+        <PreviewColumn
+          result={preview.data}
+          missingHashes={new Set()}
+          strategiesById={strategiesById}
+        />
+      )}
 
       {compare.data && (
         <div className="space-y-3">
@@ -191,10 +253,12 @@ export function PlaygroundChunkPreviewTab(_props: Props) {
             <PreviewColumn
               result={compare.data.a}
               missingHashes={new Set(compare.data.diff.only_a)}
+              strategiesById={strategiesById}
             />
             <PreviewColumn
               result={compare.data.b}
               missingHashes={new Set(compare.data.diff.only_b)}
+              strategiesById={strategiesById}
             />
           </div>
         </div>
