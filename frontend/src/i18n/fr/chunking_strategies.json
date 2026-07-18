@@ -65,7 +65,13 @@
       "max_rows_per_chunk": "Nombre maximum de lignes de données par chunk ; l'en-tête du tableau est répété sur chaque chunk pour que chacun reste interprétable seul. Défaut : 50 — à réduire si les lignes sont larges.",
       "heading_levels": "Niveaux de titres Markdown qui délimitent les sections parentes : « 1,2 » = H1 et H2 ouvrent une section (H3+ restent dans le contenu). Ajouter 3 affine le découpage des gros documents. Défaut : 1,2."
     },
-    "params_help_aria": "Aide : {{param}}"
+    "params_help_aria": "Aide : {{param}}",
+    "prompts_title": "Prompts (contexte à l'embedding)",
+    "prompts_warning": "embedding_inline modifie les vecteurs — une réindexation est requise pour prendre effet sur l'existant.",
+    "prompts_add": "Lier un template",
+    "prompts_enabled": "Actif",
+    "prompts_remove": "Retirer",
+    "prompts_none": "Aucun template embedding_inline dans votre bibliothèque — créez-en un dans Prompts (mode chunk ou région)."
   },
   "routes": {
     "title": "Routes de régions — {{label}}",

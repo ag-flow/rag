@@ -85,6 +85,7 @@ class PromptTemplateOut(BaseModel):
     prompt_version: int
     is_system: bool
     used_by_triggers: int
+    used_by_strategies: int = 0
     created_at: datetime
     updated_at: datetime
 

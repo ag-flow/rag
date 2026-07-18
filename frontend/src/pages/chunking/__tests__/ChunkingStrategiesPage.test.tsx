@@ -23,10 +23,14 @@ vi.mock("@/hooks/useChunkingStrategies", () => ({
   useDeleteStrategy: vi.fn(() => mutation()),
   useDuplicateStrategy: vi.fn(() => mutation()),
   useSetStrategyRoutes: vi.fn(() => mutation()),
+  useSetStrategyPrompts: vi.fn(() => mutation()),
   usePreviewChunking: vi.fn(() => mutation()),
   useCompareChunking: vi.fn(() => mutation()),
 }));
 vi.mock("@/hooks/useToast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
+vi.mock("@/hooks/useEnrichments", () => ({
+  usePrompts: vi.fn(() => ({ data: [], isLoading: false })),
+}));
 
 function strategy(over: Partial<StrategyOut>): StrategyOut {
   return {

@@ -36,6 +36,8 @@ _OUT_COLUMNS = """
     (t.owner_id IS NULL) AS is_system,
     (SELECT count(*) FROM workspace_extension_trigger_prompts p
        WHERE p.template_id = t.id)::int AS used_by_triggers,
+    (SELECT count(*) FROM chunking_strategy_prompts sp
+       WHERE sp.template_id = t.id)::int AS used_by_strategies,
     t.created_at, t.updated_at
 """
 _VISIBLE = "(t.owner_id IS NULL OR t.owner_id = $1)"
@@ -151,8 +153,10 @@ async def delete_prompt_template(
     async with conn.transaction():
         await _fetch_owned(conn, owner_id=owner_id, template_id=template_id)
         ref_count = await conn.fetchval(
-            "SELECT count(*) FROM workspace_extension_trigger_prompts "
-            "WHERE template_id = $1::uuid",
+            "SELECT (SELECT count(*) FROM workspace_extension_trigger_prompts "
+            "        WHERE template_id = $1::uuid) "
+            "     + (SELECT count(*) FROM chunking_strategy_prompts "
+            "        WHERE template_id = $1::uuid)",
             template_id,
         )
         if int(ref_count or 0) > 0:

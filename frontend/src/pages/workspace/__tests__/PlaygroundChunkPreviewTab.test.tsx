@@ -55,8 +55,11 @@ function previewResult(): PreviewResult {
         parent_key: "Guide",
         region_type: "code_fence",
         region_qualifier: "mermaid",
+        inline_context: null,
       },
     ],
+    prompts: [],
+    prompts_executed: false,
     regions: [
       {
         region_type: "code_fence",

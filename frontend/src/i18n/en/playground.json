@@ -62,6 +62,10 @@
     "region_inline_explicit": "inline (explicit route)",
     "region_atomic": "atomic · {{policy}}",
     "region_parent_only": "parent_only — returned to the LLM, never embedded",
-    "region_target": "routed to “{{label}}”"
+    "region_target": "routed to “{{label}}”",
+    "prompts_title": "Strategy inline prompts",
+    "run_prompts": "Generate contexts on the sample (real LLM calls)",
+    "prompts_executed": "contexts generated",
+    "prompt_disabled": "disabled"
   }
 }

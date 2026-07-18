@@ -20,11 +20,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Plus, Trash2 } from "lucide-react";
 import {
   useChunkingParsers,
   useCreateStrategy,
   usePatchStrategy,
+  useSetStrategyPrompts,
+  useStrategyDetail,
 } from "@/hooks/useChunkingStrategies";
+import { usePrompts } from "@/hooks/useEnrichments";
 import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/lib/api";
 import { AlgoInfoPanel } from "@/pages/chunking/AlgoInfoPanel";
@@ -71,6 +75,9 @@ export function StrategyFormDialog({ open, onOpenChange, strategy }: Props) {
   const { data: parsers } = useChunkingParsers(open);
   const create = useCreateStrategy();
   const patch = usePatchStrategy();
+  const setPromptsMutation = useSetStrategyPrompts();
+  const { data: allTemplates = [] } = usePrompts();
+  const detail = useStrategyDetail(open && strategy !== null ? strategy.id : null);
 
   const [label, setLabel] = useState("");
   const [algo, setAlgo] = useState<ChunkingAlgo>("prose");
@@ -78,6 +85,8 @@ export function StrategyFormDialog({ open, onOpenChange, strategy }: Props) {
   const [numbers, setNumbers] = useState<Record<string, string>>({});
   const [headingLevels, setHeadingLevels] = useState("");
   const [cleaning, setCleaning] = useState<Record<string, boolean>>({});
+  // Bindings de prompts inline (S6.4) : ordre = position dans la liste.
+  const [prompts, setPrompts] = useState<{ template_id: string; enabled: boolean }[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -88,7 +97,16 @@ export function StrategyFormDialog({ open, onOpenChange, strategy }: Props) {
     const levels = strategy?.params["heading_levels"];
     setHeadingLevels(Array.isArray(levels) ? levels.join(",") : "");
     setCleaning(cleaningDefaults(strategy));
+    setPrompts([]);
   }, [open, strategy]);
+
+  useEffect(() => {
+    if (detail.data) {
+      setPrompts(
+        detail.data.prompts.map((p) => ({ template_id: p.template_id, enabled: p.enabled })),
+      );
+    }
+  }, [detail.data]);
 
   const isEdit = strategy !== null;
   const parserAllowed = PARSER_ALGOS.includes(algo);
@@ -129,26 +147,44 @@ export function StrategyFormDialog({ open, onOpenChange, strategy }: Props) {
     if (!label.trim() || isPending) return;
     const parser = parserAllowed && parserSlug !== NONE ? parserSlug : null;
     try {
+      let strategyId: string;
       if (isEdit) {
-        await patch.mutateAsync({
+        const updated = await patch.mutateAsync({
           id: strategy.id,
           payload: { label: label.trim(), params: buildParams(), parser_slug: parser },
         });
+        strategyId = updated.id;
         toast({ title: t("toasts.updated") });
       } else {
-        await create.mutateAsync({
+        const created = await create.mutateAsync({
           label: label.trim(),
           algo,
           params: buildParams(),
           parser_slug: parser,
         });
+        strategyId = created.id;
         toast({ title: t("toasts.created") });
       }
+      await setPromptsMutation.mutateAsync({
+        id: strategyId,
+        prompts: prompts.map((p, i) => ({
+          template_id: p.template_id,
+          order_index: i + 1,
+          enabled: p.enabled,
+        })),
+      });
       onOpenChange(false);
     } catch (err) {
       toast({ title: errorLabel(err, t), variant: "destructive" });
     }
   }
+
+  const parserSelected = parserAllowed && parserSlug !== NONE;
+  // Seuls les templates embedding_inline se lient ; region:* exige un parser.
+  const bindableTemplates = allTemplates.filter(
+    (tpl) =>
+      tpl.timing === "embedding_inline" && (parserSelected || !tpl.target.startsWith("region:")),
+  );
 
   const tableAlgo = algo === "table";
   const numericKeys = tableAlgo
@@ -321,6 +357,68 @@ export function StrategyFormDialog({ open, onOpenChange, strategy }: Props) {
                   />
                 </div>
               ))}
+            </div>
+
+            <div className="space-y-2">
+              <Label>{t("form.prompts_title")}</Label>
+              <p className="text-xs text-amber-700">{t("form.prompts_warning")}</p>
+              {prompts.map((binding, i) => {
+                const tpl = allTemplates.find((x) => x.id === binding.template_id);
+                return (
+                  <div
+                    key={binding.template_id}
+                    className="flex items-center gap-2 rounded-md border border-slate-200 px-2 py-1.5"
+                  >
+                    <span className="flex-1 truncate text-sm text-slate-700">
+                      {tpl?.name ?? binding.template_id}
+                      <span className="ml-2 text-xs text-slate-400">{tpl?.target}</span>
+                    </span>
+                    <Switch
+                      checked={binding.enabled}
+                      onCheckedChange={(v) =>
+                        setPrompts(prompts.map((x, j) => (j === i ? { ...x, enabled: v } : x)))
+                      }
+                      aria-label={t("form.prompts_enabled")}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setPrompts(prompts.filter((_, j) => j !== i))}
+                      aria-label={t("form.prompts_remove")}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-600" />
+                    </Button>
+                  </div>
+                );
+              })}
+              {bindableTemplates.filter((tpl) => !prompts.some((p) => p.template_id === tpl.id))
+                .length > 0 ? (
+                <Select
+                  value=""
+                  onValueChange={(templateId) =>
+                    setPrompts([...prompts, { template_id: templateId, enabled: true }])
+                  }
+                >
+                  <SelectTrigger aria-label={t("form.prompts_add")} className="w-fit gap-1">
+                    <Plus className="h-4 w-4" />
+                    {t("form.prompts_add")}
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bindableTemplates
+                      .filter((tpl) => !prompts.some((p) => p.template_id === tpl.id))
+                      .map((tpl) => (
+                        <SelectItem key={tpl.id} value={tpl.id}>
+                          {tpl.name} — {tpl.target}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                prompts.length === 0 && (
+                  <p className="text-xs text-slate-400">{t("form.prompts_none")}</p>
+                )
+              )}
             </div>
           </div>
 

@@ -8,6 +8,8 @@ import type {
   StrategyDetailOut,
   StrategyOut,
   StrategyPatch,
+  StrategyPromptOut,
+  StrategyPromptSpec,
 } from "@/lib/chunking-strategies.types";
 
 const BASE = "/api/admin/chunking";
@@ -24,10 +26,18 @@ export const chunkingStrategiesApi = {
     api.post<StrategyDetailOut>(`${BASE}/strategies/${id}/duplicate`, { label }),
   setRoutes: (id: string, routes: RegionRouteSpec[]) =>
     api.put<RegionRouteSpec[]>(`${BASE}/strategies/${id}/routes`, { routes }),
+  setPrompts: (id: string, prompts: StrategyPromptSpec[]) =>
+    api.put<StrategyPromptOut[]>(`${BASE}/strategies/${id}/prompts`, { prompts }),
 
   // Dry-run pur : aucun embedding, aucune écriture, aucun job (S5.2).
-  preview: (strategyId: string, content: string) =>
-    api.post<PreviewResult>(`${BASE}/preview`, { strategy_id: strategyId, content }),
+  // workspace+runPrompts : exécution optionnelle des prompts inline (S6.4).
+  preview: (strategyId: string, content: string, workspaceName?: string, runPrompts?: boolean) =>
+    api.post<PreviewResult>(`${BASE}/preview`, {
+      strategy_id: strategyId,
+      content,
+      workspace_name: workspaceName ?? null,
+      run_prompts: runPrompts ?? false,
+    }),
   compare: (strategyA: string, strategyB: string, content: string) =>
     api.post<CompareResult>(`${BASE}/preview/compare`, {
       strategy_a: strategyA,

@@ -65,7 +65,13 @@
       "max_rows_per_chunk": "Maximum number of data rows per chunk; the table header is repeated on every chunk so each stays interpretable on its own. Default: 50 — lower it for wide rows.",
       "heading_levels": "Markdown heading levels that delimit parent sections: “1,2” = H1 and H2 open a section (H3+ stay in the content). Adding 3 refines the split of large documents. Default: 1,2."
     },
-    "params_help_aria": "Help: {{param}}"
+    "params_help_aria": "Help: {{param}}",
+    "prompts_title": "Prompts (embedding-time context)",
+    "prompts_warning": "embedding_inline changes the vectors — a reindex is required to take effect on existing documents.",
+    "prompts_add": "Bind a template",
+    "prompts_enabled": "Enabled",
+    "prompts_remove": "Remove",
+    "prompts_none": "No embedding_inline template in your library — create one in Prompts (chunk or region mode)."
   },
   "routes": {
     "title": "Region routes — {{label}}",

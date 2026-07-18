@@ -204,7 +204,7 @@ class RealIndexer:
         # Bindings inline chargés AVANT découpage : un contexte par chunk
         # consomme du budget tokens → le normaliseur le réserve (S6.1).
         inline_bindings = await load_inline_bindings(
-            self._config_pool, workspace_id=workspace_id, path=path
+            self._config_pool, workspace_id=workspace_id, path=path, strategy_id=record.id
         )
         reserved = CONTEXT_MAX_TOKENS if any(b.target == "chunk" for b in inline_bindings) else 0
         chunker = await build_strategy_chunker(

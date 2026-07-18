@@ -17,6 +17,8 @@ from rag.schemas.chunking_strategies import (
     StrategyDetailOut,
     StrategyOut,
     StrategyPatch,
+    StrategyPromptOut,
+    StrategyPromptSpec,
 )
 from rag.schemas.slug import slugify
 
@@ -130,7 +132,8 @@ async def get_strategy(
     if row is None:
         raise StrategyNotFoundError(str(strategy_id))
     routes = await _fetch_routes(conn, strategy_id)
-    return StrategyDetailOut(**_to_out(row).model_dump(), routes=routes)
+    prompts = await _fetch_prompts(conn, strategy_id)
+    return StrategyDetailOut(**_to_out(row).model_dump(), routes=routes, prompts=prompts)
 
 
 async def _fetch_routes(conn: asyncpg.Connection, strategy_id: UUID) -> list[RegionRouteOut]:
@@ -141,6 +144,17 @@ async def _fetch_routes(conn: asyncpg.Connection, strategy_id: UUID) -> list[Reg
         strategy_id,
     )
     return [RegionRouteOut.model_validate(dict(r)) for r in rows]
+
+
+async def _fetch_prompts(conn: asyncpg.Connection, strategy_id: UUID) -> list[StrategyPromptOut]:
+    rows = await conn.fetch(
+        "SELECT sp.template_id, pt.name AS template_name, pt.metadata_key, pt.target, "
+        "sp.order_index, sp.enabled "
+        "FROM chunking_strategy_prompts sp JOIN prompt_templates pt ON pt.id = sp.template_id "
+        "WHERE sp.strategy_id = $1 ORDER BY sp.order_index, pt.name",
+        strategy_id,
+    )
+    return [StrategyPromptOut.model_validate(dict(r)) for r in rows]
 
 
 async def create_strategy(
@@ -284,6 +298,14 @@ async def duplicate_strategy(
             source_id,
             new_id,
         )
+        await conn.execute(
+            "INSERT INTO chunking_strategy_prompts "
+            "(strategy_id, template_id, order_index, enabled) "
+            "SELECT $2, template_id, order_index, enabled "
+            "FROM chunking_strategy_prompts WHERE strategy_id = $1",
+            source_id,
+            new_id,
+        )
     log.info("chunking_strategy.duplicated", source_id=str(source_id), strategy_id=str(new_id))
     return await get_strategy(conn, owner_id=owner_id, strategy_id=new_id)
 
@@ -345,3 +367,65 @@ async def _check_targets_visible(
         raise InvalidStrategyError(
             f"cible(s) de route introuvable(s) : {sorted(str(m) for m in missing)}"
         )
+
+
+async def set_strategy_prompts(
+    conn: asyncpg.Connection,
+    *,
+    owner_id: str,
+    strategy_id: UUID,
+    prompts: list[StrategyPromptSpec],
+) -> list[StrategyPromptOut]:
+    """Remplace le jeu de prompts inline d'une stratégie de l'utilisateur (S6.4).
+
+    Gardes : template visible (système ou à moi) ET `timing=embedding_inline` ;
+    un target `region:*` exige un `parser_slug` sur la stratégie (S6.1) — pas
+    de binding qui ne se déclencherait jamais.
+    """
+    async with conn.transaction():
+        row = await _fetch_owned(conn, owner_id=owner_id, strategy_id=strategy_id)
+        if prompts:
+            await _check_templates_bindable(
+                conn, owner_id=owner_id, prompts=prompts, parser_slug=row["parser_slug"]
+            )
+        await conn.execute(
+            "DELETE FROM chunking_strategy_prompts WHERE strategy_id = $1", strategy_id
+        )
+        await conn.executemany(
+            "INSERT INTO chunking_strategy_prompts "
+            "(strategy_id, template_id, order_index, enabled) VALUES ($1, $2, $3, $4)",
+            [(strategy_id, p.template_id, p.order_index, p.enabled) for p in prompts],
+        )
+    log.info("chunking_strategy.prompts_set", strategy_id=str(strategy_id), prompts=len(prompts))
+    return await _fetch_prompts(conn, strategy_id)
+
+
+async def _check_templates_bindable(
+    conn: asyncpg.Connection,
+    *,
+    owner_id: str,
+    prompts: list[StrategyPromptSpec],
+    parser_slug: str | None,
+) -> None:
+    wanted = [p.template_id for p in prompts]
+    rows = await conn.fetch(
+        "SELECT id, target, timing FROM prompt_templates t "
+        "WHERE (t.owner_id IS NULL OR t.owner_id = $1) AND t.id = ANY($2::uuid[])",
+        owner_id,
+        wanted,
+    )
+    by_id = {r["id"]: r for r in rows}
+    missing = set(wanted) - set(by_id)
+    if missing:
+        raise InvalidStrategyError(
+            f"template(s) introuvable(s) : {sorted(str(m) for m in missing)}"
+        )
+    for row in by_id.values():
+        if row["timing"] != "embedding_inline":
+            raise InvalidStrategyError(
+                "seuls les templates embedding_inline se lient à une stratégie"
+            )
+        if row["target"].startswith("region:") and parser_slug is None:
+            raise InvalidStrategyError(
+                "target region:* exige un parser de régions sur la stratégie"
+            )

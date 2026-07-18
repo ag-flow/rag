@@ -14,6 +14,7 @@ from rag.schemas.chunking_preview import (
     CompareResult,
     PreviewChunk,
     PreviewParent,
+    PreviewPrompt,
     PreviewRegion,
     PreviewResult,
     PreviewStrategyRef,
@@ -23,6 +24,7 @@ from rag.services.chunking_routing import (
     build_strategy_chunker,
     load_region_routes,
 )
+from rag.services.inline_context import _load_strategy_bindings, apply_inline_context
 
 # Bornes neutres de preview : pas de contexte provider (aucun embedding émis),
 # mêmes défauts que l'outil d'inspection `diff_report.py`.
@@ -34,12 +36,23 @@ class PreviewStrategyNotFoundError(Exception):
     """Stratégie inexistante ou invisible pour cet utilisateur."""
 
 
+class _NullResolver:
+    """La preview ne résout pas de secrets coffre : les refs LLM non
+    résolues passent en clair au client (None) — l'échec éventuel suit la
+    politique S6.2 (chunk sans contexte, warning)."""
+
+    async def resolve_with_retry(self, ref: str) -> str:  # pragma: no cover
+        raise RuntimeError(f"preview: résolution de secret non disponible ({ref})")
+
+
 async def preview_strategy(
     config_pool: asyncpg.Pool,
     *,
     owner_id: str,
     strategy_id: UUID,
     content: str,
+    workspace_name: str | None = None,
+    run_prompts: bool = False,
 ) -> PreviewResult:
     """Dry-run PUR du découpage (spec chunking §6 item 7, S5.2).
 
@@ -59,6 +72,26 @@ async def preview_strategy(
     )
     doc = chunker.chunk(content)
 
+    prompts = await _fetch_preview_prompts(config_pool, record.id)
+    prompts_executed = False
+    if run_prompts and workspace_name and any(p.enabled for p in prompts):
+        workspace_id = await config_pool.fetchval(
+            "SELECT id FROM workspaces WHERE name = $1", workspace_name
+        )
+        if workspace_id is not None:
+            bindings = await _load_strategy_bindings(config_pool, workspace_id, record.id)
+            if bindings:
+                doc = await apply_inline_context(
+                    config_pool,
+                    workspace_id=workspace_id,
+                    path=f"preview::{record.slug}",
+                    content=content,
+                    doc=doc,
+                    resolver=_NullResolver(),
+                    bindings=bindings,
+                )
+                prompts_executed = True
+
     chunks = [
         PreviewChunk(
             index=i,
@@ -68,6 +101,7 @@ async def preview_strategy(
             parent_key=child.parent_key,
             region_type=child.metadata.get("region_type"),
             region_qualifier=child.metadata.get("region_qualifier"),
+            inline_context=child.metadata.get("inline_context"),
         )
         for i, child in enumerate(doc.children)
     ]
@@ -78,6 +112,8 @@ async def preview_strategy(
         ],
         chunks=chunks,
         regions=await _regions_overview(config_pool, record, content),
+        prompts=prompts,
+        prompts_executed=prompts_executed,
         total_chunks=len(chunks),
         total_tokens=sum(c.tokens for c in chunks),
     )
@@ -168,3 +204,15 @@ async def _regions_overview(
             )
         )
     return out
+
+
+async def _fetch_preview_prompts(
+    config_pool: asyncpg.Pool, strategy_id: UUID
+) -> list[PreviewPrompt]:
+    rows = await config_pool.fetch(
+        "SELECT sp.template_id, pt.name AS template_name, pt.metadata_key, pt.target, sp.enabled "
+        "FROM chunking_strategy_prompts sp JOIN prompt_templates pt ON pt.id = sp.template_id "
+        "WHERE sp.strategy_id = $1 ORDER BY sp.order_index",
+        strategy_id,
+    )
+    return [PreviewPrompt.model_validate(dict(r)) for r in rows]

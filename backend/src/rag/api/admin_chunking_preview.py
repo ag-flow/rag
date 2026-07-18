@@ -45,6 +45,8 @@ def build_chunking_preview_router() -> APIRouter:
                 owner_id=owner_id,
                 strategy_id=req.strategy_id,
                 content=req.content,
+                workspace_name=req.workspace_name,
+                run_prompts=req.run_prompts,
             )
         except PreviewStrategyNotFoundError as exc:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "stratégie introuvable") from exc

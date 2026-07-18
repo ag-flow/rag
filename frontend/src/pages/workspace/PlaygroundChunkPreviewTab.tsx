@@ -93,6 +93,11 @@ function ChunkCard({ chunk, missing }: { chunk: PreviewChunk; missing: boolean }
             {chunk.region_qualifier ? `:${chunk.region_qualifier}` : ""}
           </Badge>
         )}
+        {chunk.inline_context !== null && (
+          <Badge variant="outline" className="border-emerald-300 text-emerald-700">
+            ctx:{chunk.inline_context}
+          </Badge>
+        )}
         {missing && <span className="text-amber-700">{t("chunkPreview.only_this_side")}</span>}
       </div>
       <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-slate-800">
@@ -143,7 +148,7 @@ interface Props {
   workspaceName: string;
 }
 
-export function PlaygroundChunkPreviewTab(_props: Props) {
+export function PlaygroundChunkPreviewTab({ workspaceName }: Props) {
   const { t } = useTranslation("playground");
   const { data: strategies } = useChunkingStrategies();
   const preview = usePreviewChunking();
@@ -152,6 +157,7 @@ export function PlaygroundChunkPreviewTab(_props: Props) {
   const [strategyA, setStrategyA] = useState<string>("");
   const [strategyB, setStrategyB] = useState<string>(NONE);
   const [content, setContent] = useState("");
+  const [runPrompts, setRunPrompts] = useState(false);
 
   const strategiesById = new Map((strategies ?? []).map((s) => [s.id, s]));
   const isComparing = strategyB !== NONE;
@@ -165,7 +171,7 @@ export function PlaygroundChunkPreviewTab(_props: Props) {
       compare.mutate({ strategyA, strategyB, content });
     } else {
       compare.reset();
-      preview.mutate({ strategyId: strategyA, content });
+      preview.mutate({ strategyId: strategyA, content, workspaceName, runPrompts });
     }
   }
 
@@ -224,9 +230,35 @@ export function PlaygroundChunkPreviewTab(_props: Props) {
         />
       </div>
 
+      {!isComparing && (
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            checked={runPrompts}
+            onChange={(e) => setRunPrompts(e.target.checked)}
+          />
+          {t("chunkPreview.run_prompts")}
+        </label>
+      )}
+
       <Button onClick={handleRun} disabled={!canRun}>
         {isPending ? t("chunkPreview.running") : t("chunkPreview.run")}
       </Button>
+
+      {preview.data && preview.data.prompts.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
+          <span className="font-semibold">{t("chunkPreview.prompts_title")} :</span>
+          {preview.data.prompts.map((p) => (
+            <Badge key={p.template_id} variant={p.enabled ? "secondary" : "outline"}>
+              {p.template_name} · {p.target}
+              {!p.enabled ? ` (${t("chunkPreview.prompt_disabled")})` : ""}
+            </Badge>
+          ))}
+          {preview.data.prompts_executed && (
+            <span className="text-emerald-700">✓ {t("chunkPreview.prompts_executed")}</span>
+          )}
+        </div>
+      )}
 
       {error !== null && (
         <p className="text-sm text-red-600">{t("chunkPreview.error", { message: errorMessage })}</p>

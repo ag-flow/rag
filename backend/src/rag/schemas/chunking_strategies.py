@@ -89,6 +89,40 @@ class StrategyDuplicate(BaseModel):
     label: str = Field(min_length=1, max_length=128)
 
 
+class StrategyPromptSpec(BaseModel):
+    """Binding d'un template d'enrichissement inline à une stratégie (S6.4)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    template_id: UUID
+    order_index: int = Field(default=1, ge=1)
+    enabled: bool = True
+
+
+class StrategyPromptsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    prompts: list[StrategyPromptSpec]
+
+    @model_validator(mode="after")
+    def _unique_templates(self) -> StrategyPromptsUpdate:
+        ids = [p.template_id for p in self.prompts]
+        if len(ids) != len(set(ids)):
+            raise ValueError("template lié deux fois à la même stratégie")
+        return self
+
+
+class StrategyPromptOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    template_id: UUID
+    template_name: str
+    metadata_key: str
+    target: str
+    order_index: int
+    enabled: bool
+
+
 class RegionRouteOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -119,6 +153,7 @@ class StrategyOut(BaseModel):
 
 class StrategyDetailOut(StrategyOut):
     routes: list[RegionRouteOut]
+    prompts: list[StrategyPromptOut] = []
 
 
 class ParserOut(BaseModel):

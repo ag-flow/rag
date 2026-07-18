@@ -38,6 +38,10 @@ class _FakePool:
         strategy_id = args[-1]
         return self._strategies.get(strategy_id)
 
+    async def fetch(self, query: str, *args: Any) -> list[dict[str, Any]]:
+        assert "chunking_strategy_prompts" in query  # prompts S6.4 (vides ici)
+        return []
+
     def acquire(self) -> _FakePool._Ctx:
         return _FakePool._Ctx(self)
 

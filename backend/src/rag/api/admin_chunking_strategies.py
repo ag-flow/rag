@@ -19,6 +19,8 @@ from rag.schemas.chunking_strategies import (
     StrategyDuplicate,
     StrategyOut,
     StrategyPatch,
+    StrategyPromptOut,
+    StrategyPromptsUpdate,
 )
 from rag.services import chunking_strategies as svc
 
@@ -97,6 +99,17 @@ def build_chunking_strategies_router() -> APIRouter:
             with _mapped_errors():
                 return await svc.duplicate_strategy(
                     conn, owner_id=owner_id, source_id=strategy_id, label=req.label
+                )
+
+    @router.put("/strategies/{strategy_id}/prompts", response_model=list[StrategyPromptOut])
+    async def set_prompts(
+        strategy_id: UUID, req: StrategyPromptsUpdate, request: Request
+    ) -> list[StrategyPromptOut]:
+        owner_id = get_current_owner_id(request)
+        async with _pool(request).acquire() as conn:
+            with _mapped_errors():
+                return await svc.set_strategy_prompts(
+                    conn, owner_id=owner_id, strategy_id=strategy_id, prompts=req.prompts
                 )
 
     @router.put("/strategies/{strategy_id}/routes", response_model=list[RegionRouteOut])

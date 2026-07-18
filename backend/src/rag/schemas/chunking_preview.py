@@ -14,6 +14,10 @@ class PreviewRequest(BaseModel):
 
     content: str = Field(min_length=1)
     strategy_id: UUID
+    # S6.4 : exécution optionnelle des prompts inline sur l'échantillon —
+    # nécessite le workspace (résolution de la config LLM et cache de contexte).
+    workspace_name: str | None = None
+    run_prompts: bool = False
 
     @field_validator("content")
     @classmethod
@@ -63,6 +67,17 @@ class PreviewChunk(BaseModel):
     parent_key: str
     region_type: str | None = None
     region_qualifier: str | None = None
+    inline_context: str | None = None  # metadata_key du prompt appliqué (S6.4)
+
+
+class PreviewPrompt(BaseModel):
+    """Prompt inline qui se déclencherait pour cette stratégie (S6.4)."""
+
+    template_id: UUID
+    template_name: str
+    metadata_key: str
+    target: str
+    enabled: bool
 
 
 class PreviewRegion(BaseModel):
@@ -83,6 +98,8 @@ class PreviewResult(BaseModel):
     parents: list[PreviewParent]
     chunks: list[PreviewChunk]
     regions: list[PreviewRegion]
+    prompts: list[PreviewPrompt] = []
+    prompts_executed: bool = False
     total_chunks: int
     total_tokens: int
 

@@ -37,12 +37,21 @@ class InlineBinding:
 
 
 async def load_inline_bindings(
-    config_pool: asyncpg.Pool, *, workspace_id: UUID, path: str
+    config_pool: asyncpg.Pool,
+    *,
+    workspace_id: UUID,
+    path: str,
+    strategy_id: UUID | None = None,
 ) -> list[InlineBinding]:
-    """Bindings `embedding_inline` actifs pour l'extension de `path`.
+    """Bindings `embedding_inline` actifs pour ce fichier — jamais par défaut.
 
-    Même chaîne d'activation que l'enrichissement post-index : trigger de
-    l'extension → trigger prompts → LLM config — jamais actif par défaut.
+    Deux chemins d'activation, fusionnés :
+    1. triggers par extension (workspace-scopés, LLM explicite au binding) ;
+    2. prompts de la STRATÉGIE résolue (S6.4) — le template voyage avec la
+       stratégie ; le LLM d'exécution est la première config LLM active du
+       workspace (aucune → bindings stratégie ignorés avec warning, politique
+       S6.2). Un template lié par les deux chemins ne s'applique qu'une fois
+       (le trigger, décision locale au workspace, gagne).
     """
     extension = PurePosixPath(path).suffix.lower()
     if not extension:
@@ -64,6 +73,58 @@ async def load_inline_bindings(
         workspace_id,
         extension,
     )
+    bindings = [_binding_from_row(r) for r in rows]
+    if strategy_id is not None:
+        bound = {b.template_id for b in bindings}
+        bindings.extend(
+            b
+            for b in await _load_strategy_bindings(config_pool, workspace_id, strategy_id)
+            if b.template_id not in bound
+        )
+    return bindings
+
+
+def _binding_from_row(r: asyncpg.Record) -> InlineBinding:
+    return InlineBinding(
+        template_id=r["template_id"],
+        metadata_key=r["metadata_key"],
+        prompt=r["prompt"],
+        prompt_version=r["prompt_version"],
+        target=r["target"],
+        llm_provider=r["llm_provider"],
+        llm_model=r["llm_model"],
+        api_key_ref=r["api_key_ref"],
+        llm_base_url=r["llm_base_url"],
+    )
+
+
+async def _load_strategy_bindings(
+    config_pool: asyncpg.Pool, workspace_id: UUID, strategy_id: UUID
+) -> list[InlineBinding]:
+    rows = await config_pool.fetch(
+        """
+        SELECT sp.template_id, pt.metadata_key, pt.prompt, pt.prompt_version, pt.target
+        FROM chunking_strategy_prompts sp
+        JOIN prompt_templates pt ON pt.id = sp.template_id
+        WHERE sp.strategy_id = $1 AND sp.enabled AND pt.timing = 'embedding_inline'
+        ORDER BY sp.order_index
+        """,
+        strategy_id,
+    )
+    if not rows:
+        return []
+    llm = await config_pool.fetchrow(
+        "SELECT provider, model, api_key_ref, base_url FROM workspace_llm_configs "
+        "WHERE workspace_id = $1 AND enabled ORDER BY created_at LIMIT 1",
+        workspace_id,
+    )
+    if llm is None:
+        log.warning(
+            "inline_context.no_llm_for_strategy_prompts",
+            workspace_id=str(workspace_id),
+            strategy_id=str(strategy_id),
+        )
+        return []
     return [
         InlineBinding(
             template_id=r["template_id"],
@@ -71,10 +132,10 @@ async def load_inline_bindings(
             prompt=r["prompt"],
             prompt_version=r["prompt_version"],
             target=r["target"],
-            llm_provider=r["llm_provider"],
-            llm_model=r["llm_model"],
-            api_key_ref=r["api_key_ref"],
-            llm_base_url=r["llm_base_url"],
+            llm_provider=llm["provider"],
+            llm_model=llm["model"],
+            api_key_ref=llm["api_key_ref"],
+            llm_base_url=llm["base_url"],
         )
         for r in rows
     ]

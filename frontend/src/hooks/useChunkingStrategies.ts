@@ -9,6 +9,8 @@ import type {
   StrategyDetailOut,
   StrategyOut,
   StrategyPatch,
+  StrategyPromptOut,
+  StrategyPromptSpec,
 } from "@/lib/chunking-strategies.types";
 
 const KEY = ["chunking-strategies"];
@@ -82,9 +84,22 @@ export function useSetStrategyRoutes() {
   });
 }
 
+export function useSetStrategyPrompts() {
+  const invalidate = useInvalidate();
+  return useMutation<StrategyPromptOut[], Error, { id: string; prompts: StrategyPromptSpec[] }>({
+    mutationFn: ({ id, prompts }) => chunkingStrategiesApi.setPrompts(id, prompts),
+    onSuccess: invalidate,
+  });
+}
+
 export function usePreviewChunking() {
-  return useMutation<PreviewResult, Error, { strategyId: string; content: string }>({
-    mutationFn: ({ strategyId, content }) => chunkingStrategiesApi.preview(strategyId, content),
+  return useMutation<
+    PreviewResult,
+    Error,
+    { strategyId: string; content: string; workspaceName?: string; runPrompts?: boolean }
+  >({
+    mutationFn: ({ strategyId, content, workspaceName, runPrompts }) =>
+      chunkingStrategiesApi.preview(strategyId, content, workspaceName, runPrompts),
   });
 }
 

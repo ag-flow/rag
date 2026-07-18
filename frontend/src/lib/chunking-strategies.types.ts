@@ -39,8 +39,24 @@ export interface StrategyOut {
   updated_at: string;
 }
 
+export interface StrategyPromptSpec {
+  template_id: string;
+  order_index: number;
+  enabled: boolean;
+}
+
+export interface StrategyPromptOut {
+  template_id: string;
+  template_name: string;
+  metadata_key: string;
+  target: string;
+  order_index: number;
+  enabled: boolean;
+}
+
 export interface StrategyDetailOut extends StrategyOut {
   routes: RegionRouteSpec[];
+  prompts: StrategyPromptOut[];
 }
 
 export interface StrategyCreate {
@@ -66,6 +82,7 @@ export interface PreviewChunk {
   parent_key: string;
   region_type: string | null;
   region_qualifier: string | null;
+  inline_context: string | null;
 }
 
 export interface PreviewRegion {
@@ -90,6 +107,14 @@ export interface PreviewResult {
   parents: { section_key: string; chars: number }[];
   chunks: PreviewChunk[];
   regions: PreviewRegion[];
+  prompts: {
+    template_id: string;
+    template_name: string;
+    metadata_key: string;
+    target: string;
+    enabled: boolean;
+  }[];
+  prompts_executed: boolean;
   total_chunks: number;
   total_tokens: number;
 }
