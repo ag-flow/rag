@@ -71,7 +71,8 @@
     "prompts_add": "Bind a template",
     "prompts_enabled": "Enabled",
     "prompts_remove": "Remove",
-    "prompts_none": "No embedding_inline template in your library — create one in Prompts (chunk or region mode)."
+    "prompts_none": "No bindable template in your library: only prompts in chunk or region mode (embedding-time context) appear here.",
+    "prompts_create": "Create a prompt (chunk/region)"
   },
   "routes": {
     "title": "Region routes — {{label}}",

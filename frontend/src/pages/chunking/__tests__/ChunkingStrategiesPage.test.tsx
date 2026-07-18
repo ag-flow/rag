@@ -30,6 +30,8 @@ vi.mock("@/hooks/useChunkingStrategies", () => ({
 vi.mock("@/hooks/useToast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock("@/hooks/useEnrichments", () => ({
   usePrompts: vi.fn(() => ({ data: [], isLoading: false })),
+  useCreatePrompt: vi.fn(() => mutation()),
+  useLanguages: vi.fn(() => ({ data: [], isLoading: false })),
 }));
 
 function strategy(over: Partial<StrategyOut>): StrategyOut {

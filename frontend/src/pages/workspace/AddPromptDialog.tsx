@@ -22,12 +22,16 @@ import { useCreatePrompt, useLanguages } from "@/hooks/useEnrichments";
 import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/lib/api";
 
+type PromptMode = "document" | "chunk" | "region";
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Mode présélectionné — ex. "chunk" quand le dialog est ouvert depuis une stratégie. */
+  initialMode?: PromptMode;
 }
 
-export function AddPromptDialog({ open, onOpenChange }: Props) {
+export function AddPromptDialog({ open, onOpenChange, initialMode = "document" }: Props) {
   const { t } = useTranslation("prompts");
   const { toast } = useToast();
   const mutation = useCreatePrompt();
@@ -39,7 +43,7 @@ export function AddPromptDialog({ open, onOpenChange }: Props) {
   const [resultType, setResultType] = useState<"text" | "json">("text");
   const [prompt, setPrompt] = useState("");
   const [description, setDescription] = useState("");
-  const [mode, setMode] = useState<"document" | "chunk" | "region">("document");
+  const [mode, setMode] = useState<PromptMode>(initialMode);
   const [regionType, setRegionType] = useState("code_fence");
   const [regionQualifier, setRegionQualifier] = useState("");
 
@@ -52,7 +56,7 @@ export function AddPromptDialog({ open, onOpenChange }: Props) {
       setResultType("text");
       setPrompt("");
       setDescription("");
-      setMode("document");
+      setMode(initialMode);
       setRegionType("code_fence");
       setRegionQualifier("");
     }
@@ -221,6 +225,9 @@ export function AddPromptDialog({ open, onOpenChange }: Props) {
               </div>
             )}
           </div>
+          {/* Éligibilité aux stratégies : seul le timing embedding_inline
+              (chunk/région) est liable dans une stratégie de découpage. */}
+          <p className="text-xs text-slate-500">{t(`mode_${mode}_help`)}</p>
           {mode !== "document" && (
             <p className="text-xs text-slate-500">{t("mode_inline_hint")}</p>
           )}

@@ -14,6 +14,7 @@ import frWorkspace from "@/i18n/fr/workspace.json";
 import frHarpocrate from "@/i18n/fr/harpocrate.json";
 import frPlayground from "@/i18n/fr/playground.json";
 import frChunkingStrategies from "@/i18n/fr/chunking_strategies.json";
+import frPrompts from "@/i18n/fr/prompts.json";
 
 import enCommon from "@/i18n/en/common.json";
 import enAuth from "@/i18n/en/auth.json";
@@ -23,6 +24,7 @@ import enWorkspace from "@/i18n/en/workspace.json";
 import enHarpocrate from "@/i18n/en/harpocrate.json";
 import enPlayground from "@/i18n/en/playground.json";
 import enChunkingStrategies from "@/i18n/en/chunking_strategies.json";
+import enPrompts from "@/i18n/en/prompts.json";
 
 // i18n instance isolée pour les tests, forcée en FR
 const testI18n = i18next.createInstance();
@@ -40,6 +42,7 @@ void testI18n.use(initReactI18next).init({
     "harpocrate",
     "playground",
     "chunking_strategies",
+    "prompts",
   ],
   defaultNS: "common",
   resources: {
@@ -52,6 +55,7 @@ void testI18n.use(initReactI18next).init({
       harpocrate: frHarpocrate,
       playground: frPlayground,
       chunking_strategies: frChunkingStrategies,
+      prompts: frPrompts,
     },
     en: {
       common: enCommon,
@@ -62,6 +66,7 @@ void testI18n.use(initReactI18next).init({
       harpocrate: enHarpocrate,
       playground: enPlayground,
       chunking_strategies: enChunkingStrategies,
+      prompts: enPrompts,
     },
   },
   interpolation: { escapeValue: false },

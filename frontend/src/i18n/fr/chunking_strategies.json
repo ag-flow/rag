@@ -71,7 +71,8 @@
     "prompts_add": "Lier un template",
     "prompts_enabled": "Actif",
     "prompts_remove": "Retirer",
-    "prompts_none": "Aucun template embedding_inline dans votre bibliothèque — créez-en un dans Prompts (mode chunk ou région)."
+    "prompts_none": "Aucun template liable dans votre bibliothèque : seuls les prompts en mode chunk ou région (contexte à l'embedding) apparaissent ici.",
+    "prompts_create": "Créer un prompt (chunk/région)"
   },
   "routes": {
     "title": "Routes de régions — {{label}}",

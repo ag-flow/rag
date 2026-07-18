@@ -32,6 +32,7 @@ import { usePrompts } from "@/hooks/useEnrichments";
 import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/lib/api";
 import { AlgoInfoPanel } from "@/pages/chunking/AlgoInfoPanel";
+import { AddPromptDialog } from "@/pages/workspace/AddPromptDialog";
 import {
   CHUNKING_ALGOS,
   type ChunkingAlgo,
@@ -87,6 +88,9 @@ export function StrategyFormDialog({ open, onOpenChange, strategy }: Props) {
   const [cleaning, setCleaning] = useState<Record<string, boolean>>({});
   // Bindings de prompts inline (S6.4) : ordre = position dans la liste.
   const [prompts, setPrompts] = useState<{ template_id: string; enabled: boolean }[]>([]);
+  // Création de template sans quitter la stratégie, pré-réglée sur le mode
+  // chunk (seuls chunk/région sont liables ici).
+  const [promptDialogOpen, setPromptDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -419,6 +423,16 @@ export function StrategyFormDialog({ open, onOpenChange, strategy }: Props) {
                   <p className="text-xs text-slate-400">{t("form.prompts_none")}</p>
                 )
               )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={() => setPromptDialogOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+                {t("form.prompts_create")}
+              </Button>
             </div>
           </div>
 
@@ -434,6 +448,11 @@ export function StrategyFormDialog({ open, onOpenChange, strategy }: Props) {
           </DialogFooter>
         </form>
       </DialogContent>
+      <AddPromptDialog
+        open={promptDialogOpen}
+        onOpenChange={setPromptDialogOpen}
+        initialMode="chunk"
+      />
     </Dialog>
   );
 }
