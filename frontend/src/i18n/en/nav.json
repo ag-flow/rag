@@ -16,5 +16,8 @@
     "oidc_config": "OIDC config",
     "prompts": "Prompts",
     "chunking_strategies": "Chunking strategies"
+  },
+  "alerts": {
+    "vault_key_expiry": "A vault key is expiring soon or has expired"
   }
 }

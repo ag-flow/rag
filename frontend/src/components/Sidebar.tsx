@@ -13,15 +13,18 @@ import {
   KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useVaultExpiries } from "@/hooks/useHarpocrateVaults";
+import { worstExpiryStatus } from "@/lib/vault-expiry";
 
 interface NavItemProps {
   to: string;
   icon: ReactNode;
   label: string;
   disabled?: boolean;
+  badge?: ReactNode;
 }
 
-function NavItem({ to, icon, label, disabled = false }: NavItemProps) {
+function NavItem({ to, icon, label, disabled = false, badge }: NavItemProps) {
   if (disabled) {
     return (
       <div
@@ -57,6 +60,7 @@ function NavItem({ to, icon, label, disabled = false }: NavItemProps) {
             {icon}
           </span>
           <span>{label}</span>
+          {badge}
         </>
       )}
     </NavLink>
@@ -65,6 +69,19 @@ function NavItem({ to, icon, label, disabled = false }: NavItemProps) {
 
 export function Sidebar() {
   const { t } = useTranslation("nav");
+  const { data: expiries } = useVaultExpiries();
+  const vaultAlert = worstExpiryStatus(expiries ?? []);
+  const vaultBadge =
+    vaultAlert === "expired" || vaultAlert === "expiring" ? (
+      <span
+        aria-label={t("alerts.vault_key_expiry")}
+        title={t("alerts.vault_key_expiry")}
+        className={
+          "ml-auto h-2 w-2 rounded-full " +
+          (vaultAlert === "expired" ? "bg-rose-500" : "bg-amber-400")
+        }
+      />
+    ) : undefined;
 
   return (
     <aside className="w-[220px] flex-shrink-0 border-r border-slate-200 bg-zinc-50 flex flex-col">
@@ -99,6 +116,7 @@ export function Sidebar() {
           to="/settings/harpocrate-vaults"
           icon={<Settings />}
           label={t("items.harpocrate_vaults")}
+          badge={vaultBadge}
         />
         <NavItem to="/settings/api-keys" icon={<KeyRound />} label={t("items.api_keys")} />
         <NavItem to="/settings/oidc-config" icon={<KeyRound />} label={t("items.oidc_config")} />

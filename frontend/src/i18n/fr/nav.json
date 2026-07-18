@@ -16,5 +16,8 @@
     "oidc_config": "Config OIDC",
     "prompts": "Prompts",
     "chunking_strategies": "Stratégies de chunking"
+  },
+  "alerts": {
+    "vault_key_expiry": "Une clé de coffre expire bientôt ou est expirée"
   }
 }

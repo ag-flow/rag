@@ -10,12 +10,22 @@ import type {
   VaultCreateRequest,
   VaultRotateApiKeyRequest,
   VaultTestConnectionResult,
+  VaultKeyExpiry,
   VaultUpdateRequest,
 } from "@/lib/harpocrate-vaults.types";
 
 const ROOT_KEY = ["vaults"] as const;
 
 // ─── Queries ─────────────────────────────────────────
+
+export function useVaultExpiries() {
+  return useQuery<VaultKeyExpiry[]>({
+    queryKey: ["harpocrate-vaults", "expiries"],
+    queryFn: () => harpocrateVaultsApi.listExpiries(),
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+}
 
 export function useVaults() {
   return useQuery({

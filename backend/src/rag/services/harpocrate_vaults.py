@@ -15,6 +15,7 @@ from rag.schemas.harpocrate_vaults import (
     SecretListResponse,
     SecretTypeSummary,
     VaultCreateRequest,
+    VaultKeyExpiry,
     VaultRotateApiKeyRequest,
     VaultSummary,
     VaultTestConnectionResult,
@@ -136,6 +137,36 @@ class HarpocrateVaultsService:
             owner_id,
         )
         return [VaultSummary.model_validate(dict(r)) for r in rows]
+
+    async def list_key_expiries(self, conn: Connection, owner_id: str) -> list[VaultKeyExpiry]:
+        """Expiration des clés de tous les coffres visibles (alerte proactive).
+
+        Lecture LOCALE du token (`token_info` décode le JWT, zéro appel réseau
+        Harpocrate). Un token illisible ou sans `exp` remonte `None` — jamais
+        d'échec de l'agrégat pour un coffre en panne.
+        """
+        out: list[VaultKeyExpiry] = []
+        for vault in await self.list_for_owner(conn, owner_id):
+            expires_at = None
+            try:
+                api_key = await self.reveal_api_key(conn, vault.id)
+                if api_key:
+                    client = HarpocrateVaultClient(url=vault.base_url, token=api_key)
+                    tok = await asyncio.to_thread(client.token_info)
+                    expires_at = tok.expires_at_dt
+            except Exception as exc:
+                log.warning(
+                    "vault.expiry_read_failed", vault_id=str(vault.id), error=type(exc).__name__
+                )
+            out.append(
+                VaultKeyExpiry(
+                    vault_id=vault.id,
+                    name=vault.name,
+                    label=vault.label,
+                    api_key_expires_at=expires_at,
+                )
+            )
+        return out
 
     async def get_by_id(
         self,

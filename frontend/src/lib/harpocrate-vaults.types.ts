@@ -189,3 +189,11 @@ export type SshKeyWithVault = {
   vault_label: string;
   created_at: string;
 };
+
+// Alerte proactive d'expiration (GET /api/admin/harpocrate-vaults/expiries)
+export type VaultKeyExpiry = {
+  vault_id: string;
+  name: string;
+  label: string;
+  api_key_expires_at: string | null;
+};

@@ -115,6 +115,19 @@ class WalletInfoResponse(BaseModel):
     api_key_expires_at: datetime | None
 
 
+class VaultKeyExpiry(BaseModel):
+    """Expiration de la clé d'accès d'un coffre (alerte proactive, roadmap).
+
+    `api_key_expires_at` NULL = token sans expiration OU indéchiffrable —
+    l'agrégat ne remonte jamais d'erreur, seulement l'absence d'information.
+    """
+
+    vault_id: UUID
+    name: str
+    label: str
+    api_key_expires_at: datetime | None
+
+
 class SecretTypeSummary(BaseModel):
     """Résumé d'un type du catalogue Harpocrate."""
 

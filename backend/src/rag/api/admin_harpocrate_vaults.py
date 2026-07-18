@@ -11,6 +11,7 @@ from rag.schemas.harpocrate_vaults import (
     SecretListResponse,
     SecretTypeSummary,
     VaultCreateRequest,
+    VaultKeyExpiry,
     VaultRevealApiKeyResponse,
     VaultRotateApiKeyRequest,
     VaultSummary,
@@ -61,6 +62,20 @@ async def list_vaults(request: Request) -> list[VaultSummary]:
     owner_id = get_current_owner_id(request)
     async with pool.acquire() as conn:
         return await svc.list_for_owner(conn, owner_id)
+
+
+@router.get("/expiries", response_model=list[VaultKeyExpiry])
+async def list_vault_expiries(request: Request) -> list[VaultKeyExpiry]:
+    """Expiration des clés de tous les coffres visibles (alerte proactive).
+
+    Déclaré AVANT les routes /{vault_id} pour ne pas être capté par le
+    convertisseur UUID.
+    """
+    svc = request.app.state.harpocrate_vaults_service
+    pool = request.app.state.pools.config_pool
+    owner_id = get_current_owner_id(request)
+    async with pool.acquire() as conn:
+        return await svc.list_key_expiries(conn, owner_id)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=VaultSummary)

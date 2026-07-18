@@ -1,4 +1,6 @@
 import { useTranslation } from "react-i18next";
+import { useVaultExpiries } from "@/hooks/useHarpocrateVaults";
+import { daysUntilExpiry, expiryStatus } from "@/lib/vault-expiry";
 import { MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +26,9 @@ interface VaultHeaderProps {
 
 export function VaultHeader({ vault, onRetire }: VaultHeaderProps) {
   const { t } = useTranslation("harpocrate");
+  const { data: expiries } = useVaultExpiries();
+  const keyExpiresAt = expiries?.find((e) => e.vault_id === vault.id)?.api_key_expires_at;
+  const keyExpiry = expiryStatus(keyExpiresAt);
   const { toast } = useToast();
   const testMutation = useTestConnection(vault.id);
   const setDefaultMutation = useSetDefaultVault();
@@ -56,58 +61,78 @@ export function VaultHeader({ vault, onRetire }: VaultHeaderProps) {
   }
 
   return (
-    <div className="flex items-start justify-between pb-4 border-b border-slate-200">
-      <div>
-        <div className="flex items-center gap-2.5">
-          <h3 className="text-lg font-semibold text-slate-900 m-0">{vault.name}</h3>
-          {vault.is_default && (
-            <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-100">
-              {t("header.badge_default")}
-            </Badge>
-          )}
-          {lastTest && (
-            <Badge
-              variant="secondary"
-              className={
-                lastTest.ok
-                  ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
-                  : "bg-rose-100 text-rose-800 hover:bg-rose-100"
-              }
-            >
-              {lastTest.ok ? t("header.badge_healthy") : t("header.badge_auth_ko")}
-            </Badge>
-          )}
+    <div>
+      {(keyExpiry === "expired" || keyExpiry === "expiring") && (
+        <div
+          className={
+            "flex items-center gap-2 rounded-md border px-3 py-2 mb-3 text-sm " +
+            (keyExpiry === "expired"
+              ? "border-rose-200 bg-rose-50 text-rose-800"
+              : "border-amber-200 bg-amber-50 text-amber-800")
+          }
+          role="alert"
+        >
+          <span aria-hidden>⚠</span>
+          {keyExpiry === "expired"
+            ? t("expiry.banner_expired")
+            : t("expiry.banner_expiring", {
+                count: keyExpiresAt ? daysUntilExpiry(keyExpiresAt) : 0,
+              })}
         </div>
-        <div className="text-sm text-slate-500 mt-1">
-          {vault.label} · {vault.base_url}
+      )}
+      <div className="flex items-start justify-between pb-4 border-b border-slate-200">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h3 className="text-lg font-semibold text-slate-900 m-0">{vault.name}</h3>
+            {vault.is_default && (
+              <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+                {t("header.badge_default")}
+              </Badge>
+            )}
+            {lastTest && (
+              <Badge
+                variant="secondary"
+                className={
+                  lastTest.ok
+                    ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
+                    : "bg-rose-100 text-rose-800 hover:bg-rose-100"
+                }
+              >
+                {lastTest.ok ? t("header.badge_healthy") : t("header.badge_auth_ko")}
+              </Badge>
+            )}
+          </div>
+          <div className="text-sm text-slate-500 mt-1">
+            {vault.label} · {vault.base_url}
+          </div>
         </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button onClick={handleTest} disabled={testMutation.isPending}>
-          {t("header.test")}
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="icon" aria-label="More actions">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={handleSetDefault}
-              disabled={vault.is_default || setDefaultMutation.isPending}
-            >
-              {t("menu.set_default")}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={onRetire}
-              className="text-rose-600 focus:text-rose-700 focus:bg-rose-50"
-            >
-              {t("detail.retire_vault")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-2">
+          <Button onClick={handleTest} disabled={testMutation.isPending}>
+            {t("header.test")}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" aria-label="More actions">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={handleSetDefault}
+                disabled={vault.is_default || setDefaultMutation.isPending}
+              >
+                {t("menu.set_default")}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={onRetire}
+                className="text-rose-600 focus:text-rose-700 focus:bg-rose-50"
+              >
+                {t("detail.retire_vault")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </div>
   );

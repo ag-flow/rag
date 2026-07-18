@@ -1,4 +1,6 @@
 import { useTranslation } from "react-i18next";
+import { useVaultExpiries } from "@/hooks/useHarpocrateVaults";
+import { expiryStatus } from "@/lib/vault-expiry";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useVaults } from "@/hooks/useHarpocrateVaults";
@@ -52,6 +54,8 @@ interface VaultsListItemProps {
 
 function VaultsListItem({ vault, active, onSelect }: VaultsListItemProps) {
   const { t } = useTranslation("harpocrate");
+  const { data: expiries } = useVaultExpiries();
+  const expiry = expiryStatus(expiries?.find((e) => e.vault_id === vault.id)?.api_key_expires_at);
   return (
     <button
       type="button"
@@ -64,8 +68,23 @@ function VaultsListItem({ vault, active, onSelect }: VaultsListItemProps) {
       )}
     >
       <div className="flex items-center justify-between">
-        <span className={cn("font-medium truncate", active ? "text-slate-900" : "text-slate-700")}>
+        <span
+          className={cn(
+            "font-medium truncate flex items-center gap-1.5",
+            active ? "text-slate-900" : "text-slate-700",
+          )}
+        >
           {vault.name}
+          {(expiry === "expired" || expiry === "expiring") && (
+            <span
+              aria-label={t("expiry.list_dot")}
+              title={t("expiry.list_dot")}
+              className={
+                "h-2 w-2 shrink-0 rounded-full " +
+                (expiry === "expired" ? "bg-rose-500" : "bg-amber-400")
+              }
+            />
+          )}
         </span>
         <span className={cn("text-[10px] ml-2", active ? "text-emerald-600" : "text-slate-300")}>
           ●

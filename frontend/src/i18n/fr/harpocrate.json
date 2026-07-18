@@ -291,5 +291,10 @@
     "create": "Créer",
     "save": "Enregistrer",
     "select_placeholder": "Sélectionner…"
+  },
+  "expiry": {
+    "banner_expired": "La clé d'accès de ce coffre est expirée — remplacez-la (menu ⋯ → Remplacer la clé) avant que la résolution de secrets n'échoue.",
+    "banner_expiring": "La clé d'accès de ce coffre expire dans {{count}} jour(s) — pensez à la remplacer (menu ⋯ → Remplacer la clé).",
+    "list_dot": "Clé d'accès expirée ou proche de l'expiration"
   }
 }

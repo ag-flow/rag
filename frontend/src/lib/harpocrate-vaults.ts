@@ -20,12 +20,14 @@ import type {
   VaultSummary,
   VaultTestConnectionResult,
   VaultUpdateRequest,
+  VaultKeyExpiry,
   WalletInfoResponse,
 } from "@/lib/harpocrate-vaults.types";
 
 const BASE = "/api/admin/harpocrate-vaults";
 
 export const harpocrateVaultsApi = {
+  listExpiries: () => api.get<VaultKeyExpiry[]>(`${BASE}/expiries`),
   list: () => api.get<VaultSummary[]>(BASE),
 
   get: (id: string) => api.get<VaultSummary>(`${BASE}/${id}`),

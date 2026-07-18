@@ -291,5 +291,10 @@
     "create": "Create",
     "save": "Save",
     "select_placeholder": "Select…"
+  },
+  "expiry": {
+    "banner_expired": "This vault's access key has expired — replace it (⋯ menu → Replace key) before secret resolution fails.",
+    "banner_expiring": "This vault's access key expires in {{count}} day(s) — consider replacing it (⋯ menu → Replace key).",
+    "list_dot": "Access key expired or close to expiry"
   }
 }
