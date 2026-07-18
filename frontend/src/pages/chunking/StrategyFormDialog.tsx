@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { HelpCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   useChunkingParsers,
   useCreateStrategy,
@@ -229,21 +231,41 @@ export function StrategyFormDialog({ open, onOpenChange, strategy }: Props) {
 
             <div className="space-y-2">
               <Label>{t("form.params_title")}</Label>
-              <div className="grid grid-cols-2 gap-3">
-                {numericKeys.map((key) => (
-                  <div key={key} className="space-y-1">
-                    <Label htmlFor={`param-${key}`} className="text-xs font-normal">
-                      {t(`form.params.${key}`)}
-                    </Label>
-                    <Input
-                      id={`param-${key}`}
-                      type="number"
-                      value={numbers[key] ?? ""}
-                      onChange={(e) => setNumbers({ ...numbers, [key]: e.target.value })}
-                    />
-                  </div>
-                ))}
-              </div>
+              <TooltipProvider delayDuration={150}>
+                <div className="grid grid-cols-2 gap-3">
+                  {numericKeys.map((key) => (
+                    <div key={key} className="space-y-1">
+                      <span className="flex items-center gap-1">
+                        <Label htmlFor={`param-${key}`} className="text-xs font-normal">
+                          {t(`form.params.${key}`)}
+                        </Label>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              aria-label={t("form.params_help_aria", {
+                                param: t(`form.params.${key}`),
+                              })}
+                              className="text-slate-400 hover:text-slate-600"
+                            >
+                              <HelpCircle className="h-3.5 w-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-[280px] text-xs">
+                            {t(`form.params_help.${key}`)}
+                          </TooltipContent>
+                        </Tooltip>
+                      </span>
+                      <Input
+                        id={`param-${key}`}
+                        type="number"
+                        value={numbers[key] ?? ""}
+                        onChange={(e) => setNumbers({ ...numbers, [key]: e.target.value })}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </TooltipProvider>
             </div>
 
             <div className="space-y-2">

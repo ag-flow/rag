@@ -55,7 +55,15 @@
     "linked_warning": "Cette stratégie est utilisée ({{usage}}) : la modifier change le comportement d'indexation partagé en direct.",
     "save": "Enregistrer",
     "create": "Créer",
-    "cancel": "Annuler"
+    "cancel": "Annuler",
+    "params_help": {
+      "child_target_tokens": "Taille visée d'un chunk embeddé, en tokens. Plus grand = plus de contexte par chunk, mais recherche moins précise. Toujours plafonné par la limite du modèle d'embedding (marge de sécurité de 20 %). Défaut : 384.",
+      "floor_tokens": "Taille minimale d'un chunk : les fragments plus petits sont fusionnés avec leurs voisins pour éviter les chunks-miettes sans valeur sémantique (un titre isolé, une ligne). Défaut : 64 — 128 recommandé pour le code.",
+      "overlap_tokens": "Recouvrement entre chunks consécutifs : la fin d'un chunk est répétée au début du suivant pour ne pas couper une idée à la frontière. Inutile quand les frontières sont naturelles : 0 recommandé pour code et data. Défaut : 64.",
+      "breadcrumb_depth": "Profondeur du fil de titres (breadcrumb) injecté en tête du texte embeddé, ex. « Guide › Installation ». Il ancre le chunk dans son document et améliore nettement le retrieval. -1 = chemin complet (recommandé).",
+      "max_rows_per_chunk": "Nombre maximum de lignes de données par chunk ; l'en-tête du tableau est répété sur chaque chunk pour que chacun reste interprétable seul. Défaut : 50 — à réduire si les lignes sont larges."
+    },
+    "params_help_aria": "Aide : {{param}}"
   },
   "routes": {
     "title": "Routes de régions — {{label}}",

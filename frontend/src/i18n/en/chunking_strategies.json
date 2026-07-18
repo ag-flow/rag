@@ -55,7 +55,15 @@
     "linked_warning": "This strategy is in use ({{usage}}): editing it changes the shared indexing behaviour immediately.",
     "save": "Save",
     "create": "Create",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "params_help": {
+      "child_target_tokens": "Target size of an embedded chunk, in tokens. Larger = more context per chunk but less precise search. Always capped by the embedding model limit (20% safety margin). Default: 384.",
+      "floor_tokens": "Minimum chunk size: smaller fragments are merged with their neighbours to avoid crumb-chunks with no semantic value (a lone heading, a single line). Default: 64 — 128 recommended for code.",
+      "overlap_tokens": "Overlap between consecutive chunks: the end of a chunk is repeated at the start of the next so an idea is never cut at the boundary. Pointless when boundaries are natural: 0 recommended for code and data. Default: 64.",
+      "breadcrumb_depth": "Depth of the heading trail (breadcrumb) injected at the top of the embedded text, e.g. “Guide › Install”. It anchors the chunk in its document and clearly improves retrieval. -1 = full path (recommended).",
+      "max_rows_per_chunk": "Maximum number of data rows per chunk; the table header is repeated on every chunk so each stays interpretable on its own. Default: 50 — lower it for wide rows."
+    },
+    "params_help_aria": "Help: {{param}}"
   },
   "routes": {
     "title": "Region routes — {{label}}",
