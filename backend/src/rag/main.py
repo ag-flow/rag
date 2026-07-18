@@ -39,6 +39,7 @@ from rag.api.mcp_standard import RagMcpDispatcher, build_mcp_asgi
 from rag.api.me_api_keys import build_me_api_keys_router
 from rag.api.playground import router_admin as playground_admin_router
 from rag.api.playground import router_chat as playground_chat_router
+from rag.api.playground_search import router_search as playground_search_router
 from rag.api.setup import build_setup_router
 from rag.api.workspace import build_workspace_router
 from rag.api.ws import router as ws_router
@@ -283,6 +284,7 @@ def build_app(
     app.include_router(ws_router)
     app.include_router(playground_admin_router)
     app.include_router(playground_chat_router)
+    app.include_router(playground_search_router)
     app.include_router(enrichment_languages_router)
     app.include_router(enrichment_prompts_router)
     app.include_router(enrichment_triggers_router)

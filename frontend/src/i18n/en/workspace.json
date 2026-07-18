@@ -27,6 +27,7 @@
     "model": "Model",
     "rerank": "Rerank",
     "chunking": "Chunking",
+    "search": "Search",
     "playground": "Playground",
     "triggers": "Triggers",
     "apikeys": "Api",
@@ -309,6 +310,41 @@
       "save": "Apply",
       "saved": "Default strategy updated.",
       "error": "Update failed."
+    }
+  },
+  "search": {
+    "title": "Hybrid search",
+    "description": "Combines vector search (pgvector) with lexical search, merged via RRF (Reciprocal Rank Fusion).",
+    "empty": {
+      "title": "Pure vector search",
+      "description": "No hybrid configuration for this workspace: queries use pgvector vector similarity only.",
+      "activate": "Enable hybrid search"
+    },
+    "fields": {
+      "enabled": "Hybrid search enabled",
+      "engine": "Lexical engine",
+      "engines": {
+        "fts": "Native Postgres FTS",
+        "ftsHelp": "Weighted bilingual, sufficient for most corpora.",
+        "bm25": "BM25 via pg_search extension",
+        "bm25Help": "Global IDF, frequency saturation; useful on large heterogeneous corpora."
+      },
+      "weightVector": "Vector weight",
+      "weightLexical": "Lexical weight",
+      "rrfK": "rrf_k (advanced)",
+      "rrfKHelp": "RRF damping constant: each channel contributes weight / (k + rank). The larger k is, the more rank gaps are smoothed. Default: 60."
+    },
+    "actions": {
+      "save": "Save"
+    },
+    "save": {
+      "success": "Configuration saved.",
+      "error": "Save failed.",
+      "rebuild": "Lexical index rebuild started (job {{jobId}})."
+    },
+    "errors": {
+      "engineUnavailable": "The \u201c{{engine}}\u201d engine is not available on this Postgres instance.",
+      "engineUnavailableExplain": "Install the pg_search extension on the Postgres instance, or keep the native FTS engine which requires no extension."
     }
   },
   "dialog": {

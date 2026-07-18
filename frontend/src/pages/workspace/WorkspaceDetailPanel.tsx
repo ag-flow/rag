@@ -8,6 +8,7 @@ import { WorkspaceDetailTab } from "./WorkspaceDetailTab";
 import { WorkspaceSourcesTab } from "./WorkspaceSourcesTab";
 import { WorkspaceJobsTab } from "./WorkspaceJobsTab";
 import { WorkspaceChunkingTab } from "./WorkspaceChunkingTab";
+import { WorkspaceSearchTab } from "./WorkspaceSearchTab";
 import { WorkspaceWebhooksTab } from "./WorkspaceWebhooksTab";
 import { WorkspacePlaygroundTab } from "./WorkspacePlaygroundTab";
 import { WorkspaceTriggersTab } from "./WorkspaceTriggersTab";
@@ -60,6 +61,7 @@ export function WorkspaceDetailPanel({ name }: Props) {
           <TabsTrigger value="jobs">{t("tabs.jobs")}</TabsTrigger>
           <TabsTrigger value="index">{t("tabs.index")}</TabsTrigger>
           <TabsTrigger value="chunking">{t("tabs.chunking")}</TabsTrigger>
+          <TabsTrigger value="search">{t("tabs.search")}</TabsTrigger>
           <TabsTrigger value="webhooks">{t("webhooks.tab")}</TabsTrigger>
           <TabsTrigger value="playground">{t("tabs.playground")}</TabsTrigger>
           <TabsTrigger value="triggers">{t("tabs.triggers")}</TabsTrigger>
@@ -79,6 +81,9 @@ export function WorkspaceDetailPanel({ name }: Props) {
         </TabsContent>
         <TabsContent value="chunking" className="pt-4">
           <WorkspaceChunkingTab workspace={ws} enabled={activeTab === "chunking"} />
+        </TabsContent>
+        <TabsContent value="search" className="pt-4">
+          <WorkspaceSearchTab name={ws.name} enabled={activeTab === "search"} />
         </TabsContent>
         <TabsContent value="webhooks" className="pt-4">
           <WorkspaceWebhooksTab workspaceName={ws.name} />

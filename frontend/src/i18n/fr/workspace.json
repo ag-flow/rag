@@ -27,6 +27,7 @@
     "model": "Modèle",
     "rerank": "Rerank",
     "chunking": "Chunking",
+    "search": "Recherche",
     "playground": "Playground",
     "triggers": "Triggers",
     "apikeys": "Api",
@@ -309,6 +310,41 @@
       "save": "Appliquer",
       "saved": "Stratégie par défaut mise à jour.",
       "error": "La mise à jour a échoué."
+    }
+  },
+  "search": {
+    "title": "Recherche hybride",
+    "description": "Combine la recherche vectorielle (pgvector) et une recherche lexicale, fusionnées par RRF (Reciprocal Rank Fusion).",
+    "empty": {
+      "title": "Recherche vectorielle pure",
+      "description": "Aucune configuration hybride pour ce workspace : les requêtes utilisent uniquement la similarité vectorielle pgvector.",
+      "activate": "Activer la recherche hybride"
+    },
+    "fields": {
+      "enabled": "Recherche hybride activée",
+      "engine": "Moteur lexical",
+      "engines": {
+        "fts": "FTS natif Postgres",
+        "ftsHelp": "Bilingue pondéré, suffisant pour la plupart des corpus.",
+        "bm25": "BM25 via extension pg_search",
+        "bm25Help": "IDF global, saturation de fréquence ; utile sur gros corpus hétérogènes."
+      },
+      "weightVector": "Poids vectoriel",
+      "weightLexical": "Poids lexical",
+      "rrfK": "rrf_k (avancé)",
+      "rrfKHelp": "Constante d'amortissement RRF : chaque canal contribue poids / (k + rang). Plus k est grand, plus les écarts entre rangs sont lissés. Défaut : 60."
+    },
+    "actions": {
+      "save": "Enregistrer"
+    },
+    "save": {
+      "success": "Configuration enregistrée.",
+      "error": "Échec de l'enregistrement.",
+      "rebuild": "Reconstruction de l'index lexical lancée (job {{jobId}})."
+    },
+    "errors": {
+      "engineUnavailable": "Le moteur « {{engine}} » n'est pas disponible sur cette instance Postgres.",
+      "engineUnavailableExplain": "Installez l'extension pg_search sur l'instance Postgres, ou conservez le moteur FTS natif qui ne requiert aucune extension."
     }
   },
   "dialog": {

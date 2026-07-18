@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from uuid import UUID
 
 import asyncpg
@@ -29,6 +30,37 @@ router_admin = APIRouter(
 
 def _pool(request: Request) -> asyncpg.Pool:
     return request.app.state.pools.config_pool  # type: ignore[no-any-return]
+
+
+def make_harpo_resolver(request: Request) -> Callable[[str], Awaitable[str | None]]:
+    """Résolveur de ref Harpocrate partagé chat/recherche.
+
+    Normalise une clé logique (format legacy) en ref vault par défaut,
+    comme RealIndexer à l'indexation : sans ça, un api_key_ref logique
+    était droppé → embedding/LLM appelé avec api_key=None → 401 (BUG-024).
+    """
+    from rag.secrets.refs import as_vault_ref, is_vault_ref, parse_ref
+
+    config_pool: asyncpg.Pool = _pool(request)
+    vault_svc = request.app.state.harpocrate_vaults_service
+    client_provider = request.app.state.client_provider
+
+    async def _resolve(harpo_path: str) -> str | None:
+        ref = harpo_path
+        if not is_vault_ref(ref):
+            default_vault_name = await client_provider.get_default_vault_name()
+            if default_vault_name is None:
+                return None
+            ref = as_vault_ref(ref, default_vault_name)
+        vault_name, secret_path = parse_ref(ref)
+        async with config_pool.acquire() as conn:
+            vault = await vault_svc.get_by_name(conn, vault_name)
+        if vault is None:
+            return None
+        client = await client_provider.get_client(vault.api_key_id)
+        return await asyncio.to_thread(client.get_secret, secret_path)
+
+    return _resolve
 
 
 @router_admin.get("", response_model=list[LlmConfigOut])
@@ -100,32 +132,12 @@ async def playground_chat(
     """Chat RAG-ancré : embed → vector_search → LLM."""
     from rag.db.workspace_search import vector_search
     from rag.indexer.providers.factory import make_provider
-    from rag.secrets.refs import as_vault_ref, is_vault_ref, parse_ref
     from rag.services.llm_clients import build_prompt, call_llm
     from rag.services.llm_configs import get_llm_config_for_chat
 
     config_pool: asyncpg.Pool = _pool(request)
     pool_registry = request.app.state.pools
-    vault_svc = request.app.state.harpocrate_vaults_service
-    client_provider = request.app.state.client_provider
-    default_vault_name: str | None = await client_provider.get_default_vault_name()
-
-    async def _resolve_harpo(harpo_path: str) -> str | None:
-        # Normalise une clé logique (format legacy) en ref vault par défaut,
-        # comme RealIndexer à l'indexation : sans ça, un api_key_ref logique
-        # était droppé → embedding/LLM appelé avec api_key=None → 401 (BUG-024).
-        ref = harpo_path
-        if not is_vault_ref(ref):
-            if default_vault_name is None:
-                return None
-            ref = as_vault_ref(ref, default_vault_name)
-        vault_name, secret_path = parse_ref(ref)
-        async with config_pool.acquire() as conn:
-            vault = await vault_svc.get_by_name(conn, vault_name)
-        if vault is None:
-            return None
-        client = await client_provider.get_client(vault.api_key_id)
-        return await asyncio.to_thread(client.get_secret, secret_path)
+    _resolve_harpo = make_harpo_resolver(request)
 
     # 1. Workspace + indexer config
     async with config_pool.acquire() as conn:

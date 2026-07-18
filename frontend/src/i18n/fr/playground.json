@@ -2,7 +2,29 @@
   "tabs": {
     "config": "Config LLM",
     "chat": "Chat",
-    "chunkPreview": "Preview découpage"
+    "chunkPreview": "Preview découpage",
+    "search": "Recherche"
+  },
+  "search": {
+    "query_placeholder": "Requête de recherche…",
+    "run": "Rechercher",
+    "running": "Recherche…",
+    "error": "La recherche a échoué.",
+    "hybrid_disabled": "Recherche hybride non activée — le canal lexical est vide. Activez-la dans l'onglet Recherche du workspace.",
+    "sections": {
+      "fusion": "Fusion (RRF)",
+      "vector": "Canal vectoriel",
+      "lexical": "Canal lexical"
+    },
+    "rank": "#{{rank}}",
+    "empty_channel": "Aucun résultat.",
+    "simulation": {
+      "title": "Simulation des poids (côté client)",
+      "description": "Refusionne les deux canaux localement avec les poids ci-dessous, sans rappel serveur. Ajustez pour visualiser l'effet avant d'enregistrer dans l'onglet Recherche du workspace.",
+      "weightVector": "Poids vectoriel (simulation)",
+      "weightLexical": "Poids lexical (simulation)",
+      "resultTitle": "Fusion simulée"
+    }
   },
   "config": {
     "title": "Configurations LLM",

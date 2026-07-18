@@ -2,7 +2,29 @@
   "tabs": {
     "config": "LLM Config",
     "chat": "Chat",
-    "chunkPreview": "Chunking preview"
+    "chunkPreview": "Chunking preview",
+    "search": "Search"
+  },
+  "search": {
+    "query_placeholder": "Search query\u2026",
+    "run": "Search",
+    "running": "Searching\u2026",
+    "error": "Search failed.",
+    "hybrid_disabled": "Hybrid search is not enabled \u2014 the lexical channel is empty. Enable it in the workspace Search tab.",
+    "sections": {
+      "fusion": "Fusion (RRF)",
+      "vector": "Vector channel",
+      "lexical": "Lexical channel"
+    },
+    "rank": "#{{rank}}",
+    "empty_channel": "No results.",
+    "simulation": {
+      "title": "Weight simulation (client-side)",
+      "description": "Re-merges both channels locally with the weights below, without calling the server. Adjust to visualize the effect before saving in the workspace Search tab.",
+      "weightVector": "Vector weight (simulation)",
+      "weightLexical": "Lexical weight (simulation)",
+      "resultTitle": "Simulated fusion"
+    }
   },
   "config": {
     "title": "LLM Configurations",

@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlaygroundLlmConfigTab } from "./PlaygroundLlmConfigTab";
 import { PlaygroundChatTab } from "./PlaygroundChatTab";
 import { PlaygroundChunkPreviewTab } from "./PlaygroundChunkPreviewTab";
+import { PlaygroundSearchTab } from "./PlaygroundSearchTab";
 
 interface Props {
   workspaceName: string;
@@ -19,6 +20,7 @@ export function WorkspacePlaygroundTab({ workspaceName }: Props) {
         <TabsTrigger value="chat">{t("tabs.chat")}</TabsTrigger>
         <TabsTrigger value="config">{t("tabs.config")}</TabsTrigger>
         <TabsTrigger value="chunk-preview">{t("tabs.chunkPreview")}</TabsTrigger>
+        <TabsTrigger value="search">{t("tabs.search")}</TabsTrigger>
       </TabsList>
       <TabsContent value="chat" className="pt-4">
         <PlaygroundChatTab workspaceName={workspaceName} />
@@ -28,6 +30,9 @@ export function WorkspacePlaygroundTab({ workspaceName }: Props) {
       </TabsContent>
       <TabsContent value="chunk-preview" className="pt-4">
         <PlaygroundChunkPreviewTab workspaceName={workspaceName} />
+      </TabsContent>
+      <TabsContent value="search" className="pt-4">
+        <PlaygroundSearchTab workspaceName={workspaceName} />
       </TabsContent>
     </Tabs>
   );
