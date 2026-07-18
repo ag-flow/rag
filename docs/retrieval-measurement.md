@@ -13,13 +13,20 @@ les `path` attendus dans les résultats. Stocker le set dans le repo du corpus
 
 ## 2. Mesurer la base
 
-Pour chaque question, appeler la recherche MCP (`search`, top_k=10) et
-calculer :
+Outillé par `scripts/retrieval_bench.py` :
+
+```bash
+uv run --project backend python scripts/retrieval_bench.py \
+    --base-url http://192.168.10.184 --workspace docflow \
+    --golden golden/docflow.yaml --api-key <clé user can_read>
+```
 
 - **hit@5** : proportion de questions dont un path attendu est dans le top 5 ;
-- **MRR@10** : moyenne de `1/rang` du premier path attendu.
+- **MRR@10** : moyenne de `1/rang` du premier path attendu (match sur `path`
+  ou `source_path`).
 
 Trois passes (le reranking peut varier), moyenne. C'est la référence.
+Format du golden set : `golden/queries.example.yaml`.
 
 ## 3. Activer de façon ciblée
 
