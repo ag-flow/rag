@@ -19,18 +19,21 @@ vi.mock("@/hooks/useModels", () => ({
         model: "text-embedding-3-small",
         dimension: 1536,
         created_at: "2026-05-15T00:00:00Z",
+        is_system: true,
       },
       {
         provider: "openai",
         model: "text-embedding-3-large",
         dimension: 3072,
         created_at: "2026-05-15T00:00:00Z",
+        is_system: true,
       },
       {
         provider: "ollama",
         model: "nomic-embed-text",
         dimension: 768,
         created_at: "2026-05-15T00:00:00Z",
+        is_system: false,
       },
     ],
     isLoading: false,
@@ -76,5 +79,13 @@ describe("ModelsPage", () => {
     expect(screen.getByText("text-embedding-3-small")).toBeInTheDocument();
     expect(screen.getByText("text-embedding-3-large")).toBeInTheDocument();
     expect(screen.getByText("nomic-embed-text")).toBeInTheDocument();
+  });
+
+  it("badge Système sur les modèles du catalogue, suppression réservée aux modèles possédés", () => {
+    renderPage();
+    // 2 modèles système → 2 badges ; le modèle utilisateur n'en a pas.
+    expect(screen.getAllByText("Système")).toHaveLength(2);
+    // Un seul menu d'actions (le modèle utilisateur) : les système n'en ont pas.
+    expect(document.querySelectorAll('[aria-haspopup="menu"]')).toHaveLength(1);
   });
 });

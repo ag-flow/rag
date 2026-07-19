@@ -6,6 +6,8 @@ export type ModelEntry = {
   model: string;
   dimension: number;
   created_at: string;
+  /** true = catalogue système (seeds), immuable ; false = modèle de l'utilisateur. */
+  is_system: boolean;
 };
 
 export type ModelCreateRequest = {

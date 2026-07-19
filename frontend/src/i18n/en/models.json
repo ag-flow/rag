@@ -9,7 +9,8 @@
   },
   "row": {
     "dim": "dim {{dimension}}",
-    "delete": "Delete"
+    "delete": "Delete",
+    "system": "System"
   },
   "time": {
     "now": "just now",

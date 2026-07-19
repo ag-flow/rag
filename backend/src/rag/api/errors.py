@@ -243,6 +243,25 @@ class ModelInUse(AdminError):
         }
 
 
+class ModelNotOwned(AdminError):
+    """Modèle du catalogue système (immuable) ou d'un autre utilisateur."""
+
+    http_status = 403
+
+    def __init__(self, provider: str, model: str, *, is_system: bool) -> None:
+        super().__init__(provider, model)
+        self.provider = provider
+        self.model = model
+        self.is_system = is_system
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "error": "model_system_immutable" if self.is_system else "model_not_owned",
+            "provider": self.provider,
+            "model": self.model,
+        }
+
+
 class PatchFieldNotAllowed(AdminError):
     http_status = 422
 
@@ -411,7 +430,10 @@ class SetupRequired(AdminError):
     http_status = 503
 
     def to_payload(self) -> dict[str, object]:
-        return {"error": "setup_required", "message": "Aucun utilisateur — complétez le wizard de premier démarrage"}
+        return {
+            "error": "setup_required",
+            "message": "Aucun utilisateur — complétez le wizard de premier démarrage",
+        }
 
 
 class LocalAuthInvalidCredentials(AdminError):

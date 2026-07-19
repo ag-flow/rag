@@ -9,7 +9,8 @@
   },
   "row": {
     "dim": "dim {{dimension}}",
-    "delete": "Supprimer"
+    "delete": "Supprimer",
+    "system": "Système"
   },
   "time": {
     "now": "à l'instant",

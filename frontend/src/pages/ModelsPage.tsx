@@ -214,24 +214,31 @@ export function ModelsPage() {
                               <PriceBadge pricingEntry={pricingEntry} />
                               <StatutBadge statut={pricingEntry?.statut} />
                               <TypeBadge type={pricingEntry?.type} />
+                              {entry.is_system && (
+                                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                                  {t("row.system")}
+                                </span>
+                              )}
                             </div>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button size="sm" variant="ghost" className="px-2">
-                                  <MoreHorizontal className="h-3.5 w-3.5" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onSelect={() =>
-                                    setToDelete({ provider: entry.provider, model: entry.model })
-                                  }
-                                  className="text-red-600"
-                                >
-                                  {t("row.delete")}
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            {!entry.is_system && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button size="sm" variant="ghost" className="px-2">
+                                    <MoreHorizontal className="h-3.5 w-3.5" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onSelect={() =>
+                                      setToDelete({ provider: entry.provider, model: entry.model })
+                                    }
+                                    className="text-red-600"
+                                  >
+                                    {t("row.delete")}
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
                           </div>
                           {description && (
                             <p className="mt-0.5 text-xs text-slate-400 pl-0">{description}</p>

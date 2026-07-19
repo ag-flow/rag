@@ -46,6 +46,10 @@ def test_delete_model_409_in_use(
         headers=admin_headers,
         json={"name": "ws_uses_model", "endpoint_id": admin_client.default_endpoint_id},
     )
-    r = admin_client.delete("/api/admin/models/openai/text-embedding-3-small", headers=admin_headers)
-    assert r.status_code == 409
-    assert r.json()["error"] == "model_in_use"
+    # Depuis la migration 064 les seeds sont du catalogue système (owner NULL) :
+    # la garde d'immutabilité passe AVANT le contrôle « in use ».
+    r = admin_client.delete(
+        "/api/admin/models/openai/text-embedding-3-small", headers=admin_headers
+    )
+    assert r.status_code == 403
+    assert r.json()["error"] == "model_system_immutable"

@@ -243,6 +243,8 @@ class ModelEntry(BaseModel):
     model: str = Field(min_length=1)
     dimension: int = Field(gt=0)
     created_at: str | None = None
+    # Sortie uniquement : owner_id NULL en base = catalogue système, immuable.
+    is_system: bool = False
 
 
 class RerankSpec(BaseModel):
