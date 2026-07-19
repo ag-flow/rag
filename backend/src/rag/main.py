@@ -28,6 +28,7 @@ from rag.api.admin_vault_endpoints import router as admin_vault_endpoints_router
 from rag.api.admin_webhooks import build_webhooks_router
 from rag.api.auth import build_auth_router
 from rag.api.auth_methods import build_auth_methods_router
+from rag.api.contracts import build_contracts_router
 from rag.api.enrichments import router_languages as enrichment_languages_router
 from rag.api.enrichments import router_prompts as enrichment_prompts_router
 from rag.api.enrichments import router_triggers as enrichment_triggers_router
@@ -248,6 +249,13 @@ def build_app(
     app = FastAPI(
         title="ag-flow.rag",
         version=version,
+        description=(
+            "Service d'infrastructure RAG — indexation de corpus git, recherche "
+            "hybride (vectorielle + lexicale) et outils MCP pour agents.\n\n"
+            "Contrats publics : index [/api/contracts](/api/contracts) — OpenAPI "
+            "(ce document) pour le REST, schéma des outils MCP sur "
+            "[/api/contracts/mcp-tools](/api/contracts/mcp-tools)."
+        ),
         lifespan=lifespan,
     )
     app.add_middleware(
@@ -257,6 +265,7 @@ def build_app(
         https_only=(settings.environment != "dev"),
     )
     app.include_router(build_health_router())
+    app.include_router(build_contracts_router())
     app.include_router(build_admin_router(), prefix="/api/admin")
     app.include_router(build_admin_oidc_router(), prefix="/api/admin")
     app.include_router(build_admin_auth_config_router(), prefix="/api/admin")

@@ -33,5 +33,6 @@
   "info": {
     "oidc_not_configured": "OIDC pas encore configuré. Loguez-vous avec le compte admin local pour le paramétrer.",
     "separator_or": "ou login admin local"
-  }
+  },
+  "contracts_link": "Contrats API"
 }

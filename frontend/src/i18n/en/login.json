@@ -33,5 +33,6 @@
   "info": {
     "oidc_not_configured": "OIDC is not configured yet. Sign in with the local admin account to set it up.",
     "separator_or": "or local admin login"
-  }
+  },
+  "contracts_link": "API contracts"
 }

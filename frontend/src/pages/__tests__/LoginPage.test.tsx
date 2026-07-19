@@ -110,6 +110,18 @@ describe("LoginPage", () => {
     expect(screen.queryByLabelText(/Password/i)).not.toBeInTheDocument();
   });
 
+  it("lien Contrats API en haut à droite, sur le login ET le wizard setup", () => {
+    mockMethods({ oidc_configured: true, local_auth_enabled: true, needs_setup: false });
+    const { unmount } = renderPage();
+    const link = screen.getByRole("link", { name: /Contrats API/i });
+    expect(link).toHaveAttribute("href", "/docs");
+    unmount();
+
+    mockMethods({ oidc_configured: false, local_auth_enabled: false, needs_setup: true });
+    renderPage();
+    expect(screen.getByRole("link", { name: /Contrats API/i })).toHaveAttribute("href", "/docs");
+  });
+
   it("oidc=false, local=false → message d'erreur 'no_method'", () => {
     mockMethods({ oidc_configured: false, local_auth_enabled: false, needs_setup: false });
     renderPage();
