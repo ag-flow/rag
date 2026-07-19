@@ -145,6 +145,59 @@ def render_report(
     return "\n".join(lines) + "\n"
 
 
+def search_debug(
+    client: httpx.Client, base_url: str, workspace: str, api_key: str, query: str, top_k: int
+) -> dict[str, Any]:
+    """Réponse COMPLÈTE de /mcp avec debug=true (results + channels, D8)."""
+    resp = client.post(
+        f"{base_url.rstrip('/')}/mcp",
+        json={
+            "workspace": workspace,
+            "api_key": api_key,
+            "query": query,
+            "top_k": top_k,
+            "debug": True,
+        },
+        timeout=60.0,
+    )
+    resp.raise_for_status()
+    return dict(resp.json())
+
+
+def render_diagnosis(
+    failures: list[tuple[dict[str, Any], dict[str, Any]]], *, workspace: str, top_k: int
+) -> str:
+    """Dossier de diagnostic par échec (SR1.3) — la matière brute de l'agent
+    diagnosticien : requête, attendu, fusion ET listes par canal (D8)."""
+    lines = [
+        "# Dossier de diagnostic des échecs",
+        "",
+        f"- Workspace : `{workspace}` — top_k={top_k}",
+        f"- {len(failures)} échec(s) — un bloc par question, à donner tel quel",
+        "  à l'agent diagnosticien (prompts v1, bloc Recherche).",
+    ]
+    for entry, payload in failures:
+        expected = entry.get("expected_paths") or entry.get("expected_path_contains")
+        lines += [
+            "",
+            f"## {entry['query']}",
+            "",
+            f"- famille : {entry.get('family', 'sans-famille')} — attendu : {expected}",
+            "- fusion (top hits) :",
+        ]
+        for h in payload.get("results", []):
+            lines.append(f"  - {h['path']}#{h['chunk_index']} score={h['score']:.3f}")
+        channels = payload.get("channels") or {}
+        for name in ("vector", "lexical"):
+            lines.append(f"- canal {name} :")
+            hits = channels.get(name) or []
+            if not hits:
+                lines.append("  - (vide)")
+            for h in hits[:10]:
+                lines.append(f"  - rang {h['rank']} : {h['path']}#{h['chunk_index']}")
+    return "\n".join(lines) + "\n"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--base-url", required=True)
@@ -154,6 +207,11 @@ def main() -> None:
     parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K)
     parser.add_argument("--passes", type=int, default=DEFAULT_PASSES)
     parser.add_argument("--report", help="chemin du rapport markdown (bloc Recherche)")
+    parser.add_argument(
+        "--diagnose",
+        help="chemin du dossier de diagnostic : re-joue chaque échec de la "
+        "dernière passe avec debug=true et dumpe fusion + canaux (SR1.3)",
+    )
     args = parser.parse_args()
     if not args.api_key:
         sys.exit("clé API requise : --api-key ou env RAG_BENCH_API_KEY")
@@ -183,6 +241,28 @@ def main() -> None:
         with open(args.report, "w", encoding="utf-8") as fh:
             fh.write(report)
         print(f"Rapport écrit : {args.report}")
+
+    if args.diagnose:
+        failed = [(golden[i]) for i, r in enumerate(all_ranks[-1]) if r is None]
+        with httpx.Client() as client:
+            failures = [
+                (
+                    entry,
+                    search_debug(
+                        client,
+                        args.base_url,
+                        args.workspace,
+                        args.api_key,
+                        entry["query"],
+                        args.top_k,
+                    ),
+                )
+                for entry in failed
+            ]
+        diagnosis = render_diagnosis(failures, workspace=args.workspace, top_k=args.top_k)
+        with open(args.diagnose, "w", encoding="utf-8") as fh:
+            fh.write(diagnosis)
+        print(f"Diagnostic écrit : {args.diagnose} ({len(failures)} échec(s))")
 
 
 if __name__ == "__main__":
