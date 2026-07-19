@@ -8,7 +8,7 @@
 #   2. Crée .env depuis .env.example si absent (+ secrets aléatoires)
 #   3. Build les images locales (backend ; frontend skippé tant que M5 pas commencé)
 #   4. Down de la stack (avec -v si --reset)
-#   5. Pull images registry (postgres + caddy + pgweb) + up -d
+#   5. Pull images registry (postgres + caddy + pgweb + alloy) + up -d
 #   Final : attend que /health réponde et affiche /version (timeout 60s)
 #
 # Usage :
@@ -301,14 +301,14 @@ fi
 
 # ─── 5) Pull images registry restantes (postgres) puis up ──────────────────
 
-echo "[5/5] Pull images registry (postgres + caddy + pgweb)..."
+echo "[5/5] Pull images registry (postgres + caddy + pgweb + alloy)..."
 # On pull SEULEMENT les services tiers (services avec `image:` pur, sans `build:`).
 # Les services rag-backend et rag-frontend ont à la fois `image:` et `build:` :
 # `docker compose pull` SANS argument tente quand même de les pull depuis le
 # registry (qui n'existe pas — images custom buildées localement en étape [3/5])
 # et affiche des erreurs « pull access denied » qui polluent la sortie sans
 # bloquer le déploiement. On préfère lister explicitement les services tiers.
-docker compose -f "$COMPOSE_FILE" pull postgres caddy pgweb || true
+docker compose -f "$COMPOSE_FILE" pull postgres caddy pgweb alloy || true
 
 echo "      Démarrage de la stack..."
 # Expose le SHA git courant au compose (variable interpolée dans
