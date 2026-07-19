@@ -4,15 +4,21 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from rag.api.mcp_standard import RagMcpDispatcher, _extract_workspace_id, _extract_bearer
+from rag.api.mcp_standard import RagMcpDispatcher, _extract_bearer, _extract_workspace_id
 
 
 def test_extract_workspace_id_valid() -> None:
-    assert _extract_workspace_id("/550e8400-e29b-41d4-a716-446655440000") == "550e8400-e29b-41d4-a716-446655440000"
+    assert (
+        _extract_workspace_id("/550e8400-e29b-41d4-a716-446655440000")
+        == "550e8400-e29b-41d4-a716-446655440000"
+    )
 
 
 def test_extract_workspace_id_with_trailing() -> None:
-    assert _extract_workspace_id("/550e8400-e29b-41d4-a716-446655440000/mcp") == "550e8400-e29b-41d4-a716-446655440000"
+    assert (
+        _extract_workspace_id("/550e8400-e29b-41d4-a716-446655440000/mcp")
+        == "550e8400-e29b-41d4-a716-446655440000"
+    )
 
 
 def test_extract_workspace_id_empty_returns_none() -> None:

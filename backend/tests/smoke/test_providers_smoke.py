@@ -16,7 +16,6 @@ from __future__ import annotations
 import os
 
 import pytest
-
 from rag.indexer.providers.ollama import OllamaProvider
 from rag.indexer.providers.openai import OpenAIProvider
 from rag.indexer.providers.voyage import VoyageProvider

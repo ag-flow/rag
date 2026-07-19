@@ -18,15 +18,15 @@ class FakeVaultClient:
         return self._secrets[path]
 
 
-class FakeSecretNotFound(Exception):
+class FakeSecretNotFoundError(Exception):
     """Simule harpocrate.exceptions.SecretNotFound sans dépendre du SDK."""
 
 
 class FakeVaultClientRaisesSecretNotFound:
-    """Client vault dont get_secret lève FakeSecretNotFound (simule le SDK)."""
+    """Client vault dont get_secret lève FakeSecretNotFoundError (simule le SDK)."""
 
     def get_secret(self, path: str) -> str:
-        raise FakeSecretNotFound(f"secret missing: {path}")
+        raise FakeSecretNotFoundError(f"secret missing: {path}")
 
 
 async def test_resolver_uses_correct_vault_client() -> None:
@@ -68,14 +68,14 @@ async def test_resolver_secret_not_found_sdk_converted_to_vault_lookup_failed(
     Le resolver est la couche d'anti-corruption responsable de ce mapping : les
     couches au-dessus (workspaces, sources, jobs) ne voient jamais SecretNotFound.
     On simule le SDK via monkeypatch : harpocrate.exceptions.SecretNotFound est
-    remplacé par FakeSecretNotFound, et le client vault lève cette exception.
+    remplacé par FakeSecretNotFoundError, et le client vault lève cette exception.
     """
     import sys
     import types
 
     # Crée un module fictif harpocrate.exceptions exposant SecretNotFound.
     fake_module = types.ModuleType("harpocrate.exceptions")
-    fake_module.SecretNotFound = FakeSecretNotFound  # type: ignore[attr-defined]
+    fake_module.SecretNotFound = FakeSecretNotFoundError  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "harpocrate.exceptions", fake_module)
 
     client = FakeVaultClientRaisesSecretNotFound()

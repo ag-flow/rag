@@ -147,7 +147,9 @@ def build_auth_router() -> APIRouter:
         if email is None:
             log.warning("auth.local.login.failure", username=payload.username)
             raise LocalAuthInvalidCredentials()
-        request.session[_LOCAL_SESSION_KEY] = local_auth.build_session_payload(payload.username, email)
+        request.session[_LOCAL_SESSION_KEY] = local_auth.build_session_payload(
+            payload.username, email
+        )
         log.info("auth.local.login.success", username=payload.username)
         return LocalLoginResponse()
 

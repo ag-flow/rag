@@ -48,7 +48,9 @@ def build_setup_router() -> APIRouter:
                 password_hash,
             )
 
-        request.session[_LOCAL_SESSION_KEY] = local_auth.build_session_payload(payload.username, payload.email)
+        request.session[_LOCAL_SESSION_KEY] = local_auth.build_session_payload(
+            payload.username, payload.email
+        )
         log.info("setup.init_admin.done", username=payload.username)
         return InitAdminResponse()
 

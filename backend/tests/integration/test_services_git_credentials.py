@@ -114,15 +114,17 @@ async def test_create_duplicate_raises(pool: asyncpg.Pool) -> None:
                 req=GitCredentialCreate(key_id="dup", label="L", host="gitlab", value="v"),
             )
 
-    with patch("rag.services.git_credentials.HarpocrateVaultClient"):
-        with pytest.raises(DuplicateGitCredentialError):
-            async with pool.acquire() as conn:
-                await create_git_credential(
-                    conn,
-                    vault=vault,
-                    vault_svc=svc,
-                    req=GitCredentialCreate(key_id="dup", label="L2", host="gitlab", value="v2"),
-                )
+    with (
+        patch("rag.services.git_credentials.HarpocrateVaultClient"),
+        pytest.raises(DuplicateGitCredentialError),
+    ):
+        async with pool.acquire() as conn:
+            await create_git_credential(
+                conn,
+                vault=vault,
+                vault_svc=svc,
+                req=GitCredentialCreate(key_id="dup", label="L2", host="gitlab", value="v2"),
+            )
 
 
 async def test_update_label_and_scope(pool: asyncpg.Pool) -> None:

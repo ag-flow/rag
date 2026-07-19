@@ -18,7 +18,10 @@ from rag.services.ssh_keys import (
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
-_SAMPLE_PRIVATE_KEY = "-----BEGIN OPENSSH PRIVATE KEY-----\nfake_private_key_data\n-----END OPENSSH PRIVATE KEY-----\n"
+_SAMPLE_PRIVATE_KEY = (
+    "-----BEGIN OPENSSH PRIVATE KEY-----\nfake_private_key_data\n"
+    "-----END OPENSSH PRIVATE KEY-----\n"
+)
 _SAMPLE_PUBLIC_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHRlc3RfdGVzdA== test@test"
 
 
@@ -119,7 +122,9 @@ async def test_generate_ed25519(pool: asyncpg.Pool) -> None:
                 conn,
                 vault=vault,
                 vault_svc=svc,
-                req=SshKeyGenerate(key_id="gen-ed25519", name="Generated Ed25519", key_type="ed25519"),
+                req=SshKeyGenerate(
+                    key_id="gen-ed25519", name="Generated Ed25519", key_type="ed25519"
+                ),
             )
 
     assert created.key_type == "ed25519"
@@ -156,7 +161,9 @@ async def test_generate_ecdsa256(pool: asyncpg.Pool) -> None:
                 conn,
                 vault=vault,
                 vault_svc=svc,
-                req=SshKeyGenerate(key_id="gen-ecdsa", name="Generated ECDSA", key_type="ecdsa-256"),
+                req=SshKeyGenerate(
+                    key_id="gen-ecdsa", name="Generated ECDSA", key_type="ecdsa-256"
+                ),
             )
 
     assert created.key_type == "ecdsa-256"
@@ -181,20 +188,19 @@ async def test_duplicate_key_id_raises(pool: asyncpg.Pool) -> None:
                 ),
             )
 
-    with patch("rag.services.ssh_keys.HarpocrateVaultClient"):
-        with pytest.raises(DuplicateSshKeyError):
-            async with pool.acquire() as conn:
-                await import_ssh_key(
-                    conn,
-                    vault=vault,
-                    vault_svc=svc,
-                    req=SshKeyImport(
-                        key_id="dup",
-                        name="Second",
-                        private_key=_SAMPLE_PRIVATE_KEY,
-                        public_key=_SAMPLE_PUBLIC_KEY,
-                    ),
-                )
+    with patch("rag.services.ssh_keys.HarpocrateVaultClient"), pytest.raises(DuplicateSshKeyError):
+        async with pool.acquire() as conn:
+            await import_ssh_key(
+                conn,
+                vault=vault,
+                vault_svc=svc,
+                req=SshKeyImport(
+                    key_id="dup",
+                    name="Second",
+                    private_key=_SAMPLE_PRIVATE_KEY,
+                    public_key=_SAMPLE_PUBLIC_KEY,
+                ),
+            )
 
 
 async def test_delete_ssh_key(pool: asyncpg.Pool) -> None:

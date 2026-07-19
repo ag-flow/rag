@@ -3,13 +3,11 @@ from __future__ import annotations
 import hashlib
 from unittest.mock import MagicMock
 
-import pytest
-
 from rag.auth.owner import _SYSTEM_OWNER_EMAIL, email_to_owner_id, get_current_owner_id
 
 
 def test_email_to_owner_id_is_sha256_lower() -> None:
-    expected = hashlib.sha256("admin@rag.io".encode()).hexdigest()
+    expected = hashlib.sha256(b"admin@rag.io").hexdigest()
     assert email_to_owner_id("admin@rag.io") == expected
 
 

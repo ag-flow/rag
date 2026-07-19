@@ -33,7 +33,9 @@ async def test_run_enrichments_passes_extra_metadata_to_index_file():
     indexer = MagicMock()
     indexer.index_file = AsyncMock(return_value=1)
 
-    with patch("rag.services.enrichments.call_llm", AsyncMock(return_value={"answer": "fn_a, fn_b"})):
+    with patch(
+        "rag.services.enrichments.call_llm", AsyncMock(return_value={"answer": "fn_a, fn_b"})
+    ):
         await run_enrichments(
             conn=conn,
             workspace_id=ws_id,

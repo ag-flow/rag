@@ -121,7 +121,7 @@ class EmbeddingProviderAdapter:
         provider) sert de plancher ; le tout est plafonné à _MAX_RETRY_SLEEP.
         """
         base = self._retry_sleep * (2**attempt)
-        jittered = random.uniform(0.0, base)
+        jittered = random.uniform(0.0, base)  # noqa: S311 — jitter de retry, pas de crypto
         delay = max(jittered, retry_after or 0.0)
         return min(delay, _MAX_RETRY_SLEEP_SECONDS)
 
