@@ -1,0 +1,32 @@
+{
+  "page_title": "Push activity",
+  "description": "Historique global des jobs d'indexation, tous workspaces confondus.",
+  "filters": {
+    "workspace_label": "Filtrer par workspace",
+    "all_workspaces": "Tous les workspaces",
+    "status_label": "Filtrer par statut",
+    "all_statuses": "Tous les statuts"
+  },
+  "table": {
+    "workspace": "Workspace",
+    "trigger": "Déclencheur",
+    "status": "Statut",
+    "files": "Fichiers",
+    "date": "Date"
+  },
+  "files_summary": "{{changed}} modifiés / {{skipped}} ignorés",
+  "status": {
+    "pending": "En attente",
+    "running": "En cours",
+    "done": "Terminé",
+    "error": "Erreur"
+  },
+  "empty": "Aucun job d'indexation.",
+  "error": "Impossible de charger les jobs.",
+  "time": {
+    "justNow": "à l'instant",
+    "minutesAgo": "il y a {{count}} min",
+    "hoursAgo": "il y a {{count}} h",
+    "daysAgo": "il y a {{count}} j"
+  }
+}

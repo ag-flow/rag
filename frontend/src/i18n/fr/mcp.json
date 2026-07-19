@@ -1,0 +1,14 @@
+{
+  "page_title": "Recherche MCP",
+  "description": "Interroge la recherche sémantique d'un workspace, telle qu'exposée aux agents.",
+  "workspace_label": "Workspace",
+  "workspace_placeholder": "Choisir un workspace…",
+  "query_placeholder": "Requête de recherche…",
+  "top_k_label": "Top K",
+  "run": "Rechercher",
+  "running": "Recherche…",
+  "error": "La recherche a échoué.",
+  "hybrid_disabled": "Recherche hybride non activée sur ce workspace — le canal lexical est vide.",
+  "mcp_note": "Cette page utilise la même recherche que les agents MCP.",
+  "mcp_contract_link": "Contrat des outils MCP"
+}

@@ -1,0 +1,32 @@
+{
+  "page_title": "Push activity",
+  "description": "Global history of indexing jobs across all workspaces.",
+  "filters": {
+    "workspace_label": "Filter by workspace",
+    "all_workspaces": "All workspaces",
+    "status_label": "Filter by status",
+    "all_statuses": "All statuses"
+  },
+  "table": {
+    "workspace": "Workspace",
+    "trigger": "Trigger",
+    "status": "Status",
+    "files": "Files",
+    "date": "Date"
+  },
+  "files_summary": "{{changed}} changed / {{skipped}} skipped",
+  "status": {
+    "pending": "Pending",
+    "running": "Running",
+    "done": "Done",
+    "error": "Error"
+  },
+  "empty": "No indexing job.",
+  "error": "Failed to load jobs.",
+  "time": {
+    "justNow": "just now",
+    "minutesAgo": "{{count}} min ago",
+    "hoursAgo": "{{count}} h ago",
+    "daysAgo": "{{count}} d ago"
+  }
+}

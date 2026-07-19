@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel as _PydanticBase
 
@@ -16,6 +16,7 @@ from rag.schemas.admin import (
     DefaultStrategySpec,
     EngineResponse,
     EngineSpec,
+    GlobalJobResponse,
     HybridConfigResponse,
     HybridConfigSpec,
     JobFilesResponse,
@@ -348,6 +349,23 @@ def build_admin_router() -> APIRouter:
             default_vault_name=default_vault,
         )
         return JobResponse(**row)
+
+    @router.get("/jobs")
+    async def get_all_jobs(
+        request: Request,
+        limit: int = Query(default=50, ge=1, le=200),
+        workspace: str | None = Query(default=None),
+        status_filter: str | None = Query(default=None, alias="status"),
+    ) -> list[GlobalJobResponse]:
+        from rag.services.jobs import list_jobs_global
+
+        rows = await list_jobs_global(
+            _config_pool(request),
+            limit=limit,
+            workspace=workspace,
+            status=status_filter,
+        )
+        return [GlobalJobResponse(**r) for r in rows]
 
     @router.get("/workspaces/{name}/jobs")
     async def get_jobs(name: str, request: Request) -> list[JobResponse]:

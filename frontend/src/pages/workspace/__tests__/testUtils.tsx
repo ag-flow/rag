@@ -15,6 +15,8 @@ import frHarpocrate from "@/i18n/fr/harpocrate.json";
 import frPlayground from "@/i18n/fr/playground.json";
 import frChunkingStrategies from "@/i18n/fr/chunking_strategies.json";
 import frPrompts from "@/i18n/fr/prompts.json";
+import frPush from "@/i18n/fr/push.json";
+import frMcp from "@/i18n/fr/mcp.json";
 
 import enCommon from "@/i18n/en/common.json";
 import enAuth from "@/i18n/en/auth.json";
@@ -25,6 +27,8 @@ import enHarpocrate from "@/i18n/en/harpocrate.json";
 import enPlayground from "@/i18n/en/playground.json";
 import enChunkingStrategies from "@/i18n/en/chunking_strategies.json";
 import enPrompts from "@/i18n/en/prompts.json";
+import enPush from "@/i18n/en/push.json";
+import enMcp from "@/i18n/en/mcp.json";
 
 // i18n instance isolée pour les tests, forcée en FR
 const testI18n = i18next.createInstance();
@@ -43,6 +47,8 @@ void testI18n.use(initReactI18next).init({
     "playground",
     "chunking_strategies",
     "prompts",
+    "push",
+    "mcp",
   ],
   defaultNS: "common",
   resources: {
@@ -56,6 +62,8 @@ void testI18n.use(initReactI18next).init({
       playground: frPlayground,
       chunking_strategies: frChunkingStrategies,
       prompts: frPrompts,
+      push: frPush,
+      mcp: frMcp,
     },
     en: {
       common: enCommon,
@@ -67,6 +75,8 @@ void testI18n.use(initReactI18next).init({
       playground: enPlayground,
       chunking_strategies: enChunkingStrategies,
       prompts: enPrompts,
+      push: enPush,
+      mcp: enMcp,
     },
   },
   interpolation: { escapeValue: false },

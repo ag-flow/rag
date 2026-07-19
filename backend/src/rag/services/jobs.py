@@ -121,6 +121,38 @@ async def list_jobs(config_pool: asyncpg.Pool, *, workspace_name: str) -> list[d
     return [_job_to_dict(r) for r in rows]
 
 
+async def list_jobs_global(
+    config_pool: asyncpg.Pool,
+    *,
+    limit: int = 50,
+    workspace: str | None = None,
+    status: str | None = None,
+) -> list[dict[str, Any]]:
+    """Liste globale cross-workspace des jobs, plus récents en premier (created_at DESC).
+
+    Jointure sur `workspaces` pour exposer `workspace_name`. Filtres optionnels
+    par nom de workspace et par status ; `limit` borné par le caller (API).
+    """
+    rows = await fetch_all(
+        config_pool,
+        """
+        SELECT j.id, j.triggered_by, j.status, j.files_changed, j.files_skipped,
+               j.error_message, j.started_at, j.finished_at, j.duration_ms,
+               w.name AS workspace_name
+        FROM index_jobs j
+        JOIN workspaces w ON w.id = j.workspace_id
+        WHERE ($1::text IS NULL OR w.name = $1)
+          AND ($2::text IS NULL OR j.status = $2)
+        ORDER BY j.created_at DESC, j.id DESC
+        LIMIT $3
+        """,
+        workspace,
+        status,
+        limit,
+    )
+    return [{**_job_to_dict(r), "workspace_name": r["workspace_name"]} for r in rows]
+
+
 async def list_job_files(
     config_pool: asyncpg.Pool, *, workspace_name: str, job_id: str, limit: int = 1000
 ) -> dict[str, Any]:

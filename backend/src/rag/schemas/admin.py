@@ -223,6 +223,12 @@ class JobResponse(BaseModel):
     duration_ms: int | None
 
 
+class GlobalJobResponse(JobResponse):
+    """Job de la liste globale cross-workspace (GET /api/admin/jobs)."""
+
+    workspace_name: str
+
+
 class JobFileEntry(BaseModel):
     path: str
     change_type: Literal["added", "modified", "deleted"]

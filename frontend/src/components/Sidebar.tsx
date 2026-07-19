@@ -106,8 +106,8 @@ export function Sidebar() {
         <div className="px-5 pt-4 pb-1 text-xs font-bold uppercase tracking-wider text-slate-600">
           {t("sections.usage")}
         </div>
-        <NavItem to="/push" icon={<Send />} label={t("items.push")} disabled />
-        <NavItem to="/mcp" icon={<Search />} label={t("items.mcp")} disabled />
+        <NavItem to="/push" icon={<Send />} label={t("items.push")} />
+        <NavItem to="/mcp" icon={<Search />} label={t("items.mcp")} />
 
         <div className="px-5 pt-4 pb-1 text-xs font-bold uppercase tracking-wider text-slate-600">
           {t("sections.configuration")}
