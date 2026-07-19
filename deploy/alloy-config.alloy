@@ -1,7 +1,7 @@
 // Collecteur Grafana Alloy — logs des conteneurs Docker de l'hôte → Loki.
 //
 // Piloté par deux variables d'environnement (fournies par le compose depuis .env) :
-//   LOKI_URL  — endpoint push Loki, ex. http://192.168.10.116:3100/loki/api/v1/push
+//   LOKI_URL  — endpoint push Loki, ex. http://192.168.10.164:3100/loki/api/v1/push
 //   HOSTNAME  — label `host` identifiant la machine (ex. rag-dev)
 //
 // Remplace ce fichier par ta propre config si besoin — le compose le monte tel quel
