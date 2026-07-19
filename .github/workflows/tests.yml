@@ -1,0 +1,94 @@
+# Suite de tests complète — sur chaque push dev/main + toutes les nuits.
+#
+# Le cron nocturne matérialise l'exigence « exécution récurrente de la suite
+# DB » (epic Finitions) : la base Postgres+pgvector est recréée à chaque run,
+# toute dérive de schéma ou de migration casse ici plutôt qu'en silence.
+
+name: Tests
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "17 3 * * *" # nocturne, heure creuse UTC
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: Backend (lint + unit + DB)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: rag_test
+          POSTGRES_PASSWORD: rag_test_ci
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rag_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_POSTGRES_HOST: 127.0.0.1
+      TEST_POSTGRES_PORT: "5432"
+      TEST_POSTGRES_USER: rag_test
+      TEST_POSTGRES_PASSWORD: rag_test_ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Ruff (lint)
+        run: uv run ruff check src/ tests/
+
+      - name: Unit tests
+        run: uv run pytest tests/unit -q
+
+      - name: DB tests (migrations + services + API)
+        run: uv run pytest tests/integration tests/api -q
+
+  frontend:
+    name: Frontend (tsc + vitest + eslint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: TypeScript strict
+        run: npx tsc --noEmit
+
+      - name: Vitest
+        run: npm test -- --run
+
+      - name: ESLint
+        run: npm run lint
