@@ -15,6 +15,7 @@ const baseConfig: ChunkingConfig = {
   workspace_id: "ws-1",
   ...baseSpec,
   default_strategy_id: null,
+  engine: "legacy",
   created_at: "2026-05-19T10:00:00Z",
   updated_at: "2026-05-19T10:00:00Z",
 };
@@ -107,6 +108,79 @@ describe("chunkingApi.upsert", () => {
       .mockResolvedValue(new Response(null, { status: 204 }));
     await chunkingApi.upsert("ws-1", baseSpec, false);
     expect(putRawSpy).toHaveBeenCalledWith("/api/admin/workspaces/ws-1/chunking-config", baseSpec);
+  });
+});
+
+describe("chunkingApi.setEngine", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("retourne {status: 'no_change'} sur 204", async () => {
+    const putRawSpy = vi
+      .spyOn(api, "putRaw")
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    const r = await chunkingApi.setEngine("ws-1", "structured", false);
+    expect(r).toEqual({ status: "no_change" });
+    expect(putRawSpy).toHaveBeenCalledWith("/api/admin/workspaces/ws-1/chunking-config/engine", {
+      engine: "structured",
+    });
+  });
+
+  it("retourne {status: 'updated', engine} sur 200", async () => {
+    vi.spyOn(api, "putRaw").mockResolvedValue(
+      new Response(JSON.stringify({ workspace_id: "ws-1", engine: "structured" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const r = await chunkingApi.setEngine("ws-1", "structured", false);
+    expect(r).toEqual({ status: "updated", engine: "structured" });
+  });
+
+  it("retourne {status: 'reindex_triggered', job} sur 202 avec confirm=true", async () => {
+    const job = {
+      id: "job-2",
+      triggered_by: "reindex_chunking_change",
+      status: "pending",
+      files_changed: 0,
+      files_skipped: 0,
+      error_message: null,
+      started_at: null,
+      finished_at: null,
+      duration_ms: null,
+    };
+    const putRawSpy = vi.spyOn(api, "putRaw").mockResolvedValue(
+      new Response(JSON.stringify(job), {
+        status: 202,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const r = await chunkingApi.setEngine("ws-1", "legacy", true);
+    expect(r.status).toBe("reindex_triggered");
+    if (r.status === "reindex_triggered") {
+      expect(r.job.id).toBe("job-2");
+    }
+    expect(putRawSpy).toHaveBeenCalledWith(
+      "/api/admin/workspaces/ws-1/chunking-config/engine?confirm=true",
+      { engine: "legacy" },
+    );
+  });
+
+  it("propage ApiError sur 409", async () => {
+    vi.spyOn(api, "putRaw").mockRejectedValue(
+      new ApiError(409, {
+        error: "chunking_change_requires_reindex",
+        workspace: "ws-1",
+        current: "legacy",
+        new: "structured",
+        action: "PUT /workspaces/ws-1/chunking-config/engine?confirm=true",
+      }),
+    );
+    await expect(chunkingApi.setEngine("ws-1", "structured", false)).rejects.toMatchObject({
+      status: 409,
+      body: { error: "chunking_change_requires_reindex" },
+    });
   });
 });
 

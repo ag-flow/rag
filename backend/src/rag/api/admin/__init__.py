@@ -672,6 +672,7 @@ def build_admin_router() -> APIRouter:
             overlap_chars=cfg["overlap_chars"],
             extras=cfg["extras"],
             default_strategy_id=cfg["default_strategy_id"],
+            engine=cfg["engine"],
             created_at=cfg["created_at"].isoformat(),
             updated_at=cfg["updated_at"].isoformat(),
         )
@@ -722,6 +723,7 @@ def build_admin_router() -> APIRouter:
                     min_chars=body["min_chars"],
                     overlap_chars=body["overlap_chars"],
                     extras=body["extras"],
+                    engine=body["engine"],
                     created_at=body["created_at"].isoformat(),
                     updated_at=body["updated_at"].isoformat(),
                 ).model_dump(mode="json"),

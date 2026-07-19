@@ -310,6 +310,20 @@
       "save": "Appliquer",
       "saved": "Stratégie par défaut mise à jour.",
       "error": "La mise à jour a échoué."
+    },
+    "engine": {
+      "badgeStructured": "Moteur : structured",
+      "legacyBanner": "Ce workspace utilise le moteur historique (caractères). Le moteur structured (stratégies, tokens, régions) est la référence.",
+      "structuredInfo": {
+        "body": "Les paramètres de découpage (tokens, nettoyage, régions) sont définis dans les stratégies du catalogue, sur la page Stratégies de chunking. Les affectations par extension se règlent dans l'onglet Triggers.",
+        "link": "Ouvrir le catalogue des stratégies"
+      },
+      "actions": {
+        "switchToStructured": "Passer au moteur structured",
+        "switchToLegacy": "Repasser au moteur legacy"
+      },
+      "switched": "Moteur de chunking mis à jour",
+      "error": "La bascule du moteur a échoué"
     }
   },
   "search": {

@@ -409,6 +409,9 @@ class ChunkingConfigResponse(BaseModel):
     overlap_chars: int
     extras: dict[str, Any]
     default_strategy_id: UUID | None = None
+    # Pipeline actif : 'structured' (stratégies par id, défaut depuis 065)
+    # ou 'legacy' (chars). Conditionne l'affichage de l'onglet Chunking.
+    engine: str = "structured"
     created_at: str
     updated_at: str
 

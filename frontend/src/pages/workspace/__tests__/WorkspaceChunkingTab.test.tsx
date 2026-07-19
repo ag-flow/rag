@@ -9,11 +9,13 @@ import type { ChunkingConfig } from "@/lib/chunking.types";
 import { ApiError } from "@/lib/api";
 
 const upsertMutate = vi.fn();
+const engineMutate = vi.fn();
 
 vi.mock("@/hooks/useChunking", () => ({
   useChunkingConfig: vi.fn(),
   useUpsertChunkingConfig: () => ({ mutate: upsertMutate, isPending: false }),
   useSetDefaultStrategy: () => ({ mutate: vi.fn(), isPending: false }),
+  useSetChunkingEngine: () => ({ mutate: engineMutate, isPending: false }),
 }));
 
 vi.mock("@/hooks/useChunkingStrategies", () => ({
@@ -50,6 +52,7 @@ const mockConfig: ChunkingConfig = {
   overlap_chars: 200,
   extras: {},
   default_strategy_id: null,
+  engine: "legacy",
   created_at: "2026-05-19T10:00:00Z",
   updated_at: "2026-05-19T10:00:00Z",
 };
@@ -64,6 +67,7 @@ function mockState(data: ChunkingConfig | undefined, isLoading = false) {
 describe("WorkspaceChunkingTab", () => {
   beforeEach(() => {
     upsertMutate.mockReset();
+    engineMutate.mockReset();
     toastMock.mockReset();
   });
 

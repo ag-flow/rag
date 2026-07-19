@@ -1,6 +1,7 @@
 import { api } from "@/lib/api";
 import type {
   ChunkingConfig,
+  ChunkingEngine,
   ChunkingSpec,
   ChunkingChangeRequiresReindexBody,
 } from "@/lib/chunking.types";
@@ -16,6 +17,11 @@ export type UpsertChunkingResult =
 export type SetDefaultStrategyResult =
   | { status: "no_change" }
   | { status: "updated"; default_strategy_id: string | null }
+  | { status: "reindex_triggered"; job: Job };
+
+export type SetEngineResult =
+  | { status: "no_change" }
+  | { status: "updated"; engine: ChunkingEngine }
   | { status: "reindex_triggered"; job: Job };
 
 export const chunkingApi = {
@@ -43,6 +49,30 @@ export const chunkingApi = {
       return { status: "reindex_triggered", job };
     }
     throw new Error(`Unexpected status ${res.status} from PUT default-strategy`);
+  },
+
+  /**
+   * PUT /chunking-config/engine?confirm= — bascule du moteur de chunking
+   * (`legacy` ↔ `structured`). Même protocole que `upsert` : 204 / 200 / 202,
+   * 409 propagé pour le dialog de réindexation.
+   */
+  setEngine: async (
+    name: string,
+    engine: ChunkingEngine,
+    confirm: boolean = false,
+  ): Promise<SetEngineResult> => {
+    const url = `${base(name)}/engine${confirm ? "?confirm=true" : ""}`;
+    const res = await api.putRaw(url, { engine });
+    if (res.status === 204) return { status: "no_change" };
+    if (res.status === 200) {
+      const body = (await res.json()) as { workspace_id: string; engine: ChunkingEngine };
+      return { status: "updated", engine: body.engine };
+    }
+    if (res.status === 202) {
+      const job = (await res.json()) as Job;
+      return { status: "reindex_triggered", job };
+    }
+    throw new Error(`Unexpected status ${res.status} from PUT engine`);
   },
 
   /**

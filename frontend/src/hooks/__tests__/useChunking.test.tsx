@@ -18,6 +18,7 @@ const baseConfig: ChunkingConfig = {
   workspace_id: "ws-1",
   ...baseSpec,
   default_strategy_id: null,
+  engine: "legacy",
   created_at: "2026-05-19T10:00:00Z",
   updated_at: "2026-05-19T10:00:00Z",
 };

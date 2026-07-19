@@ -310,6 +310,20 @@
       "save": "Apply",
       "saved": "Default strategy updated.",
       "error": "Update failed."
+    },
+    "engine": {
+      "badgeStructured": "Engine: structured",
+      "legacyBanner": "This workspace uses the historical engine (characters). The structured engine (strategies, tokens, regions) is the reference.",
+      "structuredInfo": {
+        "body": "Chunking parameters (tokens, cleaning, regions) are defined in the catalog strategies, on the Chunking strategies page. Per-extension assignments are configured in the Triggers tab.",
+        "link": "Open the strategies catalog"
+      },
+      "actions": {
+        "switchToStructured": "Switch to the structured engine",
+        "switchToLegacy": "Switch back to the legacy engine"
+      },
+      "switched": "Chunking engine updated",
+      "error": "Engine switch failed"
     }
   },
   "search": {
