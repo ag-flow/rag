@@ -23,6 +23,8 @@ def _make_ctx(config_pool=None, pool_registry=None) -> _WsCtx:
         resolver=MagicMock(),
         workspace_id=uuid4(),
         config_pool=config_pool,
+        owner_id="owner-1",
+        can_write=False,
     )
 
 

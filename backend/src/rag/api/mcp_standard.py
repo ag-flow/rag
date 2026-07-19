@@ -36,6 +36,8 @@ class _WsCtx:
     resolver: Any
     workspace_id: UUID
     config_pool: asyncpg.Pool
+    owner_id: str
+    can_write: bool
     default_vault_name: str | None = None
 
 
@@ -317,6 +319,14 @@ async def get_document(path: str) -> str:
     return f"{header}\n\n{result['content']}"
 
 
+# ── Outils de bibliothèque (stratégies de chunking + templates de prompts) ──
+# Import en bas de fichier : les outils ont besoin du singleton `_mcp` et du
+# ContextVar `_ws_ctx` déjà définis, sans créer d'import circulaire.
+from rag.api.mcp_library_tools import register_library_tools  # noqa: E402
+
+register_library_tools(_mcp, _ws_ctx)
+
+
 def build_mcp_asgi() -> Starlette:
     """Retourne l'app Starlette FastMCP (stateless). Appelé une seule fois."""
     return _mcp.streamable_http_app()
@@ -426,7 +436,8 @@ class RagMcpDispatcher:
                    ic.provider, ic.model,
                    ic.api_key_ref AS indexer_api_key_ref,
                    ic.base_url,
-                   md.service
+                   md.service,
+                   k.owner_id, g.can_write
             FROM workspaces w
             JOIN user_api_key_workspaces g ON g.workspace_id = w.id
             JOIN user_api_keys k ON k.id = g.api_key_id
@@ -466,6 +477,8 @@ class RagMcpDispatcher:
             resolver=self._resolver,
             workspace_id=UUID(workspace_id),
             config_pool=self._config_pool,
+            owner_id=str(row["owner_id"]),
+            can_write=bool(row["can_write"]),
             default_vault_name=default_vault_name,
         )
 

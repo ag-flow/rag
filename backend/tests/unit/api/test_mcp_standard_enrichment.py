@@ -24,6 +24,8 @@ class TestWsCtxExtended:
             resolver=MagicMock(),
             workspace_id=ws_id,
             config_pool=pool,
+            owner_id="owner-1",
+            can_write=False,
         )
         assert ctx.workspace_id == ws_id
         assert ctx.config_pool is pool
@@ -45,6 +47,7 @@ class TestRagSearchEnrichmentParams:
             indexer_api_key_ref=None, indexer_base_url=None,
             pool_registry=pool_registry, resolver=MagicMock(),
             workspace_id=ws_id, config_pool=pool,
+            owner_id="owner-1", can_write=False,
         )
         token = _ws_ctx.set(ctx)
         try:
@@ -81,6 +84,7 @@ class TestRagSearchEnrichmentParams:
             indexer_api_key_ref=None, indexer_base_url=None,
             pool_registry=pool_registry, resolver=MagicMock(),
             workspace_id=ws_id, config_pool=pool,
+            owner_id="owner-1", can_write=False,
         )
         token = _ws_ctx.set(ctx)
         try:
@@ -118,6 +122,7 @@ class TestGetEnrichmentTool:
             indexer_api_key_ref=None, indexer_base_url=None,
             pool_registry=MagicMock(), resolver=MagicMock(),
             workspace_id=ws_id, config_pool=pool,
+            owner_id="owner-1", can_write=False,
         )
         token = _ws_ctx.set(ctx)
         try:
@@ -147,6 +152,7 @@ class TestGetEnrichmentTool:
             indexer_api_key_ref=None, indexer_base_url=None,
             pool_registry=MagicMock(), resolver=MagicMock(),
             workspace_id=ws_id, config_pool=pool,
+            owner_id="owner-1", can_write=False,
         )
         token = _ws_ctx.set(ctx)
         try:
