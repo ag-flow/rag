@@ -10,6 +10,7 @@ from uuid import UUID
 import asyncpg
 import structlog
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -114,7 +115,18 @@ async def _resolve_indexer_key(key: _KeyCtx, ws: _WsData) -> str | None:
 
 # ── FastMCP server (singleton, stateless) ────────────────────────────────────
 
-_mcp = FastMCP("rag", stateless_http=True)
+# streamable_http_path="/" : l'app interne répond à la RACINE de son mount →
+# l'endpoint public est exactement `/mcp` (sans quoi ce serait `/mcp/mcp`).
+# transport_security sans DNS-rebinding protection : ragflow est derrière un
+# reverse-proxy de confiance (Caddy + Cloudflare) et le Host public
+# (rag.yoops.org) n'est pas dans la liste localhost par défaut — sans ça, tout
+# handshake depuis le domaine public serait rejeté.
+_mcp = FastMCP(
+    "rag",
+    stateless_http=True,
+    streamable_http_path="/",
+    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+)
 
 
 @_mcp.tool()
@@ -441,8 +453,26 @@ register_library_tools(_mcp, _ws_ctx)
 
 
 def build_mcp_asgi() -> Starlette:
-    """Retourne l'app Starlette FastMCP (stateless). Appelé une seule fois."""
+    """Retourne l'app Starlette FastMCP (stateless).
+
+    Réinitialise le session manager avant de (re)construire l'app :
+    `StreamableHTTPSessionManager.run()` est à usage unique, or `_mcp` est un
+    singleton module. Sans ce reset, reconstruire l'app (tests) relancerait
+    `run()` sur le même manager → RuntimeError. En prod build_app n'est appelé
+    qu'une fois — le reset est un no-op fonctionnel."""
+    _mcp._session_manager = None
     return _mcp.streamable_http_app()
+
+
+def mcp_session_lifespan() -> Any:
+    """Context manager async démarrant le task group du session manager MCP.
+
+    FastAPI n'exécute PAS le lifespan des sous-apps montées : sans entrer ce
+    contexte dans le lifespan principal, le serveur streamable répond
+    « Task group is not initialized » à chaque handshake. À utiliser autour du
+    `yield` du lifespan de main.py. `build_mcp_asgi()` doit avoir été appelé
+    avant (il initialise le session_manager)."""
+    return _mcp.session_manager.run()
 
 
 # ── Helpers (exportés pour les tests) ────────────────────────────────────────
@@ -504,6 +534,12 @@ class RagMcpDispatcher:
         except PermissionError:
             await _json_error(send, 401, "invalid_token")
             return
+
+        # Le mount Starlette "/mcp" ampute le préfixe : une requête sur `/mcp`
+        # nu arrive ici avec un path vide → normalisé sur "/" pour matcher la
+        # route racine de l'app streamable interne.
+        if scope.get("path", "") == "":
+            scope = {**scope, "path": "/", "raw_path": b"/"}
 
         token_var = _ws_ctx.set(ctx)
         try:

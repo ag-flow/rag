@@ -58,7 +58,7 @@ def search(
     client: httpx.Client, base_url: str, workspace: str, api_key: str, query: str, top_k: int
 ) -> list[dict[str, Any]]:
     resp = client.post(
-        f"{base_url.rstrip('/')}/mcp",
+        f"{base_url.rstrip('/')}/api/v1/search",
         json={"workspace": workspace, "api_key": api_key, "query": query, "top_k": top_k},
         timeout=60.0,
     )
@@ -148,9 +148,9 @@ def render_report(
 def search_debug(
     client: httpx.Client, base_url: str, workspace: str, api_key: str, query: str, top_k: int
 ) -> dict[str, Any]:
-    """Réponse COMPLÈTE de /mcp avec debug=true (results + channels, D8)."""
+    """Réponse COMPLÈTE de /api/v1/search avec debug=true (results + channels, D8)."""
     resp = client.post(
-        f"{base_url.rstrip('/')}/mcp",
+        f"{base_url.rstrip('/')}/api/v1/search",
         json={
             "workspace": workspace,
             "api_key": api_key,

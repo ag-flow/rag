@@ -36,7 +36,7 @@ def _inject_fake_provider() -> None:
 
 
 def test_mcp_422_for_empty_body(admin_client: TestClient, cleanup_ws_dbs_api: None) -> None:
-    r = admin_client.post("/mcp", json={})
+    r = admin_client.post("/api/v1/search", json={})
     assert r.status_code == 422
 
 
@@ -45,7 +45,7 @@ def test_mcp_422_for_missing_query(
 ) -> None:
     _make_ws(admin_client, admin_headers, "ws_err_q")
     r = admin_client.post(
-        "/mcp",
+        "/api/v1/search",
         json={"workspace": "ws_err_q", "api_key": "x"},
     )
     assert r.status_code == 422
@@ -55,7 +55,7 @@ def test_mcp_422_for_mix_workspace_and_workspaces(
     admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
 ) -> None:
     r = admin_client.post(
-        "/mcp",
+        "/api/v1/search",
         json={
             "workspace": "ws_a",
             "api_key": "k",
@@ -72,7 +72,7 @@ def test_mcp_422_for_top_k_above_50(
     api_key = _make_ws(admin_client, admin_headers, "ws_err_topk")
     _inject_fake_provider()
     r = admin_client.post(
-        "/mcp",
+        "/api/v1/search",
         json={
             "workspace": "ws_err_topk",
             "api_key": api_key,
@@ -89,7 +89,7 @@ def test_mcp_422_for_min_score_above_one(
     api_key = _make_ws(admin_client, admin_headers, "ws_err_minscore")
     _inject_fake_provider()
     r = admin_client.post(
-        "/mcp",
+        "/api/v1/search",
         json={
             "workspace": "ws_err_minscore",
             "api_key": api_key,
@@ -105,7 +105,7 @@ def test_mcp_404_for_unknown_workspace(
 ) -> None:
     _inject_fake_provider()
     r = admin_client.post(
-        "/mcp",
+        "/api/v1/search",
         json={"workspace": "ghost", "api_key": "x", "query": "y"},
     )
     assert r.status_code == 404
@@ -118,7 +118,7 @@ def test_mcp_401_for_bad_api_key(
     _make_ws(admin_client, admin_headers, "ws_err_badkey")
     _inject_fake_provider()
     r = admin_client.post(
-        "/mcp",
+        "/api/v1/search",
         json={
             "workspace": "ws_err_badkey",
             "api_key": "not-the-real-one",
@@ -136,7 +136,7 @@ def test_mcp_multi_fail_fast_one_bad_apikey(
     _make_ws(admin_client, admin_headers, "ws_ff_b")
     _inject_fake_provider()
     r = admin_client.post(
-        "/mcp",
+        "/api/v1/search",
         json={
             "workspaces": [
                 {"name": "ws_ff_a", "api_key": key_a},

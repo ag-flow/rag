@@ -120,7 +120,7 @@ def test_mcp_multi_returns_hits_from_all_workspaces_in_order(
     _mcp_mod.make_provider = lambda **_kw: fake  # type: ignore[assignment]
 
     r = admin_client.post(
-        "/mcp",
+        "/api/v1/search",
         json={
             "workspaces": [
                 {"name": "ws_m_a", "api_key": key_a},
@@ -183,7 +183,7 @@ def test_mcp_multi_each_item_carries_correct_workspace_and_indexer(
     _mcp_mod.make_provider = _factory  # type: ignore[assignment]
 
     r = admin_client.post(
-        "/mcp",
+        "/api/v1/search",
         json={
             "workspaces": [
                 {"name": "ws_label_a", "api_key": key_a},
@@ -225,7 +225,7 @@ def test_mcp_multi_top_k_applies_per_workspace(
     _mcp_mod.make_provider = lambda **_kw: fake  # type: ignore[assignment]
 
     r = admin_client.post(
-        "/mcp",
+        "/api/v1/search",
         json={
             "workspaces": [
                 {"name": "ws_topk_a", "api_key": key_a},

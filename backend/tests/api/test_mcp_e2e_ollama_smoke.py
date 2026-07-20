@@ -75,7 +75,7 @@ def test_mcp_e2e_ollama_search_returns_relevant_doc(
 
     # 3. Query proche du sujet Docker.
     r3 = admin_client.post(
-        "/mcp",
+        "/api/v1/search",
         json={
             "workspace": "ws_mcp_smoke",
             "api_key": api_key,

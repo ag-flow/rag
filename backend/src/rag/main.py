@@ -36,7 +36,7 @@ from rag.api.errors import register_error_handlers
 from rag.api.git_webhooks import build_git_webhooks_router
 from rag.api.health import build_health_router
 from rag.api.mcp import build_mcp_router
-from rag.api.mcp_standard import RagMcpDispatcher, build_mcp_asgi
+from rag.api.mcp_standard import RagMcpDispatcher, build_mcp_asgi, mcp_session_lifespan
 from rag.api.me_api_keys import build_me_api_keys_router
 from rag.api.playground import router_admin as playground_admin_router
 from rag.api.playground import router_chat as playground_chat_router
@@ -238,13 +238,16 @@ def build_app(
             raise
 
         log.info("app.lifespan.ready")
-        try:
-            yield
-        finally:
-            log.info("app.lifespan.shutdown")
-            if hasattr(app.state, "sync_worker"):
-                await app.state.sync_worker.stop()
-            await registry.close_all()
+        # Démarre le task group du serveur MCP streamable monté sur /mcp
+        # (non géré par FastAPI pour une sous-app montée).
+        async with mcp_session_lifespan():
+            try:
+                yield
+            finally:
+                log.info("app.lifespan.shutdown")
+                if hasattr(app.state, "sync_worker"):
+                    await app.state.sync_worker.stop()
+                await registry.close_all()
 
     app = FastAPI(
         title="ag-flow.rag",

@@ -133,7 +133,7 @@ def test_mcp_single_returns_top_k_hits(
     _inject_fake_provider(vec=near)
 
     r = admin_client.post(
-        "/mcp",
+        "/api/v1/search",
         json={
             "workspace": "ws_mcp_a",
             "api_key": api_key,
@@ -174,7 +174,7 @@ def test_mcp_single_min_score_strict_returns_empty(
     _inject_fake_provider(vec=near)
 
     r = admin_client.post(
-        "/mcp",
+        "/api/v1/search",
         json={
             "workspace": "ws_mcp_strict",
             "api_key": api_key,
@@ -213,7 +213,7 @@ def test_mcp_single_default_top_k_is_5(
     _inject_fake_provider(vec=near)
 
     r = admin_client.post(
-        "/mcp",
+        "/api/v1/search",
         json={
             "workspace": "ws_mcp_def",
             "api_key": api_key,
