@@ -326,6 +326,27 @@ echo "Logs en direct :"
 echo "  docker compose -f ${COMPOSE_FILE} logs -f backend"
 echo
 
+# ─── Contrôle collecte logs (non bloquant) ──────────────────────────────────
+# Le collecteur Alloy pousse SILENCIEUSEMENT vers un LOKI_URL périmé (le sync
+# .env ne réécrit jamais une clé existante) : une adresse Loki obsolète a déjà
+# coûté une semaine de logs perdus sans le moindre signal. On teste ici la
+# joignabilité de l'endpoint /ready dérivé de LOKI_URL et on ALERTE si KO —
+# jamais d'échec du déploiement.
+LOKI_URL_VAL="$(read_env_var LOKI_URL)"
+if [ -n "$LOKI_URL_VAL" ]; then
+  LOKI_READY="${LOKI_URL_VAL%/loki/api/v1/push}/ready"
+  if curl -sf -m 5 "$LOKI_READY" >/dev/null 2>&1; then
+    echo "✓ Loki joignable ($LOKI_READY) — collecte des logs active."
+  else
+    echo "⚠  Loki INJOIGNABLE depuis ce host : $LOKI_READY" >&2
+    echo "   Les logs ne remonteront PAS. Vérifier LOKI_URL dans .env puis :" >&2
+    echo "     docker compose -f ${COMPOSE_FILE} up -d alloy" >&2
+  fi
+else
+  echo "ℹ  LOKI_URL non défini — collecteur Alloy inactif (pas de logs centralisés)."
+fi
+echo
+
 # ─── Affichage final : URL d'accès ──────────────────────────────────────────
 # Pour le smoke (URLs affichées à l'admin local), on utilise TOUJOURS l'IP
 # détectée localement (route par défaut, quel que soit le nom de
