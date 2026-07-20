@@ -74,11 +74,11 @@ async def _authenticate(
     """Valide la paire (workspace_name, api_key) contre les clés utilisateur.
 
     Lookup O(1) par fingerprint SHA-256 dans `user_api_keys` : la valeur de la
-    clé n'est jamais stockée en base. Toute clé valide (scope read+, appliqué à
-    tous les workspaces — migration 067) peut chercher.
+    clé n'est jamais stockée en base. Le workspace doit être PARTAGÉ (owner NULL)
+    ou possédé par le propriétaire de la clé (migration 068).
 
     Retourne un `_CacheEntry` (workspace_id, indexer_used, inserted_at).
-    - WorkspaceNotFound si workspace inconnu.
+    - WorkspaceNotFound si workspace inconnu OU inaccessible pour cette clé.
     - HTTPException 401 si la clé est invalide.
     """
     fingerprint = sha256(ref.api_key.encode("utf-8")).hexdigest()
@@ -89,7 +89,7 @@ async def _authenticate(
                ic.provider || '/' || ic.model AS indexer_used
         FROM workspaces w
         JOIN indexer_configs ic ON ic.workspace_id = w.id
-        CROSS JOIN user_api_keys k
+        JOIN user_api_keys k ON (w.owner_id IS NULL OR w.owner_id = k.owner_id)
         WHERE w.name = $1
           AND k.fingerprint = $2
           AND k.revoked_at IS NULL

@@ -31,16 +31,17 @@ def _extract_bearer(request: Request) -> str:
     return parts[1].strip()
 
 
-# Lookup clé utilisateur active de niveau ÉCRITURE (scope read_write | admin) —
-# accès global : toute clé write voit tous les workspaces (migration 067).
-# Le chemin lecture vit dans services/mcp.py et api/mcp_standard.py.
+# Lookup clé utilisateur active de niveau ÉCRITURE (scope read_write | admin).
+# Le workspace doit être PARTAGÉ (owner NULL) ou possédé par le propriétaire de
+# la clé (migration 068). Le chemin lecture vit dans services/mcp.py et
+# api/mcp_standard.py.
 _WRITE_LOOKUP_SQL = """
     SELECT w.id,
            ic.provider || '/' || ic.model AS indexer_used,
            k.owner_id
     FROM workspaces w
     JOIN indexer_configs ic ON ic.workspace_id = w.id
-    CROSS JOIN user_api_keys k
+    JOIN user_api_keys k ON (w.owner_id IS NULL OR w.owner_id = k.owner_id)
     WHERE w.name = $1
       AND k.fingerprint = $2
       AND k.scope IN ('read_write', 'admin')

@@ -84,6 +84,7 @@ class WorkspaceCreateResolved(BaseModel):
     name: str = Field(pattern=_NAME_REGEX, max_length=63)
     label: str = Field(min_length=1, max_length=128)
     description: str = Field(default="", max_length=2000)
+    owner_id: str | None = None  # créateur (sha256 email) ; None = partagé
     indexer: IndexerCreateSpec
     rerank: RerankCreateSpec | None = None
 

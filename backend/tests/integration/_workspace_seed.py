@@ -23,15 +23,16 @@ async def seed_workspace(
     rag_cnx: str = "postgresql://test/c",
     rag_base: str = "rag_test_b",
     dek: str | None = None,
+    owner_id: str | None = None,
 ) -> UUID:
-    """Insère un workspace test, retourne son UUID."""
+    """Insère un workspace test, retourne son UUID. owner_id None = partagé."""
     row = await conn.fetchrow(
         """
-        INSERT INTO workspaces (name, rag_cnx, rag_base)
-        VALUES ($1, $2, $3)
+        INSERT INTO workspaces (name, rag_cnx, rag_base, owner_id)
+        VALUES ($1, $2, $3, $4)
         RETURNING id
         """,
-        name, rag_cnx, rag_base,
+        name, rag_cnx, rag_base, owner_id,
     )
     if row is None:
         raise RuntimeError("seed_workspace: INSERT did not RETURN id")

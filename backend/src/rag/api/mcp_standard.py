@@ -68,9 +68,9 @@ class _WorkspaceUnknownError(Exception):
 async def _resolve_ws(key: _KeyCtx, workspace: str) -> _WsData:
     """Charge la config d'un workspace par son slug (= colonne name).
 
-    Accès global : toute clé valide (scope read+) voit tous les workspaces de
-    l'instance (les workspaces n'ont pas de propriétaire). Lève
-    `_WorkspaceUnknownError` si le slug est inconnu.
+    Owner-scopé : le workspace doit être PARTAGÉ (owner_id NULL) ou possédé par
+    le principal de la requête (humain OBO ou créateur de la clé). Un workspace
+    d'autrui est introuvable. Lève `_WorkspaceUnknownError` si inconnu/inaccessible.
     """
     row = await key.config_pool.fetchrow(
         """
@@ -80,8 +80,10 @@ async def _resolve_ws(key: _KeyCtx, workspace: str) -> _WsData:
         JOIN indexer_configs ic ON ic.workspace_id = w.id
         JOIN model_dimensions md ON md.provider = ic.provider AND md.model = ic.model
         WHERE w.name = $1
+          AND (w.owner_id IS NULL OR w.owner_id = $2)
         """,
         workspace,
+        key.owner_id,
     )
     if row is None:
         raise _WorkspaceUnknownError(workspace)
@@ -435,7 +437,9 @@ async def list_workspaces() -> str:
 
     key_ctx = _ws_ctx.get()
     rows = await key_ctx.config_pool.fetch(
-        "SELECT name, label, description FROM workspaces ORDER BY name"
+        "SELECT name, label, description FROM workspaces "
+        "WHERE owner_id IS NULL OR owner_id = $1 ORDER BY name",
+        key_ctx.owner_id,
     )
     workspaces = [
         {"nom": r["label"] or r["name"], "slug": r["name"], "description": r["description"] or ""}

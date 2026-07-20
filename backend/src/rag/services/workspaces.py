@@ -109,14 +109,15 @@ async def create_workspace(
             ws_row = await conn.fetchrow(
                 """
                 INSERT INTO workspaces
-                    (name, label, description, rag_cnx, rag_base)
+                    (name, label, description, owner_id, rag_cnx, rag_base)
                 VALUES
-                    ($1, $2, $3, $4, $5)
+                    ($1, $2, $3, $4, $5, $6)
                 RETURNING id, created_at
                 """,
                 request.name,
                 request.label,
                 request.description,
+                request.owner_id,
                 rag_cnx,
                 rag_base,
             )
@@ -196,11 +197,32 @@ async def create_workspace(
     }
 
 
-async def list_workspaces(config_pool: asyncpg.Pool) -> list[dict[str, object]]:
-    """Liste tous les workspaces avec leurs compteurs (0/null en M2)."""
+# Visibilité workspace : partagé (owner_id NULL) OU propriété du caller.
+# owner_id NULL en argument = accès sans restriction (chemins internes/legacy).
+_OWNER_VISIBLE = "(w.owner_id IS NULL OR $1::text IS NULL OR w.owner_id = $1)"
+
+
+async def resolve_owned_workspace_id(
+    conn: asyncpg.Connection, *, name: str, owner_id: str | None
+) -> object | None:
+    """Id d'un workspace VISIBLE par ce owner (partagé ou sien), sinon None.
+
+    Point d'application unique de l'accès workspace pour les endpoints admin :
+    un workspace d'autrui est introuvable (jamais accessible par son nom)."""
+    return await conn.fetchval(
+        f"SELECT w.id FROM workspaces w WHERE w.name = $2 AND {_OWNER_VISIBLE}",  # noqa: S608
+        owner_id,
+        name,
+    )
+
+
+async def list_workspaces(
+    config_pool: asyncpg.Pool, *, owner_id: str | None = None
+) -> list[dict[str, object]]:
+    """Liste les workspaces visibles par ce owner (partagés + les siens)."""
     rows = await fetch_all(
         config_pool,
-        """
+        f"""
         SELECT
             w.id, w.name, w.label, w.description, w.created_at,
             ic.provider, ic.model, ic.api_key_ref, ic.base_url,
@@ -210,17 +232,21 @@ async def list_workspaces(config_pool: asyncpg.Pool) -> list[dict[str, object]]:
                 AS last_indexed_at
         FROM workspaces w
         LEFT JOIN indexer_configs ic ON ic.workspace_id = w.id
+        WHERE {_OWNER_VISIBLE}
         ORDER BY w.created_at
-        """,
+        """,  # noqa: S608
+        owner_id,
     )
     return [_to_workspace_dict(r) for r in rows]
 
 
-async def get_workspace(config_pool: asyncpg.Pool, *, name: str) -> dict[str, object]:
-    """Détail d'un workspace. Lève WorkspaceNotFound si miss."""
+async def get_workspace(
+    config_pool: asyncpg.Pool, *, name: str, owner_id: str | None = None
+) -> dict[str, object]:
+    """Détail d'un workspace visible par ce owner. WorkspaceNotFound si miss/inaccessible."""
     row = await fetch_one(
         config_pool,
-        """
+        f"""
         SELECT
             w.id, w.name, w.label, w.description, w.created_at,
             ic.provider, ic.model, ic.api_key_ref, ic.base_url,
@@ -230,8 +256,9 @@ async def get_workspace(config_pool: asyncpg.Pool, *, name: str) -> dict[str, ob
                 AS last_indexed_at
         FROM workspaces w
         LEFT JOIN indexer_configs ic ON ic.workspace_id = w.id
-        WHERE w.name = $1
-        """,
+        WHERE w.name = $2 AND {_OWNER_VISIBLE}
+        """,  # noqa: S608
+        owner_id,
         name,
     )
     if row is None:

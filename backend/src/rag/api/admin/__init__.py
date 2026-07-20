@@ -114,10 +114,13 @@ def build_admin_router() -> APIRouter:
             endpoint = await get_endpoint(conn, endpoint_id=payload.endpoint_id)
         if endpoint is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="endpoint_not_found")
+        from rag.auth.owner import get_current_owner_id
+
         resolved = WorkspaceCreateResolved(
             name=payload.name,
             label=payload.label,
             description=payload.description,
+            owner_id=get_current_owner_id(request),
             indexer=IndexerCreateSpec(
                 provider=endpoint.indexer.provider,
                 model=endpoint.indexer.model,
@@ -147,12 +150,18 @@ def build_admin_router() -> APIRouter:
 
     @router.get("/workspaces")
     async def get_workspaces(request: Request) -> list[WorkspaceResponse]:
-        rows = await list_workspaces(_config_pool(request))
+        from rag.auth.owner import get_current_owner_id
+
+        rows = await list_workspaces(_config_pool(request), owner_id=get_current_owner_id(request))
         return [WorkspaceResponse(**r) for r in rows]  # type: ignore[arg-type]
 
     @router.get("/workspaces/{name}")
     async def get_workspace_detail(name: str, request: Request) -> WorkspaceResponse:
-        row = await get_workspace(_config_pool(request), name=name)
+        from rag.auth.owner import get_current_owner_id
+
+        row = await get_workspace(
+            _config_pool(request), name=name, owner_id=get_current_owner_id(request)
+        )
         return WorkspaceResponse(**row)  # type: ignore[arg-type]
 
     @router.patch("/workspaces/{name}")
