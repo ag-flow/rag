@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel as _PydanticBase
 
+from rag.api.workspace_access import require_owned_workspace_id
 from rag.auth.admin_auth import require_admin
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.schemas.admin import (
@@ -168,6 +169,7 @@ def build_admin_router() -> APIRouter:
     async def patch_workspace_endpoint(
         name: str, payload: WorkspacePatchRequest, request: Request
     ) -> WorkspaceResponse:
+        await require_owned_workspace_id(request, name, _config_pool(request))
         default_vault = await _resolve_default_vault_or_503(request)
         await patch_workspace(
             name=name,
@@ -181,6 +183,7 @@ def build_admin_router() -> APIRouter:
 
     @router.delete("/workspaces/{name}", status_code=status.HTTP_204_NO_CONTENT)
     async def delete_workspace_endpoint(name: str, request: Request) -> Response:
+        await require_owned_workspace_id(request, name, _config_pool(request))
         # Les clés API restent (elles ne référencent plus de workspace : accès global).
         await delete_workspace(
             name=name,
@@ -195,6 +198,7 @@ def build_admin_router() -> APIRouter:
     async def list_sources_endpoint(name: str, request: Request) -> list[SourceResponse]:
         from rag.services.sources import list_sources
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         rows = await list_sources(config_pool=_config_pool(request), workspace_name=name)
         return [SourceResponse(**r) for r in rows]
 
@@ -205,6 +209,7 @@ def build_admin_router() -> APIRouter:
         from rag.auth.owner import get_current_owner_id
         from rag.services.sources import add_source  # import retardé : évite cycle au boot
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         row = await add_source(
             workspace_name=name,
             request=payload,
@@ -221,6 +226,7 @@ def build_admin_router() -> APIRouter:
     ) -> SourceResponse:
         from rag.services.sources import update_source
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         row = await update_source(
             workspace_name=name,
             source_id=source_id,
@@ -238,6 +244,7 @@ def build_admin_router() -> APIRouter:
     async def delete_source_endpoint(name: str, source_id: str, request: Request) -> Response:
         from rag.services.sources import delete_source
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         await delete_source(
             workspace_name=name,
             source_id=source_id,
@@ -251,6 +258,7 @@ def build_admin_router() -> APIRouter:
     ) -> SourceTestResult:
         from rag.services.sources import test_source_connection
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         result = await test_source_connection(
             workspace_name=name,
             source_id=source_id,
@@ -330,6 +338,7 @@ def build_admin_router() -> APIRouter:
     async def post_source_sync(name: str, source_id: str, request: Request) -> JobResponse:
         from rag.services.jobs import create_source_pending_job
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         row = await create_source_pending_job(
             workspace_name=name,
             source_id=source_id,
@@ -348,6 +357,7 @@ def build_admin_router() -> APIRouter:
     ) -> JobResponse:
         from rag.services.jobs import reindex_workspace
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         new_indexer = payload.indexer if payload is not None else None
         default_vault = await _resolve_default_vault_or_503(request)
         row = await reindex_workspace(
@@ -382,6 +392,7 @@ def build_admin_router() -> APIRouter:
     async def get_jobs(name: str, request: Request) -> list[JobResponse]:
         from rag.services.jobs import list_jobs
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         rows = await list_jobs(_config_pool(request), workspace_name=name)
         return [JobResponse(**r) for r in rows]
 
@@ -389,6 +400,7 @@ def build_admin_router() -> APIRouter:
     async def get_job_files(name: str, job_id: str, request: Request) -> JobFilesResponse:
         from rag.services.jobs import list_job_files
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         result = await list_job_files(
             config_pool=_config_pool(request),
             workspace_name=name,
@@ -463,18 +475,10 @@ def build_admin_router() -> APIRouter:
         404 `workspace_not_found` si le workspace n'existe pas.
         404 `rerank_not_configured` si le workspace existe mais sans rerank.
         """
-        ws_row = await _config_pool(request).fetchrow(
-            "SELECT id FROM workspaces WHERE name = $1",
-            name,
-        )
-        if ws_row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="workspace_not_found",
-            )
+        ws_id = await require_owned_workspace_id(request, name, _config_pool(request))
         from rag.services.rerank_configs import get_rerank_config
 
-        cfg = await get_rerank_config(ws_row["id"], _config_pool(request))
+        cfg = await get_rerank_config(ws_id, _config_pool(request))
         if cfg is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -500,21 +504,13 @@ def build_admin_router() -> APIRouter:
         404 `workspace_not_found` si le workspace n'existe pas.
         422 `invalid_api_key_ref` si api_key_ref ne résout pas dans le vault.
         """
-        ws_row = await _config_pool(request).fetchrow(
-            "SELECT id FROM workspaces WHERE name = $1",
-            name,
-        )
-        if ws_row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="workspace_not_found",
-            )
+        ws_id = await require_owned_workspace_id(request, name, _config_pool(request))
         from rag.services.rerank_configs import upsert_rerank_config
 
         default_vault = await _resolve_default_vault_or_503(request)
         try:
             cfg = await upsert_rerank_config(
-                workspace_id=ws_row["id"],
+                workspace_id=ws_id,
                 spec=payload,
                 config_pool=_config_pool(request),
                 resolver=_resolver(request),  # type: ignore[arg-type]
@@ -546,18 +542,10 @@ def build_admin_router() -> APIRouter:
         404 `workspace_not_found` si le workspace n'existe pas ; sinon 204
         même si aucune config rerank n'était présente.
         """
-        ws_row = await _config_pool(request).fetchrow(
-            "SELECT id FROM workspaces WHERE name = $1",
-            name,
-        )
-        if ws_row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="workspace_not_found",
-            )
+        ws_id = await require_owned_workspace_id(request, name, _config_pool(request))
         from rag.services.rerank_configs import delete_rerank_config
 
-        await delete_rerank_config(ws_row["id"], _config_pool(request))
+        await delete_rerank_config(ws_id, _config_pool(request))
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     # ─── Hybrid search config ───────────────────────────────────────────────
@@ -569,14 +557,12 @@ def build_admin_router() -> APIRouter:
         _: None = Depends(require_admin),
     ) -> HybridConfigResponse:
         pool: asyncpg.Pool = request.app.state.pools.config_pool
-        ws = await pool.fetchrow("SELECT id FROM workspaces WHERE name = $1", name)
-        if ws is None:
-            raise HTTPException(status_code=404, detail="workspace not found")
+        ws_id = await require_owned_workspace_id(request, name, pool)
         row = await pool.fetchrow(
             "SELECT workspace_id, enabled, rrf_k, weight_lexical, weight_vector, "
             "lexical_engine, created_at, updated_at "
             "FROM hybrid_configs WHERE workspace_id = $1",
-            ws["id"],
+            ws_id,
         )
         if row is None:
             raise HTTPException(status_code=404, detail="hybrid config not found")
@@ -599,13 +585,11 @@ def build_admin_router() -> APIRouter:
         _: None = Depends(require_admin),
     ) -> HybridConfigResponse:
         pool: asyncpg.Pool = request.app.state.pools.config_pool
-        ws = await pool.fetchrow("SELECT id FROM workspaces WHERE name = $1", name)
-        if ws is None:
-            raise HTTPException(status_code=404, detail="workspace not found")
+        ws_id = await require_owned_workspace_id(request, name, pool)
         # Bascule de moteur (D5) : vérifier la DISPONIBILITÉ avant d'écrire,
         # et reconstruire l'index lexical par un job — jamais de ré-embedding.
         previous = await pool.fetchval(
-            "SELECT lexical_engine FROM hybrid_configs WHERE workspace_id = $1", ws["id"]
+            "SELECT lexical_engine FROM hybrid_configs WHERE workspace_id = $1", ws_id
         )
         engine_changed = previous is not None and previous != spec.lexical_engine
         first_config = previous is None and spec.lexical_engine != "fts"
@@ -613,7 +597,7 @@ def build_admin_router() -> APIRouter:
         if engine_changed or first_config:
             from rag.db.lexical_engines import get_lexical_engine
 
-            ws_row = await pool.fetchrow("SELECT rag_cnx FROM workspaces WHERE id = $1", ws["id"])
+            ws_row = await pool.fetchrow("SELECT rag_cnx FROM workspaces WHERE id = $1", ws_id)
             engine = get_lexical_engine(spec.lexical_engine)
             registry = request.app.state.pools
             ws_pool = await registry.get_workspace_pool(name, ws_row["rag_cnx"])
@@ -632,7 +616,7 @@ def build_admin_router() -> APIRouter:
                 await pool.fetchval(
                     "INSERT INTO index_jobs (workspace_id, triggered_by, status) "
                     "VALUES ($1, 'rebuild_lexical_index', 'pending') RETURNING id",
-                    ws["id"],
+                    ws_id,
                 )
             )
 
@@ -649,7 +633,7 @@ def build_admin_router() -> APIRouter:
                 lexical_engine = EXCLUDED.lexical_engine,
                 updated_at = now()
             """,
-            ws["id"],
+            ws_id,
             spec.enabled,
             spec.rrf_k,
             spec.weight_lexical,
@@ -660,7 +644,7 @@ def build_admin_router() -> APIRouter:
             "SELECT workspace_id, enabled, rrf_k, weight_lexical, weight_vector, "
             "lexical_engine, created_at, updated_at "
             "FROM hybrid_configs WHERE workspace_id = $1",
-            ws["id"],
+            ws_id,
         )
         return HybridConfigResponse(
             workspace_id=str(row["workspace_id"]),
@@ -686,13 +670,8 @@ def build_admin_router() -> APIRouter:
         from rag.services.chunking_configs import get_chunking_config
 
         config_pool = _config_pool(request)
-        ws_row = await config_pool.fetchrow("SELECT id FROM workspaces WHERE name = $1", name)
-        if ws_row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="workspace_not_found",
-            )
-        cfg = await get_chunking_config(ws_row["id"], config_pool)
+        ws_id = await require_owned_workspace_id(request, name, config_pool)
+        cfg = await get_chunking_config(ws_id, config_pool)
         return ChunkingConfigResponse(
             workspace_id=cfg["workspace_id"],
             strategy=cfg["strategy"],
@@ -727,12 +706,7 @@ def build_admin_router() -> APIRouter:
         from rag.services.jobs import apply_chunking_change
 
         config_pool = _config_pool(request)
-        ws_row = await config_pool.fetchrow("SELECT id FROM workspaces WHERE name = $1", name)
-        if ws_row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="workspace_not_found",
-            )
+        await require_owned_workspace_id(request, name, config_pool)
 
         result = await apply_chunking_change(
             name=name, payload=payload, confirm=confirm, config_pool=config_pool
@@ -783,6 +757,7 @@ def build_admin_router() -> APIRouter:
         from rag.services.jobs import apply_engine_change
 
         config_pool = _config_pool(request)
+        await require_owned_workspace_id(request, name, config_pool)
         result = await apply_engine_change(
             name=name, engine=payload.engine, confirm=confirm, config_pool=config_pool
         )
@@ -821,6 +796,7 @@ def build_admin_router() -> APIRouter:
         from rag.services.jobs import UnknownDefaultStrategyError, apply_default_strategy_change
 
         config_pool = _config_pool(request)
+        await require_owned_workspace_id(request, name, config_pool)
         owner_id = get_current_owner_id(request)
         try:
             result = await apply_default_strategy_change(
@@ -866,6 +842,7 @@ def build_admin_router() -> APIRouter:
             enable_webhook,
         )
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         try:
             async with _config_pool(request).acquire() as conn:
                 secret = await enable_webhook(
@@ -897,6 +874,7 @@ def build_admin_router() -> APIRouter:
             disable_webhook,
         )
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         try:
             async with _config_pool(request).acquire() as conn:
                 await disable_webhook(
@@ -922,6 +900,7 @@ def build_admin_router() -> APIRouter:
             rotate_webhook_secret,
         )
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         try:
             async with _config_pool(request).acquire() as conn:
                 new_secret = await rotate_webhook_secret(

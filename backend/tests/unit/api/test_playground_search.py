@@ -12,6 +12,7 @@ from uuid import uuid4
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.middleware.sessions import SessionMiddleware
 
 from rag.api.playground_search import router_search
 from rag.auth.bearer import require_master_key_or_authenticated_admin
@@ -43,8 +44,17 @@ def _hit(path: str, score: float) -> SearchHit:
 def _client(monkeypatch: pytest.MonkeyPatch, *, hybrid_cfg: dict | None) -> TestClient:
     pool = MagicMock()
     pool.fetchrow = AsyncMock(return_value=_WS_ROW)
+    # Garde owner (require_owned_workspace_id) : pool.acquire → conn.fetchval.
+    conn = MagicMock()
+    conn.fetchval = AsyncMock(return_value=_WS_ROW["ws_id"])
+    acquire_cm = MagicMock()
+    acquire_cm.__aenter__ = AsyncMock(return_value=conn)
+    acquire_cm.__aexit__ = AsyncMock(return_value=False)
+    pool.acquire = MagicMock(return_value=acquire_cm)
 
     app = FastAPI()
+    # get_current_owner_id lit request.session (session vide → owner système).
+    app.add_middleware(SessionMiddleware, secret_key="test")
     app.state.pools = MagicMock()
     app.state.pools.config_pool = pool
     app.state.pools.get_workspace_pool = AsyncMock(return_value=MagicMock())

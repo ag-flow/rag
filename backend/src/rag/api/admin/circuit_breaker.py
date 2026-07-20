@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
+from rag.api.workspace_access import require_owned_workspace_id
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.services.circuit_breaker import close_circuit, get_circuit
 
@@ -16,11 +17,7 @@ def build_circuit_breaker_router() -> APIRouter:
         request: Request,
         _auth: None = Depends(require_master_key_or_authenticated_admin),      ) -> Response:
         pool = request.app.state.pools.config_pool
-        workspace_id = await pool.fetchval(
-            "SELECT id FROM workspaces WHERE name=$1", name
-        )
-        if workspace_id is None:
-            raise HTTPException(status_code=404, detail="workspace_not_found")
+        workspace_id = await require_owned_workspace_id(request, name, pool)
 
         circuit = await get_circuit(pool, workspace_id=workspace_id)
         if circuit is None:
@@ -41,11 +38,7 @@ def build_circuit_breaker_router() -> APIRouter:
         request: Request,
         _auth: None = Depends(require_master_key_or_authenticated_admin),      ) -> Response:
         pool = request.app.state.pools.config_pool
-        workspace_id = await pool.fetchval(
-            "SELECT id FROM workspaces WHERE name=$1", name
-        )
-        if workspace_id is None:
-            raise HTTPException(status_code=404, detail="workspace_not_found")
+        workspace_id = await require_owned_workspace_id(request, name, pool)
 
         closed = await close_circuit(pool, workspace_id=workspace_id)
         if not closed:

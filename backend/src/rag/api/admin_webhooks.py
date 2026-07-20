@@ -5,6 +5,7 @@ from typing import Any
 import asyncpg
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 
+from rag.api.workspace_access import require_owned_workspace_id
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.schemas.webhooks import (
     WebhookCallOut,
@@ -46,12 +47,14 @@ def build_webhooks_router() -> APIRouter:
     @router.get("/workspaces/{name}/webhooks/calls", response_model=list[WebhookCallOut])
     async def get_calls(
         name: str,
+        request: Request,
         webhook_id: str | None = Query(default=None),
         correlation_id: str | None = Query(default=None),
         status_filter: str | None = Query(default=None, alias="status"),
         limit: int = Query(default=50, ge=1, le=500),
         pool: asyncpg.Pool = Depends(_config_pool),  # noqa: B008
     ) -> list[dict[str, Any]]:
+        await require_owned_workspace_id(request, name, pool)
         return await list_webhook_calls(
             pool,
             workspace_name=name,
@@ -64,16 +67,20 @@ def build_webhooks_router() -> APIRouter:
     @router.delete("/workspaces/{name}/webhooks/calls", status_code=204)
     async def purge_calls(
         name: str,
+        request: Request,
         pool: asyncpg.Pool = Depends(_config_pool),  # noqa: B008
     ) -> Response:
+        await require_owned_workspace_id(request, name, pool)
         await purge_old_webhook_calls(pool)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @router.get("/workspaces/{name}/webhooks", response_model=list[WebhookOut])
     async def get_webhooks(
         name: str,
+        request: Request,
         pool: asyncpg.Pool = Depends(_config_pool),  # noqa: B008
     ) -> list[dict[str, Any]]:
+        await require_owned_workspace_id(request, name, pool)
         return await list_webhooks(pool, workspace_name=name)
 
     @router.post("/workspaces/{name}/webhooks", response_model=WebhookOut, status_code=201)
@@ -83,6 +90,7 @@ def build_webhooks_router() -> APIRouter:
         request: Request,
         pool: asyncpg.Pool = Depends(_config_pool),  # noqa: B008
     ) -> dict[str, Any]:
+        await require_owned_workspace_id(request, name, pool)
         return await create_webhook(
             pool,
             workspace_name=name,
@@ -98,8 +106,10 @@ def build_webhooks_router() -> APIRouter:
         name: str,
         webhook_id: str,
         body: WebhookPatchRequest,
+        request: Request,
         pool: asyncpg.Pool = Depends(_config_pool),  # noqa: B008
     ) -> dict[str, Any]:
+        await require_owned_workspace_id(request, name, pool)
         return await patch_webhook(
             pool,
             webhook_id=webhook_id,
@@ -115,6 +125,7 @@ def build_webhooks_router() -> APIRouter:
         request: Request,
         pool: asyncpg.Pool = Depends(_config_pool),  # noqa: B008
     ) -> Response:
+        await require_owned_workspace_id(request, name, pool)
         await delete_webhook(pool, webhook_id=webhook_id, resolver=_resolver(request))
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -130,6 +141,7 @@ def build_webhooks_router() -> APIRouter:
         request: Request,
         pool: asyncpg.Pool = Depends(_config_pool),  # noqa: B008
     ) -> dict[str, Any]:
+        await require_owned_workspace_id(request, name, pool)
         return await patch_webhook_header(
             pool,
             webhook_id=webhook_id,

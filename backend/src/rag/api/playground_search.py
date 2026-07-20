@@ -4,6 +4,7 @@ import asyncpg
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
+from rag.api.workspace_access import require_owned_workspace_id
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.schemas.mcp import ChannelHit
 from rag.schemas.playground import (
@@ -61,6 +62,8 @@ async def playground_search(
     config_pool: asyncpg.Pool = request.app.state.pools.config_pool
     pool_registry = request.app.state.pools
     resolve_harpo = make_harpo_resolver(request)
+
+    await require_owned_workspace_id(request, workspace_name, config_pool)
 
     ws_row = await config_pool.fetchrow(_WS_QUERY, workspace_name)
     if ws_row is None:

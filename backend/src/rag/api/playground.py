@@ -8,6 +8,7 @@ import asyncpg
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
+from rag.api.workspace_access import require_owned_workspace_id
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.schemas.playground import (
     LlmConfigCreate,
@@ -66,6 +67,7 @@ def make_harpo_resolver(request: Request) -> Callable[[str], Awaitable[str | Non
 @router_admin.get("", response_model=list[LlmConfigOut])
 async def list_configs(workspace_name: str, request: Request) -> list[LlmConfigOut]:
     from rag.services.llm_configs import list_llm_configs
+    await require_owned_workspace_id(request, workspace_name, _pool(request))
     async with _pool(request).acquire() as conn:
         return await list_llm_configs(conn, workspace_name=workspace_name)
 
@@ -75,6 +77,7 @@ async def create_config(
     workspace_name: str, body: LlmConfigCreate, request: Request
 ) -> LlmConfigOut:
     from rag.services.llm_configs import create_llm_config
+    await require_owned_workspace_id(request, workspace_name, _pool(request))
     async with _pool(request).acquire() as conn:
         try:
             return await create_llm_config(conn, workspace_name=workspace_name, req=body)
@@ -91,6 +94,7 @@ async def patch_config(
     workspace_name: str, config_id: UUID, body: LlmConfigPatch, request: Request
 ) -> LlmConfigOut:
     from rag.services.llm_configs import patch_llm_config
+    await require_owned_workspace_id(request, workspace_name, _pool(request))
     async with _pool(request).acquire() as conn:
         result = await patch_llm_config(
             conn, workspace_name=workspace_name, config_id=str(config_id), req=body
@@ -105,6 +109,7 @@ async def delete_config(
     workspace_name: str, config_id: UUID, request: Request
 ) -> Response:
     from rag.services.llm_configs import delete_llm_config
+    await require_owned_workspace_id(request, workspace_name, _pool(request))
     async with _pool(request).acquire() as conn:
         deleted = await delete_llm_config(
             conn, workspace_name=workspace_name, config_id=str(config_id)
@@ -138,6 +143,8 @@ async def playground_chat(
     config_pool: asyncpg.Pool = _pool(request)
     pool_registry = request.app.state.pools
     _resolve_harpo = make_harpo_resolver(request)
+
+    await require_owned_workspace_id(request, workspace_name, config_pool)
 
     # 1. Workspace + indexer config
     async with config_pool.acquire() as conn:

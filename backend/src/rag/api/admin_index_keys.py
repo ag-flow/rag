@@ -5,8 +5,9 @@ from datetime import datetime
 from uuid import UUID
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
+from rag.api.workspace_access import require_owned_workspace_id
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.db.index_keys import get_document_sections, get_path_chunks, list_paths_aggregate
 from rag.db.path_strategies import get_all_for_workspace, upsert_strategy
@@ -31,16 +32,17 @@ def build_index_keys_router() -> APIRouter:
     )
 
     async def _workspace_context(
-        config_pool: asyncpg.Pool,
+        request: Request,
         name: str,
     ) -> tuple[UUID, str]:
-        """Retourne (workspace_id, rag_cnx) ou lève 404."""
-        row = await config_pool.fetchrow(
-            "SELECT id, rag_cnx FROM workspaces WHERE name=$1", name
+        """Retourne (workspace_id, rag_cnx) pour un workspace visible par le
+        caller, ou lève 404 (workspace d'autrui = introuvable)."""
+        config_pool: asyncpg.Pool = request.app.state.pools.config_pool
+        ws_id = await require_owned_workspace_id(request, name, config_pool)
+        rag_cnx = await config_pool.fetchval(
+            "SELECT rag_cnx FROM workspaces WHERE id=$1", ws_id
         )
-        if row is None:
-            raise HTTPException(status_code=404, detail="workspace_not_found")
-        return row["id"], row["rag_cnx"]
+        return ws_id, rag_cnx  # type: ignore[return-value]
 
     @router.get(
         "/workspaces/{name}/document-view",
@@ -52,8 +54,7 @@ def build_index_keys_router() -> APIRouter:
         request: Request,
     ) -> DocumentViewResponse:
         registry: WorkspacePoolRegistry = request.app.state.pools
-        config_pool: asyncpg.Pool = registry.config_pool
-        _, rag_cnx = await _workspace_context(config_pool, name)
+        _, rag_cnx = await _workspace_context(request, name)
         ws_pool = await registry.get_workspace_pool(name, rag_cnx)
         sections_raw, is_legacy = await get_document_sections(ws_pool, path)
 
@@ -80,7 +81,7 @@ def build_index_keys_router() -> APIRouter:
     async def get_index_keys(name: str, request: Request) -> IndexKeysResponse:
         registry: WorkspacePoolRegistry = request.app.state.pools
         config_pool: asyncpg.Pool = registry.config_pool
-        ws_id, rag_cnx = await _workspace_context(config_pool, name)
+        ws_id, rag_cnx = await _workspace_context(request, name)
 
         path_rows = await config_pool.fetch(
             "SELECT path FROM indexed_documents WHERE workspace_id=$1 ORDER BY path",
@@ -113,7 +114,7 @@ def build_index_keys_router() -> APIRouter:
     ) -> PathDetailResponse:
         registry: WorkspacePoolRegistry = request.app.state.pools
         config_pool: asyncpg.Pool = registry.config_pool
-        ws_id, rag_cnx = await _workspace_context(config_pool, name)
+        ws_id, rag_cnx = await _workspace_context(request, name)
 
         strategies = await get_all_for_workspace(config_pool, ws_id)
         strat = strategies.get(path)
@@ -154,7 +155,7 @@ def build_index_keys_router() -> APIRouter:
     ) -> Response:
         registry: WorkspacePoolRegistry = request.app.state.pools
         config_pool: asyncpg.Pool = registry.config_pool
-        ws_id, _ = await _workspace_context(config_pool, name)
+        ws_id, _ = await _workspace_context(request, name)
         await upsert_strategy(config_pool, ws_id, path, payload.strategy, "ui")
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 

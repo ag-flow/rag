@@ -6,6 +6,7 @@ import asyncpg
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
+from rag.api.workspace_access import require_owned_workspace_id
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.auth.owner import get_current_owner_id
 from rag.schemas.enrichments import (
@@ -148,6 +149,7 @@ router_triggers = APIRouter(
 @router_triggers.get("", response_model=list[TriggerOut])
 async def list_triggers(workspace_name: str, request: Request) -> list[TriggerOut]:
     from rag.services.triggers import list_triggers as _list
+    await require_owned_workspace_id(request, workspace_name, _pool(request))
     async with _pool(request).acquire() as conn:
         return await _list(conn, workspace_name=workspace_name)
 
@@ -158,6 +160,7 @@ async def create_trigger(
 ) -> TriggerOut:
     from rag.services.triggers import UnknownTriggerStrategyError
     from rag.services.triggers import create_trigger as _create
+    await require_owned_workspace_id(request, workspace_name, _pool(request))
     owner_id = get_current_owner_id(request)
     async with _pool(request).acquire() as conn:
         try:
@@ -181,6 +184,7 @@ async def patch_trigger(
 ) -> TriggerOut:
     from rag.services.triggers import UnknownTriggerStrategyError
     from rag.services.triggers import patch_trigger as _patch
+    await require_owned_workspace_id(request, workspace_name, _pool(request))
     owner_id = get_current_owner_id(request)
     async with _pool(request).acquire() as conn:
         try:
@@ -203,6 +207,7 @@ async def delete_trigger(
     workspace_name: str, trigger_id: UUID, request: Request
 ) -> Response:
     from rag.services.triggers import delete_trigger as _delete
+    await require_owned_workspace_id(request, workspace_name, _pool(request))
     async with _pool(request).acquire() as conn:
         deleted = await _delete(conn, workspace_name=workspace_name, trigger_id=str(trigger_id))
     if not deleted:
@@ -211,17 +216,21 @@ async def delete_trigger(
 
 
 @router_triggers.get("/{trigger_id}/prompts", response_model=list[TriggerPromptOut])
-async def list_trigger_prompts(trigger_id: UUID, request: Request) -> list[TriggerPromptOut]:
+async def list_trigger_prompts(
+    workspace_name: str, trigger_id: UUID, request: Request
+) -> list[TriggerPromptOut]:
     from rag.services.triggers import list_trigger_prompts as _list
+    await require_owned_workspace_id(request, workspace_name, _pool(request))
     async with _pool(request).acquire() as conn:
         return await _list(conn, trigger_id=str(trigger_id))
 
 
 @router_triggers.post("/{trigger_id}/prompts", response_model=TriggerPromptOut, status_code=201)
 async def create_trigger_prompt(
-    trigger_id: UUID, body: TriggerPromptCreate, request: Request
+    workspace_name: str, trigger_id: UUID, body: TriggerPromptCreate, request: Request
 ) -> TriggerPromptOut:
     from rag.services.triggers import create_trigger_prompt as _create
+    await require_owned_workspace_id(request, workspace_name, _pool(request))
     async with _pool(request).acquire() as conn:
         try:
             return await _create(conn, trigger_id=str(trigger_id), req=body)
@@ -233,9 +242,14 @@ async def create_trigger_prompt(
 
 @router_triggers.patch("/{trigger_id}/prompts/{prompt_id}", response_model=TriggerPromptOut)
 async def patch_trigger_prompt(
-    trigger_id: UUID, prompt_id: UUID, body: TriggerPromptPatch, request: Request
+    workspace_name: str,
+    trigger_id: UUID,
+    prompt_id: UUID,
+    body: TriggerPromptPatch,
+    request: Request,
 ) -> TriggerPromptOut:
     from rag.services.triggers import patch_trigger_prompt as _patch
+    await require_owned_workspace_id(request, workspace_name, _pool(request))
     async with _pool(request).acquire() as conn:
         result = await _patch(conn, prompt_id=str(prompt_id), req=body)
     if result is None:
@@ -245,9 +259,10 @@ async def patch_trigger_prompt(
 
 @router_triggers.delete("/{trigger_id}/prompts/{prompt_id}", status_code=204)
 async def delete_trigger_prompt(
-    trigger_id: UUID, prompt_id: UUID, request: Request
+    workspace_name: str, trigger_id: UUID, prompt_id: UUID, request: Request
 ) -> Response:
     from rag.services.triggers import delete_trigger_prompt as _delete
+    await require_owned_workspace_id(request, workspace_name, _pool(request))
     async with _pool(request).acquire() as conn:
         deleted = await _delete(conn, prompt_id=str(prompt_id))
     if not deleted:
