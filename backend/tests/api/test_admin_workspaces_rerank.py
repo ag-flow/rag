@@ -13,6 +13,7 @@ def _create_workspace(client: TestClient, admin_headers: dict[str, str], name: s
         headers=admin_headers,
         json={
             "name": name,
+            "label": name,
             "endpoint_id": seed_endpoint_sync(
                 os.environ["DATABASE_URL"],
                 slug="ep-ollama-nourl",

@@ -88,6 +88,7 @@ async def test_real_indexer_markdown_strategy_produces_section_metadata(
     """End-to-end : workspace configuré en markdown → chunks ont la metadata."""
     req = WorkspaceCreateResolved(
         name="ws_md_e2e",
+        label="ws_md_e2e",
         indexer=IndexerCreateSpec(
             provider="ollama",
             model="mxbai-embed-large",
@@ -110,9 +111,11 @@ async def test_real_indexer_markdown_strategy_produces_section_metadata(
 
     registry: WorkspacePoolRegistry | None = None
     try:
-        # Reconfigure le workspace en markdown.
+        # Reconfigure le workspace en markdown (pipeline legacy — le défaut est
+        # passé à 'structured' en migration 065).
         await migrated.execute(
-            "UPDATE chunking_configs SET strategy=$1, extras=$2::jsonb WHERE workspace_id = $3",
+            "UPDATE chunking_configs SET strategy=$1, extras=$2::jsonb, engine='legacy' "
+            "WHERE workspace_id = $3",
             "markdown",
             json.dumps({"heading_levels": [1, 2]}),
             ws["id"],

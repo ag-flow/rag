@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 # Tests unitaires pour _authenticate et _load_workspace_context.
-# Clés utilisateur hash-only : lookup fingerprint + grant can_read, aucune
-# résolution Harpocrate.
+# Clés utilisateur hash-only : lookup fingerprint (toute clé valide, scope
+# read+), aucune résolution Harpocrate.
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -26,8 +26,8 @@ async def test_authenticate_workspace_not_found_raises_error() -> None:
 
 
 @pytest.mark.asyncio
-async def test_authenticate_bad_key_or_missing_grant_raises_401() -> None:
-    """Clé inconnue OU grant can_read absent, workspace existant → 401."""
+async def test_authenticate_bad_key_raises_401() -> None:
+    """Clé inconnue / révoquée, workspace existant → 401."""
     pool = MagicMock()
     pool.fetchrow = AsyncMock(return_value=None)
     pool.fetchval = AsyncMock(return_value=1)
@@ -41,7 +41,7 @@ async def test_authenticate_bad_key_or_missing_grant_raises_401() -> None:
 
 @pytest.mark.asyncio
 async def test_authenticate_valid_key_returns_entry() -> None:
-    """Fingerprint + grant can_read matchent → _CacheEntry, un seul fetchrow."""
+    """Fingerprint valide (toute clé scope read+) → _CacheEntry, un seul fetchrow."""
     ws_id = uuid4()
     pool = MagicMock()
     pool.fetchrow = AsyncMock(
@@ -57,7 +57,6 @@ async def test_authenticate_valid_key_returns_entry() -> None:
     assert pool.fetchrow.await_count == 1
     sql = pool.fetchrow.await_args.args[0]
     assert "user_api_keys" in sql
-    assert "can_read" in sql
 
 
 @pytest.mark.asyncio

@@ -38,13 +38,11 @@ async def _seed_ws(conn: asyncpg.Connection, name: str):
 
 
 @pytest.mark.asyncio
-async def test_key_with_write_grant_returns_auth_context(migrated: asyncpg.Pool) -> None:
+async def test_key_with_write_scope_returns_auth_context(migrated: asyncpg.Pool) -> None:
     api_key = "valid-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     async with migrated.acquire() as conn:
         ws_id = await _seed_ws(conn, "ws_auth")
-        await seed_user_api_key(
-            conn, api_key=api_key, grants=[(ws_id, True, True)]
-        )
+        await seed_user_api_key(conn, api_key=api_key, scope="read_write")
 
     req = _make_request(_make_app(migrated), {"Authorization": f"Bearer {api_key}"})
     ctx = await require_workspace_apikey("ws_auth", req)
@@ -52,10 +50,23 @@ async def test_key_with_write_grant_returns_auth_context(migrated: asyncpg.Pool)
 
 
 @pytest.mark.asyncio
+async def test_admin_scope_also_grants_write(migrated: asyncpg.Pool) -> None:
+    """Le niveau admin inclut l'écriture (scope IN read_write, admin)."""
+    api_key = "admin-key-ffffffffffffffffffffffffffff"
+    async with migrated.acquire() as conn:
+        ws_id = await _seed_ws(conn, "ws_admin")
+        await seed_user_api_key(conn, api_key=api_key, scope="admin")
+
+    req = _make_request(_make_app(migrated), {"Authorization": f"Bearer {api_key}"})
+    ctx = await require_workspace_apikey("ws_admin", req)
+    assert ctx.workspace_id == ws_id
+
+
+@pytest.mark.asyncio
 async def test_unknown_apikey_raises_401(migrated: asyncpg.Pool) -> None:
     async with migrated.acquire() as conn:
-        ws_id = await _seed_ws(conn, "ws_a")
-        await seed_user_api_key(conn, api_key="real-key", grants=[(ws_id, True, True)])
+        await _seed_ws(conn, "ws_a")
+        await seed_user_api_key(conn, api_key="real-key", scope="read_write")
 
     req = _make_request(_make_app(migrated), {"Authorization": "Bearer fake-key"})
     with pytest.raises(HTTPException) as exc:
@@ -64,14 +75,12 @@ async def test_unknown_apikey_raises_401(migrated: asyncpg.Pool) -> None:
 
 
 @pytest.mark.asyncio
-async def test_read_only_grant_rejected_for_write(migrated: asyncpg.Pool) -> None:
-    """Une clé can_read sans can_write ne peut pas pousser d'indexation."""
+async def test_read_only_scope_rejected_for_write(migrated: asyncpg.Pool) -> None:
+    """Une clé scope='read' ne peut pas pousser d'indexation (écriture)."""
     api_key = "read-only-key-cccccccccccccccccccccccc"
     async with migrated.acquire() as conn:
-        ws_id = await _seed_ws(conn, "ws_ro")
-        await seed_user_api_key(
-            conn, api_key=api_key, grants=[(ws_id, True, False)]
-        )
+        await _seed_ws(conn, "ws_ro")
+        await seed_user_api_key(conn, api_key=api_key, scope="read")
 
     req = _make_request(_make_app(migrated), {"Authorization": f"Bearer {api_key}"})
     with pytest.raises(HTTPException) as exc:
@@ -80,29 +89,12 @@ async def test_read_only_grant_rejected_for_write(migrated: asyncpg.Pool) -> Non
 
 
 @pytest.mark.asyncio
-async def test_grant_on_other_workspace_rejected(migrated: asyncpg.Pool) -> None:
-    """Le grant est par workspace : une clé valide ailleurs est refusée ici."""
-    api_key = "other-ws-key-dddddddddddddddddddddddd"
-    async with migrated.acquire() as conn:
-        ws_granted = await _seed_ws(conn, "ws_granted")
-        await _seed_ws(conn, "ws_target")
-        await seed_user_api_key(
-            conn, api_key=api_key, grants=[(ws_granted, True, True)]
-        )
-
-    req = _make_request(_make_app(migrated), {"Authorization": f"Bearer {api_key}"})
-    with pytest.raises(HTTPException) as exc:
-        await require_workspace_apikey("ws_target", req)
-    assert exc.value.status_code == 401
-
-
-@pytest.mark.asyncio
 async def test_revoked_key_rejected(migrated: asyncpg.Pool) -> None:
     api_key = "revoked-key-eeeeeeeeeeeeeeeeeeeeeeeeee"
     async with migrated.acquire() as conn:
-        ws_id = await _seed_ws(conn, "ws_rev")
+        await _seed_ws(conn, "ws_rev")
         key_id = await seed_user_api_key(
-            conn, api_key=api_key, grants=[(ws_id, True, True)]
+            conn, api_key=api_key, scope="read_write"
         )
         await conn.execute(
             "UPDATE user_api_keys SET revoked_at = now() WHERE id = $1", key_id

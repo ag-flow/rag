@@ -33,7 +33,7 @@ def build_contracts_router() -> APIRouter:
                 "tools": "/api/contracts/mcp-tools",
                 "endpoint": "/mcp/{workspace_id}",
                 "transport": "streamable-http",
-                "auth": "Authorization: Bearer <clé API utilisateur, grant can_read>",
+                "auth": "Authorization: Bearer <clé API utilisateur (niveau read+)>",
             },
         }
 

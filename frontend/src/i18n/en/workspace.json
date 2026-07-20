@@ -55,8 +55,11 @@
     },
     "ids": {
       "title": "Identifiers (read-only)",
-      "name": "name",
-      "id": "id"
+      "label": "display name",
+      "name": "identifier",
+      "id": "id",
+      "description": "description",
+      "description_empty": "No description"
     },
     "save": {
       "success": "Reference saved.",

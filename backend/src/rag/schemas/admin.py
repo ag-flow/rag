@@ -71,6 +71,8 @@ class WorkspaceCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(pattern=_NAME_REGEX, max_length=63)
+    label: str = Field(min_length=1, max_length=128)
+    description: str = Field(default="", max_length=2000)
     endpoint_id: UUID
 
 
@@ -80,6 +82,8 @@ class WorkspaceCreateResolved(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(pattern=_NAME_REGEX, max_length=63)
+    label: str = Field(min_length=1, max_length=128)
+    description: str = Field(default="", max_length=2000)
     indexer: IndexerCreateSpec
     rerank: RerankCreateSpec | None = None
 
@@ -118,6 +122,8 @@ class WorkspaceResponse(BaseModel):
 
     id: UUID
     name: str
+    label: str
+    description: str
     indexer: IndexerSpec
     sources_count: int
     documents_count: int
@@ -131,6 +137,8 @@ class WorkspaceCreateResponse(BaseModel):
 
     id: UUID
     name: str
+    label: str
+    description: str
     created_at: str
 
 

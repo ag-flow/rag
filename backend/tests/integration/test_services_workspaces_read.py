@@ -71,6 +71,7 @@ async def test_list_workspaces_includes_created(
         await create_workspace(
             request=WorkspaceCreateResolved(
                 name=name,
+                label=name,
                 indexer=IndexerCreateSpec(
                     provider="openai", model="text-embedding-3-small", api_key_ref="k"
                 ),
@@ -100,6 +101,7 @@ async def test_get_workspace_returns_detail(
     await create_workspace(
         request=WorkspaceCreateResolved(
             name="ws_detail",
+            label="ws_detail",
             indexer=IndexerCreateSpec(
                 provider="voyage", model="voyage-3", api_key_ref="voyage_api_key"
             ),
@@ -115,6 +117,39 @@ async def test_get_workspace_returns_detail(
     assert detail["indexer"]["provider"] == "voyage"  # type: ignore[index]
     assert detail["indexer"]["model"] == "voyage-3"  # type: ignore[index]
     assert detail["sources_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_create_persists_label_and_description(
+    pg_container: str, session_pool: asyncpg.Pool, cleanup_ws_dbs: None
+) -> None:
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
+    resp = await create_workspace(
+        request=WorkspaceCreateResolved(
+            name="ws_meta",
+            label="Mon Workspace",
+            description="Corpus de doc interne",
+            indexer=IndexerCreateSpec(
+                provider="openai", model="text-embedding-3-small", api_key_ref="k"
+            ),
+        ),
+        config_pool=session_pool,
+        admin_dsn=admin_dsn,
+        resolver=_StubResolver(),  # type: ignore[arg-type]
+        harpocrate_vaults_service=_make_harpo_service(),
+    )
+    assert resp["label"] == "Mon Workspace"
+    assert resp["description"] == "Corpus de doc interne"
+
+    detail = await get_workspace(session_pool, name="ws_meta")
+    assert detail["label"] == "Mon Workspace"
+    assert detail["description"] == "Corpus de doc interne"
+    assert detail["name"] == "ws_meta"  # slug/identifiant inchangé
+
+    listed = next(r for r in await list_workspaces(session_pool) if r["name"] == "ws_meta")
+    assert listed["label"] == "Mon Workspace"
+    assert listed["description"] == "Corpus de doc interne"
 
 
 @pytest.mark.asyncio

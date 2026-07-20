@@ -6,18 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
-interface Props {
-  workspaceName: string;
-  workspaceId: string;
-}
-
-/** Onglet Api : paramètres de connexion MCP du workspace.
+/** Onglet Api : paramètres de connexion MCP.
  *
  * Les clés d'accès sont personnelles (page Configuration → Clés API) ; ce
- * panneau ne montre plus que l'URL MCP + la config Claude Code, et renvoie
- * vers la gestion des clés.
+ * panneau ne montre que l'endpoint MCP unique + la config Claude Code, et
+ * renvoie vers la gestion des clés. Le workspace n'est plus dans l'URL : il se
+ * passe en paramètre « workspace » des outils MCP.
  */
-export function WorkspaceApiKeysTab({ workspaceName, workspaceId }: Props) {
+export function WorkspaceApiKeysTab() {
   const { t } = useTranslation("apikeys");
 
   const [copiedUrl, setCopiedUrl] = useState(false);
@@ -25,12 +21,15 @@ export function WorkspaceApiKeysTab({ workspaceName, workspaceId }: Props) {
 
   const publicUrl =
     (import.meta.env["VITE_PUBLIC_URL"] as string | undefined) ?? window.location.origin;
-  const mcpUrl = `${publicUrl}/mcp/${workspaceId}`;
+  const mcpUrl = `${publicUrl}/mcp`;
   const mcpConfig = JSON.stringify(
     {
-      [workspaceName]: {
-        url: mcpUrl,
-        headers: { Authorization: "Bearer <votre-clé>" },
+      mcpServers: {
+        ragflow: {
+          type: "http",
+          url: mcpUrl,
+          headers: { Authorization: "Bearer <votre-clé>" },
+        },
       },
     },
     null,
@@ -64,6 +63,7 @@ export function WorkspaceApiKeysTab({ workspaceName, workspaceId }: Props) {
           </div>
         </div>
         <p className="mt-2 text-xs text-slate-500">{t("mcp_token_hint")}</p>
+        <p className="mt-1 text-xs text-slate-500">{t("mcp.workspaces_note")}</p>
         <div className="mt-3">
           <Label className="text-xs text-slate-500">{t("mcp_config_label")}</Label>
           <div className="mt-1 flex items-start gap-2">

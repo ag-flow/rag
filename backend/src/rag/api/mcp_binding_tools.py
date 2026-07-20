@@ -26,7 +26,7 @@ def register_binding_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
         """Remplace le jeu COMPLET de routes de régions d'une de tes stratégies.
 
         Prérequis : la stratégie a un parser_slug (passe régions active) et
-        t'appartient. can_write requis. Résolution à l'indexation : route exacte
+        t'appartient. niveau admin requis. Résolution à l'indexation : route exacte
         (type, qualifier) > wildcard (type, '*') > inline (algo parent).
 
         routes : liste d'objets —
@@ -70,7 +70,7 @@ def register_binding_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
         Seuls les templates en timing embedding_inline (modes chunk ou region)
         sont liables — un template en mode document est refusé : crée-le en mode
         chunk ou région. Un target region:* exige un parser_slug sur la stratégie.
-        can_write requis.
+        niveau admin requis.
 
         AVERTISSEMENT : embedding_inline modifie le texte embeddé donc les
         VECTEURS — une réindexation est nécessaire pour prendre effet sur les

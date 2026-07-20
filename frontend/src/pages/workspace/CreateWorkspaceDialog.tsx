@@ -20,10 +20,12 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useCreateWorkspace } from "@/hooks/useWorkspaces";
 import { useAllVaultEndpoints } from "@/hooks/useVaultEndpoints";
 import { useToast } from "@/hooks/useToast";
+import { slugifyLabel } from "@/lib/slugify";
 
 const NAME_RE = /^[a-z][a-z0-9_-]{0,62}$/;
 
@@ -45,27 +47,37 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
   const createMutation = useCreateWorkspace();
   const { data: grouped = [], isLoading } = useAllVaultEndpoints();
 
-  const [name, setName] = useState("");
+  const [label, setLabel] = useState("");
+  const [description, setDescription] = useState("");
   const [endpointId, setEndpointId] = useState<string>("");
 
   useEffect(() => {
     if (!open) return;
-    setName("");
+    setLabel("");
+    setDescription("");
     // Pré-sélectionne l'unique endpoint s'il n'y en a qu'un.
     const all = grouped.flatMap((g) => g.endpoints);
     setEndpointId(all.length === 1 && all[0] ? all[0].id : "");
   }, [open, grouped]);
 
+  const slug = slugifyLabel(label);
   const hasEndpoints = grouped.some((g) => g.endpoints.length > 0);
-  const nameValid = NAME_RE.test(name);
-  const canSubmit = nameValid && endpointId !== "" && !createMutation.isPending;
+  const slugValid = NAME_RE.test(slug);
+  const labelValid = label.trim() !== "";
+  const canSubmit =
+    labelValid && slugValid && endpointId !== "" && !createMutation.isPending;
 
   const selected = grouped.flatMap((g) => g.endpoints).find((ep) => ep.id === endpointId);
 
   async function handleSubmit() {
     try {
-      const resp = await createMutation.mutateAsync({ name, endpoint_id: endpointId });
-      toast({ title: t("toasts.created", { name: resp.name }) });
+      const resp = await createMutation.mutateAsync({
+        name: slug,
+        endpoint_id: endpointId,
+        label: label.trim(),
+        description: description.trim(),
+      });
+      toast({ title: t("toasts.created", { name: resp.label }) });
       onOpenChange(false);
       onCreated?.({ name: resp.name });
     } catch {
@@ -84,16 +96,41 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
         <div className="space-y-4">
           <div>
             <Label className="text-xs uppercase tracking-wider text-slate-600">
-              {t("form.name")}
+              {t("form.label")}
             </Label>
             <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="mon-projet"
-              className="mt-1 font-mono"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder={t("form.label_placeholder")}
+              className="mt-1"
               autoFocus
             />
-            <p className="mt-1 text-xs text-slate-500">{t("form.name_help")}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              {t("form.slug_preview")}{" "}
+              {slug ? (
+                <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">
+                  {slug}
+                </code>
+              ) : (
+                <span className="italic text-slate-400">{t("form.slug_empty")}</span>
+              )}
+            </p>
+            {label.trim() !== "" && !slugValid && (
+              <p className="mt-1 text-xs text-amber-600">{t("form.slug_invalid")}</p>
+            )}
+          </div>
+
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-slate-600">
+              {t("form.description")}
+            </Label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder={t("form.description_placeholder")}
+              className="mt-1"
+              rows={3}
+            />
           </div>
 
           <div>

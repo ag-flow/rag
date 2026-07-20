@@ -14,16 +14,11 @@ from tests.api.conftest import seed_endpoint_sync
 def _make_user_key(
     client, admin_headers: dict[str, str], ws_id: str, name: str
 ) -> str:
-    """Crée une clé utilisateur avec grant read+write sur le workspace."""
+    """Crée une clé utilisateur de niveau lecture (recherche MCP, accès global)."""
     kr = client.post(
         "/api/me/api-keys",
         headers=admin_headers,
-        json={
-            "name": f"key-{name}",
-            "workspaces": [
-                {"workspace_id": ws_id, "can_read": True, "can_write": True}
-            ],
-        },
+        json={"name": f"key-{name}", "scope": "read"},
     )
     assert kr.status_code == 201, kr.text
     return kr.json()["api_key"]
@@ -58,7 +53,7 @@ def _make_ws(
     r = client.post(
         "/api/admin/workspaces",
         headers=admin_headers,
-        json={"name": name, "endpoint_id": endpoint_id},
+        json={"name": name, "label": name, "endpoint_id": endpoint_id},
     )
     assert r.status_code == 201, r.text
     return _make_user_key(client, admin_headers, r.json()["id"], name)

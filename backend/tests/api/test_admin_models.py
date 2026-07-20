@@ -44,7 +44,11 @@ def test_delete_model_409_in_use(
     admin_client.post(
         "/api/admin/workspaces",
         headers=admin_headers,
-        json={"name": "ws_uses_model", "endpoint_id": admin_client.default_endpoint_id},
+        json={
+            "name": "ws_uses_model",
+            "label": "ws_uses_model",
+            "endpoint_id": admin_client.default_endpoint_id,
+        },
     )
     # Depuis la migration 064 les seeds sont du catalogue système (owner NULL) :
     # la garde d'immutabilité passe AVANT le contrôle « in use ».

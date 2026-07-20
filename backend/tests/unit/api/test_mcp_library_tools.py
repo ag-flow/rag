@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 
 from rag.api.mcp_library_tools import register_library_tools
-from rag.api.mcp_standard import RagMcpDispatcher, _ws_ctx, _WsCtx
+from rag.api.mcp_standard import RagMcpDispatcher, _KeyCtx, _ws_ctx
 from rag.schemas.chunking_strategies import StrategyDetailOut
 from rag.schemas.enrichments import PromptTemplateOut
 from rag.services import chunking_strategies as strategies_svc
@@ -46,21 +46,15 @@ class _FakePool:
         return _CM()
 
 
-def _make_ctx(*, can_write: bool = True, owner_id: str = "owner-1") -> _WsCtx:
-    return _WsCtx(
-        workspace_name="ws",
-        rag_cnx="dsn",
-        indexer_service="openai",
-        indexer_provider="openai",
-        indexer_model="m",
-        indexer_api_key_ref=None,
-        indexer_base_url=None,
+def _make_ctx(*, scope: str = "admin", owner_id: str = "owner-1") -> _KeyCtx:
+    return _KeyCtx(
+        owner_id=owner_id,
+        scope=scope,
+        config_pool=_FakePool(MagicMock()),
         pool_registry=MagicMock(),
         resolver=MagicMock(),
-        workspace_id=uuid4(),
-        config_pool=_FakePool(MagicMock()),
-        owner_id=owner_id,
-        can_write=can_write,
+        client_provider=MagicMock(),
+        default_vault_name=None,
     )
 
 
@@ -116,7 +110,7 @@ def tools() -> dict[str, Any]:
     return mcp.tools
 
 
-async def _call(tool: Any, ctx: _WsCtx, /, **kwargs: Any) -> str:
+async def _call(tool: Any, ctx: _KeyCtx, /, **kwargs: Any) -> str:
     token = _ws_ctx.set(ctx)
     try:
         return await tool(**kwargs)
@@ -124,38 +118,38 @@ async def _call(tool: Any, ctx: _WsCtx, /, **kwargs: Any) -> str:
         _ws_ctx.reset(token)
 
 
-# ── Garde can_write ──────────────────────────────────────────────────────────
+# ── Garde d'écriture (niveau admin requis) ───────────────────────────────────
 
 
 class TestWriteGuard:
     @pytest.mark.asyncio
-    async def test_create_strategy_refused_without_can_write(self, tools, monkeypatch):
+    async def test_create_strategy_refused_for_non_admin(self, tools, monkeypatch):
         create = AsyncMock()
         monkeypatch.setattr(strategies_svc, "create_strategy", create)
         result = await _call(
             tools["create_chunking_strategy"],
-            _make_ctx(can_write=False),
+            _make_ctx(scope="read_write"),
             label="Docs",
             algo="prose",
         )
-        assert "can_write" in result
-        assert "refusée" in result.lower()
+        assert "admin" in result
+        assert "refusé" in result.lower()
         create.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_create_template_refused_without_can_write(self, tools, monkeypatch):
+    async def test_create_template_refused_for_non_admin(self, tools, monkeypatch):
         create = AsyncMock()
         monkeypatch.setattr(templates_svc, "create_prompt_template", create)
         result = await _call(
             tools["create_prompt_template"],
-            _make_ctx(can_write=False),
+            _make_ctx(scope="read"),
             name="t",
             language="md",
             metadata_key="k",
             prompt="p",
             mode="chunk",
         )
-        assert "can_write" in result
+        assert "admin" in result
         create.assert_not_awaited()
 
 
@@ -422,27 +416,21 @@ class TestPromptTemplateTools:
 
 class TestLoadContextGrants:
     @pytest.mark.asyncio
-    async def test_load_context_exposes_owner_id_and_can_write(self):
+    async def test_load_context_exposes_owner_id_and_scope(self):
         dispatcher = RagMcpDispatcher(AsyncMock())
-        row = {
-            "name": "ws",
-            "rag_cnx": "dsn",
-            "provider": "openai",
-            "model": "m",
-            "indexer_api_key_ref": None,
-            "base_url": None,
-            "service": "openai",
-            "owner_id": "owner-abc",
-            "can_write": True,
-        }
+        row = {"owner_id": "owner-abc", "scope": "admin"}
         pool = MagicMock()
         pool.fetchrow = AsyncMock(return_value=row)
         dispatcher._config_pool = pool
+        dispatcher._pool_registry = MagicMock()
+        dispatcher._resolver = MagicMock()
+        dispatcher._client_provider = None
 
-        ctx = await dispatcher._load_context(str(uuid4()), "tok")
+        ctx = await dispatcher._load_context("tok")
 
         assert ctx.owner_id == "owner-abc"
-        assert ctx.can_write is True
+        assert ctx.scope == "admin"
         sql = pool.fetchrow.await_args.args[0]
-        assert "k.owner_id" in sql
-        assert "g.can_write" in sql
+        assert "owner_id" in sql
+        assert "scope" in sql
+        assert "user_api_keys" in sql

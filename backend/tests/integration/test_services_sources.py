@@ -78,6 +78,7 @@ async def _setup_ws(pg_container: str, session_pool: asyncpg.Pool, name: str) ->
     await create_workspace(
         request=WorkspaceCreateResolved(
             name=name,
+            label=name,
             indexer=IndexerCreateSpec(
                 provider="openai", model="text-embedding-3-small", api_key_ref="k"
             ),

@@ -47,6 +47,8 @@ vi.mock("@/hooks/useHarpocrateVaults", () => ({
 const mockWorkspace: Workspace = {
   id: "abc-123",
   name: "my-workspace",
+  label: "My workspace",
+  description: "",
   indexer: {
     provider: "openai",
     model: "text-embedding-3-small",

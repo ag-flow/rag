@@ -26,9 +26,9 @@ import { useRevokeUserApiKey, useUserApiKeys } from "@/hooks/useUserApiKeys";
 import { useToast } from "@/hooks/useToast";
 import { CreateUserApiKeyDialog } from "@/pages/apikeys/CreateUserApiKeyDialog";
 import { RotateUserApiKeyDialog } from "@/pages/apikeys/RotateUserApiKeyDialog";
-import { EditGrantsDialog } from "@/pages/apikeys/EditGrantsDialog";
+import { EditScopeDialog } from "@/pages/apikeys/EditScopeDialog";
 import { McpClientPanel } from "@/pages/apikeys/McpClientPanel";
-import type { UserApiKey, WorkspaceGrantOut } from "@/lib/user-api-keys.types";
+import type { KeyScope, UserApiKey } from "@/lib/user-api-keys.types";
 
 const STATUS_COLORS: Record<string, string> = {
   active: "text-emerald-600",
@@ -37,10 +37,11 @@ const STATUS_COLORS: Record<string, string> = {
   expired: "text-slate-400",
 };
 
-function grantLabel(g: WorkspaceGrantOut): string {
-  const perms = [g.can_read ? "R" : null, g.can_write ? "W" : null].filter(Boolean).join("/");
-  return `${g.workspace_name} (${perms || "—"})`;
-}
+const SCOPE_VARIANTS: Record<KeyScope, "secondary" | "default" | "destructive"> = {
+  read: "secondary",
+  read_write: "default",
+  admin: "destructive",
+};
 
 export function ApiKeysPage() {
   const { t } = useTranslation("apikeys");
@@ -96,7 +97,7 @@ export function ApiKeysPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t("col_name")}</TableHead>
-                <TableHead>{t("col_workspaces")}</TableHead>
+                <TableHead>{t("col_scope")}</TableHead>
                 <TableHead>{t("col_status")}</TableHead>
                 <TableHead>{t("col_created")}</TableHead>
                 <TableHead />
@@ -113,17 +114,7 @@ export function ApiKeysPage() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {k.workspaces.length === 0 ? (
-                        <span className="text-xs text-slate-400">{t("no_grants")}</span>
-                      ) : (
-                        k.workspaces.map((g) => (
-                          <Badge key={g.workspace_id} variant="secondary">
-                            {grantLabel(g)}
-                          </Badge>
-                        ))
-                      )}
-                    </div>
+                    <Badge variant={SCOPE_VARIANTS[k.scope]}>{t(`scope.levels.${k.scope}.label`)}</Badge>
                   </TableCell>
                   <TableCell>
                     <span className={STATUS_COLORS[k.status] ?? ""}>{t(`status_${k.status}`)}</span>
@@ -132,20 +123,18 @@ export function ApiKeysPage() {
                     {new Date(k.created_at).toLocaleDateString()}
                   </TableCell>
                   <TableCell className="text-right">
-                    {k.workspaces.some((g) => g.can_read) && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => toggleConnect(k.id)}
-                        aria-label={t("connect_btn")}
-                        aria-expanded={expandedId === k.id}
-                      >
-                        <Plug
-                          className={`h-4 w-4 ${expandedId === k.id ? "text-sky-600" : ""}`}
-                        />
-                      </Button>
-                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleConnect(k.id)}
+                      aria-label={t("connect_btn")}
+                      aria-expanded={expandedId === k.id}
+                    >
+                      <Plug
+                        className={`h-4 w-4 ${expandedId === k.id ? "text-sky-600" : ""}`}
+                      />
+                    </Button>
                     {k.status === "active" && (
                       <>
                         <Button
@@ -153,7 +142,7 @@ export function ApiKeysPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => setToEdit(k)}
-                          aria-label={t("edit_grants_btn")}
+                          aria-label={t("edit_scope_btn")}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -182,7 +171,7 @@ export function ApiKeysPage() {
                 {expandedId === k.id && (
                   <TableRow>
                     <TableCell colSpan={5} className="bg-slate-50/60 p-4">
-                      <McpClientPanel grants={k.workspaces} />
+                      <McpClientPanel />
                     </TableCell>
                   </TableRow>
                 )}
@@ -195,7 +184,7 @@ export function ApiKeysPage() {
 
       <CreateUserApiKeyDialog open={createOpen} onOpenChange={setCreateOpen} />
       <RotateUserApiKeyDialog apiKey={toRotate} onOpenChange={(o) => !o && setToRotate(null)} />
-      <EditGrantsDialog apiKey={toEdit} onOpenChange={(o) => !o && setToEdit(null)} />
+      <EditScopeDialog apiKey={toEdit} onOpenChange={(o) => !o && setToEdit(null)} />
 
       <AlertDialog open={toRevoke !== null} onOpenChange={(o) => !o && setToRevoke(null)}>
         <AlertDialogContent>

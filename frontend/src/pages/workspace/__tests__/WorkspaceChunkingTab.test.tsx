@@ -32,6 +32,8 @@ import { useChunkingConfig } from "@/hooks/useChunking";
 const mockWorkspace: Workspace = {
   id: "ws-1",
   name: "my-workspace",
+  label: "My workspace",
+  description: "",
   indexer: {
     provider: "openai",
     model: "text-embedding-3-small",

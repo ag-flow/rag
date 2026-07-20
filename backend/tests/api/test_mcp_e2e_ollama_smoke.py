@@ -34,6 +34,7 @@ def test_mcp_e2e_ollama_search_returns_relevant_doc(
         headers=admin_headers,
         json={
             "name": "ws_mcp_smoke",
+            "label": "ws_mcp_smoke",
             "endpoint_id": seed_endpoint_sync(
                 os.environ["DATABASE_URL"],
                 slug="ep-ws_mcp_smoke", provider="ollama",
@@ -45,12 +46,7 @@ def test_mcp_e2e_ollama_search_returns_relevant_doc(
     kr = admin_client.post(
         "/api/me/api-keys",
         headers=admin_headers,
-        json={
-            "name": "key-smoke",
-            "workspaces": [
-                {"workspace_id": r.json()["id"], "can_read": True, "can_write": True}
-            ],
-        },
+        json={"name": "key-smoke", "scope": "read_write"},
     )
     assert kr.status_code == 201, kr.text
     api_key = kr.json()["api_key"]

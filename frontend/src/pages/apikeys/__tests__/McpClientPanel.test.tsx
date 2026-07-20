@@ -28,51 +28,33 @@ function renderPanel(props: Parameters<typeof McpClientPanel>[0]) {
   );
 }
 
-const WS = { workspace_id: "ws-uuid-1", workspace_name: "docs", can_read: true };
-
 describe("McpClientPanel", () => {
-  it("construit l'endpoint et l'en-tête avec la clé réelle", () => {
-    const endpoint = `${window.location.origin}/mcp/ws-uuid-1`;
-    renderPanel({ grants: [WS], apiKey: "sk-secret-123" });
+  it("expose un endpoint unique /mcp et l'en-tête avec la clé réelle", () => {
+    const endpoint = `${window.location.origin}/mcp`;
+    renderPanel({ apiKey: "sk-secret-123" });
 
-    // Endpoint = origin + /mcp/{workspace_id}
+    // Endpoint unique = origin + /mcp (pas de workspace dans l'URL)
     expect(screen.getByText(endpoint)).toBeInTheDocument();
     // En-tête d'auth avec la vraie clé
     expect(screen.getByText("Authorization: Bearer sk-secret-123")).toBeInTheDocument();
-    // Le bloc mcpServers contient l'URL et la clé
+    // Le bloc mcpServers contient un unique serveur ragflow avec l'URL et la clé
     const config = screen.getByText(/"mcpServers"/);
+    expect(config.textContent).toContain('"ragflow"');
     expect(config.textContent).toContain(endpoint);
     expect(config.textContent).toContain("Bearer sk-secret-123");
+    // Pas d'URL par workspace
+    expect(config.textContent).not.toContain(`${endpoint}/`);
+  });
+
+  it("affiche la note pédagogique sur list_workspaces", () => {
+    renderPanel({ apiKey: "k" });
+    expect(screen.getByText(/list_workspaces/)).toBeInTheDocument();
   });
 
   it("sans clé, utilise un placeholder et affiche la note", () => {
-    renderPanel({ grants: [WS] });
+    renderPanel({});
 
     expect(screen.getByText("Authorization: Bearer <VOTRE_CLÉ_API>")).toBeInTheDocument();
     expect(screen.getByText(/remplacez <VOTRE_CLÉ_API>/)).toBeInTheDocument();
-  });
-
-  it("n'expose que les workspaces en lecture", () => {
-    renderPanel({
-      grants: [WS, { workspace_id: "ws-2", workspace_name: "private", can_read: false }],
-      apiKey: "k",
-    });
-
-    expect(
-      screen.getByText(`${window.location.origin}/mcp/ws-uuid-1`),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText(`${window.location.origin}/mcp/ws-2`),
-    ).not.toBeInTheDocument();
-  });
-
-  it("aucun grant lecture → message d'aide, pas d'endpoint", () => {
-    renderPanel({
-      grants: [{ workspace_id: "ws-2", workspace_name: "private", can_read: false }],
-      apiKey: "k",
-    });
-
-    expect(screen.getByText(/exige le grant/)).toBeInTheDocument();
-    expect(screen.queryByText(/Authorization: Bearer/)).not.toBeInTheDocument();
   });
 });

@@ -17,6 +17,13 @@
   "form": {
     "name": "Name",
     "name_help": "Lowercase letters, digits, _ or - · max 64",
+    "label": "Display name",
+    "label_placeholder": "My project",
+    "description": "Description",
+    "description_placeholder": "What this workspace is for (optional)",
+    "slug_preview": "Identifier:",
+    "slug_empty": "enter a display name",
+    "slug_invalid": "The derived identifier is invalid: adjust the display name.",
     "indexer": "Indexer",
     "provider": "Provider",
     "model": "Model",

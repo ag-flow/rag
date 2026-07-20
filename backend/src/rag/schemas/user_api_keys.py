@@ -1,41 +1,31 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
-class WorkspaceGrantIn(BaseModel):
-    """Droit accordé à une clé sur un workspace."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    workspace_id: UUID
-    can_read: bool = True
-    can_write: bool = False
+# Niveau d'accès d'une clé (migration 067) — appliqué à TOUS les workspaces :
+#   read       : recherche / lecture MCP
+#   read_write : + indexation / push
+#   admin      : + ressources hors workspace (bibliothèque), isolées par owner
+KeyScope = Literal["read", "read_write", "admin"]
 
 
 class UserApiKeyCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=128)
-    workspaces: list[WorkspaceGrantIn] = Field(default_factory=list)
+    scope: KeyScope = "read"
 
 
-class GrantsUpdate(BaseModel):
-    """Remplace l'ensemble des grants d'une clé."""
+class ScopeUpdate(BaseModel):
+    """Change le niveau d'accès d'une clé."""
 
     model_config = ConfigDict(extra="forbid")
 
-    workspaces: list[WorkspaceGrantIn]
-
-
-class WorkspaceGrantOut(BaseModel):
-    workspace_id: UUID
-    workspace_name: str
-    can_read: bool
-    can_write: bool
+    scope: KeyScope
 
 
 class UserApiKeyOut(BaseModel):
@@ -43,10 +33,10 @@ class UserApiKeyOut(BaseModel):
     name: str
     fingerprint_preview: str
     status: str
+    scope: KeyScope
     created_at: datetime
     revoked_at: datetime | None
     rotated_at: datetime | None
-    workspaces: list[WorkspaceGrantOut]
 
 
 class UserApiKeyCreated(BaseModel):
@@ -56,6 +46,7 @@ class UserApiKeyCreated(BaseModel):
     name: str
     api_key: str
     fingerprint_preview: str
+    scope: KeyScope
     created_at: datetime
 
 

@@ -75,7 +75,11 @@ def test_full_pipeline_create_workspace_source_reindex_done(
     r = client.post(
         "/api/admin/workspaces",
         headers=_bearer(),
-        json={"name": "ws_e2e_sync", "endpoint_id": client.default_endpoint_id},
+        json={
+            "name": "ws_e2e_sync",
+            "label": "ws_e2e_sync",
+            "endpoint_id": client.default_endpoint_id,
+        },
     )
     assert r.status_code == 201
 

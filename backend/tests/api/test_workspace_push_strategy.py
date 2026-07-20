@@ -8,20 +8,17 @@ from fastapi.testclient import TestClient
 
 
 def _setup_ws_and_key(client: TestClient, admin_headers: dict[str, str], name: str) -> str:
-    """Crée un workspace + une clé API user avec grant d'écriture. Retourne la clé."""
+    """Crée un workspace + une clé API user de niveau écriture. Retourne la clé."""
     ws = client.post(
         "/api/admin/workspaces",
         headers=admin_headers,
-        json={"name": name, "endpoint_id": client.default_endpoint_id},
+        json={"name": name, "label": name, "endpoint_id": client.default_endpoint_id},
     )
     assert ws.status_code == 201, ws.text
     key = client.post(
         "/api/me/api-keys",
         headers=admin_headers,
-        json={
-            "name": f"push-{name}",
-            "workspaces": [{"workspace_id": ws.json()["id"], "can_read": False, "can_write": True}],
-        },
+        json={"name": f"push-{name}", "scope": "read_write"},
     )
     assert key.status_code == 201, key.text
     return key.json()["api_key"]

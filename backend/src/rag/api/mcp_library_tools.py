@@ -25,7 +25,7 @@ def register_library_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
 
     Stratégies de chunking (CRUD + duplicate + routes + bindings de prompts)
     puis templates de prompts (via register_prompt_tools). Le contexte requête
-    (owner_id, can_write, config_pool) vient du ContextVar posé par le
+    (owner_id, scope, config_pool) vient du ContextVar posé par le
     dispatcher — mêmes gardes métier que l'IHM (services owner-scoped).
     """
 
@@ -85,7 +85,7 @@ def register_library_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
         parser_slug: str | None = None,
         params: dict[str, Any] | None = None,
     ) -> str:
-        """Crée une stratégie de chunking dans ta bibliothèque (grant can_write requis).
+        """Crée une stratégie de chunking dans ta bibliothèque (grant niveau admin requis).
 
         Le slug est dérivé du label côté serveur (jamais saisi) ; l'algo est figé
         après création — seuls label, params et parser restent modifiables.
@@ -164,7 +164,7 @@ def register_library_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
         parser_slug: str | None = None,
         remove_parser: bool = False,
     ) -> str:
-        """Modifie une de TES stratégies (can_write requis) — les système sont immuables.
+        """Modifie une de TES stratégies (niveau admin requis) — les système sont immuables.
 
         Seuls les champs fournis changent ; l'algo est figé après création.
         - label : renommer — le slug est re-dérivé côté serveur.
@@ -202,7 +202,7 @@ def register_library_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
 
     @mcp.tool()
     async def delete_chunking_strategy(strategy_id: str) -> str:
-        """Supprime une de TES stratégies (can_write requis).
+        """Supprime une de TES stratégies (niveau admin requis).
 
         Refusé avec un message détaillé si la stratégie est référencée : cible de
         routes d'autres stratégies, triggers d'extension ou stratégie par défaut
@@ -227,7 +227,7 @@ def register_library_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
 
         C'est LA voie pour personnaliser une stratégie système (immuable) : la
         copie t'appartient et reprend params, routes de régions et bindings de
-        prompts. can_write requis.
+        prompts. niveau admin requis.
 
         Paramètres :
         - strategy_id : UUID de la stratégie source.

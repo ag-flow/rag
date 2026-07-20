@@ -11,13 +11,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useCreateUserApiKey } from "@/hooks/useUserApiKeys";
 import { useToast } from "@/hooks/useToast";
-import { GrantsEditor } from "./GrantsEditor";
+import { ScopeSelector } from "./ScopeSelector";
 import { ShowOncePanel } from "./ShowOncePanel";
-import { McpClientPanel, type McpGrant } from "./McpClientPanel";
-import type { WorkspaceGrant } from "@/lib/user-api-keys.types";
+import { McpClientPanel } from "./McpClientPanel";
+import type { KeyScope } from "@/lib/user-api-keys.types";
 
 interface Props {
   open: boolean;
@@ -27,32 +26,24 @@ interface Props {
 export function CreateUserApiKeyDialog({ open, onOpenChange }: Props) {
   const { t } = useTranslation("apikeys");
   const { toast } = useToast();
-  const { data: workspaces = [] } = useWorkspaces();
   const createMutation = useCreateUserApiKey();
 
   const [name, setName] = useState("");
-  const [grants, setGrants] = useState<WorkspaceGrant[]>([]);
+  const [scope, setScope] = useState<KeyScope>("read");
   const [createdKey, setCreatedKey] = useState<string | null>(null);
-
-  // Grants enrichis du nom de workspace pour la fiche de connexion MCP.
-  const mcpGrants: McpGrant[] = grants.map((g) => ({
-    workspace_id: g.workspace_id,
-    workspace_name: workspaces.find((w) => w.id === g.workspace_id)?.name ?? g.workspace_id,
-    can_read: g.can_read,
-  }));
 
   function handleClose(next: boolean) {
     onOpenChange(next);
     if (!next) {
       setName("");
-      setGrants([]);
+      setScope("read");
       setCreatedKey(null);
     }
   }
 
   async function handleCreate() {
     try {
-      const created = await createMutation.mutateAsync({ name, workspaces: grants });
+      const created = await createMutation.mutateAsync({ name, scope });
       setCreatedKey(created.api_key);
     } catch {
       toast({ title: t("error_toast"), variant: "destructive" });
@@ -83,10 +74,10 @@ export function CreateUserApiKeyDialog({ open, onOpenChange }: Props) {
             </div>
             <div>
               <Label className="text-xs uppercase tracking-wider text-slate-600">
-                {t("grants.title")}
+                {t("scope.title")}
               </Label>
-              <p className="mb-2 mt-1 text-xs text-slate-500">{t("grants.help")}</p>
-              <GrantsEditor workspaces={workspaces} value={grants} onChange={setGrants} />
+              <p className="mb-2 mt-1 text-xs text-slate-500">{t("scope.help")}</p>
+              <ScopeSelector value={scope} onChange={setScope} />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => handleClose(false)}>
@@ -104,7 +95,7 @@ export function CreateUserApiKeyDialog({ open, onOpenChange }: Props) {
         ) : (
           <div className="space-y-4">
             <ShowOncePanel apiKey={createdKey} />
-            <McpClientPanel grants={mcpGrants} apiKey={createdKey} />
+            <McpClientPanel apiKey={createdKey} />
             <DialogFooter>
               <Button type="button" onClick={() => handleClose(false)}>
                 {t("close")}

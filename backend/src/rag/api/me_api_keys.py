@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.auth.owner import get_current_owner_id
 from rag.schemas.user_api_keys import (
-    GrantsUpdate,
+    ScopeUpdate,
     UserApiKeyCreate,
     UserApiKeyCreated,
     UserApiKeyOut,
@@ -24,8 +24,8 @@ def build_me_api_keys_router() -> APIRouter:
     """Clés API personnelles de l'utilisateur connecté.
 
     Show-once : la valeur n'apparaît qu'à la création/rotation ; seule
-    l'empreinte SHA-256 est stockée. Les droits (can_read/can_write) sont
-    accordés par workspace via les grants.
+    l'empreinte SHA-256 est stockée. L'accès est défini par un niveau unique
+    (read / read_write / admin) appliqué à tous les workspaces.
     """
     router = APIRouter(
         prefix="/api/me/api-keys",
@@ -48,8 +48,6 @@ def build_me_api_keys_router() -> APIRouter:
         async with _pool(request).acquire() as conn:
             try:
                 return await svc.create_key(conn, owner_id=owner_id, req=req)
-            except svc.UnknownWorkspaceError as exc:
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
             except asyncpg.UniqueViolationError as exc:
                 raise HTTPException(
                     status.HTTP_409_CONFLICT, "une clé porte déjà ce nom"
@@ -78,20 +76,17 @@ def build_me_api_keys_router() -> APIRouter:
             )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    @router.put("/{key_id}/workspaces", status_code=204)
-    async def set_my_key_grants(
-        key_id: UUID, req: GrantsUpdate, request: Request
-    ) -> Response:
+    @router.put("/{key_id}/scope", status_code=204)
+    async def set_my_key_scope(key_id: UUID, req: ScopeUpdate, request: Request) -> Response:
         owner_id = get_current_owner_id(request)
         async with _pool(request).acquire() as conn:
-            try:
-                updated = await svc.set_grants(
-                    conn, owner_id=owner_id, key_id=str(key_id), req=req
-                )
-            except svc.UnknownWorkspaceError as exc:
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+            updated = await svc.set_scope(
+                conn, owner_id=owner_id, key_id=str(key_id), req=req
+            )
         if not updated:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "api key not found")
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, "api key not found or revoked"
+            )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return router

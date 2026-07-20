@@ -74,12 +74,12 @@ async def _authenticate(
     """Valide la paire (workspace_name, api_key) contre les clés utilisateur.
 
     Lookup O(1) par fingerprint SHA-256 dans `user_api_keys` : la valeur de la
-    clé n'est jamais stockée en base. La recherche exige un grant `can_read`
-    sur le workspace demandé.
+    clé n'est jamais stockée en base. Toute clé valide (scope read+, appliqué à
+    tous les workspaces — migration 067) peut chercher.
 
     Retourne un `_CacheEntry` (workspace_id, indexer_used, inserted_at).
     - WorkspaceNotFound si workspace inconnu.
-    - HTTPException 401 si la clé est invalide ou sans grant can_read.
+    - HTTPException 401 si la clé est invalide.
     """
     fingerprint = sha256(ref.api_key.encode("utf-8")).hexdigest()
 
@@ -88,12 +88,10 @@ async def _authenticate(
         SELECT w.id,
                ic.provider || '/' || ic.model AS indexer_used
         FROM workspaces w
-        JOIN user_api_key_workspaces g ON g.workspace_id = w.id
-        JOIN user_api_keys k ON k.id = g.api_key_id
         JOIN indexer_configs ic ON ic.workspace_id = w.id
+        CROSS JOIN user_api_keys k
         WHERE w.name = $1
           AND k.fingerprint = $2
-          AND g.can_read
           AND k.revoked_at IS NULL
           AND (k.rotated_at IS NULL OR k.rotated_at > now() - interval '72 hours')
         """,

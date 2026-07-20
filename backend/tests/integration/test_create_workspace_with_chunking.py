@@ -54,6 +54,7 @@ async def _cleanup_workspace(migrated: asyncpg.Pool, admin_dsn: str, name: str) 
 def _make_request(name: str) -> WorkspaceCreateResolved:
     return WorkspaceCreateResolved(
         name=name,
+        label=name,
         indexer=IndexerCreateSpec(
             provider="ollama",
             model="mxbai-embed-large",

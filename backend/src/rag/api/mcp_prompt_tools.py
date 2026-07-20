@@ -68,7 +68,7 @@ def register_prompt_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
         region_type: str | None = None,
         region_qualifier: str | None = None,
     ) -> str:
-        """Crée un template de prompt dans ta bibliothèque (can_write requis).
+        """Crée un template de prompt dans ta bibliothèque (niveau admin requis).
 
         mode — dérive automatiquement les axes (target, timing) :
         - 'document' : métadonnée calculée APRÈS indexation sur le document entier
@@ -131,7 +131,7 @@ def register_prompt_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
         prompt: str | None = None,
         result_schema: dict[str, Any] | None = None,
     ) -> str:
-        """Modifie un de TES templates (can_write requis) — les système sont immuables.
+        """Modifie un de TES templates (niveau admin requis) — les système sont immuables.
 
         Seuls les champs fournis changent. Modifiables : description, prompt,
         result_schema (schéma JSON attendu si result_type='json'). Figés après
@@ -161,7 +161,7 @@ def register_prompt_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
 
     @mcp.tool()
     async def delete_prompt_template(template_id: str) -> str:
-        """Supprime un de TES templates (can_write requis).
+        """Supprime un de TES templates (niveau admin requis).
 
         Refusé avec le décompte si le template est référencé par des triggers
         d'extension ou des bindings de stratégies — retire ces références d'abord

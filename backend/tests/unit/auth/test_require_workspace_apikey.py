@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 # Tests unitaires pour require_workspace_apikey — clés utilisateur hash-only.
-# L'écriture (indexation push) exige un grant can_write sur le workspace ;
-# la requête SQL porte ce filtre, le mock vérifie le contrat d'appel.
+# L'écriture (indexation push) exige un niveau scope IN ('read_write','admin'),
+# appliqué à tous les workspaces ; la requête SQL porte ce filtre, le mock
+# vérifie le contrat d'appel.
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -39,8 +40,8 @@ async def test_wrong_scheme_raises_401() -> None:
 
 
 @pytest.mark.asyncio
-async def test_no_matching_key_or_grant_raises_401_uniform() -> None:
-    """Workspace inconnu, clé invalide OU grant can_write absent → 401 uniforme."""
+async def test_no_matching_key_raises_401_uniform() -> None:
+    """Workspace inconnu, clé invalide OU scope insuffisant → 401 uniforme."""
     pool = MagicMock()
     pool.fetchrow = AsyncMock(return_value=None)
     req = _fake_request({"Authorization": "Bearer some-key"}, pool)
@@ -51,7 +52,7 @@ async def test_no_matching_key_or_grant_raises_401_uniform() -> None:
 
 
 @pytest.mark.asyncio
-async def test_valid_key_with_write_grant_returns_context() -> None:
+async def test_valid_key_with_write_scope_returns_context() -> None:
     ws_id = uuid4()
     pool = MagicMock()
     owner = "c" * 64
@@ -71,10 +72,10 @@ async def test_valid_key_with_write_grant_returns_context() -> None:
     assert ctx.indexer_used == "openai/text-embedding-3-small"
     # Le propriétaire de la clé délimite la bibliothèque de stratégies (F4).
     assert ctx.owner_id == owner
-    # Le contrat SQL exige le grant d'écriture sur les clés utilisateur.
+    # Le contrat SQL exige un niveau d'écriture sur les clés utilisateur.
     sql = pool.fetchrow.await_args.args[0]
     assert "user_api_keys" in sql
-    assert "can_write" in sql
+    assert "scope" in sql
     assert "owner_id" in sql
 
 

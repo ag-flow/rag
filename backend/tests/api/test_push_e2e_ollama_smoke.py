@@ -34,6 +34,7 @@ def test_push_e2e_indexes_embeddings_in_pgvector(
         headers=admin_headers,
         json={
             "name": "ws_smoke_ollama",
+            "label": "ws_smoke_ollama",
             "endpoint_id": seed_endpoint_sync(
                 os.environ["DATABASE_URL"],
                 slug="ep-ws_smoke_ollama", provider="ollama",
@@ -45,12 +46,7 @@ def test_push_e2e_indexes_embeddings_in_pgvector(
     kr = admin_client.post(
         "/api/me/api-keys",
         headers=admin_headers,
-        json={
-            "name": "key-smoke",
-            "workspaces": [
-                {"workspace_id": r.json()["id"], "can_read": True, "can_write": True}
-            ],
-        },
+        json={"name": "key-smoke", "scope": "read_write"},
     )
     assert kr.status_code == 201, kr.text
     api_key = kr.json()["api_key"]

@@ -45,34 +45,25 @@ def make_ws_with_user_key(
     admin_headers: dict[str, str],
     name: str,
     *,
-    can_read: bool = True,
-    can_write: bool = True,
+    scope: str = "read_write",
 ) -> tuple[dict, str]:
-    """Crée un workspace + une clé API utilisateur avec grant. → (workspace, clé).
+    """Crée un workspace + une clé API utilisateur. → (workspace, clé).
 
     Remplace l'ancien flux « la création de workspace retourne une api_key »
     (supprimé par le chantier clés utilisateur, 444308a) : l'accès push/MCP
-    passe par une clé user (`/api/me/api-keys`) avec grants par workspace.
+    passe par une clé user (`/api/me/api-keys`) avec un niveau d'accès global
+    (`scope`, migration 067).
     """
     ws = client.post(
         "/api/admin/workspaces",
         headers=admin_headers,
-        json={"name": name, "endpoint_id": client.default_endpoint_id},  # type: ignore[attr-defined]
+        json={"name": name, "label": name, "endpoint_id": client.default_endpoint_id},  # type: ignore[attr-defined]
     )
     assert ws.status_code == 201, ws.text
     key = client.post(
         "/api/me/api-keys",
         headers=admin_headers,
-        json={
-            "name": f"key-{name}",
-            "workspaces": [
-                {
-                    "workspace_id": ws.json()["id"],
-                    "can_read": can_read,
-                    "can_write": can_write,
-                }
-            ],
-        },
+        json={"name": f"key-{name}", "scope": scope},
     )
     assert key.status_code == 201, key.text
     return ws.json(), key.json()["api_key"]

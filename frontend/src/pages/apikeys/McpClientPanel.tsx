@@ -3,14 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export interface McpGrant {
-  workspace_id: string;
-  workspace_name: string;
-  can_read: boolean;
-}
-
 interface Props {
-  grants: McpGrant[];
   /** Valeur réelle de la clé (création/rotation). Absente = placeholder de référence. */
   apiKey?: string;
 }
@@ -50,33 +43,30 @@ function CopyBlock({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * Informations de connexion d'un client MCP à un ou plusieurs workspaces via
- * une clé API. Le transport est le Streamable HTTP standard :
- * `{origin}/mcp/{workspace_id}` + en-tête `Authorization: Bearer <clé>`.
- * Seuls les workspaces avec le grant `can_read` sont exposés (la recherche MCP
- * l'exige).
+ * Fiche de connexion d'un client MCP. Le serveur ragflow expose un endpoint
+ * unique `{origin}/mcp` (transport Streamable HTTP) ; le workspace n'est plus
+ * dans l'URL mais passé en paramètre `workspace` des outils. L'authentification
+ * se fait via l'en-tête `Authorization: Bearer <clé>`.
  */
-export function McpClientPanel({ grants, apiKey }: Props) {
+export function McpClientPanel({ apiKey }: Props) {
   const { t } = useTranslation("apikeys");
   const origin = window.location.origin;
   const key = apiKey ?? KEY_PLACEHOLDER;
-  const readable = grants.filter((g) => g.can_read);
+  const endpoint = `${origin}/mcp`;
 
-  if (readable.length === 0) {
-    return <p className="text-xs text-slate-500">{t("mcp.no_read_grant")}</p>;
-  }
-
-  const servers = Object.fromEntries(
-    readable.map((g) => [
-      `ragflow-${g.workspace_name}`,
-      {
-        type: "http",
-        url: `${origin}/mcp/${g.workspace_id}`,
-        headers: { Authorization: `Bearer ${key}` },
+  const config = JSON.stringify(
+    {
+      mcpServers: {
+        ragflow: {
+          type: "http",
+          url: endpoint,
+          headers: { Authorization: `Bearer ${key}` },
+        },
       },
-    ]),
+    },
+    null,
+    2,
   );
-  const config = JSON.stringify({ mcpServers: servers }, null, 2);
 
   return (
     <div className="space-y-3 rounded-md border bg-white p-4">
@@ -85,16 +75,13 @@ export function McpClientPanel({ grants, apiKey }: Props) {
         <p className="mt-0.5 text-xs text-slate-500">{t("mcp.subtitle")}</p>
       </div>
 
-      {readable.map((g) => (
-        <CopyBlock
-          key={g.workspace_id}
-          label={t("mcp.endpoint_for", { workspace: g.workspace_name })}
-          value={`${origin}/mcp/${g.workspace_id}`}
-        />
-      ))}
-
+      <CopyBlock label={t("mcp.endpoint")} value={endpoint} />
       <CopyBlock label={t("mcp.auth_header")} value={`Authorization: Bearer ${key}`} />
       <CopyBlock label={t("mcp.config_json")} value={config} />
+
+      <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+        {t("mcp.workspaces_note")}
+      </div>
 
       <p className="text-xs text-slate-400">
         {t("mcp.contract_hint")}{" "}

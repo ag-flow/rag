@@ -55,8 +55,11 @@
     },
     "ids": {
       "title": "Identifiants (lecture seule)",
-      "name": "nom",
-      "id": "id"
+      "label": "nom d'affichage",
+      "name": "identifiant",
+      "id": "id",
+      "description": "description",
+      "description_empty": "Aucune description"
     },
     "save": {
       "success": "Référence enregistrée.",

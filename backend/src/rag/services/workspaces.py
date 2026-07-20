@@ -109,12 +109,14 @@ async def create_workspace(
             ws_row = await conn.fetchrow(
                 """
                 INSERT INTO workspaces
-                    (name, rag_cnx, rag_base)
+                    (name, label, description, rag_cnx, rag_base)
                 VALUES
-                    ($1, $2, $3)
+                    ($1, $2, $3, $4, $5)
                 RETURNING id, created_at
                 """,
                 request.name,
+                request.label,
+                request.description,
                 rag_cnx,
                 rag_base,
             )
@@ -188,6 +190,8 @@ async def create_workspace(
     return {
         "id": str(ws_row["id"]),
         "name": request.name,
+        "label": request.label,
+        "description": request.description,
         "created_at": ws_row["created_at"].isoformat(),
     }
 
@@ -198,7 +202,7 @@ async def list_workspaces(config_pool: asyncpg.Pool) -> list[dict[str, object]]:
         config_pool,
         """
         SELECT
-            w.id, w.name, w.created_at,
+            w.id, w.name, w.label, w.description, w.created_at,
             ic.provider, ic.model, ic.api_key_ref, ic.base_url,
             (SELECT COUNT(*) FROM workspace_sources WHERE workspace_id = w.id) AS sources_count,
             (SELECT COUNT(*) FROM indexed_documents WHERE workspace_id = w.id) AS documents_count,
@@ -218,7 +222,7 @@ async def get_workspace(config_pool: asyncpg.Pool, *, name: str) -> dict[str, ob
         config_pool,
         """
         SELECT
-            w.id, w.name, w.created_at,
+            w.id, w.name, w.label, w.description, w.created_at,
             ic.provider, ic.model, ic.api_key_ref, ic.base_url,
             (SELECT COUNT(*) FROM workspace_sources WHERE workspace_id = w.id) AS sources_count,
             (SELECT COUNT(*) FROM indexed_documents WHERE workspace_id = w.id) AS documents_count,
@@ -301,6 +305,8 @@ def _to_workspace_dict(row: asyncpg.Record) -> dict[str, object]:
     return {
         "id": str(row["id"]),
         "name": row["name"],
+        "label": row["label"],
+        "description": row["description"],
         "indexer": {
             "provider": row["provider"],
             "model": row["model"],

@@ -55,6 +55,7 @@ async def test_real_indexer_respects_chunking_config_max_chars(
     name = "ws_realidx_chunk"
     req = WorkspaceCreateResolved(
         name=name,
+        label=name,
         indexer=IndexerCreateSpec(
             provider="ollama",
             model="mxbai-embed-large",
@@ -78,9 +79,11 @@ async def test_real_indexer_respects_chunking_config_max_chars(
     registry: WorkspacePoolRegistry | None = None
     try:
         # Force chunking_config petite pour garantir splits multiples.
+        # engine='legacy' explicite : ce test exerce le pipeline par caractères
+        # (le défaut est passé à 'structured' en migration 065).
         await migrated.execute(
-            "UPDATE chunking_configs SET max_chars=500, min_chars=50, overlap_chars=50 "
-            "WHERE workspace_id = $1",
+            "UPDATE chunking_configs SET max_chars=500, min_chars=50, overlap_chars=50, "
+            "engine='legacy' WHERE workspace_id = $1",
             ws["id"],
         )
 

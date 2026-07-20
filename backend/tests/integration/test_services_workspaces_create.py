@@ -50,6 +50,7 @@ def _make_harpo_service() -> MagicMock:
 def _make_request(name: str = "ws_create_1") -> WorkspaceCreateResolved:
     return WorkspaceCreateResolved(
         name=name,
+        label=name,
         indexer=IndexerCreateSpec(
             provider="openai",
             model="text-embedding-3-small",
@@ -93,10 +94,10 @@ async def test_create_workspace_inserts_config_and_creates_db(
         harpocrate_vaults_service=_make_harpo_service(),
     )
 
-    # Plus de clé API à la création : {id, name, created_at} uniquement
+    # Plus de clé API à la création : {id, name, label, description, created_at}
     # (les clés d'accès se créent au niveau utilisateur, cf. user_api_keys)
     assert resp["name"] == "ws_create_1"
-    assert set(resp) == {"id", "name", "created_at"}
+    assert set(resp) == {"id", "name", "label", "description", "created_at"}
 
     # workspaces row inséré
     row = await session_pool.fetchrow(
@@ -172,6 +173,7 @@ async def test_create_workspace_unknown_model_raises(
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
     req = WorkspaceCreateResolved(
         name="ws_unknown",
+        label="ws_unknown",
         indexer=IndexerCreateSpec(provider="nope", model="nope", api_key_ref="k"),
     )
     with pytest.raises(ModelNotSupported):

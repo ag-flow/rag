@@ -17,6 +17,13 @@
   "form": {
     "name": "Nom",
     "name_help": "Lettres minuscules, chiffres, _ ou - · max 64",
+    "label": "Nom d'affichage",
+    "label_placeholder": "Mon projet",
+    "description": "Description",
+    "description_placeholder": "À quoi sert ce workspace (optionnel)",
+    "slug_preview": "Identifiant :",
+    "slug_empty": "saisissez un nom d'affichage",
+    "slug_invalid": "L'identifiant dérivé est invalide : ajustez le nom d'affichage.",
     "indexer": "Indexer",
     "provider": "Provider",
     "model": "Modèle",

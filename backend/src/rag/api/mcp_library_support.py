@@ -10,7 +10,10 @@ from pydantic import BaseModel, ValidationError
 from rag.services import chunking_strategies as strategies_svc
 from rag.services import prompt_templates as templates_svc
 
-WRITE_REFUSAL = "Écriture refusée : la clé API n'a pas le grant can_write sur ce workspace."
+WRITE_REFUSAL = (
+    "Accès refusé : la gestion de la bibliothèque (stratégies, prompts) exige "
+    "une clé de niveau 'admin'."
+)
 
 # Erreurs attendues des services et de la validation : traduites en message
 # pédagogique par `explain` — jamais propagées à l'agent en exception brute.
@@ -37,8 +40,11 @@ def parse_uuid(value: str) -> UUID:
 
 
 def write_refusal(ctx: Any) -> str | None:
-    """Message de refus si la clé n'a pas can_write, None sinon."""
-    return None if ctx.can_write else WRITE_REFUSAL
+    """Message de refus si la clé n'est pas de niveau admin, None sinon.
+
+    La bibliothèque (stratégies/prompts) est une ressource HORS workspace :
+    seul le niveau `admin` peut la modifier (décision 2026-07-20)."""
+    return None if ctx.scope == "admin" else WRITE_REFUSAL
 
 
 def dump(payload: Any) -> str:

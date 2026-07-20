@@ -13,7 +13,7 @@ def _create_workspace(client: TestClient, headers: dict[str, str], name: str) ->
     r = client.post(
         "/api/admin/workspaces",
         headers=headers,
-        json={"name": name, "endpoint_id": client.default_endpoint_id},
+        json={"name": name, "label": name, "endpoint_id": client.default_endpoint_id},
     )
     assert r.status_code == 201, r.text
 

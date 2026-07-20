@@ -116,6 +116,8 @@ def build_admin_router() -> APIRouter:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="endpoint_not_found")
         resolved = WorkspaceCreateResolved(
             name=payload.name,
+            label=payload.label,
+            description=payload.description,
             indexer=IndexerCreateSpec(
                 provider=endpoint.indexer.provider,
                 model=endpoint.indexer.model,
@@ -170,7 +172,7 @@ def build_admin_router() -> APIRouter:
 
     @router.delete("/workspaces/{name}", status_code=status.HTTP_204_NO_CONTENT)
     async def delete_workspace_endpoint(name: str, request: Request) -> Response:
-        # Les grants user_api_key_workspaces sont purgés par ON DELETE CASCADE.
+        # Les clés API restent (elles ne référencent plus de workspace : accès global).
         await delete_workspace(
             name=name,
             config_pool=_config_pool(request),

@@ -31,20 +31,19 @@ def _extract_bearer(request: Request) -> str:
     return parts[1].strip()
 
 
-# Lookup clé utilisateur active avec grant d'ÉCRITURE sur le workspace.
-# Requête entièrement littérale (le chemin lecture vit dans services/mcp.py
-# et api/mcp_standard.py avec g.can_read).
+# Lookup clé utilisateur active de niveau ÉCRITURE (scope read_write | admin) —
+# accès global : toute clé write voit tous les workspaces (migration 067).
+# Le chemin lecture vit dans services/mcp.py et api/mcp_standard.py.
 _WRITE_LOOKUP_SQL = """
     SELECT w.id,
            ic.provider || '/' || ic.model AS indexer_used,
            k.owner_id
     FROM workspaces w
-    JOIN user_api_key_workspaces g ON g.workspace_id = w.id
-    JOIN user_api_keys k ON k.id = g.api_key_id
     JOIN indexer_configs ic ON ic.workspace_id = w.id
+    CROSS JOIN user_api_keys k
     WHERE w.name = $1
       AND k.fingerprint = $2
-      AND g.can_write
+      AND k.scope IN ('read_write', 'admin')
       AND k.revoked_at IS NULL
       AND (k.rotated_at IS NULL OR k.rotated_at > now() - interval '72 hours')
 """
@@ -57,8 +56,8 @@ async def require_workspace_apikey(
     """Dep FastAPI : valide `Authorization: Bearer <api_key>` pour l'ÉCRITURE.
 
     Clés utilisateur (user_api_keys) : la valeur n'est jamais stockée, seule
-    l'empreinte SHA-256 l'est. Le grant du workspace doit porter `can_write`
-    (indexation push / suppression).
+    l'empreinte SHA-256 l'est. La clé doit être de niveau `read_write` ou
+    `admin` (indexation push / suppression), appliqué à tous les workspaces.
 
     - 401 uniforme si Bearer absent / scheme invalide / clé invalide /
       workspace inconnu / permission manquante.

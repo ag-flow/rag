@@ -55,6 +55,7 @@ def _make_harpo_service() -> MagicMock:
 def _make_request(name: str, *, api_key_ref: str) -> WorkspaceCreateResolved:
     return WorkspaceCreateResolved(
         name=name,
+        label=name,
         indexer=IndexerCreateSpec(
             provider="openai", model="text-embedding-3-small", api_key_ref=api_key_ref
         ),

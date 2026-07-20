@@ -1,33 +1,57 @@
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
-from rag.api.mcp_standard import _WsCtx
+from rag.api.mcp_standard import _KeyCtx, _ws_ctx
 
 
-class TestWsCtxExtended:
-    def test_ws_ctx_has_workspace_id_and_config_pool(self):
-        ws_id = uuid4()
+def _ws_row(ws_id: UUID) -> dict:
+    """Ligne renvoyée par config_pool.fetchrow dans _resolve_ws."""
+    return {
+        "id": ws_id,
+        "name": "ws",
+        "rag_cnx": "dsn",
+        "provider": "openai",
+        "model": "m",
+        "api_key_ref": None,
+        "base_url": None,
+        "service": "openai",
+    }
+
+
+def _make_ctx(*, pool_registry=None, ws_id=None, scope="read") -> _KeyCtx:
+    ws_id = ws_id or uuid4()
+    config_pool = MagicMock()
+    config_pool.fetchrow = AsyncMock(return_value=_ws_row(ws_id))
+    pool_registry = pool_registry or MagicMock()
+    return _KeyCtx(
+        owner_id="owner-1",
+        scope=scope,
+        config_pool=config_pool,
+        pool_registry=pool_registry,
+        resolver=MagicMock(),
+        client_provider=MagicMock(),
+        default_vault_name=None,
+    )
+
+
+class TestKeyCtx:
+    def test_key_ctx_exposes_auth_fields(self):
         pool = MagicMock()
-        ctx = _WsCtx(
-            workspace_name="ws",
-            rag_cnx="dsn",
-            indexer_service="openai",
-            indexer_provider="openai",
-            indexer_model="text-embedding-3-small",
-            indexer_api_key_ref=None,
-            indexer_base_url=None,
+        ctx = _KeyCtx(
+            owner_id="owner-1",
+            scope="admin",
+            config_pool=pool,
             pool_registry=MagicMock(),
             resolver=MagicMock(),
-            workspace_id=ws_id,
-            config_pool=pool,
-            owner_id="owner-1",
-            can_write=False,
+            client_provider=MagicMock(),
+            default_vault_name=None,
         )
-        assert ctx.workspace_id == ws_id
+        assert ctx.owner_id == "owner-1"
+        assert ctx.scope == "admin"
         assert ctx.config_pool is pool
 
 
@@ -35,20 +59,10 @@ class TestRagSearchEnrichmentParams:
     @pytest.mark.asyncio
     async def test_rag_search_accepts_scope_param(self, monkeypatch):
         from rag.api import mcp_standard as mod
-        from rag.api.mcp_standard import _ws_ctx
 
-        ws_id = uuid4()
-        pool = MagicMock()
         pool_registry = MagicMock()
         pool_registry.get_workspace_pool = AsyncMock(return_value=MagicMock())
-        ctx = _WsCtx(
-            workspace_name="ws", rag_cnx="dsn", indexer_service="openai",
-            indexer_provider="openai", indexer_model="m",
-            indexer_api_key_ref=None, indexer_base_url=None,
-            pool_registry=pool_registry, resolver=MagicMock(),
-            workspace_id=ws_id, config_pool=pool,
-            owner_id="owner-1", can_write=False,
-        )
+        ctx = _make_ctx(pool_registry=pool_registry)
         token = _ws_ctx.set(ctx)
         try:
             fake_provider = MagicMock()
@@ -59,7 +73,7 @@ class TestRagSearchEnrichmentParams:
             monkeypatch.setattr(mod, "is_vault_ref", lambda _: False)
 
             result = await mod.rag_search(
-                query="test", top_k=5, min_score=0.3,
+                "ws", query="test", top_k=5, min_score=0.3,
                 enrichment_keys=None, scope="raw_only",
             )
             assert "Aucun résultat" in result
@@ -71,21 +85,11 @@ class TestRagSearchEnrichmentParams:
     @pytest.mark.asyncio
     async def test_rag_search_enrichment_hit_labeled(self, monkeypatch):
         from rag.api import mcp_standard as mod
-        from rag.api.mcp_standard import _ws_ctx
         from rag.schemas.mcp import SearchHit
 
-        ws_id = uuid4()
-        pool = MagicMock()
         pool_registry = MagicMock()
         pool_registry.get_workspace_pool = AsyncMock(return_value=MagicMock())
-        ctx = _WsCtx(
-            workspace_name="ws", rag_cnx="dsn", indexer_service="openai",
-            indexer_provider="openai", indexer_model="m",
-            indexer_api_key_ref=None, indexer_base_url=None,
-            pool_registry=pool_registry, resolver=MagicMock(),
-            workspace_id=ws_id, config_pool=pool,
-            owner_id="owner-1", can_write=False,
-        )
+        ctx = _make_ctx(pool_registry=pool_registry)
         token = _ws_ctx.set(ctx)
         try:
             fake_hit = SearchHit(
@@ -100,10 +104,24 @@ class TestRagSearchEnrichmentParams:
             monkeypatch.setattr(mod, "make_provider", lambda **_: fake_provider)
             monkeypatch.setattr(mod, "is_vault_ref", lambda _: False)
 
-            result = await mod.rag_search(query="test", top_k=5, min_score=0.3)
+            result = await mod.rag_search("ws", query="test", top_k=5, min_score=0.3)
             # Le hit d'enrichissement doit apparaître avec son étiquette
             assert "public_functions" in result
             assert "src/a.py" in result
+        finally:
+            _ws_ctx.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_rag_search_unknown_workspace_returns_help(self, monkeypatch):
+        from rag.api import mcp_standard as mod
+
+        ctx = _make_ctx()
+        ctx.config_pool.fetchrow = AsyncMock(return_value=None)
+        token = _ws_ctx.set(ctx)
+        try:
+            result = await mod.rag_search("inconnu", query="test")
+            assert "inconnu" in result
+            assert "list_workspaces" in result
         finally:
             _ws_ctx.reset(token)
 
@@ -112,18 +130,8 @@ class TestGetEnrichmentTool:
     @pytest.mark.asyncio
     async def test_get_enrichment_returns_result(self, monkeypatch):
         from rag.api import mcp_standard as mod
-        from rag.api.mcp_standard import _ws_ctx
 
-        ws_id = uuid4()
-        pool = MagicMock()
-        ctx = _WsCtx(
-            workspace_name="ws", rag_cnx="dsn", indexer_service="openai",
-            indexer_provider="openai", indexer_model="m",
-            indexer_api_key_ref=None, indexer_base_url=None,
-            pool_registry=MagicMock(), resolver=MagicMock(),
-            workspace_id=ws_id, config_pool=pool,
-            owner_id="owner-1", can_write=False,
-        )
+        ctx = _make_ctx()
         token = _ws_ctx.set(ctx)
         try:
             monkeypatch.setattr(
@@ -134,7 +142,7 @@ class TestGetEnrichmentTool:
                     "result_schema": None,
                 }),
             )
-            result = await mod.get_enrichment(path="src/a.py", key="public_functions")
+            result = await mod.get_enrichment("ws", path="src/a.py", key="public_functions")
             assert "fn_a" in result
         finally:
             _ws_ctx.reset(token)
@@ -142,22 +150,12 @@ class TestGetEnrichmentTool:
     @pytest.mark.asyncio
     async def test_get_enrichment_returns_not_found_message(self, monkeypatch):
         from rag.api import mcp_standard as mod
-        from rag.api.mcp_standard import _ws_ctx
 
-        ws_id = uuid4()
-        pool = MagicMock()
-        ctx = _WsCtx(
-            workspace_name="ws", rag_cnx="dsn", indexer_service="openai",
-            indexer_provider="openai", indexer_model="m",
-            indexer_api_key_ref=None, indexer_base_url=None,
-            pool_registry=MagicMock(), resolver=MagicMock(),
-            workspace_id=ws_id, config_pool=pool,
-            owner_id="owner-1", can_write=False,
-        )
+        ctx = _make_ctx()
         token = _ws_ctx.set(ctx)
         try:
             monkeypatch.setattr(mod, "get_enrichment_db", AsyncMock(return_value=None))
-            result = await mod.get_enrichment(path="src/a.py", key="nonexistent")
+            result = await mod.get_enrichment("ws", path="src/a.py", key="nonexistent")
             assert "nonexistent" in result or "Aucun" in result
         finally:
             _ws_ctx.reset(token)

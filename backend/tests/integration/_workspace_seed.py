@@ -42,31 +42,23 @@ async def seed_user_api_key(
     conn: asyncpg.Connection,
     *,
     api_key: str,
-    grants: list[tuple[UUID, bool, bool]],
+    scope: str = "read_write",
     owner_id: str = "test-owner",
     name: str = "test-key",
 ) -> UUID:
-    """Insère une clé utilisateur (hash-only) + ses grants.
+    """Insère une clé utilisateur (hash-only) avec son niveau d'accès global.
 
-    `grants` : liste de tuples (workspace_id, can_read, can_write).
+    `scope` ∈ ('read', 'read_write', 'admin') — appliqué à tous les workspaces
+    (migration 067 : les grants par workspace ont été supprimés).
     Retourne l'UUID de la clé.
     """
     fingerprint = sha256(api_key.encode("utf-8")).hexdigest()
     key_id = await conn.fetchval(
         """
-        INSERT INTO user_api_keys (owner_id, name, fingerprint)
-        VALUES ($1, $2, $3)
+        INSERT INTO user_api_keys (owner_id, name, fingerprint, scope)
+        VALUES ($1, $2, $3, $4)
         RETURNING id
         """,
-        owner_id, name, fingerprint,
+        owner_id, name, fingerprint, scope,
     )
-    for ws_id, can_read, can_write in grants:
-        await conn.execute(
-            """
-            INSERT INTO user_api_key_workspaces
-                (api_key_id, workspace_id, can_read, can_write)
-            VALUES ($1, $2, $3, $4)
-            """,
-            key_id, ws_id, can_read, can_write,
-        )
     return key_id

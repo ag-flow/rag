@@ -11,7 +11,7 @@ def _create_ws(client: TestClient, headers: dict[str, str], name: str) -> dict:
     return client.post(
         "/api/admin/workspaces",
         headers=headers,
-        json={"name": name, "endpoint_id": client.default_endpoint_id},
+        json={"name": name, "label": name, "endpoint_id": client.default_endpoint_id},
     ).json()
 
 
@@ -22,7 +22,11 @@ def test_post_workspaces_201_no_api_key_in_response(
     r = admin_client.post(
         "/api/admin/workspaces",
         headers=admin_headers,
-        json={"name": "ws_e2e_a", "endpoint_id": admin_client.default_endpoint_id},
+        json={
+            "name": "ws_e2e_a",
+            "label": "ws_e2e_a",
+            "endpoint_id": admin_client.default_endpoint_id,
+        },
     )
     assert r.status_code == 201
     body = r.json()
@@ -30,10 +34,47 @@ def test_post_workspaces_201_no_api_key_in_response(
     assert "api_key" not in body
 
 
+def test_post_workspaces_persists_label_and_description(
+    admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
+) -> None:
+    """Création avec label + description : persistés puis remontés par GET détail."""
+    r = admin_client.post(
+        "/api/admin/workspaces",
+        headers=admin_headers,
+        json={
+            "name": "ws_meta_api",
+            "label": "Mon Workspace API",
+            "description": "Corpus documentaire interne",
+            "endpoint_id": admin_client.default_endpoint_id,
+        },
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["name"] == "ws_meta_api"  # slug/identifiant inchangé
+    assert body["label"] == "Mon Workspace API"
+    assert body["description"] == "Corpus documentaire interne"
+
+    detail = admin_client.get("/api/admin/workspaces/ws_meta_api", headers=admin_headers).json()
+    assert detail["label"] == "Mon Workspace API"
+    assert detail["description"] == "Corpus documentaire interne"
+
+
+def test_post_workspaces_422_missing_label(
+    admin_client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    """Le label est obligatoire (le front le dérive en slug `name`)."""
+    r = admin_client.post(
+        "/api/admin/workspaces",
+        headers=admin_headers,
+        json={"name": "ws_no_label", "endpoint_id": admin_client.default_endpoint_id},
+    )
+    assert r.status_code == 422
+
+
 def test_post_workspaces_401_without_bearer(admin_client: TestClient) -> None:
     r = admin_client.post(
         "/api/admin/workspaces",
-        json={"name": "x", "endpoint_id": "00000000-0000-0000-0000-000000000001"},
+        json={"name": "x", "label": "x", "endpoint_id": "00000000-0000-0000-0000-000000000001"},
     )
     assert r.status_code == 401
 
@@ -46,6 +87,7 @@ def test_post_workspaces_422_unknown_model(
         headers=admin_headers,
         json={
             "name": "ws_unknown_model",
+            "label": "ws_unknown_model",
             "endpoint_id": seed_endpoint_sync(
                 os.environ["DATABASE_URL"],
                 slug="ep-nope",
@@ -73,7 +115,11 @@ def test_post_workspaces_409_duplicate(
     r = admin_client.post(
         "/api/admin/workspaces",
         headers=admin_headers,
-        json={"name": "ws_dup_e2e", "endpoint_id": admin_client.default_endpoint_id},
+        json={
+            "name": "ws_dup_e2e",
+            "label": "ws_dup_e2e",
+            "endpoint_id": admin_client.default_endpoint_id,
+        },
     )
     assert r.status_code == 409
     assert r.json()["error"] == "workspace_already_exists"

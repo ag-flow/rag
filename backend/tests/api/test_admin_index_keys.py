@@ -16,6 +16,7 @@ def _create_ws(client: TestClient, headers: dict[str, str], name: str) -> dict:
         headers=headers,
         json={
             "name": name,
+            "label": name,
             "endpoint_id": seed_endpoint_sync(
                 os.environ["DATABASE_URL"],
                 slug="ep-ollama-stub",

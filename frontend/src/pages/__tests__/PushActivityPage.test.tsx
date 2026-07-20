@@ -21,6 +21,8 @@ const listWorkspaces = vi.mocked(workspacesApi.list);
 const makeWorkspace = (name: string): Workspace => ({
   id: `id-${name}`,
   name,
+  label: name,
+  description: "",
   indexer: { provider: "openai", model: "text-embedding-3-small", api_key_ref: null, base_url: null },
   sources_count: 0,
   documents_count: 0,

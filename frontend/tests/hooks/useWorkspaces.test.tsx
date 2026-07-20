@@ -55,6 +55,8 @@ describe("useWorkspaces hooks", () => {
     result.current.mutate({
       name: "ws_a",
       endpoint_id: "11111111-2222-3333-4444-555555555555",
+      label: "WS A",
+      description: "",
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));

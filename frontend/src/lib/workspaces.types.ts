@@ -11,6 +11,8 @@ export type IndexerSpec = {
 export type Workspace = {
   id: string;
   name: string;
+  label: string;
+  description: string;
   indexer: IndexerSpec;
   sources_count: number;
   documents_count: number;
@@ -29,11 +31,15 @@ export type RerankSpec = {
 export type WorkspaceCreate = {
   name: string;
   endpoint_id: string;
+  label: string;
+  description: string;
 };
 
 export type WorkspaceCreateResponse = {
   id: string;
   name: string;
+  label: string;
+  description: string;
   created_at: string;
 };
 

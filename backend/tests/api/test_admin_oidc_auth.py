@@ -130,7 +130,7 @@ def test_post_workspaces_with_master_key_still_works(
     r = admin_client.post(
         "/api/admin/workspaces",
         headers=admin_headers,
-        json={"name": "ws_mk", "endpoint_id": admin_client.default_endpoint_id},
+        json={"name": "ws_mk", "label": "ws_mk", "endpoint_id": admin_client.default_endpoint_id},
     )
     assert r.status_code == 201
 
@@ -145,7 +145,11 @@ def test_post_workspaces_with_oidc_admin_role_succeeds(
 
     r = admin_client.post(
         "/api/admin/workspaces",
-        json={"name": "ws_oidc", "endpoint_id": admin_client.default_endpoint_id},
+        json={
+            "name": "ws_oidc",
+            "label": "ws_oidc",
+            "endpoint_id": admin_client.default_endpoint_id,
+        },
     )
     assert r.status_code == 201, r.text
 
@@ -160,7 +164,11 @@ def test_post_workspaces_with_oidc_viewer_role_returns_403(
 
     r = admin_client.post(
         "/api/admin/workspaces",
-        json={"name": "ws_viewer", "endpoint_id": admin_client.default_endpoint_id},
+        json={
+            "name": "ws_viewer",
+            "label": "ws_viewer",
+            "endpoint_id": admin_client.default_endpoint_id,
+        },
     )
     assert r.status_code == 403
     assert r.json()["error"] == "oidc_role_forbidden"
@@ -173,7 +181,7 @@ def test_post_workspaces_without_auth_returns_401(
     """Sans Bearer ni cookie → 401."""
     r = admin_client.post(
         "/api/admin/workspaces",
-        json={"name": "x", "endpoint_id": "00000000-0000-0000-0000-000000000001"},
+        json={"name": "x", "label": "x", "endpoint_id": "00000000-0000-0000-0000-000000000001"},
     )
     assert r.status_code == 401
 

@@ -123,12 +123,23 @@ export function WorkspaceDetailTab({ workspace, enabled }: Props) {
         </h3>
         <div className="text-sm text-slate-700 space-y-1">
           <div>
+            {t("detail.ids.label")}: <span className="font-medium">{workspace.label}</span>
+          </div>
+          <div>
             {t("detail.ids.name")}:{" "}
             <code className="bg-slate-100 px-2 py-0.5 rounded text-xs">{workspace.name}</code>
           </div>
           <div>
             {t("detail.ids.id")}:{" "}
             <code className="bg-slate-100 px-2 py-0.5 rounded text-xs">{workspace.id}</code>
+          </div>
+          <div>
+            {t("detail.ids.description")}:{" "}
+            {workspace.description ? (
+              <span>{workspace.description}</span>
+            ) : (
+              <span className="italic text-slate-400">{t("detail.ids.description_empty")}</span>
+            )}
           </div>
         </div>
       </section>

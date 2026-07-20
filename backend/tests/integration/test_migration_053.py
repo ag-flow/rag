@@ -21,13 +21,6 @@ async def test_user_api_keys_schema(session_pool: asyncpg.Pool) -> None:
                 "WHERE table_name = 'user_api_keys'"
             )
         }
-        grants_cols = {
-            r["column_name"]
-            for r in await conn.fetch(
-                "SELECT column_name FROM information_schema.columns "
-                "WHERE table_name = 'user_api_key_workspaces'"
-            )
-        }
         old_table = await conn.fetchval(
             "SELECT to_regclass('workspace_api_keys')"
         )
@@ -35,6 +28,8 @@ async def test_user_api_keys_schema(session_pool: asyncpg.Pool) -> None:
     assert {"id", "owner_id", "name", "fingerprint", "revoked_at", "rotated_at"}.issubset(
         keys_cols
     )
-    assert {"api_key_id", "workspace_id", "can_read", "can_write"}.issubset(grants_cols)
     # Rebuild de zéro : l'ancienne table par workspace n'existe plus.
     assert old_table is None
+    # NB : la table de grants user_api_key_workspaces (créée en 053) est
+    # supprimée par la migration 067 — son absence est vérifiée dans
+    # test_migration_067_user_api_key_scope.py.

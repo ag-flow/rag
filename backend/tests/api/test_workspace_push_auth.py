@@ -5,9 +5,15 @@ from fastapi.testclient import TestClient
 from tests.api._helpers import make_ws_with_user_key
 
 
-def _make_ws(client: TestClient, admin_headers: dict[str, str], name: str) -> str:
-    """Crée un workspace + clé utilisateur avec grant d'écriture → clé claire."""
-    _, api_key = make_ws_with_user_key(client, admin_headers, name)
+def _make_ws(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    name: str,
+    *,
+    scope: str = "read_write",
+) -> str:
+    """Crée un workspace + clé utilisateur (niveau `scope`) → clé claire."""
+    _, api_key = make_ws_with_user_key(client, admin_headers, name, scope=scope)
     return api_key
 
 
@@ -77,14 +83,18 @@ def test_push_returns_202_with_valid_api_key(
     assert "X-Correlation-ID" in r.headers
 
 
-def test_push_cross_workspace_key_returns_401(
+def test_push_read_scope_key_returns_401(
     admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
 ) -> None:
-    key_a = _make_ws(admin_client, admin_headers, "ws_a")
-    _make_ws(admin_client, admin_headers, "ws_b")
+    """Une clé de niveau lecture seule ne peut pas pousser d'indexation.
+
+    Le modèle par workspace ayant disparu (migration 067 : accès global), le
+    refus d'écriture s'exprime désormais par le niveau `scope='read'`.
+    """
+    read_key = _make_ws(admin_client, admin_headers, "ws_readonly", scope="read")
     r = admin_client.post(
-        "/workspaces/ws_b/index",
-        headers={"Authorization": f"Bearer {key_a}"},
+        "/workspaces/ws_readonly/index",
+        headers={"Authorization": f"Bearer {read_key}"},
         json={"path": "x.md", "content": "y"},
     )
     assert r.status_code == 401

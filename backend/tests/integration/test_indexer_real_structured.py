@@ -62,6 +62,7 @@ async def _make_structured_indexer(
 ) -> tuple[RealIndexer, _CountingProvider, dict, WorkspacePoolRegistry, str]:
     req = WorkspaceCreateResolved(
         name=name,
+        label=name,
         indexer=IndexerCreateSpec(
             provider="ollama",
             model="mxbai-embed-large",

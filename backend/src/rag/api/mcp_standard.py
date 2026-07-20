@@ -24,7 +24,27 @@ log = structlog.get_logger(__name__)
 
 
 @dataclass(frozen=True)
-class _WsCtx:
+class _KeyCtx:
+    """Contexte d'AUTHENTIFICATION, posé une fois par le dispatcher.
+
+    Ne dépend plus d'un workspace (l'URL MCP n'en porte plus) : la clé est
+    identifiée par son empreinte, avec son propriétaire et son niveau d'accès.
+    Le workspace ciblé est un PARAMÈTRE de chaque outil, résolu à l'appel.
+    """
+
+    owner_id: str
+    scope: str  # read | read_write | admin
+    config_pool: asyncpg.Pool
+    pool_registry: Any
+    resolver: Any
+    client_provider: Any
+    default_vault_name: str | None = None
+
+
+@dataclass(frozen=True)
+class _WsData:
+    """Config d'un workspace résolue à l'appel d'un outil (à partir du slug)."""
+
     workspace_name: str
     rag_cnx: str
     indexer_service: str
@@ -32,16 +52,65 @@ class _WsCtx:
     indexer_model: str
     indexer_api_key_ref: str | None
     indexer_base_url: str | None
-    pool_registry: Any
-    resolver: Any
     workspace_id: UUID
-    config_pool: asyncpg.Pool
-    owner_id: str
-    can_write: bool
-    default_vault_name: str | None = None
 
 
-_ws_ctx: ContextVar[_WsCtx] = ContextVar("mcp_ws_ctx")
+_ws_ctx: ContextVar[_KeyCtx] = ContextVar("mcp_key_ctx")
+
+
+class _WorkspaceUnknownError(Exception):
+    """Le slug de workspace demandé n'existe pas."""
+
+
+async def _resolve_ws(key: _KeyCtx, workspace: str) -> _WsData:
+    """Charge la config d'un workspace par son slug (= colonne name).
+
+    Accès global : toute clé valide (scope read+) voit tous les workspaces de
+    l'instance (les workspaces n'ont pas de propriétaire). Lève
+    `_WorkspaceUnknownError` si le slug est inconnu.
+    """
+    row = await key.config_pool.fetchrow(
+        """
+        SELECT w.id, w.name, w.rag_cnx,
+               ic.provider, ic.model, ic.api_key_ref, ic.base_url, md.service
+        FROM workspaces w
+        JOIN indexer_configs ic ON ic.workspace_id = w.id
+        JOIN model_dimensions md ON md.provider = ic.provider AND md.model = ic.model
+        WHERE w.name = $1
+        """,
+        workspace,
+    )
+    if row is None:
+        raise _WorkspaceUnknownError(workspace)
+    return _WsData(
+        workspace_name=row["name"],
+        rag_cnx=row["rag_cnx"],
+        indexer_service=row["service"],
+        indexer_provider=row["provider"],
+        indexer_model=row["model"],
+        indexer_api_key_ref=row["api_key_ref"],
+        indexer_base_url=row["base_url"],
+        workspace_id=row["id"],
+    )
+
+
+_UNKNOWN_WS_MSG = (
+    "Workspace '{ws}' introuvable. Appelle d'abord list_workspaces() pour "
+    "obtenir les slugs accessibles."
+)
+
+
+async def _resolve_indexer_key(key: _KeyCtx, ws: _WsData) -> str | None:
+    """Résout la clé API de l'indexeur du workspace (normalisation legacy, BUG-024)."""
+    if not ws.indexer_api_key_ref:
+        return None
+    ref = ws.indexer_api_key_ref
+    if is_vault_ref(ref) or key.default_vault_name is not None:
+        return await key.resolver.resolve_with_retry(
+            as_vault_ref(ref, key.default_vault_name or "")
+        )
+    log.warning("mcp_standard.logical_ref_without_default_vault", workspace=ws.workspace_name)
+    return None
 
 # ── FastMCP server (singleton, stateless) ────────────────────────────────────
 
@@ -50,19 +119,21 @@ _mcp = FastMCP("rag", stateless_http=True)
 
 @_mcp.tool()
 async def rag_search(
+    workspace: str,
     query: str,
     top_k: int = 5,
     min_score: float = 0.3,
     enrichment_keys: list[str] | None = None,
     scope: str = "both",
 ) -> str:
-    """Recherche par similarité sémantique (embeddings) dans le corpus indexé du workspace.
+    """Recherche par similarité sémantique (embeddings) dans le corpus indexé d'un workspace.
 
     Trouve les passages dont le SENS est proche de la requête, même si les mots exacts
     n'apparaissent pas. Idéal pour des questions en langue naturelle, des concepts, des
     intentions. Ne fait PAS de correspondance littérale — utiliser search_files pour ça.
 
     Paramètres :
+    - workspace : slug du workspace où chercher (voir list_workspaces pour la liste)
     - query     : la question ou le concept (texte libre, n'importe quelle langue)
     - top_k     : nombre de passages à retourner (défaut 5 ; au-delà de 20 le ratio
                   signal/bruit baisse)
@@ -79,43 +150,30 @@ async def rag_search(
     Sortie : passages triés par score décroissant, format [path — chunk N — score 0.XXX]
     suivi du texte. Lecture seule, n'accède qu'au contenu indexé (pas aux fichiers live).
     """
-    ctx = _ws_ctx.get()
+    key = _ws_ctx.get()
+    try:
+        ws = await _resolve_ws(key, workspace)
+    except _WorkspaceUnknownError:
+        return _UNKNOWN_WS_MSG.format(ws=workspace)
 
-    api_key: str | None = None
-    if ctx.indexer_api_key_ref:
-        ref = ctx.indexer_api_key_ref
-        if is_vault_ref(ref) or ctx.default_vault_name is not None:
-            # Normalise la clé logique (format legacy) en ref vault par défaut,
-            # comme le fait RealIndexer à l'indexation. Sans cette normalisation
-            # l'embedding était appelé avec api_key=None → 401 (BUG-024).
-            # `default_vault_name` n'est utilisé que pour une clé logique ; une
-            # ref vault complète est renvoyée telle quelle.
-            api_key = await ctx.resolver.resolve_with_retry(
-                as_vault_ref(ref, ctx.default_vault_name or "")
-            )
-        else:
-            log.warning(
-                "mcp_standard.logical_ref_without_default_vault",
-                workspace=ctx.workspace_name,
-            )
-
+    api_key = await _resolve_indexer_key(key, ws)
     provider = make_provider(
-        service=ctx.indexer_service,
-        provider=ctx.indexer_provider,
-        model=ctx.indexer_model,
+        service=ws.indexer_service,
+        provider=ws.indexer_provider,
+        model=ws.indexer_model,
         api_key=api_key,
-        base_url=ctx.indexer_base_url,
+        base_url=ws.indexer_base_url,
     )
     query_vec = await provider.embed_query(query)
 
-    ws_pool = await ctx.pool_registry.get_workspace_pool(ctx.workspace_name, ctx.rag_cnx)
+    ws_pool = await key.pool_registry.get_workspace_pool(ws.workspace_name, ws.rag_cnx)
     hits = await vector_search(
         ws_pool,
         query_vec=query_vec,
         top_k=top_k,
         min_score=min_score,
-        workspace_name=ctx.workspace_name,
-        indexer_used=f"{ctx.indexer_provider}/{ctx.indexer_model}",
+        workspace_name=ws.workspace_name,
+        indexer_used=f"{ws.indexer_provider}/{ws.indexer_model}",
         scope=scope,
         enrichment_keys=enrichment_keys,
     )
@@ -130,12 +188,12 @@ async def rag_search(
             label = f"{h.source_path or h.path} [{h.enrichment_key}]"
         parts.append(f"[{label} — chunk {h.chunk_index} — score {h.score:.3f}]\n{h.content}")
 
-    log.info("mcp_standard.search", workspace=ctx.workspace_name, hits=len(hits), scope=scope)
+    log.info("mcp_standard.search", workspace=ws.workspace_name, hits=len(hits), scope=scope)
     return "\n\n---\n\n".join(parts)
 
 
 @_mcp.tool()
-async def get_enrichment(path: str, key: str) -> str:
+async def get_enrichment(workspace: str, path: str, key: str) -> str:
     """Retourne le résultat d'analyse pré-calculée associé à un fichier et à une clé.
 
     Les enrichissements sont des métadonnées structurées générées sur chaque fichier
@@ -145,9 +203,10 @@ async def get_enrichment(path: str, key: str) -> str:
     Workflow recommandé :
     1. Appeler rag_search avec scope='enriched_only' pour découvrir quels fichiers ont
        des enrichissements et quelles clés existent.
-    2. Appeler get_enrichment(path, key) pour lire le détail d'un enrichissement précis.
+    2. Appeler get_enrichment(workspace, path, key) pour lire un enrichissement précis.
 
     Paramètres :
+    - workspace : slug du workspace (voir list_workspaces)
     - path : chemin exact du fichier tel qu'indexé (ex. "src/auth/middleware.py")
     - key  : clé de l'enrichissement (ex. "public_functions", "summary", "imports")
 
@@ -157,10 +216,14 @@ async def get_enrichment(path: str, key: str) -> str:
     """
     import json as _json
 
-    ctx = _ws_ctx.get()
+    key_ctx = _ws_ctx.get()
+    try:
+        ws = await _resolve_ws(key_ctx, workspace)
+    except _WorkspaceUnknownError:
+        return _UNKNOWN_WS_MSG.format(ws=workspace)
     data = await get_enrichment_db(
-        ctx.config_pool,
-        workspace_id=ctx.workspace_id,
+        key_ctx.config_pool,
+        workspace_id=ws.workspace_id,
         path=path,
         key=key,
     )
@@ -176,13 +239,15 @@ async def get_enrichment(path: str, key: str) -> str:
 
 
 @_mcp.tool()
-async def index_status(path: str | None = None) -> str:
-    """Vérifie si l'index du workspace est à jour et opérationnel.
+async def index_status(workspace: str, path: str | None = None) -> str:
+    """Vérifie si l'index d'un workspace est à jour et opérationnel.
 
     Appeler cet outil avant rag_search ou get_document pour s'assurer que les données
     sont fraîches. Un index en erreur ou vide produira des résultats incomplets ou absents.
 
-    Sans argument — état global du workspace :
+    - workspace : slug du workspace (voir list_workspaces)
+
+    Sans path — état global du workspace :
     - documents_count   : nombre de fichiers actuellement indexés
     - last_indexed_at   : horodatage de la dernière indexation (null = index vide)
     - sync.healthy      : false si le dernier job s'est terminé en erreur ; true sinon
@@ -203,23 +268,32 @@ async def index_status(path: str | None = None) -> str:
 
     from rag.db.mcp_tools import get_document_status, get_index_status
 
-    ctx = _ws_ctx.get()
+    key_ctx = _ws_ctx.get()
+    try:
+        ws = await _resolve_ws(key_ctx, workspace)
+    except _WorkspaceUnknownError:
+        return _UNKNOWN_WS_MSG.format(ws=workspace)
     if path:
-        data = await get_document_status(ctx.config_pool, workspace_id=ctx.workspace_id, path=path)
+        data = await get_document_status(
+            key_ctx.config_pool, workspace_id=ws.workspace_id, path=path
+        )
         if data is None:
             return f"Document '{path}' non trouvé dans l'index."
         return _json.dumps(data, ensure_ascii=False, indent=2)
-    data = await get_index_status(ctx.config_pool, workspace_id=ctx.workspace_id)
-    return _json.dumps({"workspace": ctx.workspace_name, **data}, ensure_ascii=False, indent=2)
+    data = await get_index_status(key_ctx.config_pool, workspace_id=ws.workspace_id)
+    return _json.dumps({"workspace": ws.workspace_name, **data}, ensure_ascii=False, indent=2)
 
 
 @_mcp.tool()
 async def search_files(
+    workspace: str,
     pattern: str,
     mode: str = "exact",
     top_k: int = 20,
 ) -> str:
     """Recherche exhaustive par correspondance littérale dans le corpus indexé.
+
+    - workspace : slug du workspace (voir list_workspaces)
 
     Contrairement à rag_search (sémantique), cette recherche est déterministe :
     elle trouve TOUTES les occurrences d'un motif exact. Utiliser pour retrouver
@@ -244,8 +318,12 @@ async def search_files(
     """
     from rag.db.mcp_tools import search_files_in_workspace
 
-    ctx = _ws_ctx.get()
-    ws_pool = await ctx.pool_registry.get_workspace_pool(ctx.workspace_name, ctx.rag_cnx)
+    key_ctx = _ws_ctx.get()
+    try:
+        ws = await _resolve_ws(key_ctx, workspace)
+    except _WorkspaceUnknownError:
+        return _UNKNOWN_WS_MSG.format(ws=workspace)
+    ws_pool = await key_ctx.pool_registry.get_workspace_pool(ws.workspace_name, ws.rag_cnx)
     hits = await search_files_in_workspace(ws_pool, pattern=pattern, mode=mode, top_k=top_k)
 
     if not hits:
@@ -258,13 +336,15 @@ async def search_files(
             label = f"{h.get('source_path') or h['path']} [{h['enrichment_key']}]"
         parts.append(f"[{label} — chunk {h['chunk_index']}]\n{h['content']}")
 
-    log.info("mcp_standard.search_files", workspace=ctx.workspace_name, hits=len(hits), mode=mode)
+    log.info("mcp_standard.search_files", workspace=ws.workspace_name, hits=len(hits), mode=mode)
     return f"**{len(hits)} fichier(s)** contenant '{pattern}' :\n\n" + "\n\n---\n\n".join(parts)
 
 
 @_mcp.tool()
-async def get_document(path: str) -> str:
+async def get_document(workspace: str, path: str) -> str:
     """Retourne le contenu complet d'un document depuis l'index (sans accès au disque).
+
+    - workspace : slug du workspace (voir list_workspaces)
 
     Utile pour lire un fichier entier quand le filesystem n'est pas disponible (agent cloud,
     conteneur sans montage). Le document est RECONSTRUIT depuis les sections stockées en base —
@@ -288,12 +368,16 @@ async def get_document(path: str) -> str:
     """
     from rag.db.mcp_tools import reconstruct_document
 
-    ctx = _ws_ctx.get()
+    key_ctx = _ws_ctx.get()
+    try:
+        ws = await _resolve_ws(key_ctx, workspace)
+    except _WorkspaceUnknownError:
+        return _UNKNOWN_WS_MSG.format(ws=workspace)
 
     # Vérifier le flag allow_full_read
-    allow = await ctx.config_pool.fetchval(
+    allow = await key_ctx.config_pool.fetchval(
         "SELECT allow_full_read FROM workspaces WHERE id = $1",
-        ctx.workspace_id,
+        ws.workspace_id,
     )
     if allow is False:
         return (
@@ -301,9 +385,9 @@ async def get_document(path: str) -> str:
             "Utilisez rag_search pour des extraits contextuels."
         )
 
-    ws_pool = await ctx.pool_registry.get_workspace_pool(ctx.workspace_name, ctx.rag_cnx)
+    ws_pool = await key_ctx.pool_registry.get_workspace_pool(ws.workspace_name, ws.rag_cnx)
     result = await reconstruct_document(
-        ws_pool, ctx.config_pool, workspace_id=ctx.workspace_id, path=path
+        ws_pool, key_ctx.config_pool, workspace_id=ws.workspace_id, path=path
     )
 
     if result is None:
@@ -315,8 +399,37 @@ async def get_document(path: str) -> str:
     if result["is_legacy"]:
         header += " — engine legacy (chunks plats)"
 
-    log.info("mcp_standard.get_document", workspace=ctx.workspace_name, path=path)
+    log.info("mcp_standard.get_document", workspace=ws.workspace_name, path=path)
     return f"{header}\n\n{result['content']}"
+
+
+@_mcp.tool()
+async def list_workspaces() -> str:
+    """Liste les workspaces accessibles à la clé — À APPELER EN PREMIER.
+
+    Renvoie l'inventaire des corpus interrogeables : leur slug (identifiant à
+    passer en paramètre `workspace` des autres outils), leur nom d'affichage et
+    leur description. Aucun paramètre.
+
+    Sortie : JSON {"scope": "read|read_write|admin", "workspaces": [
+        {"nom": "...", "slug": "...", "description": "..."}, ...]}.
+    Le `scope` est le niveau d'accès de la clé (read = lecture/recherche,
+    read_write = + indexation, admin = + gestion de bibliothèque).
+    Lecture seule.
+    """
+    import json as _json
+
+    key_ctx = _ws_ctx.get()
+    rows = await key_ctx.config_pool.fetch(
+        "SELECT name, label, description FROM workspaces ORDER BY name"
+    )
+    workspaces = [
+        {"nom": r["label"] or r["name"], "slug": r["name"], "description": r["description"] or ""}
+        for r in rows
+    ]
+    return _json.dumps(
+        {"scope": key_ctx.scope, "workspaces": workspaces}, ensure_ascii=False, indent=2
+    )
 
 
 # ── Outils de bibliothèque (stratégies de chunking + templates de prompts) ──
@@ -335,19 +448,6 @@ def build_mcp_asgi() -> Starlette:
 # ── Helpers (exportés pour les tests) ────────────────────────────────────────
 
 
-def _extract_workspace_id(path: str) -> str | None:
-    """Extrait et valide le premier segment du path comme UUID workspace."""
-    segments = [s for s in path.split("/") if s]
-    if not segments:
-        return None
-    candidate = segments[0]
-    try:
-        UUID(candidate)
-    except ValueError:
-        return None
-    return candidate
-
-
 def _extract_bearer(headers: list[tuple[bytes, bytes]]) -> str | None:
     """Extrait le token Bearer du header Authorization."""
     for name, value in headers:
@@ -364,11 +464,11 @@ def _extract_bearer(headers: list[tuple[bytes, bytes]]) -> str | None:
 class RagMcpDispatcher:
     """Dispatcher ASGI monté sur /mcp dans FastAPI.
 
-    - Extrait workspace_id du path (/{workspace_id}/...)
-    - Valide le Bearer token via user_api_keys (grant can_read)
-    - Injecte le contexte workspace dans _ws_ctx
-    - Réécrit le path (supprime le segment workspace_id)
-    - Délègue à l'inner FastMCP app
+    Connecteur UNIQUE (plus de workspace_id dans l'URL) :
+    - Valide le Bearer token via user_api_keys (empreinte SHA-256, non révoquée).
+    - Injecte le contexte d'authentification (owner_id, scope) dans _ws_ctx.
+    - Le workspace ciblé est un PARAMÈTRE de chaque outil, résolu à l'appel.
+    - Délègue à l'inner FastMCP app sans réécrire le path.
     """
 
     def __init__(self, inner: ASGIApp) -> None:
@@ -390,12 +490,6 @@ class RagMcpDispatcher:
             await self._inner(scope, receive, send)
             return
 
-        path: str = scope.get("path", "/")
-        workspace_id = _extract_workspace_id(path)
-        if workspace_id is None:
-            await _json_error(send, 404, "workspace_id_required")
-            return
-
         token = _extract_bearer(list(scope.get("headers", [])))
         if token is None:
             await _json_error(send, 401, "authorization_required")
@@ -406,79 +500,48 @@ class RagMcpDispatcher:
             return
 
         try:
-            ctx = await self._load_context(workspace_id, token)
+            ctx = await self._load_context(token)
         except PermissionError:
             await _json_error(send, 401, "invalid_token")
             return
-        except LookupError:
-            await _json_error(send, 404, "workspace_not_found")
-            return
-
-        segments = [s for s in path.split("/") if s]
-        remaining = "/" + "/".join(segments[1:]) if len(segments) > 1 else "/"
-        new_scope = {**scope, "path": remaining, "raw_path": remaining.encode()}
 
         token_var = _ws_ctx.set(ctx)
         try:
-            await self._inner(new_scope, receive, send)
+            await self._inner(scope, receive, send)
         finally:
             _ws_ctx.reset(token_var)
 
-    async def _load_context(self, workspace_id: str, token: str) -> _WsCtx:
+    async def _load_context(self, token: str) -> _KeyCtx:
         assert self._config_pool is not None  # noqa: S101
         fingerprint = sha256(token.encode()).hexdigest()
 
-        # Clés utilisateur : seule l'empreinte SHA-256 est stockée. L'accès
-        # MCP (recherche) exige un grant `can_read` sur le workspace ciblé.
+        # Clés utilisateur : seule l'empreinte SHA-256 est stockée. Toute clé
+        # valide (non révoquée, hors grâce) est authentifiée ; l'autorisation
+        # fine (scope) est appliquée par chaque outil.
         row = await self._config_pool.fetchrow(
             """
-            SELECT w.name, w.rag_cnx,
-                   ic.provider, ic.model,
-                   ic.api_key_ref AS indexer_api_key_ref,
-                   ic.base_url,
-                   md.service,
-                   k.owner_id, g.can_write
-            FROM workspaces w
-            JOIN user_api_key_workspaces g ON g.workspace_id = w.id
-            JOIN user_api_keys k ON k.id = g.api_key_id
-            JOIN indexer_configs ic ON ic.workspace_id = w.id
-            JOIN model_dimensions md ON md.provider = ic.provider AND md.model = ic.model
-            WHERE w.id = $1::uuid
-              AND k.fingerprint = $2
-              AND g.can_read
-              AND k.revoked_at IS NULL
-              AND (k.rotated_at IS NULL OR k.rotated_at > now() - interval '72 hours')
+            SELECT owner_id, scope
+            FROM user_api_keys
+            WHERE fingerprint = $1
+              AND revoked_at IS NULL
+              AND (rotated_at IS NULL OR rotated_at > now() - interval '72 hours')
             """,
-            workspace_id,
             fingerprint,
         )
-
         if row is None:
-            exists = await self._config_pool.fetchval(
-                "SELECT 1 FROM workspaces WHERE id = $1::uuid", workspace_id
-            )
-            if not exists:
-                raise LookupError(workspace_id)
             raise PermissionError("invalid token")
 
         default_vault_name: str | None = None
         if self._client_provider is not None:
             default_vault_name = await self._client_provider.get_default_vault_name()
 
-        return _WsCtx(
-            workspace_name=str(row["name"]),
-            rag_cnx=str(row["rag_cnx"]),
-            indexer_service=str(row["service"]),
-            indexer_provider=str(row["provider"]),
-            indexer_model=str(row["model"]),
-            indexer_api_key_ref=row["indexer_api_key_ref"],
-            indexer_base_url=row["base_url"],
+        return _KeyCtx(
+            owner_id=str(row["owner_id"]),
+            scope=str(row["scope"]),
+            config_pool=self._config_pool,
             pool_registry=self._pool_registry,
             resolver=self._resolver,
-            workspace_id=UUID(workspace_id),
-            config_pool=self._config_pool,
-            owner_id=str(row["owner_id"]),
-            can_write=bool(row["can_write"]),
+            client_provider=self._client_provider,
             default_vault_name=default_vault_name,
         )
 

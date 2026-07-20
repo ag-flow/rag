@@ -22,14 +22,7 @@ const KEY: UserApiKey = {
   created_at: "2026-07-01T00:00:00Z",
   revoked_at: null,
   rotated_at: null,
-  workspaces: [
-    {
-      workspace_id: "w-1",
-      workspace_name: "mon-projet",
-      can_read: true,
-      can_write: false,
-    },
-  ],
+  scope: "read_write",
 };
 
 describe("ApiKeysPage", () => {
@@ -38,7 +31,7 @@ describe("ApiKeysPage", () => {
     await i18n.changeLanguage("fr");
   });
 
-  it("liste les clés avec leurs grants et permissions", async () => {
+  it("liste les clés avec leur niveau d'accès", async () => {
     vi.spyOn(apiModule.api, "get").mockResolvedValue([KEY]);
     render(
       <Wrapper>
@@ -47,7 +40,8 @@ describe("ApiKeysPage", () => {
     );
 
     expect(await screen.findByText("claude-code")).toBeInTheDocument();
-    expect(screen.getByText("mon-projet (R)")).toBeInTheDocument();
+    // Badge du niveau (read_write → « Lecture / écriture »)
+    expect(screen.getByText("Lecture / écriture")).toBeInTheDocument();
     expect(screen.getByText(/^Active$/)).toBeInTheDocument();
   });
 
@@ -88,6 +82,7 @@ describe("ApiKeysPage", () => {
       name: "nouvelle",
       api_key: "ws_secret_value_once",
       fingerprint_preview: "deadbeef",
+      scope: "read",
       created_at: "2026-07-16T00:00:00Z",
     });
 
@@ -107,7 +102,7 @@ describe("ApiKeysPage", () => {
     expect(await screen.findByDisplayValue("ws_secret_value_once")).toBeInTheDocument();
     expect(postSpy).toHaveBeenCalledWith("/api/me/api-keys", {
       name: "nouvelle",
-      workspaces: [],
+      scope: "read",
     });
   });
 });

@@ -80,34 +80,53 @@ describe("CreateWorkspaceDialog (endpoint-based)", () => {
     await i18n.changeLanguage("fr");
   });
 
-  it("affiche nom + sélecteur d'endpoint (unique pré-sélectionné)", () => {
+  it("affiche label + sélecteur d'endpoint (unique pré-sélectionné)", () => {
     mockEndpoints(GROUPED);
     render(
       <Wrapper>
         <CreateWorkspaceDialog open onOpenChange={() => {}} />
       </Wrapper>,
     );
-    expect(screen.getByPlaceholderText("mon-projet")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Mon projet")).toBeInTheDocument();
     // endpoint unique → pré-sélectionné et visible dans le trigger
     expect(screen.getByText(/Docs OpenAI — openai\/text-embedding-3-small/)).toBeInTheDocument();
   });
 
-  it("soumet {name, endpoint_id}", async () => {
+  it("dérive le slug depuis le label saisi", () => {
     mockEndpoints(GROUPED);
-    createMutateAsync.mockResolvedValue({ name: "mon-ws" });
     render(
       <Wrapper>
         <CreateWorkspaceDialog open onOpenChange={() => {}} />
       </Wrapper>,
     );
-    fireEvent.change(screen.getByPlaceholderText("mon-projet"), {
-      target: { value: "mon-ws" },
+    fireEvent.change(screen.getByPlaceholderText("Mon projet"), {
+      target: { value: "Mon Super Projet !" },
+    });
+    // Le slug dérivé est affiché en lecture seule.
+    expect(screen.getByText("mon-super-projet")).toBeInTheDocument();
+  });
+
+  it("soumet {name: slug, endpoint_id, label, description}", async () => {
+    mockEndpoints(GROUPED);
+    createMutateAsync.mockResolvedValue({ name: "mon-ws", label: "Mon WS" });
+    render(
+      <Wrapper>
+        <CreateWorkspaceDialog open onOpenChange={() => {}} />
+      </Wrapper>,
+    );
+    fireEvent.change(screen.getByPlaceholderText("Mon projet"), {
+      target: { value: "Mon WS" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/optionnel/i), {
+      target: { value: "Un corpus de test" },
     });
     fireEvent.click(screen.getByRole("button", { name: /^Créer$/i }));
     await waitFor(() =>
       expect(createMutateAsync).toHaveBeenCalledWith({
         name: "mon-ws",
         endpoint_id: "ep-1",
+        label: "Mon WS",
+        description: "Un corpus de test",
       }),
     );
   });
@@ -123,16 +142,13 @@ describe("CreateWorkspaceDialog (endpoint-based)", () => {
     expect(screen.getByRole("button", { name: /^Créer$/i })).toBeDisabled();
   });
 
-  it("nom invalide (majuscules) : bouton Créer bloqué", () => {
+  it("label vide : bouton Créer bloqué", () => {
     mockEndpoints(GROUPED);
     render(
       <Wrapper>
         <CreateWorkspaceDialog open onOpenChange={() => {}} />
       </Wrapper>,
     );
-    fireEvent.change(screen.getByPlaceholderText("mon-projet"), {
-      target: { value: "MonWS" },
-    });
     expect(screen.getByRole("button", { name: /^Créer$/i })).toBeDisabled();
   });
 });

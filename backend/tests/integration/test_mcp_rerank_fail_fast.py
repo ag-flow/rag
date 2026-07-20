@@ -74,9 +74,7 @@ async def test_rerank_provider_unreachable_falls_back_to_base_order(
             rag_cnx="postgresql://unused/test",
             rag_base="rag_test",
         )
-        await seed_user_api_key(
-            conn, api_key=_API_KEY, grants=[(ws_id, True, True)]
-        )
+        await seed_user_api_key(conn, api_key=_API_KEY, scope="read_write")
         await conn.execute(
             "INSERT INTO indexer_configs (workspace_id, provider, model, dimension) "
             "VALUES ($1, 'ollama', 'mxbai-embed-large', 4)",
@@ -116,7 +114,7 @@ async def test_rerank_provider_unreachable_falls_back_to_base_order(
     )
     rerank_factory: Any = MagicMock(return_value=failing_reranker)
 
-    hits = await search(
+    hits, _channels = await search(
         refs=[McpWorkspaceRef(name=_WS_NAME, api_key=_API_KEY)],
         query="test query",
         top_k=2,
