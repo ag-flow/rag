@@ -164,11 +164,103 @@ def search_debug(
     return dict(resp.json())
 
 
+def _expected_matcher(entry: dict[str, Any]):
+    """Prédicat path → bool (attendu exact OU sous-chaîne), comme first_relevant_rank."""
+    exact = set(entry.get("expected_paths") or [])
+    fragments = list(entry.get("expected_path_contains") or [])
+
+    def matches(path: str) -> bool:
+        return path in exact or any(frag in path for frag in fragments)
+
+    return matches
+
+
+def _rank_of_expected(hits: list[dict[str, Any]], entry: dict[str, Any]) -> int | None:
+    """Rang du doc attendu dans une liste par canal (None = absent)."""
+    matches = _expected_matcher(entry)
+    for h in hits:
+        if matches(h.get("path", "")):
+            return h.get("rank")
+    return None
+
+
+# Verdicts déterministes + hypothèses PROPOSÉES (jamais appliquées — SR1.3).
+_VERDICTS: dict[str, tuple[str, list[str]]] = {
+    "absent_both": (
+        "absent des deux canaux — le doc n'est remonté ni sémantiquement ni littéralement",
+        [
+            "vérifier que le document est bien indexé (index_status)",
+            "revoir la stratégie de chunking (granularité, régions)",
+            "activer/renforcer le contexte à l'embedding (F6) pour ce type de doc",
+        ],
+    ),
+    "vector_only": (
+        "présent au canal VECTORIEL uniquement — le canal lexical ne le trouve pas",
+        [
+            "la requête ne partage pas les tokens littéraux du doc (reformulation lexicale)",
+            "monter le curseur de pondération vectorielle",
+        ],
+    ),
+    "lexical_only": (
+        "présent au canal LEXICAL uniquement — l'embedding ne le rapproche pas",
+        [
+            "écart sémantique : modèle d'embedding ou contexte F6 insuffisant",
+            "monter le curseur de pondération lexicale",
+        ],
+    ),
+    "drowned_fusion": (
+        "présent dans LES DEUX canaux mais noyé à la fusion (hors top_k fusionné)",
+        [
+            "d'autres documents dominent la fusion : ajuster les curseurs de pondération",
+            "augmenter top_k ou baisser rrf_k",
+        ],
+    ),
+    "vector_low_rank": (
+        "présent au canal vectoriel mais à un rang trop bas (baseline vectoriel-seul)",
+        [
+            "rang au-delà du top_k : améliorer l'embedding ou le contexte F6",
+            "augmenter top_k pour confirmer la présence",
+        ],
+    ),
+}
+
+
+def classify_failure(entry: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    """Classe un échec à partir des canaux (D8) — analyse structurelle, sans LLM.
+
+    Détermine le rang du doc attendu dans chaque canal et en déduit un verdict :
+    absent des deux, présent dans un seul canal, ou noyé à la fusion. En baseline
+    vectoriel-seul (canal lexical vide) le verdict se limite au canal unique.
+    """
+    channels = payload.get("channels") or {}
+    vector_rank = _rank_of_expected(channels.get("vector") or [], entry)
+    lexical_rank = _rank_of_expected(channels.get("lexical") or [], entry)
+    has_lexical = bool(channels.get("lexical"))
+
+    if vector_rank is None and lexical_rank is None:
+        verdict = "absent_both"
+    elif vector_rank is not None and lexical_rank is not None:
+        verdict = "drowned_fusion"
+    elif vector_rank is not None:
+        verdict = "vector_only" if has_lexical else "vector_low_rank"
+    else:
+        verdict = "lexical_only"
+
+    label, hypotheses = _VERDICTS[verdict]
+    return {
+        "verdict": verdict,
+        "label": label,
+        "vector_rank": vector_rank,
+        "lexical_rank": lexical_rank,
+        "hypotheses": hypotheses,
+    }
+
+
 def render_diagnosis(
     failures: list[tuple[dict[str, Any], dict[str, Any]]], *, workspace: str, top_k: int
 ) -> str:
-    """Dossier de diagnostic par échec (SR1.3) — la matière brute de l'agent
-    diagnosticien : requête, attendu, fusion ET listes par canal (D8)."""
+    """Dossier de diagnostic par échec (SR1.3) — analyse structurelle par canal
+    (D8) + hypothèses PROPOSÉES, plus les listes brutes pour l'agent diagnosticien."""
     lines = [
         "# Dossier de diagnostic des échecs",
         "",
@@ -178,11 +270,16 @@ def render_diagnosis(
     ]
     for entry, payload in failures:
         expected = entry.get("expected_paths") or entry.get("expected_path_contains")
+        diag = classify_failure(entry, payload)
+        ranks = f"vectoriel={diag['vector_rank']} lexical={diag['lexical_rank']}"
         lines += [
             "",
             f"## {entry['query']}",
             "",
             f"- famille : {entry.get('family', 'sans-famille')} — attendu : {expected}",
+            f"- **verdict** : {diag['label']} (rangs : {ranks})",
+            "- hypothèses proposées (non appliquées) :",
+            *[f"  - {h}" for h in diag["hypotheses"]],
             "- fusion (top hits) :",
         ]
         for h in payload.get("results", []):
