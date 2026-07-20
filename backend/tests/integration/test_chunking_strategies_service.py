@@ -204,3 +204,28 @@ async def test_create_rejects_invalid_spec(session_pool: asyncpg.Pool) -> None:
             )
     finally:
         await session_pool.release(conn)
+
+
+@pytest.mark.asyncio
+async def test_other_owner_strategy_invisible_and_immutable(session_pool: asyncpg.Pool) -> None:
+    """Isolation inter-utilisateurs : A ne peut NI lire NI modifier NI supprimer
+    une stratégie possédée par B (accès pris en compte, pas juste filtré au list)."""
+    conn = await _conn(session_pool)
+    try:
+        owned_by_b = await svc.create_strategy(
+            conn, owner_id=OWNER_B, req=StrategyCreate(label="Privée de B", algo="prose")
+        )
+        # Lecture : refusée (invisible → introuvable pour A).
+        with pytest.raises(svc.StrategyNotFoundError):
+            await svc.get_strategy(conn, owner_id=OWNER_A, strategy_id=owned_by_b.id)
+        # Modification : refusée (introuvable pour A).
+        with pytest.raises(svc.StrategyNotFoundError):
+            await svc.patch_strategy(
+                conn, owner_id=OWNER_A, strategy_id=owned_by_b.id, req=StrategyPatch(label="Vol")
+            )
+        with pytest.raises(svc.StrategyNotFoundError):
+            await svc.delete_strategy(conn, owner_id=OWNER_A, strategy_id=owned_by_b.id)
+        # B, lui, y a bien accès.
+        assert await svc.get_strategy(conn, owner_id=OWNER_B, strategy_id=owned_by_b.id) is not None
+    finally:
+        await session_pool.release(conn)
