@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { RotateCcw, XCircle, Pencil, Plug } from "lucide-react";
+import { RotateCcw, XCircle, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -53,9 +53,6 @@ export function ApiKeysPage() {
   const [toRotate, setToRotate] = useState<UserApiKey | null>(null);
   const [toEdit, setToEdit] = useState<UserApiKey | null>(null);
   const [toRevoke, setToRevoke] = useState<UserApiKey | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  const toggleConnect = (id: string) => setExpandedId((cur) => (cur === id ? null : id));
 
   async function handleRevoke() {
     if (!toRevoke) return;
@@ -87,6 +84,13 @@ export function ApiKeysPage() {
         <Button type="button" onClick={() => setCreateOpen(true)}>
           {t("add_btn")}
         </Button>
+      </div>
+
+      {/* Fiche de connexion MCP — toujours visible : l'endpoint est unique,
+          l'utilisateur y colle sa propre clé (placeholder tant qu'aucune n'est
+          affichée en clair). */}
+      <div className="mt-6">
+        <McpClientPanel />
       </div>
 
       {keys.length === 0 ? (
@@ -123,18 +127,6 @@ export function ApiKeysPage() {
                     {new Date(k.created_at).toLocaleDateString()}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleConnect(k.id)}
-                      aria-label={t("connect_btn")}
-                      aria-expanded={expandedId === k.id}
-                    >
-                      <Plug
-                        className={`h-4 w-4 ${expandedId === k.id ? "text-sky-600" : ""}`}
-                      />
-                    </Button>
                     {k.status === "active" && (
                       <>
                         <Button
@@ -168,13 +160,6 @@ export function ApiKeysPage() {
                     )}
                   </TableCell>
                 </TableRow>
-                {expandedId === k.id && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="bg-slate-50/60 p-4">
-                      <McpClientPanel />
-                    </TableCell>
-                  </TableRow>
-                )}
                 </Fragment>
               ))}
             </TableBody>
