@@ -15,7 +15,7 @@ from starlette.applications import Starlette
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from rag.auth.obo import read_obo_actor
-from rag.auth.owner import email_to_owner_id
+from rag.auth.owner import principal_to_owner_id
 from rag.db.enrichment_lookup import get_enrichment as get_enrichment_db
 from rag.db.workspace_search import vector_search
 from rag.indexer.providers.factory import make_provider
@@ -521,21 +521,6 @@ class RagMcpDispatcher:
         self._resolver = app_state.resolver
         self._client_provider = app_state.client_provider
 
-    async def _resolve_obo_owner(self, actor_login: str) -> str | None:
-        """Mappe le login acteur (owner_login portail) → owner_id rag.
-
-        Via le référentiel `users` (username → email → sha256(email)). Introuvable
-        (ex. utilisateur OIDC sans ligne locale) → None : on garde l'identité de
-        la clé (fail-safe), jamais de refus."""
-        assert self._config_pool is not None  # noqa: S101
-        email = await self._config_pool.fetchval(
-            "SELECT email FROM users WHERE username = $1", actor_login
-        )
-        if email is None:
-            log.warning("mcp.obo.actor_unmapped", actor=actor_login)
-            return None
-        return email_to_owner_id(email)
-
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in ("http", "websocket"):
             await self._inner(scope, receive, send)
@@ -557,14 +542,13 @@ class RagMcpDispatcher:
             return
 
         # OBO : si le portail a propagé une identité humaine SIGNÉE (secret = le
-        # Bearer de cette requête), l'attribution bascule sur cet humain au lieu
-        # du propriétaire de la clé. En-tête absent/mal signé → ignoré (jamais
-        # 401), on garde l'identité de la clé. Contrat globals d0e2dad3.
+        # Bearer de cette requête), l'attribution bascule sur cet humain. Le
+        # login (owner_login) EST l'identité — owner_id dérivé directement, même
+        # clé que la session OIDC (preferred_username). En-tête absent/mal signé
+        # → ignoré (jamais 401), on garde l'identité de la clé. Contrat d0e2dad3.
         actor = read_obo_actor(list(scope.get("headers", [])), token)
         if actor is not None:
-            obo_owner = await self._resolve_obo_owner(actor)
-            if obo_owner is not None:
-                ctx = replace(ctx, owner_id=obo_owner)
+            ctx = replace(ctx, owner_id=principal_to_owner_id(actor))
 
         # Le mount Starlette "/mcp" ampute le préfixe : une requête sur `/mcp`
         # nu arrive ici avec un path vide → normalisé sur "/" pour matcher la

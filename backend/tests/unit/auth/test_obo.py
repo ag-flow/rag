@@ -69,32 +69,15 @@ class TestReadOboActor:
         assert read_obo_actor(headers, _SECRET, now=_NOW) is None
 
 
-class TestDispatcherOboMapping:
-    """Mapping login acteur → owner_id rag via le référentiel `users`."""
+class TestOboIdentityIsTheLogin:
+    """L'owner_id OBO dérive DIRECTEMENT du login (owner_login), même clé que la
+    session OIDC (preferred_username) — pas de détour par un référentiel local."""
 
-    async def _dispatcher(self, email: str | None):
-        from unittest.mock import AsyncMock, MagicMock
+    def test_owner_id_derives_from_login_and_matches_session(self) -> None:
+        from rag.auth.owner import principal_to_owner_id
 
-        from rag.api.mcp_standard import RagMcpDispatcher, build_mcp_asgi
-
-        disp = RagMcpDispatcher(build_mcp_asgi())
-        pool = MagicMock()
-        pool.fetchval = AsyncMock(return_value=email)
-        state = MagicMock()
-        state.pools = MagicMock()
-        state.pools.config_pool = pool
-        state.resolver = MagicMock()
-        state.client_provider = MagicMock()
-        disp.set_app_state(state)
-        return disp
-
-    async def test_known_login_maps_to_owner_id(self) -> None:
-        from rag.auth.owner import email_to_owner_id
-
-        disp = await self._dispatcher("gael@example.com")
-        owner = await disp._resolve_obo_owner("gael")
-        assert owner == email_to_owner_id("gael@example.com")
-
-    async def test_unknown_login_returns_none(self) -> None:
-        disp = await self._dispatcher(None)
-        assert await disp._resolve_obo_owner("ghost") is None
+        # Même login → même owner_id, que l'identité vienne d'OBO ou d'une
+        # session OIDC (get_current_owner_id utilise preferred_username = login).
+        assert principal_to_owner_id(_ACTOR) == principal_to_owner_id("gael")
+        # Insensible à la casse (sha256 du login mis en minuscules).
+        assert principal_to_owner_id("Gael") == principal_to_owner_id("gael")

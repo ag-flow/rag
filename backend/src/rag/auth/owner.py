@@ -9,9 +9,19 @@ from fastapi import Request
 _SYSTEM_OWNER_EMAIL = "system@rag.local"
 
 
-def email_to_owner_id(email: str) -> str:
-    """Retourne sha256(email.lower()) comme identifiant owner."""
-    return hashlib.sha256(email.lower().encode()).hexdigest()
+def principal_to_owner_id(principal: str) -> str:
+    """owner_id = sha256(principal.lower()).
+
+    Le `principal` est le login humain reconnu de bout en bout : `owner_login`
+    du portail (propagé signé par OBO) = `preferred_username` OIDC. Même clé
+    partout, pour que l'attribution OBO et la session d'un même humain donnent
+    le MÊME owner_id."""
+    return hashlib.sha256(principal.lower().encode()).hexdigest()
+
+
+# Alias historique (mêmes octets) : le principal peut être un email de session
+# locale/break-glass comme un login OIDC — la dérivation est identique.
+email_to_owner_id = principal_to_owner_id
 
 
 def _decode_jwt_payload(token: str) -> dict:
@@ -28,23 +38,27 @@ def get_current_owner_id(request: Request) -> str:
 
     Priorité :
     1. Bearer token (master key) → owner système constant
-    2. Session locale → email depuis le payload de session
-    3. Session OIDC → email depuis JWT payload
+    2. Session locale → email du payload de session (break-glass, hors portail)
+    3. Session OIDC → `preferred_username` (= owner_login portail, clé OBO)
+
+    Le principal OIDC est le MÊME login que celui propagé par OBO : attribution
+    par session et attribution par OBO produisent un owner_id identique.
     """
     auth_header = request.headers.get("Authorization")
     if auth_header:
-        return email_to_owner_id(_SYSTEM_OWNER_EMAIL)
+        return principal_to_owner_id(_SYSTEM_OWNER_EMAIL)
 
     local_session = request.session.get("_local_session")
     if local_session:
         email = local_session.get("email", _SYSTEM_OWNER_EMAIL)
-        return email_to_owner_id(email)
+        return principal_to_owner_id(email)
 
     oidc_session = request.session.get("_oidc_session")
     if oidc_session:
         id_token = oidc_session.get("id_token", "")
         claims = _decode_jwt_payload(id_token)
-        email = claims.get("email", "")
-        return email_to_owner_id(email)
+        # preferred_username = owner_login portail (clé OBO) ; email en repli.
+        principal = claims.get("preferred_username") or claims.get("email", "")
+        return principal_to_owner_id(principal)
 
-    return email_to_owner_id(_SYSTEM_OWNER_EMAIL)
+    return principal_to_owner_id(_SYSTEM_OWNER_EMAIL)

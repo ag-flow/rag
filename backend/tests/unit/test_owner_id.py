@@ -70,3 +70,27 @@ def test_get_current_owner_id_oidc_session() -> None:
 
     result = get_current_owner_id(request)
     assert result == email_to_owner_id("alice@example.com")
+
+
+def test_get_current_owner_id_oidc_prefers_preferred_username() -> None:
+    """Session OIDC → preferred_username (= owner_login portail, clé OBO), pas email.
+
+    Garantit qu'un humain a le MÊME owner_id via sa session OIDC et via
+    l'attribution OBO (qui dérive owner_id du même login)."""
+    import base64
+    import json
+
+    from rag.auth.owner import principal_to_owner_id
+
+    header = base64.urlsafe_b64encode(b'{"alg":"RS256"}').rstrip(b"=").decode()
+    # preferred_username != email : c'est le login qui doit primer.
+    payload_data = {"preferred_username": "gael", "email": "gael@corp.example", "exp": 9999999999}
+    payload = base64.urlsafe_b64encode(json.dumps(payload_data).encode()).rstrip(b"=").decode()
+    fake_jwt = f"{header}.{payload}.sig"
+
+    request = MagicMock()
+    request.headers.get.return_value = None
+    request.session = {"_oidc_session": {"id_token": fake_jwt}}
+
+    # Même valeur que ce que produirait l'attribution OBO pour actor="gael".
+    assert get_current_owner_id(request) == principal_to_owner_id("gael")
