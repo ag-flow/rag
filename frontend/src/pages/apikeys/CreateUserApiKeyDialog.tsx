@@ -16,6 +16,7 @@ import { useCreateUserApiKey } from "@/hooks/useUserApiKeys";
 import { useToast } from "@/hooks/useToast";
 import { GrantsEditor } from "./GrantsEditor";
 import { ShowOncePanel } from "./ShowOncePanel";
+import { McpClientPanel, type McpGrant } from "./McpClientPanel";
 import type { WorkspaceGrant } from "@/lib/user-api-keys.types";
 
 interface Props {
@@ -32,6 +33,13 @@ export function CreateUserApiKeyDialog({ open, onOpenChange }: Props) {
   const [name, setName] = useState("");
   const [grants, setGrants] = useState<WorkspaceGrant[]>([]);
   const [createdKey, setCreatedKey] = useState<string | null>(null);
+
+  // Grants enrichis du nom de workspace pour la fiche de connexion MCP.
+  const mcpGrants: McpGrant[] = grants.map((g) => ({
+    workspace_id: g.workspace_id,
+    workspace_name: workspaces.find((w) => w.id === g.workspace_id)?.name ?? g.workspace_id,
+    can_read: g.can_read,
+  }));
 
   function handleClose(next: boolean) {
     onOpenChange(next);
@@ -96,6 +104,7 @@ export function CreateUserApiKeyDialog({ open, onOpenChange }: Props) {
         ) : (
           <div className="space-y-4">
             <ShowOncePanel apiKey={createdKey} />
+            <McpClientPanel grants={mcpGrants} apiKey={createdKey} />
             <DialogFooter>
               <Button type="button" onClick={() => handleClose(false)}>
                 {t("close")}

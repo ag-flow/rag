@@ -51,5 +51,19 @@
   "mcp_copied": "Copied!",
   "keys_moved_title": "Where are the keys?",
   "keys_moved_body": "Access keys are now personal and managed in Configuration → API keys. Grant them this workspace with READ (search) and/or WRITE (indexing).",
-  "keys_moved_link": "Manage my API keys"
+  "keys_moved_link": "Manage my API keys",
+  "mcp": {
+    "title": "Connect an MCP client",
+    "subtitle": "Standard HTTP (Streamable) transport. Copy the endpoint and header, or the ready-to-paste config block for your client (Claude Code, Claude Desktop…).",
+    "endpoint_for": "MCP endpoint — {{workspace}}",
+    "auth_header": "Authentication header",
+    "config_json": "Client config (mcpServers)",
+    "copy": "Copy",
+    "no_read_grant": "This key has no read access to any workspace: MCP search requires the “read” grant. Add one via “Edit access”.",
+    "contract_hint": "Schema of exposed tools:",
+    "placeholder_note": "A key's value is shown only at creation: replace <VOTRE_CLÉ_API> with yours.",
+    "dialog_title": "MCP connection — {{name}}",
+    "dialog_desc": "Settings to wire an MCP client to this key."
+  },
+  "connect_btn": "MCP connection"
 }

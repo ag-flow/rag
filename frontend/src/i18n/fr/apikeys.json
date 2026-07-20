@@ -51,5 +51,19 @@
   "mcp_copied": "Copié !",
   "keys_moved_title": "Où sont les clés ?",
   "keys_moved_body": "Les clés d'accès sont désormais personnelles et se gèrent dans Configuration → Clés API. Accordez-leur ce workspace avec READ (recherche) et/ou WRITE (indexation).",
-  "keys_moved_link": "Gérer mes clés API"
+  "keys_moved_link": "Gérer mes clés API",
+  "mcp": {
+    "title": "Connecter un client MCP",
+    "subtitle": "Transport HTTP standard (Streamable). Copiez l'endpoint et l'en-tête, ou le bloc de configuration prêt à coller dans votre client (Claude Code, Claude Desktop…).",
+    "endpoint_for": "Endpoint MCP — {{workspace}}",
+    "auth_header": "En-tête d'authentification",
+    "config_json": "Configuration client (mcpServers)",
+    "copy": "Copier",
+    "no_read_grant": "Cette clé n'a aucun workspace en lecture : la recherche MCP exige le grant « lecture ». Ajoutez-en un via « Modifier les accès ».",
+    "contract_hint": "Schéma des outils exposés :",
+    "placeholder_note": "La valeur de la clé n'est affichée qu'à sa création : remplacez <VOTRE_CLÉ_API> par la vôtre.",
+    "dialog_title": "Connexion MCP — {{name}}",
+    "dialog_desc": "Paramètres pour brancher un client MCP sur cette clé."
+  },
+  "connect_btn": "Connexion MCP"
 }
