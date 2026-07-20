@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RotateCcw, XCircle, Pencil, Plug } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,7 @@ import { useToast } from "@/hooks/useToast";
 import { CreateUserApiKeyDialog } from "@/pages/apikeys/CreateUserApiKeyDialog";
 import { RotateUserApiKeyDialog } from "@/pages/apikeys/RotateUserApiKeyDialog";
 import { EditGrantsDialog } from "@/pages/apikeys/EditGrantsDialog";
-import { McpConnectionDialog } from "@/pages/apikeys/McpConnectionDialog";
+import { McpClientPanel } from "@/pages/apikeys/McpClientPanel";
 import type { UserApiKey, WorkspaceGrantOut } from "@/lib/user-api-keys.types";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -51,8 +51,10 @@ export function ApiKeysPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [toRotate, setToRotate] = useState<UserApiKey | null>(null);
   const [toEdit, setToEdit] = useState<UserApiKey | null>(null);
-  const [toConnect, setToConnect] = useState<UserApiKey | null>(null);
   const [toRevoke, setToRevoke] = useState<UserApiKey | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const toggleConnect = (id: string) => setExpandedId((cur) => (cur === id ? null : id));
 
   async function handleRevoke() {
     if (!toRevoke) return;
@@ -102,7 +104,8 @@ export function ApiKeysPage() {
             </TableHeader>
             <TableBody>
               {keys.map((k) => (
-                <TableRow key={k.id}>
+                <Fragment key={k.id}>
+                <TableRow>
                   <TableCell>
                     <span className="font-medium text-slate-800">{k.name}</span>
                     <span className="ml-2 font-mono text-xs text-slate-400">
@@ -134,10 +137,13 @@ export function ApiKeysPage() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => setToConnect(k)}
+                        onClick={() => toggleConnect(k.id)}
                         aria-label={t("connect_btn")}
+                        aria-expanded={expandedId === k.id}
                       >
-                        <Plug className="h-4 w-4" />
+                        <Plug
+                          className={`h-4 w-4 ${expandedId === k.id ? "text-sky-600" : ""}`}
+                        />
                       </Button>
                     )}
                     {k.status === "active" && (
@@ -173,6 +179,14 @@ export function ApiKeysPage() {
                     )}
                   </TableCell>
                 </TableRow>
+                {expandedId === k.id && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="bg-slate-50/60 p-4">
+                      <McpClientPanel grants={k.workspaces} />
+                    </TableCell>
+                  </TableRow>
+                )}
+                </Fragment>
               ))}
             </TableBody>
           </Table>
@@ -182,7 +196,6 @@ export function ApiKeysPage() {
       <CreateUserApiKeyDialog open={createOpen} onOpenChange={setCreateOpen} />
       <RotateUserApiKeyDialog apiKey={toRotate} onOpenChange={(o) => !o && setToRotate(null)} />
       <EditGrantsDialog apiKey={toEdit} onOpenChange={(o) => !o && setToEdit(null)} />
-      <McpConnectionDialog apiKey={toConnect} onOpenChange={(o) => !o && setToConnect(null)} />
 
       <AlertDialog open={toRevoke !== null} onOpenChange={(o) => !o && setToRevoke(null)}>
         <AlertDialogContent>
