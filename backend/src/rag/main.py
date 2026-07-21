@@ -36,7 +36,12 @@ from rag.api.errors import register_error_handlers
 from rag.api.git_webhooks import build_git_webhooks_router
 from rag.api.health import build_health_router
 from rag.api.mcp import build_mcp_router
-from rag.api.mcp_standard import RagMcpDispatcher, build_mcp_asgi, mcp_session_lifespan
+from rag.api.mcp_standard import (
+    McpPathNormalizerMiddleware,
+    RagMcpDispatcher,
+    build_mcp_asgi,
+    mcp_session_lifespan,
+)
 from rag.api.me_api_keys import build_me_api_keys_router
 from rag.api.playground import router_admin as playground_admin_router
 from rag.api.playground import router_chat as playground_chat_router
@@ -261,6 +266,12 @@ def build_app(
         ),
         lifespan=lifespan,
     )
+    # Le connecteur MCP est monté sur `/mcp` : une requête sur `/mcp` (sans slash)
+    # serait redirigée en 307 vers `/mcp/`, que les clients MCP streamable (anyio)
+    # ne suivent PAS sur le POST d'initialisation → « backend injoignable /
+    # TaskGroup ». Ce middleware ASGI pur réécrit `/mcp` → `/mcp/` AVANT le
+    # routage (pas de redirect HTTP, streaming préservé).
+    app.add_middleware(McpPathNormalizerMiddleware)
     app.add_middleware(
         SessionMiddleware,
         secret_key=settings.rag_session_secret.get_secret_value(),

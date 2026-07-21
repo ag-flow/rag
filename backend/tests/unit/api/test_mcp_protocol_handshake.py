@@ -16,7 +16,12 @@ import pytest
 from starlette.applications import Starlette
 from starlette.routing import Mount
 
-from rag.api.mcp_standard import RagMcpDispatcher, build_mcp_asgi, mcp_session_lifespan
+from rag.api.mcp_standard import (
+    McpPathNormalizerMiddleware,
+    RagMcpDispatcher,
+    build_mcp_asgi,
+    mcp_session_lifespan,
+)
 
 _INIT = {
     "jsonrpc": "2.0",
@@ -56,15 +61,17 @@ def _dispatcher(scope: str = "read") -> RagMcpDispatcher:
 
 
 @pytest.mark.asyncio
-async def test_initialize_handshake_succeeds_on_mcp() -> None:
+async def test_initialize_handshake_succeeds_on_mcp_without_slash() -> None:
+    # Normaliseur en amont : `/mcp` (SANS slash) doit aboutir DIRECTEMENT, sans
+    # 307 — les clients MCP streamable ne suivent pas la redirection.
     parent = Starlette(routes=[Mount("/mcp", app=_dispatcher())])
-    transport = httpx.ASGITransport(app=parent)
+    app = McpPathNormalizerMiddleware(parent)
+    transport = httpx.ASGITransport(app=app)
     # Host public (hors localhost) : valide la levée de la protection DNS-rebinding.
+    # PAS de follow_redirects : on exige que `/mcp` marche tel quel.
     async with (
         mcp_session_lifespan(),
-        httpx.AsyncClient(
-            transport=transport, base_url="https://rag.yoops.org", follow_redirects=True
-        ) as client,
+        httpx.AsyncClient(transport=transport, base_url="https://rag.yoops.org") as client,
     ):
         resp = await client.post(
             "/mcp", json=_INIT, headers={**_HEADERS, "Authorization": "Bearer k"}

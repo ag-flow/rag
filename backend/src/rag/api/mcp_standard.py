@@ -458,6 +458,22 @@ from rag.api.mcp_library_tools import register_library_tools  # noqa: E402
 register_library_tools(_mcp, _ws_ctx)
 
 
+class McpPathNormalizerMiddleware:
+    """Réécrit `/mcp` → `/mcp/` avant le routage (middleware ASGI pur).
+
+    Le mount Starlette `/mcp` redirige sinon `/mcp` en 307 vers `/mcp/`, que les
+    clients MCP streamable ne suivent pas. Réécriture interne = pas de redirect
+    HTTP, et streaming préservé (contrairement à un BaseHTTPMiddleware)."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self._app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope.get("type") == "http" and scope.get("path") == "/mcp":
+            scope = {**scope, "path": "/mcp/", "raw_path": b"/mcp/"}
+        await self._app(scope, receive, send)
+
+
 def build_mcp_asgi() -> Starlette:
     """Retourne l'app Starlette FastMCP (stateless).
 
