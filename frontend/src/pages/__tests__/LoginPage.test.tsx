@@ -83,13 +83,13 @@ describe("LoginPage", () => {
     renderPage();
     expect(screen.getByText(/Créer le compte administrateur/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Adresse e-mail/i)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Keycloak/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /OIDC/i })).not.toBeInTheDocument();
   });
 
   it("oidc=true, local=true → bouton SSO + formulaire login visibles", () => {
     mockMethods({ oidc_configured: true, local_auth_enabled: true, needs_setup: false });
     renderPage();
-    expect(screen.getByRole("button", { name: /Keycloak/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /OIDC/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/Username/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Password/i)).toBeInTheDocument();
   });
@@ -97,7 +97,7 @@ describe("LoginPage", () => {
   it("oidc=false, local=true → formulaire login seul + message info", () => {
     mockMethods({ oidc_configured: false, local_auth_enabled: true, needs_setup: false });
     renderPage();
-    expect(screen.queryByRole("button", { name: /Keycloak/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /OIDC/i })).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Username/i)).toBeInTheDocument();
     expect(screen.getByText(/OIDC pas encore configuré/i)).toBeInTheDocument();
   });
@@ -105,7 +105,7 @@ describe("LoginPage", () => {
   it("oidc=true, local=false → SSO seul, pas de form login", () => {
     mockMethods({ oidc_configured: true, local_auth_enabled: false, needs_setup: false });
     renderPage();
-    expect(screen.getByRole("button", { name: /Keycloak/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /OIDC/i })).toBeInTheDocument();
     expect(screen.queryByLabelText(/Username/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Password/i)).not.toBeInTheDocument();
   });
@@ -126,7 +126,7 @@ describe("LoginPage", () => {
     mockMethods({ oidc_configured: false, local_auth_enabled: false, needs_setup: false });
     renderPage();
     expect(screen.getByText(/Aucune méthode d'authentification/i)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Keycloak/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /OIDC/i })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Username/i)).not.toBeInTheDocument();
   });
 
@@ -194,7 +194,7 @@ describe("LoginPage", () => {
   it("clic SSO → redirect vers /auth/login?next=...", () => {
     mockMethods({ oidc_configured: true, local_auth_enabled: false, needs_setup: false });
     renderPage();
-    fireEvent.click(screen.getByRole("button", { name: /Keycloak/i }));
+    fireEvent.click(screen.getByRole("button", { name: /OIDC/i }));
     expect(locationStub.href).toBe(`/auth/login?next=${encodeURIComponent("/ui/workspaces")}`);
   });
 });

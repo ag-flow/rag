@@ -1,7 +1,7 @@
 {
   "title": "Connexion",
   "oidc": {
-    "button": "→ Connexion via Keycloak"
+    "button": "→ Connexion via OIDC"
   },
   "local": {
     "fields": {
@@ -32,7 +32,8 @@
   },
   "info": {
     "oidc_not_configured": "OIDC pas encore configuré. Loguez-vous avec le compte admin local pour le paramétrer.",
-    "separator_or": "ou login admin local"
+    "separator_or": "ou"
   },
-  "contracts_link": "Contrats API"
+  "contracts_link": "Contrats API",
+  "app_name": "Ragflow"
 }

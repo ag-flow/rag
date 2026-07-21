@@ -202,23 +202,12 @@ export function LoginPage() {
     <div className="relative flex h-screen items-center justify-center bg-slate-50">
       <ApiContractsLink />
       <div className="w-full max-w-md rounded-md border bg-white p-6 shadow-sm">
-        <h1 className="text-xl font-semibold text-slate-900 mb-4">{t("title")}</h1>
+        <div className="mb-5 text-center">
+          <h1 className="text-2xl font-bold text-slate-900">{t("app_name")}</h1>
+          <p className="mt-0.5 text-sm text-slate-500">{t("title")}</p>
+        </div>
 
         {!showOidc && !showLocal && <p className="text-sm text-red-600">{t("errors.no_method")}</p>}
-
-        {showOidc && (
-          <Button type="button" onClick={handleSsoClick} className="w-full mb-4">
-            {t("oidc.button")}
-          </Button>
-        )}
-
-        {showOidc && showLocal && (
-          <div className="my-4 flex items-center gap-2 text-xs text-slate-400">
-            <div className="flex-1 border-t" />
-            <span>{t("info.separator_or")}</span>
-            <div className="flex-1 border-t" />
-          </div>
-        )}
 
         {showLocal && (
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
@@ -249,6 +238,20 @@ export function LoginPage() {
               {t("local.submit")}
             </Button>
           </form>
+        )}
+
+        {showOidc && showLocal && (
+          <div className="my-4 flex items-center gap-2 text-xs text-slate-400">
+            <div className="flex-1 border-t" />
+            <span>{t("info.separator_or")}</span>
+            <div className="flex-1 border-t" />
+          </div>
+        )}
+
+        {showOidc && (
+          <Button type="button" onClick={handleSsoClick} className="w-full">
+            {t("oidc.button")}
+          </Button>
         )}
       </div>
     </div>
