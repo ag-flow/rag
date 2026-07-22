@@ -18,10 +18,52 @@ from typing import Any
 _EVENT_NAMESPACE = uuid.UUID("5f9b8e2a-1c3d-4e6f-8a0b-2d4c6e8f0a1b")
 
 # Codes d'events rag (provider = 'rag' — préfixe des event_types côté workflow).
+# Provider (préfixe des event_types côté workflow, = slug de la source).
+EVENT_PROVIDER = "rag"
+
 WORKSPACE_CREATED = "rag.workspace.created.v1"
 
+
+@dataclass(frozen=True)
+class EventSpec:
+    """Déclaration d'un event émissible : code + résumé + data_schema métier.
+
+    Le `data_schema` (JSON Schema) décrit UNIQUEMENT le métier (jamais les
+    champs `_…` de l'enveloppe). Sert à générer le contrat OpenAPI importé
+    côté workflow (validation métier + éditeur de règles)."""
+
+    code: str  # ex. "rag.workspace.created.v1"
+    summary: str
+    data_schema: dict[str, Any]
+
+    def operation_id(self) -> str:
+        """Nom sans le provider (workflow le préfixe à l'import). `rag.x.y.v1`→`x.y.v1`."""
+        prefix = f"{EVENT_PROVIDER}."
+        return self.code[len(prefix) :] if self.code.startswith(prefix) else self.code
+
+
+EVENT_SPECS: tuple[EventSpec, ...] = (
+    EventSpec(
+        code=WORKSPACE_CREATED,
+        summary="Un workspace vient d'être créé dans ragflow",
+        data_schema={
+            "type": "object",
+            "required": ["name", "slug"],
+            "properties": {
+                "name": {"type": "string", "description": "Identifiant/slug du workspace"},
+                "label": {"type": "string", "description": "Nom d'affichage"},
+                "slug": {"type": "string", "description": "Slug (= name)"},
+                "owner_id": {
+                    "type": ["string", "null"],
+                    "description": "Propriétaire (sha256 login) ; null = partagé",
+                },
+            },
+        },
+    ),
+)
+
 # Tous les codes émissibles (sert de validation de la liste blanche).
-KNOWN_EVENT_CODES: frozenset[str] = frozenset({WORKSPACE_CREATED})
+KNOWN_EVENT_CODES: frozenset[str] = frozenset(s.code for s in EVENT_SPECS)
 
 
 @dataclass(frozen=True)

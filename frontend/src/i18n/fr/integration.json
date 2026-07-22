@@ -1,0 +1,18 @@
+{
+  "page_title": "Intégration — contrats",
+  "page_subtitle": "Documents normalisés exposés par le service, à brancher dans les outils tiers.",
+  "copy": "Copier",
+  "view": "Voir",
+  "events": {
+    "title": "Événements → ag.flow workflow (OpenAPI 3.1)",
+    "description": "Contrat des events émis par ragflow. Copiez cette URL et importez-la sur la source inbound côté workflow (validation métier + éditeur de règles)."
+  },
+  "rest": {
+    "title": "API REST (OpenAPI)",
+    "description": "Schéma OpenAPI complet de l'API d'administration et publique."
+  },
+  "mcp": {
+    "title": "Outils MCP",
+    "description": "Schéma des outils exposés par le serveur MCP (avant connexion d'un client)."
+  }
+}

@@ -2,7 +2,8 @@
   "sections": {
     "administration": "Administration",
     "usage": "Usage",
-    "configuration": "Configuration"
+    "configuration": "Configuration",
+    "integration": "Integration"
   },
   "items": {
     "workspaces": "Workspaces",
@@ -16,7 +17,8 @@
     "oidc_config": "OIDC config",
     "prompts": "Prompts",
     "chunking_strategies": "Chunking strategies",
-    "events_producer": "Workflow events"
+    "events_producer": "Workflow events",
+    "integration_contracts": "Contracts"
   },
   "alerts": {
     "vault_key_expiry": "A vault key is expiring soon or has expired"

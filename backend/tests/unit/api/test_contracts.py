@@ -23,6 +23,24 @@ class TestContractsIndex:
         assert data["rest"]["json"] == "/openapi.json"
         assert data["rest"]["swagger_ui"] == "/docs"
         assert data["mcp"]["tools"] == "/api/contracts/mcp-tools"
+        assert data["workflow_events"]["json"] == "/api/contracts/workflow-events"
+
+
+class TestWorkflowEventsContract:
+    def test_openapi_webhooks_contract_sans_auth(self) -> None:
+        resp = _client().get("/api/contracts/workflow-events")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["openapi"] == "3.1.0"
+        # Une clé webhook par event, operationId sans le provider (workflow préfixe).
+        assert "workspace.created" in data["webhooks"]
+        op = data["webhooks"]["workspace.created"]["post"]
+        assert op["operationId"] == "workspace.created.v1"
+        schema = op["requestBody"]["content"]["application/json"]["schema"]
+        assert "slug" in schema["properties"]
+        # L'enveloppe (_…) n'est jamais décrite dans le data_schema métier.
+        assert not any(k.startswith("_") for k in schema["properties"])
 
 
 class TestMcpToolsContract:

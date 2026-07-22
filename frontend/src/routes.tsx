@@ -8,6 +8,7 @@ import { ModelsPage } from "@/pages/ModelsPage";
 import { PushActivityPage } from "@/pages/PushActivityPage";
 import { OidcConfigPage } from "@/pages/OidcConfigPage";
 import { EventsProducerPage } from "@/pages/EventsProducerPage";
+import { IntegrationContractsPage } from "@/pages/IntegrationContractsPage";
 import { PromptsPage } from "@/pages/PromptsPage";
 import { NotFound } from "@/pages/NotFound";
 
@@ -25,6 +26,7 @@ export function AppRoutes() {
       <Route path="/settings/harpocrate-vaults" element={<HarpocrateVaultsPage />} />
       <Route path="/settings/oidc-config" element={<OidcConfigPage />} />
       <Route path="/settings/events-producer" element={<EventsProducerPage />} />
+      <Route path="/integration/contracts" element={<IntegrationContractsPage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

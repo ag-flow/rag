@@ -2,7 +2,8 @@
   "sections": {
     "administration": "Administration",
     "usage": "Usage",
-    "configuration": "Configuration"
+    "configuration": "Configuration",
+    "integration": "Intégration"
   },
   "items": {
     "workspaces": "Workspaces",
@@ -16,7 +17,8 @@
     "oidc_config": "Config OIDC",
     "prompts": "Prompts",
     "chunking_strategies": "Stratégies de chunking",
-    "events_producer": "Events workflow"
+    "events_producer": "Events workflow",
+    "integration_contracts": "Contrats"
   },
   "alerts": {
     "vault_key_expiry": "Une clé de coffre expire bientôt ou est expirée"

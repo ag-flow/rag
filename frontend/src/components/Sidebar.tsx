@@ -12,6 +12,7 @@ import {
   Settings,
   KeyRound,
   Workflow,
+  FileJson,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useVaultExpiries } from "@/hooks/useHarpocrateVaults";
@@ -121,6 +122,15 @@ export function Sidebar() {
         />
         <NavItem to="/settings/api-keys" icon={<KeyRound />} label={t("items.api_keys")} />
         <NavItem to="/settings/oidc-config" icon={<KeyRound />} label={t("items.oidc_config")} />
+
+        <div className="px-5 pt-4 pb-1 text-xs font-bold uppercase tracking-wider text-slate-600">
+          {t("sections.integration")}
+        </div>
+        <NavItem
+          to="/integration/contracts"
+          icon={<FileJson />}
+          label={t("items.integration_contracts")}
+        />
         <NavItem
           to="/settings/events-producer"
           icon={<Workflow />}

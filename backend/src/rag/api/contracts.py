@@ -31,9 +31,17 @@ def build_contracts_router() -> APIRouter:
             "mcp": {
                 "format": "mcp-tools",
                 "tools": "/api/contracts/mcp-tools",
-                "endpoint": "/mcp/{workspace_id}",
+                "endpoint": "/mcp",
                 "transport": "streamable-http",
                 "auth": "Authorization: Bearer <clé API utilisateur (niveau read+)>",
+            },
+            "workflow_events": {
+                "format": "openapi-3.1-webhooks",
+                "json": "/api/contracts/workflow-events",
+                "note": (
+                    "Événements émis par ragflow vers ag.flow workflow (Porte A). "
+                    "URL à importer sur la source inbound côté workflow."
+                ),
             },
         }
 
@@ -54,5 +62,15 @@ def build_contracts_router() -> APIRouter:
                 t.model_dump(mode="json", by_alias=True, exclude_none=True) for t in tools
             ],
         }
+
+    @router.get("/workflow-events")
+    async def workflow_events_contract() -> dict[str, Any]:
+        """Contrat OpenAPI 3.1 des events émis vers workflow — sans auth.
+
+        À importer sur la source inbound côté workflow (l'URL raw de cet
+        endpoint est collable dans l'écran d'import)."""
+        from rag.events.contract import build_events_contract
+
+        return build_events_contract()
 
     return router
