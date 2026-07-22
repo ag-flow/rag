@@ -15,7 +15,8 @@
     "api_keys": "Clés API",
     "oidc_config": "Config OIDC",
     "prompts": "Prompts",
-    "chunking_strategies": "Stratégies de chunking"
+    "chunking_strategies": "Stratégies de chunking",
+    "events_producer": "Events workflow"
   },
   "alerts": {
     "vault_key_expiry": "Une clé de coffre expire bientôt ou est expirée"

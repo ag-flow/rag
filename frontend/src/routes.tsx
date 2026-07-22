@@ -7,6 +7,7 @@ import { McpSearchPage } from "@/pages/McpSearchPage";
 import { ModelsPage } from "@/pages/ModelsPage";
 import { PushActivityPage } from "@/pages/PushActivityPage";
 import { OidcConfigPage } from "@/pages/OidcConfigPage";
+import { EventsProducerPage } from "@/pages/EventsProducerPage";
 import { PromptsPage } from "@/pages/PromptsPage";
 import { NotFound } from "@/pages/NotFound";
 
@@ -23,6 +24,7 @@ export function AppRoutes() {
       <Route path="/settings/api-keys" element={<ApiKeysPage />} />
       <Route path="/settings/harpocrate-vaults" element={<HarpocrateVaultsPage />} />
       <Route path="/settings/oidc-config" element={<OidcConfigPage />} />
+      <Route path="/settings/events-producer" element={<EventsProducerPage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

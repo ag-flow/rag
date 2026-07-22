@@ -15,7 +15,8 @@
     "api_keys": "API keys",
     "oidc_config": "OIDC config",
     "prompts": "Prompts",
-    "chunking_strategies": "Chunking strategies"
+    "chunking_strategies": "Chunking strategies",
+    "events_producer": "Workflow events"
   },
   "alerts": {
     "vault_key_expiry": "A vault key is expiring soon or has expired"

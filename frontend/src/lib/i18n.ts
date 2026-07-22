@@ -19,6 +19,7 @@ import frGitWebhooks from "@/i18n/fr/git_webhooks.json";
 import frPush from "@/i18n/fr/push.json";
 import frMcp from "@/i18n/fr/mcp.json";
 import frChunkingStrategies from "@/i18n/fr/chunking_strategies.json";
+import frEventsProducer from "@/i18n/fr/events_producer.json";
 
 import enCommon from "@/i18n/en/common.json";
 import enAuth from "@/i18n/en/auth.json";
@@ -37,6 +38,7 @@ import enGitWebhooks from "@/i18n/en/git_webhooks.json";
 import enPush from "@/i18n/en/push.json";
 import enMcp from "@/i18n/en/mcp.json";
 import enChunkingStrategies from "@/i18n/en/chunking_strategies.json";
+import enEventsProducer from "@/i18n/en/events_producer.json";
 
 void i18n
   .use(LanguageDetector)
@@ -60,6 +62,7 @@ void i18n
       "apikeys",
       "git_webhooks",
       "chunking_strategies",
+      "events_producer",
       "push",
       "mcp",
     ],
@@ -81,6 +84,7 @@ void i18n
         apikeys: frApikeys,
         git_webhooks: frGitWebhooks,
         chunking_strategies: frChunkingStrategies,
+        events_producer: frEventsProducer,
         push: frPush,
         mcp: frMcp,
       },
@@ -100,6 +104,7 @@ void i18n
         apikeys: enApikeys,
         git_webhooks: enGitWebhooks,
         chunking_strategies: enChunkingStrategies,
+        events_producer: enEventsProducer,
         push: enPush,
         mcp: enMcp,
       },
