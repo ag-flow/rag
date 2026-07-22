@@ -19,6 +19,19 @@ def build_contracts_router() -> APIRouter:
     """
     router = APIRouter(prefix="/api/contracts", tags=["contracts"])
 
+    def _public_base(request: Request) -> str:
+        """URL publique de base résolue depuis l'ADRESSE D'APPEL.
+
+        On prend le Host réellement utilisé par le client (header `Host`, ou
+        `X-Forwarded-Host` derrière proxy) + le schéma forwardé — reflète le
+        domaine public exact (ex. https://rag.yoops.org), quelle que soit la
+        config. Repli sur l'URL de la requête."""
+        host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+        if host:
+            scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
+            return f"{scheme}://{host}"
+        return str(request.base_url).rstrip("/")
+
     @router.get("")
     async def contracts_index() -> dict[str, Any]:
         return {
@@ -96,6 +109,9 @@ def build_contracts_router() -> APIRouter:
         return {
             "openapi": full.get("openapi", "3.1.0"),
             "info": info,
+            # `servers` : sans lui l'outil consommateur ne connaît pas l'URL de
+            # base et n'affiche aucune méthode appelable.
+            "servers": [{"url": _public_base(request)}],
             "paths": paths,
             "components": full.get("components", {}),
         }

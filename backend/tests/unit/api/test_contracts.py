@@ -51,6 +51,8 @@ class TestOpenApiApiKeyContract:
         assert resp.status_code == 200
         data = resp.json()
         assert data["openapi"].startswith("3.")
+        # servers présent → l'outil consommateur connaît l'URL de base.
+        assert data["servers"] and data["servers"][0]["url"]
         paths = data["paths"]
         # Les endpoints par clé API sont présents…
         assert "/api/v1/search" in paths

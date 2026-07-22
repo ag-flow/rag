@@ -18,5 +18,6 @@
   "rest_apikey": {
     "title": "API par clé API (OpenAPI)",
     "description": "Sous-ensemble du contrat : uniquement les endpoints authentifiables par une clé API utilisateur (recherche, push/suppression d'index)."
-  }
+  },
+  "endpoints_label": "Endpoints (méthode et URL)"
 }

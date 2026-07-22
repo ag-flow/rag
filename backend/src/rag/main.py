@@ -280,6 +280,9 @@ def build_app(
             "(ce document) pour le REST, schéma des outils MCP sur "
             "[/api/contracts/mcp-tools](/api/contracts/mcp-tools)."
         ),
+        # `servers` : URL publique de base pour les consommateurs du contrat
+        # OpenAPI (sans elle, un importeur ne sait pas où appeler).
+        servers=[{"url": str(settings.rag_public_url).rstrip("/")}],
         lifespan=lifespan,
     )
     # Le connecteur MCP est monté sur `/mcp` : une requête sur `/mcp` (sans slash)
