@@ -147,6 +147,23 @@ def build_admin_router() -> APIRouter:
             resolver=_resolver(request),  # type: ignore[arg-type]
             harpocrate_vaults_service=request.app.state.harpocrate_vaults_service,
         )
+
+        # Émet l'event workflow APRÈS le succès (fire-and-forget, ne lève jamais).
+        from datetime import UTC, datetime
+
+        from rag.events.emit import emit_workflow_event
+        from rag.events.registry import workspace_created
+
+        await emit_workflow_event(
+            pool,
+            workspace_created(
+                name=resolved.name,
+                label=resolved.label,
+                slug=resolved.name,
+                owner_id=resolved.owner_id,
+                occurred_at=datetime.now(UTC),
+            ),
+        )
         return WorkspaceCreateResponse.model_validate(resp)
 
     @router.get("/workspaces")

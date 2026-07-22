@@ -15,6 +15,7 @@ from rag.api.admin.circuit_breaker import build_circuit_breaker_router
 from rag.api.admin_auth_config import build_admin_auth_config_router
 from rag.api.admin_chunking_preview import build_chunking_preview_router
 from rag.api.admin_chunking_strategies import build_chunking_strategies_router
+from rag.api.admin_events_producer import build_events_producer_router
 from rag.api.admin_git_credentials import router as admin_git_credentials_router
 from rag.api.admin_git_credentials import router_global as admin_git_creds_global_router
 from rag.api.admin_harpocrate_vaults import router as admin_harpocrate_vaults_router
@@ -137,6 +138,7 @@ def build_app(
             admin_dsn=str(settings.rag_postgres_admin_url),
         )
         sync_worker = None
+        events_worker = None
         try:
             await registry.start()
             app.state.pools = registry
@@ -235,8 +237,20 @@ def build_app(
             )
             await sync_worker.start()
             app.state.sync_worker = sync_worker
+
+            # Worker du producteur d'events vers workflow (outbox → POST signé).
+            from rag.events.worker import WorkflowEventsWorker
+
+            events_worker = WorkflowEventsWorker(
+                config_pool=registry.config_pool,
+                resolver=app.state.resolver,
+            )
+            await events_worker.start()
+            app.state.events_worker = events_worker
         except BaseException:
             log.error("app.lifespan.startup_failed", exc_info=True)
+            if events_worker is not None:
+                await events_worker.stop()
             if sync_worker is not None:
                 await sync_worker.stop()
             await registry.close_all()
@@ -250,6 +264,8 @@ def build_app(
                 yield
             finally:
                 log.info("app.lifespan.shutdown")
+                if hasattr(app.state, "events_worker"):
+                    await app.state.events_worker.stop()
                 if hasattr(app.state, "sync_worker"):
                     await app.state.sync_worker.stop()
                 await registry.close_all()
@@ -294,6 +310,7 @@ def build_app(
     app.include_router(build_index_keys_router(), prefix="/api/admin")
     app.include_router(build_circuit_breaker_router(), prefix="/api/admin")
     app.include_router(build_webhooks_router(), prefix="/api/admin")
+    app.include_router(build_events_producer_router())
     app.include_router(build_chunking_strategies_router())
     app.include_router(build_chunking_preview_router())
     app.include_router(build_auth_router())
