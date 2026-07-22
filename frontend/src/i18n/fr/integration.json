@@ -20,5 +20,6 @@
     "description": "Sous-ensemble du contrat : uniquement les endpoints authentifiables par une clé API utilisateur (recherche, push/suppression d'index)."
   },
   "endpoints_label": "Endpoints (méthode et URL)",
-  "swagger": "Swagger"
+  "swagger": "Swagger",
+  "mcp_tools_label": "Explorer les outils"
 }

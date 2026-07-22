@@ -20,5 +20,6 @@
     "description": "Subset of the contract: only the endpoints authenticated by a user API key (search, push/delete index)."
   },
   "endpoints_label": "Endpoints (method and URL)",
-  "swagger": "Swagger"
+  "swagger": "Swagger",
+  "mcp_tools_label": "Explore the tools"
 }

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Check, ExternalLink, FileCode2 } from "lucide-react";
+import { Copy, Check, ExternalLink, FileCode2, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { contractsApi, listEndpoints } from "@/lib/contracts";
+import { contractsApi, listEndpoints, listToolParams } from "@/lib/contracts";
 
 const METHOD_COLORS: Record<string, string> = {
   GET: "text-emerald-700 bg-emerald-50",
@@ -52,6 +52,59 @@ interface ContractCardProps {
   openLabel: string;
   /** URL d'une vue Swagger UI pour ce contrat (bouton « Swagger » si présent). */
   swaggerUrl?: string;
+}
+
+/** Explorateur d'outils MCP — équivalent Swagger pour le contrat MCP (non-OpenAPI). */
+function McpToolsExplorer() {
+  const { t } = useTranslation("integration");
+  const [open, setOpen] = useState(false);
+  const { data } = useQuery({
+    queryKey: ["contracts", "mcp-tools"],
+    queryFn: contractsApi.getMcpTools,
+    enabled: open, // charge à l'ouverture seulement
+  });
+
+  return (
+    <div className="mt-3 border-t pt-3">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900"
+        aria-expanded={open}
+      >
+        <ChevronRight className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-90" : ""}`} />
+        {t("mcp_tools_label")}
+        {data ? ` (${data.count})` : ""}
+      </button>
+      {open && data && (
+        <ul className="mt-2 space-y-2">
+          {data.tools.map((tool) => (
+            <li key={tool.name} className="rounded border border-slate-100 bg-slate-50 p-2">
+              <code className="font-mono text-xs font-semibold text-slate-800">{tool.name}</code>
+              {tool.description && (
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {tool.description.split("\n")[0]}
+                </p>
+              )}
+              <div className="mt-1 flex flex-wrap gap-1">
+                {listToolParams(tool).map((p) => (
+                  <span
+                    key={p.name}
+                    title={p.description}
+                    className="rounded bg-white px-1.5 py-0.5 font-mono text-[11px] text-slate-600"
+                  >
+                    {p.name}
+                    <span className="text-slate-400">:{p.type}</span>
+                    {p.required && <span className="ml-0.5 text-rose-500">*</span>}
+                  </span>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 /** Contenu d'une carte contrat (sans le cadre) : titre, description, URL + actions. */
@@ -139,12 +192,15 @@ export function IntegrationContractsPage() {
           />
           <ApiKeyEndpoints />
         </div>
-        <ContractCard
-          title={t("mcp.title")}
-          description={t("mcp.description")}
-          url={`${origin}/api/contracts/mcp-tools`}
-          openLabel={t("view")}
-        />
+        <div className="rounded-md border bg-white p-4">
+          <ContractCardInner
+            title={t("mcp.title")}
+            description={t("mcp.description")}
+            url={`${origin}/api/contracts/mcp-tools`}
+            openLabel={t("view")}
+          />
+          <McpToolsExplorer />
+        </div>
       </div>
     </div>
   );
