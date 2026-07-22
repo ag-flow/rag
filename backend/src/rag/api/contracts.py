@@ -4,6 +4,8 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, Request
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import HTMLResponse
 
 log = structlog.get_logger(__name__)
 
@@ -115,6 +117,22 @@ def build_contracts_router() -> APIRouter:
             "paths": paths,
             "components": full.get("components", {}),
         }
+
+    @router.get("/openapi-apikey/docs", include_in_schema=False)
+    async def openapi_apikey_docs() -> HTMLResponse:
+        """Swagger UI du contrat filtré par clé API."""
+        return get_swagger_ui_html(
+            openapi_url="/api/contracts/openapi-apikey",
+            title="ragflow — API par clé API (Swagger)",
+        )
+
+    @router.get("/workflow-events/docs", include_in_schema=False)
+    async def workflow_events_docs() -> HTMLResponse:
+        """Swagger UI du contrat d'events (webhooks OpenAPI 3.1)."""
+        return get_swagger_ui_html(
+            openapi_url="/api/contracts/workflow-events",
+            title="ragflow — Events workflow (Swagger)",
+        )
 
     @router.get("/workflow-events")
     async def workflow_events_contract() -> dict[str, Any]:

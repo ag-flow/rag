@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Check, ExternalLink } from "lucide-react";
+import { Copy, Check, ExternalLink, FileCode2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { contractsApi, listEndpoints } from "@/lib/contracts";
 
@@ -50,10 +50,12 @@ interface ContractCardProps {
   url: string;
   /** Libellé du bouton d'ouverture (voir/télécharger selon le contrat). */
   openLabel: string;
+  /** URL d'une vue Swagger UI pour ce contrat (bouton « Swagger » si présent). */
+  swaggerUrl?: string;
 }
 
 /** Contenu d'une carte contrat (sans le cadre) : titre, description, URL + actions. */
-function ContractCardInner({ title, description, url, openLabel }: ContractCardProps) {
+function ContractCardInner({ title, description, url, openLabel, swaggerUrl }: ContractCardProps) {
   const { t } = useTranslation("integration");
   const [copied, setCopied] = useState(false);
 
@@ -81,6 +83,14 @@ function ContractCardInner({ title, description, url, openLabel }: ContractCardP
             <span className="ml-1">{openLabel}</span>
           </a>
         </Button>
+        {swaggerUrl && (
+          <Button asChild variant="outline" size="sm">
+            <a href={swaggerUrl} target="_blank" rel="noreferrer">
+              <FileCode2 className="h-4 w-4" />
+              <span className="ml-1">{t("swagger")}</span>
+            </a>
+          </Button>
+        )}
       </div>
     </>
   );
@@ -110,12 +120,14 @@ export function IntegrationContractsPage() {
           description={t("events.description")}
           url={`${origin}/api/contracts/workflow-events`}
           openLabel={t("view")}
+          swaggerUrl={`${origin}/api/contracts/workflow-events/docs`}
         />
         <ContractCard
           title={t("rest.title")}
           description={t("rest.description")}
           url={`${origin}/openapi.json`}
           openLabel={t("view")}
+          swaggerUrl={`${origin}/docs`}
         />
         <div className="rounded-md border bg-white p-4">
           <ContractCardInner
@@ -123,6 +135,7 @@ export function IntegrationContractsPage() {
             description={t("rest_apikey.description")}
             url={`${origin}/api/contracts/openapi-apikey`}
             openLabel={t("view")}
+            swaggerUrl={`${origin}/api/contracts/openapi-apikey/docs`}
           />
           <ApiKeyEndpoints />
         </div>
