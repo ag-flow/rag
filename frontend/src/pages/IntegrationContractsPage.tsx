@@ -68,6 +68,12 @@ export function IntegrationContractsPage() {
           openLabel={t("view")}
         />
         <ContractCard
+          title={t("rest_apikey.title")}
+          description={t("rest_apikey.description")}
+          url={`${origin}/api/contracts/openapi-apikey`}
+          openLabel={t("view")}
+        />
+        <ContractCard
           title={t("mcp.title")}
           description={t("mcp.description")}
           url={`${origin}/api/contracts/mcp-tools`}

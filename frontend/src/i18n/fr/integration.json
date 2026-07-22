@@ -8,11 +8,15 @@
     "description": "Contrat des events émis par ragflow. Copiez cette URL et importez-la sur la source inbound côté workflow (validation métier + éditeur de règles)."
   },
   "rest": {
-    "title": "API REST (OpenAPI)",
+    "title": "API REST complète (OpenAPI)",
     "description": "Schéma OpenAPI complet de l'API d'administration et publique."
   },
   "mcp": {
     "title": "Outils MCP",
     "description": "Schéma des outils exposés par le serveur MCP (avant connexion d'un client)."
+  },
+  "rest_apikey": {
+    "title": "API par clé API (OpenAPI)",
+    "description": "Sous-ensemble du contrat : uniquement les endpoints authentifiables par une clé API utilisateur (recherche, push/suppression d'index)."
   }
 }

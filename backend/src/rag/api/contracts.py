@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import structlog
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 log = structlog.get_logger(__name__)
 
@@ -27,6 +27,11 @@ def build_contracts_router() -> APIRouter:
                 "json": "/openapi.json",
                 "swagger_ui": "/docs",
                 "redoc": "/redoc",
+            },
+            "rest_apikey": {
+                "format": "openapi-3",
+                "json": "/api/contracts/openapi-apikey",
+                "note": "Sous-ensemble : endpoints authentifiables par clé API utilisateur.",
             },
             "mcp": {
                 "format": "mcp-tools",
@@ -61,6 +66,38 @@ def build_contracts_router() -> APIRouter:
             "tools": [
                 t.model_dump(mode="json", by_alias=True, exclude_none=True) for t in tools
             ],
+        }
+
+    @router.get("/openapi-apikey")
+    async def openapi_apikey(request: Request) -> dict[str, Any]:
+        """OpenAPI filtré : uniquement les endpoints authentifiables par clé API.
+
+        Sous-ensemble du contrat complet (`/openapi.json`) restreint aux
+        opérations taguées `apikey` (recherche `/api/v1/search`, push/suppression
+        d'index). Le serveur MCP protocolaire (`/mcp`, Bearer) est décrit à part
+        via `/api/contracts/mcp-tools`."""
+        full: dict[str, Any] = request.app.openapi()
+        paths: dict[str, Any] = {}
+        for path, operations in full.get("paths", {}).items():
+            kept = {
+                method: op
+                for method, op in operations.items()
+                if isinstance(op, dict) and "apikey" in (op.get("tags") or [])
+            }
+            if kept:
+                paths[path] = kept
+        info = dict(full.get("info", {}))
+        info["title"] = "ragflow — API par clé API"
+        info["description"] = (
+            "Endpoints authentifiables par une clé API utilisateur (Bearer, ou "
+            "api_key dans le corps pour /api/v1/search). Le connecteur MCP "
+            "protocolaire /mcp est décrit via /api/contracts/mcp-tools."
+        )
+        return {
+            "openapi": full.get("openapi", "3.1.0"),
+            "info": info,
+            "paths": paths,
+            "components": full.get("components", {}),
         }
 
     @router.get("/workflow-events")

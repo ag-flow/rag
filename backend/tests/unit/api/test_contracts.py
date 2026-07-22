@@ -26,6 +26,43 @@ class TestContractsIndex:
         assert data["workflow_events"]["json"] == "/api/contracts/workflow-events"
 
 
+def _client_with_apikey_routes() -> TestClient:
+    """App minimale : routers taggués apikey (workspace, search) + contrats +
+    un router admin factice pour prouver qu'il est EXCLU du contrat filtré."""
+    from rag.api.mcp import build_mcp_router
+    from rag.api.workspace import build_workspace_router
+
+    app = FastAPI()
+    app.include_router(build_workspace_router())
+    app.include_router(build_mcp_router())
+    app.include_router(build_contracts_router())
+
+    @app.get("/api/admin/fake", tags=["admin"])
+    async def _admin_fake() -> dict:  # session-authed en vrai — jamais dans le filtre
+        return {}
+
+    return TestClient(app)
+
+
+class TestOpenApiApiKeyContract:
+    def test_only_apikey_tagged_paths(self) -> None:
+        resp = _client_with_apikey_routes().get("/api/contracts/openapi-apikey")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["openapi"].startswith("3.")
+        paths = data["paths"]
+        # Les endpoints par clé API sont présents…
+        assert "/api/v1/search" in paths
+        assert any(p.endswith("/index") for p in paths)
+        # …et AUCUN endpoint non-apikey (ex. l'endpoint admin factice).
+        assert "/api/admin/fake" not in paths
+        # chaque opération conservée porte bien le tag apikey
+        for ops in paths.values():
+            for op in ops.values():
+                assert "apikey" in op["tags"]
+
+
 class TestWorkflowEventsContract:
     def test_openapi_webhooks_contract_sans_auth(self) -> None:
         resp = _client().get("/api/contracts/workflow-events")

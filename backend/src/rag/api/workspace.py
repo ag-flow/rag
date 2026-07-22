@@ -16,7 +16,7 @@ from rag.services.push import normalize_path
 def build_workspace_router() -> APIRouter:
     router = APIRouter(tags=["workspace"])
 
-    @router.post("/workspaces/{name}/index", status_code=202)
+    @router.post("/workspaces/{name}/index", status_code=202, tags=["apikey"])
     async def push_index(
         name: str,
         payload: PushRequest,
@@ -67,7 +67,7 @@ def build_workspace_router() -> APIRouter:
             headers={"X-Correlation-ID": correlation_id},
         )
 
-    @router.delete("/workspaces/{name}/index/{path:path}", status_code=202)
+    @router.delete("/workspaces/{name}/index/{path:path}", status_code=202, tags=["apikey"])
     async def delete_index(
         name: str,
         path: str,

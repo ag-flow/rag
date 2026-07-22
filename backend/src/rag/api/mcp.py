@@ -17,7 +17,7 @@ def build_mcp_router() -> APIRouter:
     """
     router = APIRouter(tags=["search"])
 
-    @router.post("/api/v1/search", response_model=McpResponse)
+    @router.post("/api/v1/search", response_model=McpResponse, tags=["apikey"])
     async def post_search(payload: McpRequest, request: Request) -> McpResponse:
         refs = normalize_refs(payload)
         provider = request.app.state.client_provider
