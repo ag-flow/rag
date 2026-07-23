@@ -48,6 +48,7 @@ from rag.api.playground import router_admin as playground_admin_router
 from rag.api.playground import router_chat as playground_chat_router
 from rag.api.playground_search import router_search as playground_search_router
 from rag.api.setup import build_setup_router
+from rag.api.library_apikey import build_library_apikey_router
 from rag.api.workspace import build_workspace_router
 from rag.api.workspace_query import build_workspace_query_router
 from rag.api.ws import router as ws_router
@@ -323,6 +324,7 @@ def build_app(
     app.include_router(build_setup_router())
     app.include_router(build_workspace_router())
     app.include_router(build_workspace_query_router())
+    app.include_router(build_library_apikey_router())
     app.include_router(build_mcp_router())
     app.mount("/mcp", _mcp_dispatcher)
     app.include_router(build_git_webhooks_router())
