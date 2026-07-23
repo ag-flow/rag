@@ -15,6 +15,29 @@ class AuthContext:
     owner_id: str  # propriétaire de la clé API — sha256(email), scope de sa bibliothèque
 
 
+@dataclass
+class ReadAuthContext:
+    """Contexte d'une requête de LECTURE par clé API (scope read ou supérieur).
+
+    Porte de quoi atteindre la base workspace (`rag_cnx`) et la base config
+    (`workspace_id`), plus l'owner et le scope de la clé pour l'autorisation fine.
+    """
+
+    workspace_id: UUID
+    workspace_name: str
+    rag_cnx: str
+    owner_id: str
+    scope: str  # read | read_write | admin
+
+
+@dataclass
+class OwnerAuthContext:
+    """Contexte owner-scopé SANS workspace (bibliothèque de stratégies, etc.)."""
+
+    owner_id: str
+    scope: str  # read | read_write | admin
+
+
 def _extract_bearer(request: Request) -> str:
     auth_header = request.headers.get("Authorization")
     if not auth_header:
@@ -78,3 +101,75 @@ async def require_workspace_apikey(
         indexer_used=row["indexer_used"],
         owner_id=row["owner_id"],
     )
+
+
+# Lookup clé utilisateur active de niveau LECTURE (scope read | read_write |
+# admin). Même règle de visibilité workspace que l'écriture (partagé ou possédé),
+# mais autorise le scope `read`. `rag_cnx` sert à atteindre la base workspace.
+_READ_LOOKUP_SQL = """
+    SELECT w.id, w.name, w.rag_cnx, k.owner_id, k.scope
+    FROM user_api_keys k
+    JOIN workspaces w ON (w.owner_id IS NULL OR w.owner_id = k.owner_id)
+    WHERE w.name = $1
+      AND k.fingerprint = $2
+      AND k.scope IN ('read', 'read_write', 'admin')
+      AND k.revoked_at IS NULL
+      AND (k.rotated_at IS NULL OR k.rotated_at > now() - interval '72 hours')
+"""
+
+_OWNER_LOOKUP_SQL = """
+    SELECT owner_id, scope
+    FROM user_api_keys
+    WHERE fingerprint = $1
+      AND scope IN ('read', 'read_write', 'admin')
+      AND revoked_at IS NULL
+      AND (rotated_at IS NULL OR rotated_at > now() - interval '72 hours')
+"""
+
+
+async def require_workspace_apikey_read(
+    name: str,
+    request: Request,
+) -> ReadAuthContext:
+    """Dep FastAPI : valide `Authorization: Bearer <api_key>` pour la LECTURE.
+
+    Autorise les clés de niveau `read`, `read_write` ou `admin`. Le workspace
+    doit être partagé (owner NULL) ou possédé par le propriétaire de la clé —
+    sinon 401 uniforme (indistinction inconnu/interdit).
+    """
+    api_key = _extract_bearer(request)
+    fingerprint = sha256(api_key.encode("utf-8")).hexdigest()
+
+    pool: asyncpg.Pool = request.app.state.pools.config_pool
+    row = await pool.fetchrow(_READ_LOOKUP_SQL, name, fingerprint)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid_workspace_apikey",
+        )
+    return ReadAuthContext(
+        workspace_id=row["id"],
+        workspace_name=row["name"],
+        rag_cnx=row["rag_cnx"],
+        owner_id=row["owner_id"],
+        scope=row["scope"],
+    )
+
+
+async def require_apikey_owner(request: Request) -> OwnerAuthContext:
+    """Dep FastAPI : identifie l'owner + scope d'une clé API, SANS workspace.
+
+    Pour les ressources owner-scopées non liées à un workspace (bibliothèque de
+    stratégies de chunking). 401 uniforme si la clé est absente/invalide.
+    """
+    api_key = _extract_bearer(request)
+    fingerprint = sha256(api_key.encode("utf-8")).hexdigest()
+
+    pool: asyncpg.Pool = request.app.state.pools.config_pool
+    row = await pool.fetchrow(_OWNER_LOOKUP_SQL, fingerprint)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid_apikey",
+        )
+    return OwnerAuthContext(owner_id=row["owner_id"], scope=row["scope"])

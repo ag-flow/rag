@@ -17,10 +17,14 @@ async def get_enrichment(
 
     `path` est le path RÉEL du fichier source (pas le path synthétique path::key).
     Retourne None si absent. Si result_type='json', `result` est du JSON sérialisé.
+
+    NB : `document_enrichments` (migration 031) ne stocke PAS le JSON Schema du
+    résultat (result_schema vit sur le template d'enrichissement, pas sur le
+    snapshot) — ne pas le sélectionner ici (colonne inexistante).
     """
     row = await config_pool.fetchrow(
         """
-        SELECT result, result_type, result_schema
+        SELECT result, result_type
         FROM document_enrichments
         WHERE workspace_id = $1
           AND path = $2
@@ -35,5 +39,4 @@ async def get_enrichment(
     return {
         "result": row["result"],
         "result_type": row["result_type"],
-        "result_schema": row["result_schema"],
     }
