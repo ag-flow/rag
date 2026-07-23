@@ -13,12 +13,15 @@ from rag.db.mcp_tools import (
     reconstruct_document,
     search_files_in_workspace,
 )
+from rag.schemas.admin import ChunkingConfigResponse, JobFilesResponse, JobResponse
 from rag.schemas.workspace_query import (
     DocumentResponse,
     EnrichmentResponse,
     FileHit,
     FilesResponse,
 )
+from rag.services.chunking_configs import ChunkingConfigNotFound, get_chunking_config
+from rag.services.jobs import JobNotFound, get_job, list_job_files, list_jobs
 from rag.services.push import normalize_path
 
 
@@ -136,5 +139,98 @@ def build_workspace_query_router() -> APIRouter:
         if data is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "enrichment_not_found")
         return EnrichmentResponse(path=norm_path, key=key, **data)
+
+    # ── Jobs d'indexation (équivalent apikey des endpoints admin) ────────────
+
+    @router.get(
+        "/workspaces/{name}/jobs",
+        tags=["apikey"],
+        response_model=list[JobResponse],
+        summary="Lister les jobs d'indexation",
+        description="Historique des jobs du workspace (push, ré-évaluation, suppression, "
+        "sync), plus récents en premier.",
+    )
+    async def jobs(
+        name: str,
+        request: Request,
+        auth: ReadAuthContext = Depends(require_workspace_apikey_read),  # noqa: B008
+    ) -> list[JobResponse]:
+        rows = await list_jobs(_pools(request).config_pool, workspace_name=auth.workspace_name)
+        return [JobResponse(**r) for r in rows]
+
+    @router.get(
+        "/workspaces/{name}/jobs/{job_id}",
+        tags=["apikey"],
+        response_model=JobResponse,
+        summary="Statut d'un job",
+        description="État détaillé d'un job d'indexation par son id (statut, compteurs, "
+        "erreur, durée). Indispensable pour suivre un push/reindex renvoyé en 202.",
+    )
+    async def job_status(
+        name: str,
+        job_id: str,
+        request: Request,
+        auth: ReadAuthContext = Depends(require_workspace_apikey_read),  # noqa: B008
+    ) -> JobResponse:
+        try:
+            row = await get_job(
+                _pools(request).config_pool, workspace_name=auth.workspace_name, job_id=job_id
+            )
+        except JobNotFound as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "job_not_found") from exc
+        return JobResponse(**row)
+
+    @router.get(
+        "/workspaces/{name}/jobs/{job_id}/files",
+        tags=["apikey"],
+        response_model=JobFilesResponse,
+        summary="Fichiers d'un job",
+        description="Liste des fichiers traités par un job (added/modified/deleted).",
+    )
+    async def job_files(
+        name: str,
+        job_id: str,
+        request: Request,
+        auth: ReadAuthContext = Depends(require_workspace_apikey_read),  # noqa: B008
+    ) -> JobFilesResponse:
+        try:
+            data = await list_job_files(
+                _pools(request).config_pool, workspace_name=auth.workspace_name, job_id=job_id
+            )
+        except JobNotFound as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "job_not_found") from exc
+        return JobFilesResponse(**data)
+
+    # ── Config de chunking (lecture) ─────────────────────────────────────────
+
+    @router.get(
+        "/workspaces/{name}/chunking-config",
+        tags=["apikey"],
+        response_model=ChunkingConfigResponse,
+        summary="Lire la config de chunking",
+        description="Configuration de chunking effective du workspace (algo, tailles, "
+        "engine, stratégie par défaut).",
+    )
+    async def chunking_config(
+        name: str,
+        request: Request,
+        auth: ReadAuthContext = Depends(require_workspace_apikey_read),  # noqa: B008
+    ) -> ChunkingConfigResponse:
+        try:
+            cfg = await get_chunking_config(auth.workspace_id, _pools(request).config_pool)
+        except ChunkingConfigNotFound as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "chunking_config_not_found") from exc
+        return ChunkingConfigResponse(
+            workspace_id=cfg["workspace_id"],
+            strategy=cfg["strategy"],
+            max_chars=cfg["max_chars"],
+            min_chars=cfg["min_chars"],
+            overlap_chars=cfg["overlap_chars"],
+            extras=cfg["extras"],
+            default_strategy_id=cfg["default_strategy_id"],
+            engine=cfg["engine"],
+            created_at=cfg["created_at"].isoformat(),
+            updated_at=cfg["updated_at"].isoformat(),
+        )
 
     return router

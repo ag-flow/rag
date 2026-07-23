@@ -99,3 +99,41 @@ def test_enrichment_not_found_returns_404(
     )
     assert r.status_code == 404
     assert r.json()["detail"] == "enrichment_not_found"
+
+
+def test_jobs_list_empty_returns_200(
+    admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
+) -> None:
+    key = _ws_key(admin_client, admin_headers, "wq_jobs")
+    r = admin_client.get(
+        "/workspaces/wq_jobs/jobs", headers={"Authorization": f"Bearer {key}"}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json() == []
+
+
+def test_job_status_unknown_returns_404(
+    admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
+) -> None:
+    key = _ws_key(admin_client, admin_headers, "wq_jobstat")
+    r = admin_client.get(
+        "/workspaces/wq_jobstat/jobs/00000000-0000-0000-0000-000000000000",
+        headers={"Authorization": f"Bearer {key}"},
+    )
+    assert r.status_code == 404
+    assert r.json()["detail"] == "job_not_found"
+
+
+def test_chunking_config_read_returns_200(
+    admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
+) -> None:
+    """La chunking-config est hydratée à la création du workspace → 200 avec l'algo."""
+    key = _ws_key(admin_client, admin_headers, "wq_chunk")
+    r = admin_client.get(
+        "/workspaces/wq_chunk/chunking-config",
+        headers={"Authorization": f"Bearer {key}"},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert "strategy" in body
+    assert "engine" in body

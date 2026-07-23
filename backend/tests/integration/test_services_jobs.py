@@ -13,7 +13,7 @@ from rag.api.errors import JobNotFound, WorkspaceNotFound
 from rag.db.migrations import run_migrations
 from rag.schemas.admin import IndexerCreateSpec, WorkspaceCreateResolved
 from rag.schemas.harpocrate_vaults import VaultSummary
-from rag.services.jobs import create_pending_job, list_job_files, list_jobs
+from rag.services.jobs import create_pending_job, get_job, list_job_files, list_jobs
 from rag.services.workspaces import create_workspace
 from tests.integration._workspace_seed import seed_workspace
 
@@ -175,3 +175,48 @@ async def test_list_job_files_unknown_job_raises(session_pool: asyncpg.Pool) -> 
 
     with pytest.raises(JobNotFound):
         await list_job_files(config_pool=session_pool, workspace_name="ws_jf2", job_id=str(uuid4()))
+
+
+@pytest.mark.asyncio
+async def test_get_job_returns_status(session_pool: asyncpg.Pool) -> None:
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    async with session_pool.acquire() as conn:
+        ws_id = await seed_workspace(conn, name="ws_getjob")
+        job_id = await conn.fetchval(
+            "INSERT INTO index_jobs (workspace_id, triggered_by, status, files_changed) "
+            "VALUES ($1, 'push', 'done', 3) RETURNING id",
+            ws_id,
+        )
+
+    job = await get_job(session_pool, workspace_name="ws_getjob", job_id=str(job_id))
+    assert job["id"] == str(job_id)
+    assert job["status"] == "done"
+    assert job["triggered_by"] == "push"
+    assert job["files_changed"] == 3
+
+
+@pytest.mark.asyncio
+async def test_get_job_unknown_raises(session_pool: asyncpg.Pool) -> None:
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    async with session_pool.acquire() as conn:
+        await seed_workspace(conn, name="ws_getjob2")
+
+    with pytest.raises(JobNotFound):
+        await get_job(session_pool, workspace_name="ws_getjob2", job_id=str(uuid4()))
+
+
+@pytest.mark.asyncio
+async def test_get_job_isolated_by_workspace(session_pool: asyncpg.Pool) -> None:
+    """Un job d'un autre workspace est introuvable par son id (scoping)."""
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    async with session_pool.acquire() as conn:
+        ws_a = await seed_workspace(conn, name="ws_iso_a")
+        await seed_workspace(conn, name="ws_iso_b")
+        job_id = await conn.fetchval(
+            "INSERT INTO index_jobs (workspace_id, triggered_by, status) "
+            "VALUES ($1, 'push', 'done') RETURNING id",
+            ws_a,
+        )
+
+    with pytest.raises(JobNotFound):
+        await get_job(session_pool, workspace_name="ws_iso_b", job_id=str(job_id))

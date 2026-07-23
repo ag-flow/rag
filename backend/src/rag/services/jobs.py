@@ -153,6 +153,27 @@ async def list_jobs_global(
     return [{**_job_to_dict(r), "workspace_name": r["workspace_name"]} for r in rows]
 
 
+async def get_job(
+    config_pool: asyncpg.Pool, *, workspace_name: str, job_id: str
+) -> dict[str, Any]:
+    """Statut d'un job unique, scopé au workspace. Lève JobNotFound si absent/étranger."""
+    row = await fetch_one(
+        config_pool,
+        """
+        SELECT j.id, j.triggered_by, j.status, j.files_changed, j.files_skipped,
+               j.error_message, j.started_at, j.finished_at, j.duration_ms
+        FROM index_jobs j
+        JOIN workspaces w ON w.id = j.workspace_id
+        WHERE j.id = $1::uuid AND w.name = $2
+        """,
+        job_id,
+        workspace_name,
+    )
+    if row is None:
+        raise JobNotFound(job_id)
+    return _job_to_dict(row)
+
+
 async def list_job_files(
     config_pool: asyncpg.Pool, *, workspace_name: str, job_id: str, limit: int = 1000
 ) -> dict[str, Any]:
