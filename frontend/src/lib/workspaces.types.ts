@@ -102,7 +102,10 @@ export type Job = {
     | "push"
     | "schedule"
     | "reindex_indexer_change"
-    | "reindex_chunking_change";
+    | "reindex_chunking_change"
+    | "reindex_document"
+    | "delete"
+    | "rebuild_lexical_index";
   status: "pending" | "running" | "done" | "error";
   files_changed: number;
   files_skipped: number;
@@ -138,6 +141,9 @@ export type PathStrategyEntry = {
   chunk_count: number;
   version_count: number;
   last_indexed_at: string | null;
+  content_hash: string | null;
+  indexer_used: string | null;
+  indexed_at: string | null;
 };
 
 export type IndexKeysResponse = {

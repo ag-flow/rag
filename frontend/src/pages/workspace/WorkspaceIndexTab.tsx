@@ -125,6 +125,11 @@ function PathRow({ entry, workspaceName, isOpen, onToggle }: PathRowProps) {
               versions: entry.version_count,
             })}
           </span>
+          {entry.indexer_used && (
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono text-slate-500 shrink-0">
+              {entry.indexer_used}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -153,6 +158,28 @@ function PathRow({ entry, workspaceName, isOpen, onToggle }: PathRowProps) {
 
       {isOpen && (
         <div className="border-t border-slate-100 bg-slate-50 px-3 py-2 space-y-2">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-slate-500">
+            {entry.indexer_used && (
+              <>
+                <dt className="font-medium">{t("index.meta_indexer")}</dt>
+                <dd className="font-mono">{entry.indexer_used}</dd>
+              </>
+            )}
+            {entry.content_hash && (
+              <>
+                <dt className="font-medium">{t("index.meta_hash")}</dt>
+                <dd className="font-mono truncate" title={entry.content_hash}>
+                  {entry.content_hash}
+                </dd>
+              </>
+            )}
+            {entry.indexed_at && (
+              <>
+                <dt className="font-medium">{t("index.meta_indexed_at")}</dt>
+                <dd>{new Date(entry.indexed_at).toLocaleString()}</dd>
+              </>
+            )}
+          </dl>
           <div className="flex gap-1">
             <button
               type="button"

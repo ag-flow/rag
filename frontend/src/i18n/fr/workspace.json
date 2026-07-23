@@ -465,7 +465,10 @@
       "embed_chunks_title": "Chunks embeddés ({{count}})",
       "embed_chunk_label": "#{{index}}",
       "error": "Erreur de chargement de la vue document."
-    }
+    },
+    "meta_indexer": "Indexeur",
+    "meta_hash": "Empreinte",
+    "meta_indexed_at": "Indexé le"
   },
   "optional": "optionnel",
   "time": {

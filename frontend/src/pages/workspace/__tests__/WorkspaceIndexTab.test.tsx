@@ -23,6 +23,9 @@ function makeEntry(overrides: Partial<PathStrategyEntry>): PathStrategyEntry {
     chunk_count: 1,
     version_count: 1,
     last_indexed_at: null,
+    content_hash: null,
+    indexer_used: null,
+    indexed_at: null,
     ...overrides,
   };
 }

@@ -360,7 +360,7 @@
       "rebuild": "Lexical index rebuild started (job {{jobId}})."
     },
     "errors": {
-      "engineUnavailable": "The \u201c{{engine}}\u201d engine is not available on this Postgres instance.",
+      "engineUnavailable": "The “{{engine}}” engine is not available on this Postgres instance.",
       "engineUnavailableExplain": "Install the pg_search extension on the Postgres instance, or keep the native FTS engine which requires no extension."
     }
   },
@@ -465,7 +465,10 @@
       "embed_chunks_title": "Embedded chunks ({{count}})",
       "embed_chunk_label": "#{{index}}",
       "error": "Failed to load document view."
-    }
+    },
+    "meta_indexer": "Indexer",
+    "meta_hash": "Hash",
+    "meta_indexed_at": "Indexed at"
   },
   "optional": "optional",
   "time": {

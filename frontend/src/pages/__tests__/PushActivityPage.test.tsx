@@ -9,7 +9,7 @@ vi.mock("@/lib/jobs", () => ({
   jobsApi: { listGlobal: vi.fn() },
 }));
 vi.mock("@/lib/workspaces", () => ({
-  workspacesApi: { list: vi.fn() },
+  workspacesApi: { list: vi.fn(), getJob: vi.fn(), listJobFiles: vi.fn() },
 }));
 
 import { jobsApi } from "@/lib/jobs";
@@ -17,6 +17,8 @@ import { workspacesApi } from "@/lib/workspaces";
 
 const listGlobal = vi.mocked(jobsApi.listGlobal);
 const listWorkspaces = vi.mocked(workspacesApi.list);
+const getJob = vi.mocked(workspacesApi.getJob);
+const listJobFiles = vi.mocked(workspacesApi.listJobFiles);
 
 const makeWorkspace = (name: string): Workspace => ({
   id: `id-${name}`,
@@ -47,6 +49,8 @@ describe("PushActivityPage", () => {
   beforeEach(() => {
     listGlobal.mockReset();
     listWorkspaces.mockReset();
+    getJob.mockReset();
+    listJobFiles.mockReset();
     listWorkspaces.mockResolvedValue([makeWorkspace("ws-a"), makeWorkspace("ws-b")]);
   });
 
@@ -101,5 +105,39 @@ describe("PushActivityPage", () => {
     await waitFor(() => {
       expect(listGlobal).toHaveBeenLastCalledWith({ workspace: "ws-b", status: "error" });
     });
+  });
+
+  it("ouvre le détail d'un job au clic : re-fetch du statut + fichiers", async () => {
+    listGlobal.mockResolvedValue([makeJob("ws-a", "pending")]);
+    // Statut re-fetché : le job listé était 'pending', il est en fait 'done'.
+    getJob.mockResolvedValue({ ...makeJob("ws-a", "done"), triggered_by: "push" });
+    listJobFiles.mockResolvedValue({
+      files: [{ path: "docs/a.md", change_type: "added" }],
+      total: 1,
+      limit: 1000,
+    });
+    renderWithProviders(<PushActivityPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("cell", { name: "ws-a" })).toBeInTheDocument();
+    });
+
+    // Avant ouverture : statut listé 'pending'.
+    expect(screen.getByRole("cell", { name: "En attente" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("cell", { name: "ws-a" }));
+
+    // Re-fetch du statut unitaire → le badge passe à 'Terminé'.
+    await waitFor(() => {
+      expect(getJob).toHaveBeenCalledWith("ws-a", "job-ws-a-pending");
+    });
+    expect(await screen.findByText("Terminé")).toBeInTheDocument();
+    // Le panneau détail liste les fichiers du job.
+    await waitFor(() => expect(listJobFiles).toHaveBeenCalled());
+    expect(
+      await screen.findByText(
+        (_c, el) => el?.tagName === "LI" && (el.textContent ?? "").includes("docs/a.md"),
+      ),
+    ).toBeInTheDocument();
   });
 });

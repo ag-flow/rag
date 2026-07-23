@@ -54,6 +54,8 @@ export const workspacesApi = {
 
   listJobs: (name: string) => api.get<Job[]>(`${BASE}/${name}/jobs`),
 
+  getJob: (name: string, jobId: string) => api.get<Job>(`${BASE}/${name}/jobs/${jobId}`),
+
   listJobFiles: (name: string, jobId: string) =>
     api.get<JobFilesResponse>(`${BASE}/${name}/jobs/${jobId}/files`),
 

@@ -12,7 +12,8 @@
     "trigger": "Déclencheur",
     "status": "Statut",
     "files": "Fichiers",
-    "date": "Date"
+    "date": "Date",
+    "detail_aria": "Voir le détail du job"
   },
   "files_summary": "{{changed}} modifiés / {{skipped}} ignorés",
   "status": {

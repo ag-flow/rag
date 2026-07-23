@@ -12,7 +12,8 @@
     "trigger": "Trigger",
     "status": "Status",
     "files": "Files",
-    "date": "Date"
+    "date": "Date",
+    "detail_aria": "View job detail"
   },
   "files_summary": "{{changed}} changed / {{skipped}} skipped",
   "status": {

@@ -44,6 +44,14 @@ export function useWorkspaceJobs(name: string | null, enabled: boolean) {
   });
 }
 
+export function useWorkspaceJob(name: string | null, jobId: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ["workspace", name, "jobs", jobId, "status"],
+    queryFn: () => workspacesApi.getJob(name as string, jobId as string),
+    enabled: name !== null && jobId !== null && enabled,
+  });
+}
+
 export function useWorkspaceJobFiles(name: string, jobId: string, enabled: boolean) {
   return useQuery({
     queryKey: ["workspace", name, "jobs", jobId, "files"],

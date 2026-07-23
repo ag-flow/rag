@@ -11,10 +11,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useGlobalJobs } from "@/hooks/useGlobalJobs";
-import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useWorkspaces, useWorkspaceJob } from "@/hooks/useWorkspaces";
 import type { GlobalJob, GlobalJobsFilters } from "@/lib/jobs.types";
 import type { Job } from "@/lib/workspaces.types";
 import { formatRelativeTime } from "@/lib/relativeTime";
+import { JobDetailPanel } from "@/pages/workspace/JobDetailPanel";
 
 const statusVariant: Record<Job["status"], "default" | "secondary" | "destructive"> = {
   done: "default",
@@ -42,22 +43,51 @@ function StatusBadge({ status }: { status: Job["status"] }) {
   );
 }
 
-function JobRow({ job }: { job: GlobalJob }) {
+function JobRow({
+  job,
+  isOpen,
+  onToggle,
+}: {
+  job: GlobalJob;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
   const { t } = useTranslation("push");
+  // Statut re-fetché à l'ouverture (le job listé peut être périmé : pending→done).
+  const { data: fresh } = useWorkspaceJob(job.workspace_name, job.id, isOpen);
+  const current: Job = fresh ?? job;
+
   return (
-    <TableRow>
-      <TableCell className="font-medium text-slate-900">{job.workspace_name}</TableCell>
-      <TableCell className="font-mono text-xs text-slate-600">{job.triggered_by}</TableCell>
-      <TableCell>
-        <StatusBadge status={job.status} />
-      </TableCell>
-      <TableCell className="text-xs text-slate-600">
-        {t("files_summary", { changed: job.files_changed, skipped: job.files_skipped })}
-      </TableCell>
-      <TableCell className="text-xs text-slate-500">
-        {job.started_at ? formatRelativeTime(job.started_at, t) : "—"}
-      </TableCell>
-    </TableRow>
+    <>
+      <TableRow
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        aria-label={t("table.detail_aria")}
+        className={`cursor-pointer ${isOpen ? "bg-slate-50" : ""}`}
+      >
+        <TableCell className="font-medium text-slate-900">{job.workspace_name}</TableCell>
+        <TableCell className="font-mono text-xs text-slate-600">{current.triggered_by}</TableCell>
+        <TableCell>
+          <StatusBadge status={current.status} />
+        </TableCell>
+        <TableCell className="text-xs text-slate-600">
+          {t("files_summary", {
+            changed: current.files_changed,
+            skipped: current.files_skipped,
+          })}
+        </TableCell>
+        <TableCell className="text-xs text-slate-500">
+          {current.started_at ? formatRelativeTime(current.started_at, t) : "—"}
+        </TableCell>
+      </TableRow>
+      {isOpen && (
+        <TableRow>
+          <TableCell colSpan={5} className="p-0">
+            <JobDetailPanel name={job.workspace_name} job={current} />
+          </TableCell>
+        </TableRow>
+      )}
+    </>
   );
 }
 
@@ -65,6 +95,7 @@ export function PushActivityPage() {
   const { t } = useTranslation("push");
   const [workspace, setWorkspace] = useState("");
   const [status, setStatus] = useState("");
+  const [openJobId, setOpenJobId] = useState<string | null>(null);
 
   const filters: GlobalJobsFilters = {
     ...(workspace ? { workspace } : {}),
@@ -132,7 +163,12 @@ export function PushActivityPage() {
             </TableHeader>
             <TableBody>
               {jobs.map((job) => (
-                <JobRow key={job.id} job={job} />
+                <JobRow
+                  key={job.id}
+                  job={job}
+                  isOpen={openJobId === job.id}
+                  onToggle={() => setOpenJobId((cur) => (cur === job.id ? null : job.id))}
+                />
               ))}
             </TableBody>
           </Table>
