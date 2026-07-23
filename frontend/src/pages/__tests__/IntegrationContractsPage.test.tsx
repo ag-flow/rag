@@ -15,8 +15,14 @@ vi.mock("@/lib/contracts", async (importOriginal) => {
       getApikeyOpenapi: vi.fn().mockResolvedValue({
         servers: [{ url: "https://rag.yoops.org" }],
         paths: {
-          "/api/v1/search": { post: {} },
-          "/api/workspaces/{name}/index": { post: {}, delete: {} },
+          "/api/v1/search": { post: { summary: "Recherche" } },
+          "/api/workspaces/{name}/index": {
+            post: { summary: "Indexer un document" },
+            delete: { summary: "Supprimer un document" },
+          },
+          "/api/workspaces/{name}/reindex/{path}": {
+            post: { summary: "Ré-évaluer un document" },
+          },
         },
       }),
       getMcpTools: vi.fn().mockResolvedValue({
@@ -84,6 +90,9 @@ describe("IntegrationContractsPage", () => {
     // méthodes présentes (POST pour search + index, DELETE pour index)
     expect(screen.getAllByText("POST").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("DELETE")).toBeInTheDocument();
+    // les summaries lèvent l'ambiguïté d'affichage (suppression + ré-évaluation).
+    expect(screen.getByText(/Supprimer un document/)).toBeInTheDocument();
+    expect(screen.getByText(/Ré-évaluer un document/)).toBeInTheDocument();
   });
 
   it("explore les outils MCP à l'ouverture (nom + paramètres)", async () => {

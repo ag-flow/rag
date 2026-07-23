@@ -32,11 +32,12 @@ function ApiKeyEndpoints() {
         {endpoints.map((e) => (
           <li key={`${e.method} ${e.url}`} className="flex items-center gap-2 text-xs">
             <span
-              className={`rounded px-1.5 py-0.5 font-mono font-semibold ${METHOD_COLORS[e.method] ?? "text-slate-600 bg-slate-100"}`}
+              className={`shrink-0 rounded px-1.5 py-0.5 font-mono font-semibold ${METHOD_COLORS[e.method] ?? "text-slate-600 bg-slate-100"}`}
             >
               {e.method}
             </span>
             <code className="overflow-x-auto font-mono text-slate-700">{e.url}</code>
+            {e.summary && <span className="truncate text-slate-500">— {e.summary}</span>}
           </li>
         ))}
       </ul>

@@ -23,6 +23,31 @@ class PushRequest(BaseModel):
         return v
 
 
+class ReindexRequest(BaseModel):
+    """Ré-évaluation d'un document déjà poussé — le path vient de l'URL.
+
+    L'appelant renvoie le contenu (aucun stockage source côté service) ; le
+    re-traitement est forcé même si le contenu est identique, pour appliquer une
+    stratégie de chunking ou un modèle d'embedding qui a changé depuis.
+    """
+
+    content: str = Field(..., min_length=1)
+    title: str | None = Field(default=None, min_length=1, max_length=512)
+    strategy: str | None = Field(default=None, min_length=1, max_length=128)
+
+    @field_validator("content")
+    @classmethod
+    def _content_size(cls, v: str) -> str:
+        if len(v.encode("utf-8")) > _CONTENT_MAX_BYTES:
+            raise ValueError("content_too_large")
+        return v
+
+
+class ReindexAsyncResponse(BaseModel):
+    job_id: str
+    status: str = "pending"
+
+
 class PushAsyncResponse(BaseModel):
     job_id: str
     status: str = "pending"

@@ -258,7 +258,8 @@ async def _execute_push_job(
 
     try:
         row = await config_pool.fetchrow(
-            "SELECT path, content, title, strategy_id FROM push_job_payloads WHERE job_id=$1",
+            "SELECT path, content, title, strategy_id, force "
+            "FROM push_job_payloads WHERE job_id=$1",
             job.job_id,
         )
         if row is None:
@@ -267,6 +268,7 @@ async def _execute_push_job(
         path, content = row["path"], row["content"]
         title = row["title"]
         strategy_id = row["strategy_id"]
+        force = bool(row["force"])
         content_hash = "sha256:" + sha256(content.encode("utf-8")).hexdigest()
 
         existing = await config_pool.fetchrow(
@@ -279,8 +281,11 @@ async def _execute_push_job(
         # On ne skip que si le contenu ET l'indexeur (provider/modèle) sont
         # inchangés : un changement d'indexeur invalide les vecteurs stockés
         # (espaces vectoriels incompatibles), il faut ré-indexer (BUG-032).
+        # `force` (ré-évaluation explicite) court-circuite le dedup : on
+        # re-chunke/re-embed même à contenu identique (stratégie/modèle changé).
         if (
-            existing is not None
+            not force
+            and existing is not None
             and existing["content_hash"] == content_hash
             and existing["indexer_used"] == job.indexer_used
         ):
@@ -625,7 +630,7 @@ async def execute_next_pending_job(
         return False
 
     try:
-        if job.triggered_by == "push":
+        if job.triggered_by in ("push", "reindex_document"):
             await _execute_push_job(
                 job=job,
                 config_pool=config_pool,

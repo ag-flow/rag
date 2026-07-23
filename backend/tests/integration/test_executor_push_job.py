@@ -134,3 +134,52 @@ async def test_push_job_skipped_when_same_hash(pool: asyncpg.Pool, tmp_path: Pat
             "SELECT status FROM index_jobs WHERE id=$1", job_id
         )
         assert row["status"] == "skipped"
+
+
+@pytest.mark.asyncio
+async def test_reindex_force_bypasses_skip_same_hash(pool: asyncpg.Pool, tmp_path: Path) -> None:
+    """Ré-évaluation : `force=true` re-indexe même à contenu/indexeur identiques."""
+    storage = RepoStorage(tmp_path)
+    indexer = NoOpIndexer(pool)
+
+    async with pool.acquire() as conn:
+        ws_id = await seed_workspace(conn, name="ws_reindex1")
+        await conn.execute(
+            "INSERT INTO indexer_configs (workspace_id, provider, model, dimension) "
+            "VALUES ($1, 'openai', 'text-embedding-3-small', 1536)",
+            ws_id,
+        )
+        content = "same content"
+        content_hash = "sha256:" + sha256(content.encode()).hexdigest()
+        await conn.execute(
+            "INSERT INTO indexed_documents (workspace_id, path, content_hash, indexer_used) "
+            "VALUES ($1, 'a.md', $2, 'openai/text-embedding-3-small')",
+            ws_id,
+            content_hash,
+        )
+        job_id = await conn.fetchval(
+            "INSERT INTO index_jobs (workspace_id, triggered_by, status, correlation_id) "
+            "VALUES ($1, 'reindex_document', 'pending', 'corr-reidx') RETURNING id",
+            ws_id,
+        )
+        await conn.execute(
+            "INSERT INTO push_job_payloads (job_id, path, content, force) "
+            "VALUES ($1, 'a.md', $2, true)",
+            job_id,
+            content,
+        )
+
+    result = await execute_next_pending_job(
+        config_pool=pool,
+        storage=storage,
+        indexer=indexer,
+        resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
+        webhook_secret=None,
+    )
+    assert result is True
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT status FROM index_jobs WHERE id=$1", job_id)
+        # Pas 'skipped' : le force a court-circuité le dedup → ré-indexation.
+        assert row["status"] == "done"

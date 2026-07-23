@@ -9,6 +9,7 @@ export interface OpenApiContract {
 export interface EndpointRef {
   method: string; // GET, POST…
   url: string; // URL absolue (server + path)
+  summary: string; // résumé lisible de l'opération (vide si absent du contrat)
 }
 
 const HTTP_METHODS = ["get", "post", "put", "patch", "delete"];
@@ -59,9 +60,13 @@ export function listEndpoints(contract: OpenApiContract, fallbackBase: string): 
   const base = (contract.servers?.[0]?.url ?? fallbackBase).replace(/\/$/, "");
   const out: EndpointRef[] = [];
   for (const [path, operations] of Object.entries(contract.paths ?? {})) {
-    for (const method of Object.keys(operations)) {
+    for (const [method, op] of Object.entries(operations)) {
       if (HTTP_METHODS.includes(method.toLowerCase())) {
-        out.push({ method: method.toUpperCase(), url: `${base}${path}` });
+        const summary =
+          op && typeof op === "object" && typeof (op as { summary?: unknown }).summary === "string"
+            ? (op as { summary: string }).summary
+            : "";
+        out.push({ method: method.toUpperCase(), url: `${base}${path}`, summary });
       }
     }
   }
