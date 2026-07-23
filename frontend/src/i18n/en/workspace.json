@@ -468,7 +468,8 @@
     },
     "meta_indexer": "Indexer",
     "meta_hash": "Hash",
-    "meta_indexed_at": "Indexed at"
+    "meta_indexed_at": "Indexed at",
+    "meta_source": "View original"
   },
   "optional": "optional",
   "time": {

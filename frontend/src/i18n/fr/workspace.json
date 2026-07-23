@@ -468,7 +468,8 @@
     },
     "meta_indexer": "Indexeur",
     "meta_hash": "Empreinte",
-    "meta_indexed_at": "Indexé le"
+    "meta_indexed_at": "Indexé le",
+    "meta_source": "Voir l'original"
   },
   "optional": "optionnel",
   "time": {

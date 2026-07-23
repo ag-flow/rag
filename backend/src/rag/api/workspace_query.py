@@ -118,7 +118,12 @@ def build_workspace_query_router() -> APIRouter:
         )
         if result is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "document_not_indexed")
-        return DocumentResponse(path=norm_path, **result)
+        source_url = await config_pool.fetchval(
+            "SELECT source_url FROM indexed_documents WHERE workspace_id=$1 AND path=$2",
+            auth.workspace_id,
+            norm_path,
+        )
+        return DocumentResponse(path=norm_path, source_url=source_url, **result)
 
     @router.get(
         "/workspaces/{name}/enrichments/{path:path}",

@@ -415,6 +415,16 @@ async def get_document(workspace: str, path: str) -> str:
     if result["is_legacy"]:
         header += " — engine legacy (chunks plats)"
 
+    # URL de consultation de l'original (fournie au push) : le contenu ci-dessous
+    # est la reconstruction depuis les chunks, pas l'original exact.
+    source_url = await key_ctx.config_pool.fetchval(
+        "SELECT source_url FROM indexed_documents WHERE workspace_id=$1 AND path=$2",
+        ws.workspace_id,
+        path,
+    )
+    if source_url:
+        header += f"\nOriginal : {source_url}"
+
     log.info("mcp_standard.get_document", workspace=ws.workspace_name, path=path)
     return f"{header}\n\n{result['content']}"
 

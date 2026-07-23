@@ -79,3 +79,43 @@ def test_reindex_requires_content(
         json={},
     )
     assert r.status_code == 422
+
+
+def test_reindex_stores_source_url(
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
+    cleanup_ws_dbs_api: None,
+    pg_container: str,
+) -> None:
+    api_key = _make_ws(admin_client, admin_headers, "ws_reidx_url")
+    r = admin_client.post(
+        "/workspaces/ws_reidx_url/reindex/docs/foo.md",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={"content": "hello", "source_url": "https://docs.example/foo?k=1"},
+    )
+    assert r.status_code == 202, r.text
+    job_id = r.json()["job_id"]
+
+    async def _check() -> None:
+        conn = await asyncpg.connect(pg_container)
+        try:
+            url = await conn.fetchval(
+                "SELECT source_url FROM push_job_payloads WHERE job_id=$1::uuid", job_id
+            )
+        finally:
+            await conn.close()
+        assert url == "https://docs.example/foo?k=1"
+
+    asyncio.run(_check())
+
+
+def test_reindex_rejects_non_http_source_url(
+    admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
+) -> None:
+    api_key = _make_ws(admin_client, admin_headers, "ws_reidx_badurl")
+    r = admin_client.post(
+        "/workspaces/ws_reidx_badurl/reindex/x.md",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={"content": "y", "source_url": "ftp://nope"},
+    )
+    assert r.status_code == 422

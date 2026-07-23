@@ -144,6 +144,7 @@ export type PathStrategyEntry = {
   content_hash: string | null;
   indexer_used: string | null;
   indexed_at: string | null;
+  source_url: string | null;
 };
 
 export type IndexKeysResponse = {

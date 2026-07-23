@@ -96,6 +96,7 @@ class RealIndexer:
         title: str | None = None,
         strategy_id: UUID | None = None,
         extra_metadata: Mapping[str, Any] | None = None,
+        source_url: str | None = None,
     ) -> int:
         ctx = await self._load_workspace_context(workspace_id)
         if ctx["chunking_engine"] == "structured":
@@ -118,7 +119,9 @@ class RealIndexer:
             )
         if n_chunks == 0:
             log.info("real_indexer.empty_content_purged", path=path)
-        await self._record_indexed_document(workspace_id, path, content_hash, indexer_used, title)
+        await self._record_indexed_document(
+            workspace_id, path, content_hash, indexer_used, title, source_url
+        )
         return n_chunks
 
     async def _index_legacy(
@@ -354,17 +357,22 @@ class RealIndexer:
         content_hash: str,
         indexer_used: str,
         title: str | None = None,
+        source_url: str | None = None,
     ) -> None:
         async with self._config_pool.acquire() as conn:
             await conn.execute(
                 """
                 INSERT INTO indexed_documents
-                    (workspace_id, path, content_hash, indexer_used, title, indexed_at)
-                VALUES ($1, $2, $3, $4, $5, now())
+                    (workspace_id, path, content_hash, indexer_used, title,
+                     source_url, indexed_at)
+                VALUES ($1, $2, $3, $4, $5, $6, now())
                 ON CONFLICT (workspace_id, path) DO UPDATE
                 SET content_hash=EXCLUDED.content_hash,
                     indexer_used=EXCLUDED.indexer_used,
                     title=EXCLUDED.title,
+                    -- last non-null gagne : un re-index sans URL (git,
+                    -- enrichissement) ne doit pas effacer celle du push.
+                    source_url=COALESCE(EXCLUDED.source_url, indexed_documents.source_url),
                     indexed_at=EXCLUDED.indexed_at
                 """,
                 workspace_id,
@@ -372,6 +380,7 @@ class RealIndexer:
                 content_hash,
                 indexer_used,
                 title,
+                source_url,
             )
 
     async def delete_file(self, *, workspace_id: UUID, path: str) -> None:

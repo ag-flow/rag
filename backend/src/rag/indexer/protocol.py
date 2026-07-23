@@ -24,6 +24,7 @@ class IndexerProtocol(Protocol):
         title: str | None = None,
         strategy_id: UUID | None = None,
         extra_metadata: Mapping[str, Any] | None = None,
+        source_url: str | None = None,
     ) -> int:
         """Index un fichier. Retourne le nombre de chunks créés.
 

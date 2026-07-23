@@ -17,6 +17,8 @@ class PathStrategyEntry(BaseModel):
     content_hash: str | None = None
     indexer_used: str | None = None
     indexed_at: datetime | None = None
+    # URL de consultation de l'original (référence fournie au push, pas le contenu).
+    source_url: str | None = None
 
 
 class IndexKeysResponse(BaseModel):

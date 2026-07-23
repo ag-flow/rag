@@ -26,6 +26,7 @@ function makeEntry(overrides: Partial<PathStrategyEntry>): PathStrategyEntry {
     content_hash: null,
     indexer_used: null,
     indexed_at: null,
+    source_url: null,
     ...overrides,
   };
 }
@@ -52,6 +53,21 @@ describe("WorkspaceIndexTab", () => {
     mockIndexKeys([makeEntry({ path: "LESSONS.md", chunk_count: 3 })]);
     renderWithProviders(<WorkspaceIndexTab workspaceName="my-ws" enabled={true} />);
     await waitFor(() => expect(screen.getByText("LESSONS.md")).toBeInTheDocument());
+  });
+
+  it("affiche le lien 'Voir l'original' quand source_url est présent", async () => {
+    const user = userEvent.setup();
+    mockIndexKeys([
+      makeEntry({ path: "LESSONS.md", source_url: "https://docs.example/lessons?k=1" }),
+    ]);
+    renderWithProviders(<WorkspaceIndexTab workspaceName="my-ws" enabled={true} />);
+    await waitFor(() => expect(screen.getByText("LESSONS.md")).toBeInTheDocument());
+
+    await user.click(screen.getByText("LESSONS.md"));
+
+    const link = await screen.findByRole("link", { name: "Voir l'original" });
+    expect(link).toHaveAttribute("href", "https://docs.example/lessons?k=1");
+    expect(link).toHaveAttribute("target", "_blank");
   });
 
   it("filtre les paths selon la saisie", async () => {

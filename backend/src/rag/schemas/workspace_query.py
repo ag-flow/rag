@@ -11,6 +11,9 @@ class DocumentResponse(BaseModel):
     is_legacy: bool
     is_code_structured: bool
     sections_count: int
+    # URL de consultation de l'original (fournie au push) ; None si non fournie.
+    # Le `content` reste la reconstruction depuis les chunks, pas l'original exact.
+    source_url: str | None = None
 
 
 class FileHit(BaseModel):

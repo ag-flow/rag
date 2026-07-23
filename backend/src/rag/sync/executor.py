@@ -258,7 +258,7 @@ async def _execute_push_job(
 
     try:
         row = await config_pool.fetchrow(
-            "SELECT path, content, title, strategy_id, force "
+            "SELECT path, content, title, strategy_id, force, source_url "
             "FROM push_job_payloads WHERE job_id=$1",
             job.job_id,
         )
@@ -269,6 +269,7 @@ async def _execute_push_job(
         title = row["title"]
         strategy_id = row["strategy_id"]
         force = bool(row["force"])
+        source_url = row["source_url"]
         content_hash = "sha256:" + sha256(content.encode("utf-8")).hexdigest()
 
         existing = await config_pool.fetchrow(
@@ -313,6 +314,7 @@ async def _execute_push_job(
                 indexer_used=job.indexer_used,
                 title=title,
                 strategy_id=strategy_id,
+                source_url=source_url,
             )
 
             # Enrichissements LLM post-indexation

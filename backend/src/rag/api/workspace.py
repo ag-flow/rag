@@ -44,6 +44,7 @@ async def _enqueue_push(
     strategy_id: UUID | None,
     force: bool,
     correlation_id: str,
+    source_url: str | None = None,
 ) -> str:
     """Enfile un job d'indexation + son payload. `force` bypasse le dedup."""
     async with pool.acquire() as conn, conn.transaction():
@@ -58,14 +59,16 @@ async def _enqueue_push(
             correlation_id,
         )
         await conn.execute(
-            "INSERT INTO push_job_payloads (job_id, path, content, title, strategy_id, force) "
-            "VALUES ($1, $2, $3, $4, $5, $6)",
+            "INSERT INTO push_job_payloads "
+            "(job_id, path, content, title, strategy_id, force, source_url) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7)",
             job_id,
             path,
             content,
             title,
             strategy_id,
             force,
+            source_url,
         )
     return str(job_id)
 
@@ -102,6 +105,7 @@ def build_workspace_router() -> APIRouter:
             strategy_id=strategy_id,
             force=False,
             correlation_id=correlation_id,
+            source_url=payload.source_url,
         )
 
         body = PushAsyncResponse(job_id=job_id, status="pending")
@@ -142,6 +146,7 @@ def build_workspace_router() -> APIRouter:
             strategy_id=strategy_id,
             force=True,
             correlation_id=correlation_id,
+            source_url=payload.source_url,
         )
 
         body = ReindexAsyncResponse(job_id=job_id, status="pending")

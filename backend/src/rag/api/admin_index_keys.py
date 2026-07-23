@@ -84,7 +84,7 @@ def build_index_keys_router() -> APIRouter:
         ws_id, rag_cnx = await _workspace_context(request, name)
 
         path_rows = await config_pool.fetch(
-            "SELECT path, content_hash, indexer_used, indexed_at "
+            "SELECT path, content_hash, indexer_used, indexed_at, source_url "
             "FROM indexed_documents WHERE workspace_id=$1 ORDER BY path",
             ws_id,
         )
@@ -105,6 +105,7 @@ def build_index_keys_router() -> APIRouter:
                 content_hash=meta[p]["content_hash"],
                 indexer_used=meta[p]["indexer_used"],
                 indexed_at=meta[p]["indexed_at"],
+                source_url=meta[p]["source_url"],
             )
             for p in paths
         ]

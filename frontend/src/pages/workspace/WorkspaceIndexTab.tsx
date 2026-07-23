@@ -179,6 +179,21 @@ function PathRow({ entry, workspaceName, isOpen, onToggle }: PathRowProps) {
                 <dd>{new Date(entry.indexed_at).toLocaleString()}</dd>
               </>
             )}
+            {entry.source_url && (
+              <>
+                <dt className="font-medium">{t("index.meta_source")}</dt>
+                <dd className="truncate">
+                  <a
+                    href={entry.source_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sky-700 underline hover:text-sky-900"
+                  >
+                    {t("index.meta_source")}
+                  </a>
+                </dd>
+              </>
+            )}
           </dl>
           <div className="flex gap-1">
             <button

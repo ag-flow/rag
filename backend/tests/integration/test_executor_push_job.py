@@ -183,3 +183,70 @@ async def test_reindex_force_bypasses_skip_same_hash(pool: asyncpg.Pool, tmp_pat
         row = await conn.fetchrow("SELECT status FROM index_jobs WHERE id=$1", job_id)
         # Pas 'skipped' : le force a court-circuité le dedup → ré-indexation.
         assert row["status"] == "done"
+
+
+async def _run_once(pool: asyncpg.Pool, tmp_path: Path) -> None:
+    await execute_next_pending_job(
+        config_pool=pool,
+        storage=RepoStorage(tmp_path),
+        indexer=NoOpIndexer(pool),
+        resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
+        webhook_secret=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_source_url_persisted_and_preserved_on_reindex(
+    pool: asyncpg.Pool, tmp_path: Path
+) -> None:
+    """L'URL fournie au push atterrit dans indexed_documents ; un re-index sans
+    URL ne l'efface pas (COALESCE : last non-null gagne)."""
+    async with pool.acquire() as conn:
+        ws_id = await seed_workspace(conn, name="ws_srcurl")
+        await conn.execute(
+            "INSERT INTO indexer_configs (workspace_id, provider, model, dimension) "
+            "VALUES ($1, 'openai', 'text-embedding-3-small', 1536)",
+            ws_id,
+        )
+        job1 = await conn.fetchval(
+            "INSERT INTO index_jobs (workspace_id, triggered_by, status, correlation_id) "
+            "VALUES ($1, 'push', 'pending', 'c1') RETURNING id",
+            ws_id,
+        )
+        await conn.execute(
+            "INSERT INTO push_job_payloads (job_id, path, content, source_url) "
+            "VALUES ($1, 'a.md', 'v1', 'https://docs.example/a?token=xyz')",
+            job1,
+        )
+
+    await _run_once(pool, tmp_path)
+
+    async with pool.acquire() as conn:
+        url = await conn.fetchval(
+            "SELECT source_url FROM indexed_documents WHERE workspace_id=$1 AND path='a.md'",
+            ws_id,
+        )
+        assert url == "https://docs.example/a?token=xyz"
+
+        # Re-index SANS source_url (force pour bypasser le dedup).
+        job2 = await conn.fetchval(
+            "INSERT INTO index_jobs (workspace_id, triggered_by, status, correlation_id) "
+            "VALUES ($1, 'reindex_document', 'pending', 'c2') RETURNING id",
+            ws_id,
+        )
+        await conn.execute(
+            "INSERT INTO push_job_payloads (job_id, path, content, force) "
+            "VALUES ($1, 'a.md', 'v2', true)",
+            job2,
+        )
+
+    await _run_once(pool, tmp_path)
+
+    async with pool.acquire() as conn:
+        url = await conn.fetchval(
+            "SELECT source_url FROM indexed_documents WHERE workspace_id=$1 AND path='a.md'",
+            ws_id,
+        )
+        # Préservée malgré le re-index sans URL.
+        assert url == "https://docs.example/a?token=xyz"

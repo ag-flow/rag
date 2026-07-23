@@ -32,6 +32,7 @@ class NoOpIndexer:
         title: str | None = None,
         strategy_id: UUID | None = None,
         extra_metadata: Mapping[str, Any] | None = None,
+        source_url: str | None = None,
     ) -> int:
         """INSERT/UPDATE `indexed_documents` via ON CONFLICT. Retourne 1
         (1 chunk fictif). `content`, `strategy_id` et `extra_metadata`
@@ -41,12 +42,15 @@ class NoOpIndexer:
             await conn.execute(
                 """
                 INSERT INTO indexed_documents
-                    (workspace_id, path, content_hash, indexer_used, title, indexed_at)
-                VALUES ($1, $2, $3, $4, $5, now())
+                    (workspace_id, path, content_hash, indexer_used, title,
+                     source_url, indexed_at)
+                VALUES ($1, $2, $3, $4, $5, $6, now())
                 ON CONFLICT (workspace_id, path) DO UPDATE
                 SET content_hash = EXCLUDED.content_hash,
                     indexer_used = EXCLUDED.indexer_used,
                     title        = EXCLUDED.title,
+                    source_url   = COALESCE(EXCLUDED.source_url,
+                                            indexed_documents.source_url),
                     indexed_at   = EXCLUDED.indexed_at
                 """,
                 workspace_id,
@@ -54,6 +58,7 @@ class NoOpIndexer:
                 content_hash,
                 indexer_used,
                 title,
+                source_url,
             )
         log.info(
             "noop_indexer.index_file",
