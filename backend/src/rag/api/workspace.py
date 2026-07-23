@@ -12,8 +12,6 @@ from rag.schemas.workspace import (
     DeleteAsyncResponse,
     PushAsyncResponse,
     PushRequest,
-    ReindexAsyncResponse,
-    ReindexRequest,
 )
 from rag.services.chunking_routing import UnknownStrategySlugError, resolve_caller_strategy
 from rag.services.push import normalize_path
@@ -81,8 +79,11 @@ def build_workspace_router() -> APIRouter:
         status_code=202,
         tags=["apikey"],
         summary="Indexer un document",
-        description="Pousse un document dans le workspace pour indexation "
-        "(chunking + embeddings). Idempotent : contenu inchangé → job 'skipped'.",
+        description="Pousse un document (path + contenu dans le corps) pour "
+        "indexation (chunking + embeddings). Idempotent : contenu et indexeur "
+        "inchangés → job 'skipped'. Passer `force=true` pour ré-évaluer un "
+        "document déjà poussé même à contenu identique (nouvelle stratégie de "
+        "chunking ou modèle d'embedding).",
     )
     async def push_index(
         name: str,
@@ -95,61 +96,22 @@ def build_workspace_router() -> APIRouter:
         pool: asyncpg.Pool = request.app.state.pools.config_pool
 
         strategy_id = await _resolve_strategy_id(pool, auth.owner_id, payload.strategy)
+        # `force` distingue la ré-évaluation dans l'historique des jobs, tout en
+        # passant par la même machinerie (l'exécuteur route les deux pareil).
         job_id = await _enqueue_push(
             pool,
             workspace_id=auth.workspace_id,
-            triggered_by="push",
+            triggered_by="reindex_document" if payload.force else "push",
             path=norm_path,
             content=payload.content,
             title=payload.title,
             strategy_id=strategy_id,
-            force=False,
+            force=payload.force,
             correlation_id=correlation_id,
             source_url=payload.source_url,
         )
 
         body = PushAsyncResponse(job_id=job_id, status="pending")
-        return JSONResponse(
-            content=body.model_dump(),
-            status_code=202,
-            headers={"X-Correlation-ID": correlation_id},
-        )
-
-    @router.post(
-        "/workspaces/{name}/reindex/{path:path}",
-        status_code=202,
-        tags=["apikey"],
-        summary="Ré-évaluer un document",
-        description="Force la ré-indexation d'un document déjà poussé (le contenu "
-        "est renvoyé dans le corps) même si le contenu est identique — pour "
-        "appliquer une stratégie de chunking ou un modèle d'embedding modifié.",
-    )
-    async def reindex_document(
-        name: str,
-        path: str,
-        payload: ReindexRequest,
-        request: Request,
-        auth: AuthContext = Depends(require_workspace_apikey),  # noqa: B008
-    ) -> Response:
-        norm_path = normalize_path(path)
-        correlation_id = str(_uuid_mod.uuid4())
-        pool: asyncpg.Pool = request.app.state.pools.config_pool
-
-        strategy_id = await _resolve_strategy_id(pool, auth.owner_id, payload.strategy)
-        job_id = await _enqueue_push(
-            pool,
-            workspace_id=auth.workspace_id,
-            triggered_by="reindex_document",
-            path=norm_path,
-            content=payload.content,
-            title=payload.title,
-            strategy_id=strategy_id,
-            force=True,
-            correlation_id=correlation_id,
-            source_url=payload.source_url,
-        )
-
-        body = ReindexAsyncResponse(job_id=job_id, status="pending")
         return JSONResponse(
             content=body.model_dump(),
             status_code=202,

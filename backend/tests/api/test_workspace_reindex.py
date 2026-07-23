@@ -7,6 +7,9 @@ from fastapi.testclient import TestClient
 
 from tests.api._helpers import make_ws_with_user_key
 
+# Ré-évaluation unifiée : plus d'endpoint /reindex/{path} distinct — c'est
+# POST /index avec `force: true` (path dans le corps).
+
 
 def _make_ws(
     client: TestClient,
@@ -19,7 +22,7 @@ def _make_ws(
     return api_key
 
 
-def test_reindex_returns_202_and_enqueues_forced_job(
+def test_index_force_enqueues_reindex_job(
     admin_client: TestClient,
     admin_headers: dict[str, str],
     cleanup_ws_dbs_api: None,
@@ -27,9 +30,9 @@ def test_reindex_returns_202_and_enqueues_forced_job(
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_reidx")
     r = admin_client.post(
-        "/workspaces/ws_reidx/reindex/docs/foo.md",
+        "/workspaces/ws_reidx/index",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"content": "hello world"},
+        json={"path": "docs/foo.md", "content": "hello world", "force": True},
     )
     assert r.status_code == 202, r.text
     body = r.json()
@@ -56,32 +59,65 @@ def test_reindex_returns_202_and_enqueues_forced_job(
     asyncio.run(check())
 
 
-def test_reindex_read_scope_key_returns_401(
+def test_index_without_force_is_plain_push(
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
+    cleanup_ws_dbs_api: None,
+    pg_container: str,
+) -> None:
+    """Sans force (défaut) : c'est un push classique, dédup-gardé."""
+    api_key = _make_ws(admin_client, admin_headers, "ws_idx_plain")
+    r = admin_client.post(
+        "/workspaces/ws_idx_plain/index",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={"path": "a.md", "content": "hello"},
+    )
+    assert r.status_code == 202, r.text
+    job_id = r.json()["job_id"]
+
+    async def check() -> None:
+        conn = await asyncpg.connect(pg_container)
+        try:
+            row = await conn.fetchrow(
+                "SELECT j.triggered_by, p.force "
+                "FROM index_jobs j JOIN push_job_payloads p ON p.job_id=j.id "
+                "WHERE j.id=$1::uuid",
+                job_id,
+            )
+        finally:
+            await conn.close()
+        assert row["triggered_by"] == "push"
+        assert row["force"] is False
+
+    asyncio.run(check())
+
+
+def test_index_read_scope_key_returns_401(
     admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
 ) -> None:
     read_key = _make_ws(admin_client, admin_headers, "ws_reidx_ro", scope="read")
     r = admin_client.post(
-        "/workspaces/ws_reidx_ro/reindex/x.md",
+        "/workspaces/ws_reidx_ro/index",
         headers={"Authorization": f"Bearer {read_key}"},
-        json={"content": "y"},
+        json={"path": "x.md", "content": "y", "force": True},
     )
     assert r.status_code == 401
     assert r.json()["detail"] == "invalid_workspace_apikey"
 
 
-def test_reindex_requires_content(
+def test_index_requires_content(
     admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_reidx_nc")
     r = admin_client.post(
-        "/workspaces/ws_reidx_nc/reindex/x.md",
+        "/workspaces/ws_reidx_nc/index",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={},
+        json={"path": "x.md", "force": True},
     )
     assert r.status_code == 422
 
 
-def test_reindex_stores_source_url(
+def test_index_stores_source_url(
     admin_client: TestClient,
     admin_headers: dict[str, str],
     cleanup_ws_dbs_api: None,
@@ -89,9 +125,14 @@ def test_reindex_stores_source_url(
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_reidx_url")
     r = admin_client.post(
-        "/workspaces/ws_reidx_url/reindex/docs/foo.md",
+        "/workspaces/ws_reidx_url/index",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"content": "hello", "source_url": "https://docs.example/foo?k=1"},
+        json={
+            "path": "docs/foo.md",
+            "content": "hello",
+            "force": True,
+            "source_url": "https://docs.example/foo?k=1",
+        },
     )
     assert r.status_code == 202, r.text
     job_id = r.json()["job_id"]
@@ -109,13 +150,13 @@ def test_reindex_stores_source_url(
     asyncio.run(_check())
 
 
-def test_reindex_rejects_non_http_source_url(
+def test_index_rejects_non_http_source_url(
     admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_reidx_badurl")
     r = admin_client.post(
-        "/workspaces/ws_reidx_badurl/reindex/x.md",
+        "/workspaces/ws_reidx_badurl/index",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"content": "y", "source_url": "ftp://nope"},
+        json={"path": "x.md", "content": "y", "source_url": "ftp://nope"},
     )
     assert r.status_code == 422
