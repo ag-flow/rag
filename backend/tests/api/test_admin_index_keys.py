@@ -79,6 +79,11 @@ def test_get_index_keys_lists_paths(
     paths = [e["path"] for e in body["paths"]]
     assert "LESSONS.md" in paths
     assert "docs/api.md" in paths
+    # B1 : métadonnées du document indexé exposées par entrée.
+    entry = next(e for e in body["paths"] if e["path"] == "LESSONS.md")
+    assert entry["content_hash"] == "sha256:0"
+    assert entry["indexer_used"] == "ollama/mxbai-embed-large"
+    assert entry["indexed_at"] is not None
 
 
 def test_get_index_keys_default_strategy_replace(

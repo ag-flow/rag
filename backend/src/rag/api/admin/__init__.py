@@ -413,6 +413,15 @@ def build_admin_router() -> APIRouter:
         rows = await list_jobs(_config_pool(request), workspace_name=name)
         return [JobResponse(**r) for r in rows]
 
+    @router.get("/workspaces/{name}/jobs/{job_id}")
+    async def get_job_status(name: str, job_id: str, request: Request) -> JobResponse:
+        """Statut d'un job unique (parité avec MCP get_index_job et Bearer)."""
+        from rag.services.jobs import get_job
+
+        await require_owned_workspace_id(request, name, _config_pool(request))
+        row = await get_job(_config_pool(request), workspace_name=name, job_id=job_id)
+        return JobResponse(**row)
+
     @router.get("/workspaces/{name}/jobs/{job_id}/files")
     async def get_job_files(name: str, job_id: str, request: Request) -> JobFilesResponse:
         from rag.services.jobs import list_job_files

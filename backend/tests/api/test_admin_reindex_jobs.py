@@ -92,3 +92,33 @@ def test_get_jobs_lists_pending(
     jobs = r.json()
     assert len(jobs) >= 1
     assert jobs[0]["status"] == "pending"
+
+
+def test_get_job_status_single_returns_200(
+    admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
+) -> None:
+    """A1 : statut d'un job unique côté API admin (parité MCP/Bearer)."""
+    _setup_ws_with_doc(admin_client, admin_headers, "ws_re_e2e_single")
+    admin_client.post("/api/admin/workspaces/ws_re_e2e_single/reindex", headers=admin_headers)
+    jobs = admin_client.get(
+        "/api/admin/workspaces/ws_re_e2e_single/jobs", headers=admin_headers
+    ).json()
+    job_id = jobs[0]["id"]
+
+    r = admin_client.get(
+        f"/api/admin/workspaces/ws_re_e2e_single/jobs/{job_id}", headers=admin_headers
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["id"] == job_id
+
+
+def test_get_job_status_unknown_returns_404(
+    admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
+) -> None:
+    _setup_ws_with_doc(admin_client, admin_headers, "ws_re_e2e_404")
+    r = admin_client.get(
+        "/api/admin/workspaces/ws_re_e2e_404/jobs/00000000-0000-0000-0000-000000000000",
+        headers=admin_headers,
+    )
+    assert r.status_code == 404
+    assert r.json()["error"] == "job_not_found"

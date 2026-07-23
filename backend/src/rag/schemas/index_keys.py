@@ -13,6 +13,10 @@ class PathStrategyEntry(BaseModel):
     chunk_count: int
     version_count: int
     last_indexed_at: datetime | None
+    # Métadonnées du document indexé (base config, table indexed_documents).
+    content_hash: str | None = None
+    indexer_used: str | None = None
+    indexed_at: datetime | None = None
 
 
 class IndexKeysResponse(BaseModel):

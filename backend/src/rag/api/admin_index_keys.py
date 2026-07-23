@@ -84,10 +84,12 @@ def build_index_keys_router() -> APIRouter:
         ws_id, rag_cnx = await _workspace_context(request, name)
 
         path_rows = await config_pool.fetch(
-            "SELECT path FROM indexed_documents WHERE workspace_id=$1 ORDER BY path",
+            "SELECT path, content_hash, indexer_used, indexed_at "
+            "FROM indexed_documents WHERE workspace_id=$1 ORDER BY path",
             ws_id,
         )
         paths = [r["path"] for r in path_rows]
+        meta = {r["path"]: r for r in path_rows}
         strategies = await get_all_for_workspace(config_pool, ws_id)
         ws_pool = await registry.get_workspace_pool(name, rag_cnx)
         agg = await list_paths_aggregate(ws_pool, paths)
@@ -100,6 +102,9 @@ def build_index_keys_router() -> APIRouter:
                 chunk_count=agg.get(p, {}).get("chunk_count", 0),
                 version_count=agg.get(p, {}).get("version_count", 0),
                 last_indexed_at=agg.get(p, {}).get("last_indexed_at"),
+                content_hash=meta[p]["content_hash"],
+                indexer_used=meta[p]["indexer_used"],
+                indexed_at=meta[p]["indexed_at"],
             )
             for p in paths
         ]
