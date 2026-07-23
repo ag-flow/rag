@@ -36,6 +36,7 @@ from rag.api.enrichments import router_triggers as enrichment_triggers_router
 from rag.api.errors import register_error_handlers
 from rag.api.git_webhooks import build_git_webhooks_router
 from rag.api.health import build_health_router
+from rag.api.library_apikey import build_library_apikey_router
 from rag.api.mcp import build_mcp_router
 from rag.api.mcp_standard import (
     McpPathNormalizerMiddleware,
@@ -44,11 +45,11 @@ from rag.api.mcp_standard import (
     mcp_session_lifespan,
 )
 from rag.api.me_api_keys import build_me_api_keys_router
+from rag.api.openapi_security import install_openapi_security
 from rag.api.playground import router_admin as playground_admin_router
 from rag.api.playground import router_chat as playground_chat_router
 from rag.api.playground_search import router_search as playground_search_router
 from rag.api.setup import build_setup_router
-from rag.api.library_apikey import build_library_apikey_router
 from rag.api.workspace import build_workspace_router
 from rag.api.workspace_query import build_workspace_query_router
 from rag.api.ws import router as ws_router
@@ -336,6 +337,7 @@ def build_app(
     app.include_router(enrichment_prompts_router)
     app.include_router(enrichment_triggers_router)
     register_error_handlers(app)
+    install_openapi_security(app)
     return app
 
 

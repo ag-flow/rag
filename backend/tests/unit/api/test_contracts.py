@@ -65,6 +65,46 @@ class TestOpenApiApiKeyContract:
                 assert "apikey" in op["tags"]
 
 
+class TestOpenApiSecurity:
+    def _secured_client(self) -> TestClient:
+        from rag.api.mcp import build_mcp_router
+        from rag.api.openapi_security import install_openapi_security
+        from rag.api.workspace import build_workspace_router
+
+        app = FastAPI()
+        app.include_router(build_workspace_router())
+        app.include_router(build_mcp_router())
+        app.include_router(build_contracts_router())
+
+        @app.get("/api/admin/fake", tags=["admin"])
+        async def _admin_fake() -> dict:
+            return {}
+
+        install_openapi_security(app)
+        return TestClient(app)
+
+    def test_bearer_scheme_declared_and_applied_to_apikey_ops(self) -> None:
+        app_client = self._secured_client()
+        spec = app_client.app.openapi()  # type: ignore[attr-defined]
+
+        scheme = spec["components"]["securitySchemes"]["BearerApiKey"]
+        assert scheme["type"] == "http"
+        assert scheme["scheme"] == "bearer"
+
+        # Une opération apikey porte la sécurité, l'admin factice non.
+        assert spec["paths"]["/api/v1/search"]["post"]["security"] == [{"BearerApiKey": []}]
+        assert spec["paths"]["/api/admin/fake"]["get"].get("security") is None
+
+    def test_filtered_contract_inherits_security(self) -> None:
+        resp = self._secured_client().get("/api/contracts/openapi-apikey")
+        data = resp.json()
+
+        assert "BearerApiKey" in data["components"]["securitySchemes"]
+        for ops in data["paths"].values():
+            for op in ops.values():
+                assert op["security"] == [{"BearerApiKey": []}]
+
+
 class TestWorkflowEventsContract:
     def test_openapi_webhooks_contract_sans_auth(self) -> None:
         resp = _client().get("/api/contracts/workflow-events")
