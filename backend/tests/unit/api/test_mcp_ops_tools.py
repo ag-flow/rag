@@ -139,3 +139,53 @@ class TestChunkingConfig:
         result = await _call(tools["get_chunking_configuration"], _make_ctx(), workspace="ws")
         assert "prose" in result
         assert "structured" in result
+
+
+class TestRerankAndHybrid:
+    @pytest.mark.asyncio
+    async def test_rerank_omits_api_key_ref(self, tools, monkeypatch):
+        monkeypatch.setattr(mod, "resolve_owned_workspace_id", AsyncMock(return_value=uuid4()))
+        monkeypatch.setattr(
+            mod,
+            "get_rerank_config",
+            AsyncMock(
+                return_value={
+                    "provider": "cohere",
+                    "model": "rerank-3",
+                    "base_url": None,
+                    "top_k_pre_rerank": 40,
+                    "api_key_ref": "${vault://v:secret}",
+                }
+            ),
+        )
+        result = await _call(tools["get_rerank_configuration"], _make_ctx(), workspace="ws")
+        assert "cohere" in result
+        assert "api_key_ref" not in result  # jamais de fuite de réf secrète
+        assert "vault" not in result
+
+    @pytest.mark.asyncio
+    async def test_rerank_not_configured_message(self, tools, monkeypatch):
+        monkeypatch.setattr(mod, "resolve_owned_workspace_id", AsyncMock(return_value=uuid4()))
+        monkeypatch.setattr(mod, "get_rerank_config", AsyncMock(return_value=None))
+        result = await _call(tools["get_rerank_configuration"], _make_ctx(), workspace="ws")
+        assert "reranking" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_hybrid_returns_weights(self, tools, monkeypatch):
+        monkeypatch.setattr(mod, "resolve_owned_workspace_id", AsyncMock(return_value=uuid4()))
+        monkeypatch.setattr(
+            mod,
+            "get_hybrid_config",
+            AsyncMock(
+                return_value={
+                    "enabled": True,
+                    "rrf_k": 60,
+                    "weight_lexical": 0.5,
+                    "weight_vector": 0.5,
+                    "lexical_engine": "fts",
+                }
+            ),
+        )
+        result = await _call(tools["get_hybrid_configuration"], _make_ctx(), workspace="ws")
+        assert '"rrf_k": 60' in result
+        assert "fts" in result

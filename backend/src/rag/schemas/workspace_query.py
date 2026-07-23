@@ -37,3 +37,22 @@ class EnrichmentResponse(BaseModel):
     key: str
     result: str
     result_type: str
+
+
+class RerankConfigView(BaseModel):
+    """Vue fonctionnelle de la config de reranking (sans réf secrète api_key_ref)."""
+
+    provider: str
+    model: str
+    base_url: str | None = None
+    top_k_pre_rerank: int
+
+
+class HybridConfigView(BaseModel):
+    """Vue fonctionnelle de la config de recherche hybride."""
+
+    enabled: bool
+    rrf_k: int
+    weight_lexical: float
+    weight_vector: float
+    lexical_engine: str

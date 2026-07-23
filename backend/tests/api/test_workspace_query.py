@@ -137,3 +137,25 @@ def test_chunking_config_read_returns_200(
     body = r.json()
     assert "strategy" in body
     assert "engine" in body
+
+
+def test_rerank_not_configured_returns_404(
+    admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
+) -> None:
+    key = _ws_key(admin_client, admin_headers, "wq_rerank")
+    r = admin_client.get(
+        "/workspaces/wq_rerank/rerank", headers={"Authorization": f"Bearer {key}"}
+    )
+    assert r.status_code == 404
+    assert r.json()["detail"] == "rerank_not_configured"
+
+
+def test_hybrid_not_configured_returns_404(
+    admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
+) -> None:
+    key = _ws_key(admin_client, admin_headers, "wq_hybrid")
+    r = admin_client.get(
+        "/workspaces/wq_hybrid/hybrid-config", headers={"Authorization": f"Bearer {key}"}
+    )
+    assert r.status_code == 404
+    assert r.json()["detail"] == "hybrid_not_configured"

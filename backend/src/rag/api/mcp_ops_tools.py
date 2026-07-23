@@ -7,7 +7,9 @@ import structlog
 
 from rag.api.mcp_library_support import dump
 from rag.services.chunking_configs import ChunkingConfigNotFound, get_chunking_config
+from rag.services.hybrid_configs import get_hybrid_config
 from rag.services.jobs import JobNotFound, get_job, list_job_files, list_jobs
+from rag.services.rerank_configs import get_rerank_config
 from rag.services.workspaces import resolve_owned_workspace_id
 
 log = structlog.get_logger(__name__)
@@ -90,3 +92,55 @@ def register_ops_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
         except ChunkingConfigNotFound:
             return f"Aucune configuration de chunking pour le workspace '{workspace}'."
         return dump(cfg)
+
+    @mcp.tool()
+    async def get_rerank_configuration(workspace: str) -> str:
+        """Configuration de reranking d'un workspace (provider, modèle, top_k).
+
+        - workspace : slug du workspace (voir list_workspaces)
+
+        Sortie : JSON {provider, model, base_url, top_k_pre_rerank} ou un message
+        si le reranking n'est pas configuré (recherche sans reranker). La réf de
+        clé API n'est pas exposée. Lecture seule.
+        """
+        ctx = ws_ctx.get()
+        ws_id = await _owned_ws_id(ctx, workspace)
+        if ws_id is None:
+            return _UNKNOWN_WS.format(ws=workspace)
+        cfg = await get_rerank_config(ws_id, ctx.config_pool)
+        if cfg is None:
+            return f"Aucun reranking configuré pour le workspace '{workspace}'."
+        return dump(
+            {
+                "provider": cfg["provider"],
+                "model": cfg["model"],
+                "base_url": cfg["base_url"],
+                "top_k_pre_rerank": cfg["top_k_pre_rerank"],
+            }
+        )
+
+    @mcp.tool()
+    async def get_hybrid_configuration(workspace: str) -> str:
+        """Configuration de recherche hybride d'un workspace (fusion lexical/vectoriel).
+
+        - workspace : slug du workspace (voir list_workspaces)
+
+        Sortie : JSON {enabled, rrf_k, weight_lexical, weight_vector, lexical_engine}
+        ou un message si la recherche est en vectoriel pur. Lecture seule.
+        """
+        ctx = ws_ctx.get()
+        ws_id = await _owned_ws_id(ctx, workspace)
+        if ws_id is None:
+            return _UNKNOWN_WS.format(ws=workspace)
+        cfg = await get_hybrid_config(ws_id, ctx.config_pool)
+        if cfg is None:
+            return f"Recherche vectorielle pure (pas d'hybride) pour '{workspace}'."
+        return dump(
+            {
+                "enabled": cfg["enabled"],
+                "rrf_k": cfg["rrf_k"],
+                "weight_lexical": float(cfg["weight_lexical"]),
+                "weight_vector": float(cfg["weight_vector"]),
+                "lexical_engine": cfg["lexical_engine"],
+            }
+        )

@@ -19,10 +19,14 @@ from rag.schemas.workspace_query import (
     EnrichmentResponse,
     FileHit,
     FilesResponse,
+    HybridConfigView,
+    RerankConfigView,
 )
 from rag.services.chunking_configs import ChunkingConfigNotFound, get_chunking_config
+from rag.services.hybrid_configs import get_hybrid_config
 from rag.services.jobs import JobNotFound, get_job, list_job_files, list_jobs
 from rag.services.push import normalize_path
+from rag.services.rerank_configs import get_rerank_config
 
 
 def build_workspace_query_router() -> APIRouter:
@@ -231,6 +235,55 @@ def build_workspace_query_router() -> APIRouter:
             engine=cfg["engine"],
             created_at=cfg["created_at"].isoformat(),
             updated_at=cfg["updated_at"].isoformat(),
+        )
+
+    # ── Config de recherche : rerank + hybride (lecture) ─────────────────────
+
+    @router.get(
+        "/workspaces/{name}/rerank",
+        tags=["apikey"],
+        response_model=RerankConfigView,
+        summary="Lire la config de reranking",
+        description="Configuration de reranking du workspace (provider, modèle, "
+        "top_k avant rerank). 404 si non configuré. La réf de clé n'est pas exposée.",
+    )
+    async def rerank_config(
+        name: str,
+        request: Request,
+        auth: ReadAuthContext = Depends(require_workspace_apikey_read),  # noqa: B008
+    ) -> RerankConfigView:
+        cfg = await get_rerank_config(auth.workspace_id, _pools(request).config_pool)
+        if cfg is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "rerank_not_configured")
+        return RerankConfigView(
+            provider=cfg["provider"],
+            model=cfg["model"],
+            base_url=cfg["base_url"],
+            top_k_pre_rerank=cfg["top_k_pre_rerank"],
+        )
+
+    @router.get(
+        "/workspaces/{name}/hybrid-config",
+        tags=["apikey"],
+        response_model=HybridConfigView,
+        summary="Lire la config de recherche hybride",
+        description="Configuration de recherche hybride (fusion lexical/vectoriel : "
+        "RRF k, poids, moteur lexical). 404 si vectoriel pur.",
+    )
+    async def hybrid_config(
+        name: str,
+        request: Request,
+        auth: ReadAuthContext = Depends(require_workspace_apikey_read),  # noqa: B008
+    ) -> HybridConfigView:
+        cfg = await get_hybrid_config(auth.workspace_id, _pools(request).config_pool)
+        if cfg is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "hybrid_not_configured")
+        return HybridConfigView(
+            enabled=cfg["enabled"],
+            rrf_k=cfg["rrf_k"],
+            weight_lexical=float(cfg["weight_lexical"]),
+            weight_vector=float(cfg["weight_vector"]),
+            lexical_engine=cfg["lexical_engine"],
         )
 
     return router
