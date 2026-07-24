@@ -28,22 +28,21 @@ def build_contracts_router() -> APIRouter:
         `X-Forwarded-Host` derrière proxy) + le schéma public — reflète le
         domaine exact (ex. https://rag.yoops.org), quelle que soit la config.
 
-        Schéma : on honore `X-Forwarded-Proto` (premier maillon si liste
-        `https, http`). Derrière un proxy public (X-Forwarded-Host présent) sans
-        proto explicite, le TLS est terminé en amont (Cloudflare/Caddy) et le
-        backend voit du HTTP en interne — on force `https` pour ne pas dégrader
-        l'URL publique. Repli sur l'URL de la requête sinon."""
+        Schéma : derrière un proxy public (`X-Forwarded-Host` présent), le TLS est
+        terminé en amont (Cloudflare/Caddy) et le hop interne vers le backend est
+        en HTTP — `X-Forwarded-Proto` reflète alors ce hop (`http`), pas l'entrée
+        publique. On force donc `https` dès qu'on est derrière le proxy public.
+        Sans proxy, on honore `X-Forwarded-Proto` (premier maillon si liste) puis
+        l'URL de la requête."""
         fwd_host = request.headers.get("x-forwarded-host")
         host = fwd_host or request.headers.get("host")
         if not host:
             return str(request.base_url).rstrip("/")
-        proto = request.headers.get("x-forwarded-proto")
-        if proto:
-            scheme = proto.split(",")[0].strip()
-        elif fwd_host:
+        if fwd_host:
             scheme = "https"
         else:
-            scheme = request.url.scheme
+            proto = request.headers.get("x-forwarded-proto")
+            scheme = proto.split(",")[0].strip() if proto else request.url.scheme
         return f"{scheme}://{host}"
 
     @router.get("")

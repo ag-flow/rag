@@ -112,18 +112,19 @@ class TestPublicBaseScheme:
         resp = _client_with_apikey_routes().get("/api/contracts/openapi-apikey", headers=headers)
         return resp.json()["servers"][0]["url"]
 
-    def test_honors_x_forwarded_proto(self) -> None:
-        url = self._url({"x-forwarded-proto": "https", "x-forwarded-host": "rag.yoops.org"})
+    def test_behind_proxy_is_https_even_if_internal_hop_is_http(self) -> None:
+        # Le cas réel Cloudflare/Caddy : hop interne http, entrée publique https.
+        url = self._url({"x-forwarded-proto": "http", "x-forwarded-host": "rag.yoops.org"})
         assert url == "https://rag.yoops.org"
 
-    def test_takes_first_proto_when_list(self) -> None:
-        url = self._url({"x-forwarded-proto": "https, http", "x-forwarded-host": "rag.yoops.org"})
-        assert url == "https://rag.yoops.org"
-
-    def test_defaults_https_behind_proxy_without_proto(self) -> None:
-        # X-Forwarded-Host présent (proxy public) sans proto → https, pas http.
+    def test_behind_proxy_without_proto_is_https(self) -> None:
         url = self._url({"x-forwarded-host": "rag.yoops.org"})
         assert url == "https://rag.yoops.org"
+
+    def test_honors_x_forwarded_proto_without_forwarded_host(self) -> None:
+        # Pas de X-Forwarded-Host mais un proto explicite (liste) → premier maillon.
+        url = self._url({"x-forwarded-proto": "https, http"})
+        assert url.startswith("https://")
 
     def test_falls_back_to_request_scheme_without_proxy(self) -> None:
         # Aucun header de forwarding → schéma de la requête (http en test local).
