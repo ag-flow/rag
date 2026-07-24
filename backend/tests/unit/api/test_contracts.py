@@ -105,6 +105,32 @@ class TestOpenApiSecurity:
                 assert op["security"] == [{"BearerApiKey": []}]
 
 
+class TestPublicBaseScheme:
+    """Le `servers` du contrat doit refléter le schéma PUBLIC (https derrière proxy)."""
+
+    def _url(self, headers: dict[str, str]) -> str:
+        resp = _client_with_apikey_routes().get("/api/contracts/openapi-apikey", headers=headers)
+        return resp.json()["servers"][0]["url"]
+
+    def test_honors_x_forwarded_proto(self) -> None:
+        url = self._url({"x-forwarded-proto": "https", "x-forwarded-host": "rag.yoops.org"})
+        assert url == "https://rag.yoops.org"
+
+    def test_takes_first_proto_when_list(self) -> None:
+        url = self._url({"x-forwarded-proto": "https, http", "x-forwarded-host": "rag.yoops.org"})
+        assert url == "https://rag.yoops.org"
+
+    def test_defaults_https_behind_proxy_without_proto(self) -> None:
+        # X-Forwarded-Host présent (proxy public) sans proto → https, pas http.
+        url = self._url({"x-forwarded-host": "rag.yoops.org"})
+        assert url == "https://rag.yoops.org"
+
+    def test_falls_back_to_request_scheme_without_proxy(self) -> None:
+        # Aucun header de forwarding → schéma de la requête (http en test local).
+        url = self._url({})
+        assert url.startswith("http://")
+
+
 class TestWorkflowEventsContract:
     def test_openapi_webhooks_contract_sans_auth(self) -> None:
         resp = _client().get("/api/contracts/workflow-events")

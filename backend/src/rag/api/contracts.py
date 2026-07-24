@@ -25,14 +25,26 @@ def build_contracts_router() -> APIRouter:
         """URL publique de base résolue depuis l'ADRESSE D'APPEL.
 
         On prend le Host réellement utilisé par le client (header `Host`, ou
-        `X-Forwarded-Host` derrière proxy) + le schéma forwardé — reflète le
-        domaine public exact (ex. https://rag.yoops.org), quelle que soit la
-        config. Repli sur l'URL de la requête."""
-        host = request.headers.get("x-forwarded-host") or request.headers.get("host")
-        if host:
-            scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
-            return f"{scheme}://{host}"
-        return str(request.base_url).rstrip("/")
+        `X-Forwarded-Host` derrière proxy) + le schéma public — reflète le
+        domaine exact (ex. https://rag.yoops.org), quelle que soit la config.
+
+        Schéma : on honore `X-Forwarded-Proto` (premier maillon si liste
+        `https, http`). Derrière un proxy public (X-Forwarded-Host présent) sans
+        proto explicite, le TLS est terminé en amont (Cloudflare/Caddy) et le
+        backend voit du HTTP en interne — on force `https` pour ne pas dégrader
+        l'URL publique. Repli sur l'URL de la requête sinon."""
+        fwd_host = request.headers.get("x-forwarded-host")
+        host = fwd_host or request.headers.get("host")
+        if not host:
+            return str(request.base_url).rstrip("/")
+        proto = request.headers.get("x-forwarded-proto")
+        if proto:
+            scheme = proto.split(",")[0].strip()
+        elif fwd_host:
+            scheme = "https"
+        else:
+            scheme = request.url.scheme
+        return f"{scheme}://{host}"
 
     @router.get("")
     async def contracts_index() -> dict[str, Any]:
