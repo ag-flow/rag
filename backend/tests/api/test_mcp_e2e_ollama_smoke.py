@@ -37,8 +37,11 @@ def test_mcp_e2e_ollama_search_returns_relevant_doc(
             "label": "ws_mcp_smoke",
             "endpoint_id": seed_endpoint_sync(
                 os.environ["DATABASE_URL"],
-                slug="ep-ws_mcp_smoke", provider="ollama",
-                model="mxbai-embed-large", api_key_ref=None, base_url=ollama_url,
+                slug="ep-ws_mcp_smoke",
+                provider="ollama",
+                model="mxbai-embed-large",
+                api_key_ref=None,
+                base_url=ollama_url,
             ),
         },
     )
@@ -54,9 +57,10 @@ def test_mcp_e2e_ollama_search_returns_relevant_doc(
 
     # 2. Push 2 documents distincts.
     r1 = admin_client.post(
-        "/workspaces/ws_mcp_smoke/index",
+        "/index",
         headers=push_headers,
         json={
+            "workspace": "ws_mcp_smoke",
             "path": "topic/docker.md",
             "content": "Docker provides containerization through Linux namespaces and cgroups.",
         },
@@ -64,9 +68,10 @@ def test_mcp_e2e_ollama_search_returns_relevant_doc(
     assert r1.status_code == 200, r1.text
 
     r2 = admin_client.post(
-        "/workspaces/ws_mcp_smoke/index",
+        "/index",
         headers=push_headers,
         json={
+            "workspace": "ws_mcp_smoke",
             "path": "topic/cooking.md",
             "content": "To make a perfect omelette, beat the eggs with cream and salt.",
         },

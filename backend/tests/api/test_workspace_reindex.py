@@ -30,9 +30,14 @@ def test_index_force_enqueues_reindex_job(
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_reidx")
     r = admin_client.post(
-        "/workspaces/ws_reidx/index",
+        "/index",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"path": "docs/foo.md", "content": "hello world", "force": True},
+        json={
+            "workspace": "ws_reidx",
+            "path": "docs/foo.md",
+            "content": "hello world",
+            "force": True,
+        },
     )
     assert r.status_code == 202, r.text
     body = r.json()
@@ -68,9 +73,9 @@ def test_index_without_force_is_plain_push(
     """Sans force (défaut) : c'est un push classique, dédup-gardé."""
     api_key = _make_ws(admin_client, admin_headers, "ws_idx_plain")
     r = admin_client.post(
-        "/workspaces/ws_idx_plain/index",
+        "/index",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"path": "a.md", "content": "hello"},
+        json={"workspace": "ws_idx_plain", "path": "a.md", "content": "hello"},
     )
     assert r.status_code == 202, r.text
     job_id = r.json()["job_id"]
@@ -97,9 +102,9 @@ def test_index_read_scope_key_returns_401(
 ) -> None:
     read_key = _make_ws(admin_client, admin_headers, "ws_reidx_ro", scope="read")
     r = admin_client.post(
-        "/workspaces/ws_reidx_ro/index",
+        "/index",
         headers={"Authorization": f"Bearer {read_key}"},
-        json={"path": "x.md", "content": "y", "force": True},
+        json={"workspace": "ws_reidx_ro", "path": "x.md", "content": "y", "force": True},
     )
     assert r.status_code == 401
     assert r.json()["detail"] == "invalid_workspace_apikey"
@@ -110,9 +115,9 @@ def test_index_requires_content(
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_reidx_nc")
     r = admin_client.post(
-        "/workspaces/ws_reidx_nc/index",
+        "/index",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"path": "x.md", "force": True},
+        json={"workspace": "ws_reidx_nc", "path": "x.md", "force": True},
     )
     assert r.status_code == 422
 
@@ -125,9 +130,10 @@ def test_index_stores_source_url(
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_reidx_url")
     r = admin_client.post(
-        "/workspaces/ws_reidx_url/index",
+        "/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={
+            "workspace": "ws_reidx_url",
             "path": "docs/foo.md",
             "content": "hello",
             "force": True,
@@ -155,8 +161,13 @@ def test_index_rejects_non_http_source_url(
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_reidx_badurl")
     r = admin_client.post(
-        "/workspaces/ws_reidx_badurl/index",
+        "/index",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"path": "x.md", "content": "y", "source_url": "ftp://nope"},
+        json={
+            "workspace": "ws_reidx_badurl",
+            "path": "x.md",
+            "content": "y",
+            "source_url": "ftp://nope",
+        },
     )
     assert r.status_code == 422

@@ -23,9 +23,9 @@ def test_push_returns_202_with_job_id(
     headers = {"Authorization": f"Bearer {api_key}"}
 
     r = admin_client.post(
-        "/workspaces/ws_async1/index",
+        "/index",
         headers=headers,
-        json={"path": "doc.md", "content": "hello world"},
+        json={"workspace": "ws_async1", "path": "doc.md", "content": "hello world"},
     )
     assert r.status_code == 202
     body = r.json()
@@ -44,9 +44,9 @@ def test_push_payload_stored_in_db(
     headers = {"Authorization": f"Bearer {api_key}"}
 
     r = admin_client.post(
-        "/workspaces/ws_async2/index",
+        "/index",
         headers=headers,
-        json={"path": "a.md", "content": "stored content"},
+        json={"workspace": "ws_async2", "path": "a.md", "content": "stored content"},
     )
     assert r.status_code == 202
     job_id = r.json()["job_id"]
@@ -76,14 +76,14 @@ def test_push_two_requests_create_two_jobs(
     headers = {"Authorization": f"Bearer {api_key}"}
 
     r1 = admin_client.post(
-        "/workspaces/ws_async3/index",
+        "/index",
         headers=headers,
-        json={"path": "doc.md", "content": "same content"},
+        json={"workspace": "ws_async3", "path": "doc.md", "content": "same content"},
     )
     r2 = admin_client.post(
-        "/workspaces/ws_async3/index",
+        "/index",
         headers=headers,
-        json={"path": "doc.md", "content": "same content"},
+        json={"workspace": "ws_async3", "path": "doc.md", "content": "same content"},
     )
     assert r1.status_code == 202
     assert r2.status_code == 202

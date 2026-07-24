@@ -21,7 +21,12 @@ def _validate_source_url(v: str | None) -> str | None:
     return v
 
 
+_WS_NAME_MAX = 128
+
+
 class PushRequest(BaseModel):
+    # Workspace cible en PARAMÈTRE d'appel (comme les outils MCP), plus dans l'URL.
+    workspace: str = Field(..., min_length=1, max_length=_WS_NAME_MAX)
     path: str = Field(..., min_length=1, max_length=_PATH_MAX_LEN)
     content: str = Field(..., min_length=1)
     title: str | None = Field(default=None, min_length=1, max_length=512)
@@ -46,6 +51,12 @@ class PushRequest(BaseModel):
     @classmethod
     def _source_url(cls, v: str | None) -> str | None:
         return _validate_source_url(v)
+
+
+class DeleteRequest(BaseModel):
+    # Suppression : workspace + path en paramètres d'appel (plus dans l'URL).
+    workspace: str = Field(..., min_length=1, max_length=_WS_NAME_MAX)
+    path: str = Field(..., min_length=1, max_length=_PATH_MAX_LEN)
 
 
 class PushAsyncResponse(BaseModel):

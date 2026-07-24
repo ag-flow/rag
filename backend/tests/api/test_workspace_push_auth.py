@@ -4,6 +4,9 @@ from fastapi.testclient import TestClient
 
 from tests.api._helpers import make_ws_with_user_key
 
+# Depuis le passage workspace-en-body : POST /index avec {workspace, path, content}
+# (plus de workspace dans l'URL).
+
 
 def _make_ws(
     client: TestClient,
@@ -20,12 +23,14 @@ def _make_ws(
 def test_push_returns_401_for_unknown_workspace(
     admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
 ) -> None:
+    key = _make_ws(admin_client, admin_headers, "ws_known")
     r = admin_client.post(
-        "/workspaces/ghost/index",
-        headers={"Authorization": "Bearer nonexistent_key_xyz"},
-        json={"path": "doc.md", "content": "x"},
+        "/index",
+        headers={"Authorization": f"Bearer {key}"},
+        json={"workspace": "ghost", "path": "doc.md", "content": "x"},
     )
     assert r.status_code == 401
+    # Clé valide mais workspace non visible.
     assert r.json()["detail"] == "invalid_workspace_apikey"
 
 
@@ -34,8 +39,8 @@ def test_push_returns_401_without_authorization(
 ) -> None:
     _make_ws(admin_client, admin_headers, "ws_noauth")
     r = admin_client.post(
-        "/workspaces/ws_noauth/index",
-        json={"path": "x.md", "content": "y"},
+        "/index",
+        json={"workspace": "ws_noauth", "path": "x.md", "content": "y"},
     )
     assert r.status_code == 401
     assert r.json()["detail"] == "missing_bearer_token"
@@ -46,9 +51,9 @@ def test_push_returns_401_wrong_scheme(
 ) -> None:
     _make_ws(admin_client, admin_headers, "ws_wrongscheme")
     r = admin_client.post(
-        "/workspaces/ws_wrongscheme/index",
+        "/index",
         headers={"Authorization": "Basic abc"},
-        json={"path": "x.md", "content": "y"},
+        json={"workspace": "ws_wrongscheme", "path": "x.md", "content": "y"},
     )
     assert r.status_code == 401
     assert r.json()["detail"] == "invalid_auth_scheme"
@@ -59,12 +64,13 @@ def test_push_returns_401_for_invalid_api_key(
 ) -> None:
     _make_ws(admin_client, admin_headers, "ws_bad_key")
     r = admin_client.post(
-        "/workspaces/ws_bad_key/index",
+        "/index",
         headers={"Authorization": "Bearer not-the-real-key"},
-        json={"path": "x.md", "content": "y"},
+        json={"workspace": "ws_bad_key", "path": "x.md", "content": "y"},
     )
     assert r.status_code == 401
-    assert r.json()["detail"] == "invalid_workspace_apikey"
+    # Clé inexistante : rejetée par la dépendance owner.
+    assert r.json()["detail"] == "invalid_apikey"
 
 
 def test_push_returns_202_with_valid_api_key(
@@ -72,9 +78,9 @@ def test_push_returns_202_with_valid_api_key(
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_ok")
     r = admin_client.post(
-        "/workspaces/ws_ok/index",
+        "/index",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"path": "docs/foo.md", "content": "hello world"},
+        json={"workspace": "ws_ok", "path": "docs/foo.md", "content": "hello world"},
     )
     assert r.status_code == 202, r.text
     body = r.json()
@@ -86,22 +92,12 @@ def test_push_returns_202_with_valid_api_key(
 def test_push_read_scope_key_returns_401(
     admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
 ) -> None:
-    """Une clé de niveau lecture seule ne peut pas pousser d'indexation.
-
-    Le modèle par workspace ayant disparu (migration 067 : accès global), le
-    refus d'écriture s'exprime désormais par le niveau `scope='read'`.
-    """
+    """Une clé de niveau lecture seule ne peut pas pousser d'indexation."""
     read_key = _make_ws(admin_client, admin_headers, "ws_readonly", scope="read")
     r = admin_client.post(
-        "/workspaces/ws_readonly/index",
+        "/index",
         headers={"Authorization": f"Bearer {read_key}"},
-        json={"path": "x.md", "content": "y"},
+        json={"workspace": "ws_readonly", "path": "x.md", "content": "y"},
     )
     assert r.status_code == 401
     assert r.json()["detail"] == "invalid_workspace_apikey"
-
-
-# test_rotate_apikey_invalidates_cache supprimé : la rotation d'api_key PAR
-# WORKSPACE (POST /api/admin/workspaces/{name}/rotate-apikey) n'existe plus
-# depuis le chantier clés utilisateur (444308a) — la rotation est couverte
-# côté clés user dans test_me_api_keys.py.

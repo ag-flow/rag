@@ -156,6 +156,60 @@ async def require_workspace_apikey_read(
     )
 
 
+# Résolution d'un workspace ciblé PAR SON SLUG (dans le corps/query), une fois
+# l'owner+scope de la clé connus. Remplace le couplage workspace-dans-l'URL :
+# le workspace est un paramètre d'appel, comme pour les outils MCP.
+_WRITE_WS_SQL = """
+    SELECT w.id, ic.provider || '/' || ic.model AS indexer_used
+    FROM workspaces w
+    JOIN indexer_configs ic ON ic.workspace_id = w.id
+    WHERE w.name = $1 AND (w.owner_id IS NULL OR w.owner_id = $2)
+"""
+
+_READ_WS_SQL = """
+    SELECT w.id, w.name, w.rag_cnx
+    FROM workspaces w
+    WHERE w.name = $1 AND (w.owner_id IS NULL OR w.owner_id = $2)
+"""
+
+
+async def resolve_apikey_write_workspace(
+    request: Request, *, owner_id: str, scope: str, workspace: str
+) -> AuthContext:
+    """Résout un workspace pour une ÉCRITURE par clé API (workspace en paramètre).
+
+    Exige un scope `read_write`/`admin` et un workspace visible (partagé ou
+    possédé). 401 uniforme sinon (indistinction clé/scope/workspace)."""
+    if scope not in ("read_write", "admin"):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid_workspace_apikey")
+    pool: asyncpg.Pool = request.app.state.pools.config_pool
+    row = await pool.fetchrow(_WRITE_WS_SQL, workspace, owner_id)
+    if row is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid_workspace_apikey")
+    return AuthContext(
+        workspace_id=row["id"], indexer_used=row["indexer_used"], owner_id=owner_id
+    )
+
+
+async def resolve_apikey_read_workspace(
+    request: Request, *, owner_id: str, scope: str, workspace: str
+) -> ReadAuthContext:
+    """Résout un workspace pour une LECTURE par clé API (workspace en query).
+
+    Scope `read`+ suffit. 401 uniforme si workspace non visible."""
+    pool: asyncpg.Pool = request.app.state.pools.config_pool
+    row = await pool.fetchrow(_READ_WS_SQL, workspace, owner_id)
+    if row is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid_workspace_apikey")
+    return ReadAuthContext(
+        workspace_id=row["id"],
+        workspace_name=row["name"],
+        rag_cnx=row["rag_cnx"],
+        owner_id=owner_id,
+        scope=scope,
+    )
+
+
 async def require_apikey_owner(request: Request) -> OwnerAuthContext:
     """Dep FastAPI : identifie l'owner + scope d'une clé API, SANS workspace.
 

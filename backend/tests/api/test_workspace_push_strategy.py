@@ -50,9 +50,14 @@ def test_push_resolves_caller_slug_to_bound_id(
     assert created.status_code == 201, created.text
 
     r = admin_client.post(
-        "/workspaces/pushstrat-a/index",
+        "/index",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"path": "doc.md", "content": "# Hello", "strategy": "docflow-push"},
+        json={
+            "workspace": "pushstrat-a",
+            "path": "doc.md",
+            "content": "# Hello",
+            "strategy": "docflow-push",
+        },
     )
     assert r.status_code == 202, r.text
     assert _payload_strategy_id(r.json()["job_id"]) == created.json()["id"]
@@ -63,9 +68,14 @@ def test_push_falls_back_to_system_strategy_slug(
 ) -> None:
     api_key = _setup_ws_and_key(admin_client, admin_headers, "pushstrat-sys")
     r = admin_client.post(
-        "/workspaces/pushstrat-sys/index",
+        "/index",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"path": "doc.md", "content": "# Hello", "strategy": "markdown-deep"},
+        json={
+            "workspace": "pushstrat-sys",
+            "path": "doc.md",
+            "content": "# Hello",
+            "strategy": "markdown-deep",
+        },
     )
     assert r.status_code == 202, r.text
     assert _payload_strategy_id(r.json()["job_id"]) is not None
@@ -76,9 +86,14 @@ def test_push_unknown_slug_is_422_no_silent_fallback(
 ) -> None:
     api_key = _setup_ws_and_key(admin_client, admin_headers, "pushstrat-bad")
     r = admin_client.post(
-        "/workspaces/pushstrat-bad/index",
+        "/index",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"path": "doc.md", "content": "# Hello", "strategy": "strategie-fantome"},
+        json={
+            "workspace": "pushstrat-bad",
+            "path": "doc.md",
+            "content": "# Hello",
+            "strategy": "strategie-fantome",
+        },
     )
     assert r.status_code == 422
     assert "strategie-fantome" in r.json()["detail"]
@@ -89,9 +104,9 @@ def test_push_without_strategy_binds_nothing(
 ) -> None:
     api_key = _setup_ws_and_key(admin_client, admin_headers, "pushstrat-none")
     r = admin_client.post(
-        "/workspaces/pushstrat-none/index",
+        "/index",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"path": "doc.md", "content": "# Hello"},
+        json={"workspace": "pushstrat-none", "path": "doc.md", "content": "# Hello"},
     )
     assert r.status_code == 202, r.text
     assert _payload_strategy_id(r.json()["job_id"]) is None

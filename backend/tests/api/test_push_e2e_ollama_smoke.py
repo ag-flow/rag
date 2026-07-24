@@ -37,8 +37,11 @@ def test_push_e2e_indexes_embeddings_in_pgvector(
             "label": "ws_smoke_ollama",
             "endpoint_id": seed_endpoint_sync(
                 os.environ["DATABASE_URL"],
-                slug="ep-ws_smoke_ollama", provider="ollama",
-                model="nomic-embed-text", api_key_ref=None, base_url=ollama_url,
+                slug="ep-ws_smoke_ollama",
+                provider="ollama",
+                model="nomic-embed-text",
+                api_key_ref=None,
+                base_url=ollama_url,
             ),
         },
     )
@@ -53,9 +56,10 @@ def test_push_e2e_indexes_embeddings_in_pgvector(
 
     # 2. Push un doc.
     r2 = admin_client.post(
-        "/workspaces/ws_smoke_ollama/index",
+        "/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={
+            "workspace": "ws_smoke_ollama",
             "path": "smoke/hello.md",
             "content": "Hello vector world. This is a smoke test for push.",
         },

@@ -7,9 +7,14 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 
-from rag.auth.workspace_auth import AuthContext, require_workspace_apikey
+from rag.auth.workspace_auth import (
+    OwnerAuthContext,
+    require_apikey_owner,
+    resolve_apikey_write_workspace,
+)
 from rag.schemas.workspace import (
     DeleteAsyncResponse,
+    DeleteRequest,
     PushAsyncResponse,
     PushRequest,
 )
@@ -75,22 +80,24 @@ def build_workspace_router() -> APIRouter:
     router = APIRouter(tags=["workspace"])
 
     @router.post(
-        "/workspaces/{name}/index",
+        "/index",
         status_code=202,
         tags=["apikey"],
         summary="Indexer un document",
-        description="Pousse un document (path + contenu dans le corps) pour "
-        "indexation (chunking + embeddings). Idempotent : contenu et indexeur "
+        description="Pousse un document (workspace + path + contenu dans le corps) "
+        "pour indexation (chunking + embeddings). Idempotent : contenu et indexeur "
         "inchangés → job 'skipped'. Passer `force=true` pour ré-évaluer un "
         "document déjà poussé même à contenu identique (nouvelle stratégie de "
         "chunking ou modèle d'embedding).",
     )
     async def push_index(
-        name: str,
         payload: PushRequest,
         request: Request,
-        auth: AuthContext = Depends(require_workspace_apikey),  # noqa: B008
+        owner: OwnerAuthContext = Depends(require_apikey_owner),  # noqa: B008
     ) -> Response:
+        auth = await resolve_apikey_write_workspace(
+            request, owner_id=owner.owner_id, scope=owner.scope, workspace=payload.workspace
+        )
         norm_path = normalize_path(payload.path)
         correlation_id = str(_uuid_mod.uuid4())
         pool: asyncpg.Pool = request.app.state.pools.config_pool
@@ -119,20 +126,22 @@ def build_workspace_router() -> APIRouter:
         )
 
     @router.delete(
-        "/workspaces/{name}/index/{path:path}",
+        "/index",
         status_code=202,
         tags=["apikey"],
         summary="Supprimer un document",
-        description="Supprime un document du workspace (chunks + embeddings + "
-        "marqueur d'indexation) à partir de son path.",
+        description="Supprime un document (workspace + path dans le corps) : "
+        "chunks + embeddings + marqueur d'indexation.",
     )
     async def delete_index(
-        name: str,
-        path: str,
+        payload: DeleteRequest,
         request: Request,
-        auth: AuthContext = Depends(require_workspace_apikey),  # noqa: B008
+        owner: OwnerAuthContext = Depends(require_apikey_owner),  # noqa: B008
     ) -> Response:
-        norm_path = normalize_path(path)
+        auth = await resolve_apikey_write_workspace(
+            request, owner_id=owner.owner_id, scope=owner.scope, workspace=payload.workspace
+        )
+        norm_path = normalize_path(payload.path)
         correlation_id = str(_uuid_mod.uuid4())
         pool: asyncpg.Pool = request.app.state.pools.config_pool
 
