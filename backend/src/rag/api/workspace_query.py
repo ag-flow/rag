@@ -5,7 +5,12 @@ from typing import Any
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
-from rag.auth.workspace_auth import ReadAuthContext, require_workspace_apikey_read
+from rag.auth.workspace_auth import (
+    OwnerAuthContext,
+    ReadAuthContext,
+    require_apikey_owner,
+    resolve_apikey_read_workspace,
+)
 from rag.db.enrichment_lookup import get_enrichment as get_enrichment_db
 from rag.db.mcp_tools import (
     get_document_status,
@@ -31,18 +36,29 @@ from rag.services.rerank_configs import get_rerank_config
 
 def build_workspace_query_router() -> APIRouter:
     """Endpoints de LECTURE par clé API (scope read+), équivalents REST des
-    outils MCP de consultation : document, recherche littérale, statut, enrichissement.
+    outils MCP de consultation.
 
-    Chaque endpoint réutilise le MÊME service que l'outil MCP correspondant —
-    aucune logique dupliquée.
+    Le workspace est un PARAMÈTRE d'appel (query `?workspace=`), plus dans l'URL —
+    cohérent avec les écritures (workspace dans le corps) et les outils MCP.
+    Chaque endpoint réutilise le MÊME service que l'outil MCP correspondant.
     """
     router = APIRouter(tags=["workspace"])
 
     def _pools(request: Request):
         return request.app.state.pools
 
+    async def _read_ctx(
+        request: Request,
+        workspace: str = Query(..., min_length=1, description="Slug du workspace cible"),
+        owner: OwnerAuthContext = Depends(require_apikey_owner),  # noqa: B008
+    ) -> ReadAuthContext:
+        """Résout le contexte de lecture : clé → owner+scope, puis workspace (query)."""
+        return await resolve_apikey_read_workspace(
+            request, owner_id=owner.owner_id, scope=owner.scope, workspace=workspace
+        )
+
     @router.get(
-        "/workspaces/{name}/files",
+        "/files",
         tags=["apikey"],
         response_model=FilesResponse,
         summary="Rechercher des fichiers (littéral)",
@@ -50,12 +66,11 @@ def build_workspace_query_router() -> APIRouter:
         "(modes exact / substring / regex). Équivalent REST de l'outil MCP search_files.",
     )
     async def files(
-        name: str,
         request: Request,
         pattern: str = Query(..., min_length=1),
         mode: str = Query("exact", pattern="^(exact|substring|regex)$"),
         top_k: int = Query(20, ge=1, le=200),
-        auth: ReadAuthContext = Depends(require_workspace_apikey_read),  # noqa: B008
+        auth: ReadAuthContext = Depends(_read_ctx),  # noqa: B008
     ) -> FilesResponse:
         ws_pool = await _pools(request).get_workspace_pool(auth.workspace_name, auth.rag_cnx)
         hits = await search_files_in_workspace(ws_pool, pattern=pattern, mode=mode, top_k=top_k)
@@ -67,17 +82,16 @@ def build_workspace_query_router() -> APIRouter:
         )
 
     @router.get(
-        "/workspaces/{name}/index-status",
+        "/index-status",
         tags=["apikey"],
         summary="État de l'index",
         description="État global de l'index du workspace, ou d'un document précis si "
         "`path` est fourni. Équivalent REST de l'outil MCP index_status.",
     )
     async def index_status(
-        name: str,
         request: Request,
         path: str | None = Query(None),
-        auth: ReadAuthContext = Depends(require_workspace_apikey_read),  # noqa: B008
+        auth: ReadAuthContext = Depends(_read_ctx),  # noqa: B008
     ) -> dict[str, Any]:
         config_pool: asyncpg.Pool = _pools(request).config_pool
         if path:
@@ -91,7 +105,7 @@ def build_workspace_query_router() -> APIRouter:
         return {"workspace": auth.workspace_name, **data}
 
     @router.get(
-        "/workspaces/{name}/documents/{path:path}",
+        "/documents",
         tags=["apikey"],
         response_model=DocumentResponse,
         summary="Lire un document",
@@ -99,10 +113,9 @@ def build_workspace_query_router() -> APIRouter:
         "Refusé si le workspace interdit la lecture complète. Équivalent REST de get_document.",
     )
     async def document(
-        name: str,
-        path: str,
         request: Request,
-        auth: ReadAuthContext = Depends(require_workspace_apikey_read),  # noqa: B008
+        path: str = Query(..., min_length=1),
+        auth: ReadAuthContext = Depends(_read_ctx),  # noqa: B008
     ) -> DocumentResponse:
         config_pool: asyncpg.Pool = _pools(request).config_pool
         allow = await config_pool.fetchval(
@@ -126,7 +139,7 @@ def build_workspace_query_router() -> APIRouter:
         return DocumentResponse(path=norm_path, source_url=source_url, **result)
 
     @router.get(
-        "/workspaces/{name}/enrichments/{path:path}",
+        "/enrichments",
         tags=["apikey"],
         response_model=EnrichmentResponse,
         summary="Lire un enrichissement",
@@ -134,11 +147,10 @@ def build_workspace_query_router() -> APIRouter:
         "Équivalent REST de l'outil MCP get_enrichment.",
     )
     async def enrichment(
-        name: str,
-        path: str,
         request: Request,
+        path: str = Query(..., min_length=1),
         key: str = Query(..., min_length=1),
-        auth: ReadAuthContext = Depends(require_workspace_apikey_read),  # noqa: B008
+        auth: ReadAuthContext = Depends(_read_ctx),  # noqa: B008
     ) -> EnrichmentResponse:
         config_pool: asyncpg.Pool = _pools(request).config_pool
         norm_path = normalize_path(path)
@@ -152,7 +164,7 @@ def build_workspace_query_router() -> APIRouter:
     # ── Jobs d'indexation (équivalent apikey des endpoints admin) ────────────
 
     @router.get(
-        "/workspaces/{name}/jobs",
+        "/jobs",
         tags=["apikey"],
         response_model=list[JobResponse],
         summary="Lister les jobs d'indexation",
@@ -160,15 +172,14 @@ def build_workspace_query_router() -> APIRouter:
         "sync), plus récents en premier.",
     )
     async def jobs(
-        name: str,
         request: Request,
-        auth: ReadAuthContext = Depends(require_workspace_apikey_read),  # noqa: B008
+        auth: ReadAuthContext = Depends(_read_ctx),  # noqa: B008
     ) -> list[JobResponse]:
         rows = await list_jobs(_pools(request).config_pool, workspace_name=auth.workspace_name)
         return [JobResponse(**r) for r in rows]
 
     @router.get(
-        "/workspaces/{name}/jobs/{job_id}",
+        "/jobs/{job_id}",
         tags=["apikey"],
         response_model=JobResponse,
         summary="Statut d'un job",
@@ -176,10 +187,9 @@ def build_workspace_query_router() -> APIRouter:
         "erreur, durée). Indispensable pour suivre un push/reindex renvoyé en 202.",
     )
     async def job_status(
-        name: str,
         job_id: str,
         request: Request,
-        auth: ReadAuthContext = Depends(require_workspace_apikey_read),  # noqa: B008
+        auth: ReadAuthContext = Depends(_read_ctx),  # noqa: B008
     ) -> JobResponse:
         try:
             row = await get_job(
@@ -190,17 +200,16 @@ def build_workspace_query_router() -> APIRouter:
         return JobResponse(**row)
 
     @router.get(
-        "/workspaces/{name}/jobs/{job_id}/files",
+        "/jobs/{job_id}/files",
         tags=["apikey"],
         response_model=JobFilesResponse,
         summary="Fichiers d'un job",
         description="Liste des fichiers traités par un job (added/modified/deleted).",
     )
     async def job_files(
-        name: str,
         job_id: str,
         request: Request,
-        auth: ReadAuthContext = Depends(require_workspace_apikey_read),  # noqa: B008
+        auth: ReadAuthContext = Depends(_read_ctx),  # noqa: B008
     ) -> JobFilesResponse:
         try:
             data = await list_job_files(
@@ -213,7 +222,7 @@ def build_workspace_query_router() -> APIRouter:
     # ── Config de chunking (lecture) ─────────────────────────────────────────
 
     @router.get(
-        "/workspaces/{name}/chunking-config",
+        "/chunking-config",
         tags=["apikey"],
         response_model=ChunkingConfigResponse,
         summary="Lire la config de chunking",
@@ -221,9 +230,8 @@ def build_workspace_query_router() -> APIRouter:
         "engine, stratégie par défaut).",
     )
     async def chunking_config(
-        name: str,
         request: Request,
-        auth: ReadAuthContext = Depends(require_workspace_apikey_read),  # noqa: B008
+        auth: ReadAuthContext = Depends(_read_ctx),  # noqa: B008
     ) -> ChunkingConfigResponse:
         try:
             cfg = await get_chunking_config(auth.workspace_id, _pools(request).config_pool)
@@ -245,7 +253,7 @@ def build_workspace_query_router() -> APIRouter:
     # ── Config de recherche : rerank + hybride (lecture) ─────────────────────
 
     @router.get(
-        "/workspaces/{name}/rerank",
+        "/rerank",
         tags=["apikey"],
         response_model=RerankConfigView,
         summary="Lire la config de reranking",
@@ -253,9 +261,8 @@ def build_workspace_query_router() -> APIRouter:
         "top_k avant rerank). 404 si non configuré. La réf de clé n'est pas exposée.",
     )
     async def rerank_config(
-        name: str,
         request: Request,
-        auth: ReadAuthContext = Depends(require_workspace_apikey_read),  # noqa: B008
+        auth: ReadAuthContext = Depends(_read_ctx),  # noqa: B008
     ) -> RerankConfigView:
         cfg = await get_rerank_config(auth.workspace_id, _pools(request).config_pool)
         if cfg is None:
@@ -268,7 +275,7 @@ def build_workspace_query_router() -> APIRouter:
         )
 
     @router.get(
-        "/workspaces/{name}/hybrid-config",
+        "/hybrid-config",
         tags=["apikey"],
         response_model=HybridConfigView,
         summary="Lire la config de recherche hybride",
@@ -276,9 +283,8 @@ def build_workspace_query_router() -> APIRouter:
         "RRF k, poids, moteur lexical). 404 si vectoriel pur.",
     )
     async def hybrid_config(
-        name: str,
         request: Request,
-        auth: ReadAuthContext = Depends(require_workspace_apikey_read),  # noqa: B008
+        auth: ReadAuthContext = Depends(_read_ctx),  # noqa: B008
     ) -> HybridConfigView:
         cfg = await get_hybrid_config(auth.workspace_id, _pools(request).config_pool)
         if cfg is None:
