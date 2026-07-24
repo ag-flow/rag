@@ -42,7 +42,7 @@ export function RotateUserApiKeyDialog({ apiKey, onOpenChange }: Props) {
 
   return (
     <Dialog open={apiKey !== null} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>{t("rotate_dialog_title")}</DialogTitle>
           <DialogDescription>{t("rotate_confirm")}</DialogDescription>
