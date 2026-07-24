@@ -323,8 +323,11 @@ def build_app(
     app.include_router(build_auth_methods_router())
     app.include_router(build_me_api_keys_router())
     app.include_router(build_setup_router())
-    app.include_router(build_workspace_router())
-    app.include_router(build_workspace_query_router())
+    # Préfixe /api/v1 : ces endpoints Bearer doivent être sous un chemin routé par
+    # le reverse-proxy vers le backend (comme /api/v1/search). À la racine, Caddy
+    # ne les proxifie pas et sert une réponse par défaut.
+    app.include_router(build_workspace_router(), prefix="/api/v1")
+    app.include_router(build_workspace_query_router(), prefix="/api/v1")
     app.include_router(build_library_apikey_router())
     app.include_router(build_mcp_router())
     app.mount("/mcp", _mcp_dispatcher)

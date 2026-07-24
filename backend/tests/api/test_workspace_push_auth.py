@@ -25,7 +25,7 @@ def test_push_returns_401_for_unknown_workspace(
 ) -> None:
     key = _make_ws(admin_client, admin_headers, "ws_known")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {key}"},
         json={"workspace": "ghost", "path": "doc.md", "content": "x"},
     )
@@ -39,7 +39,7 @@ def test_push_returns_401_without_authorization(
 ) -> None:
     _make_ws(admin_client, admin_headers, "ws_noauth")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         json={"workspace": "ws_noauth", "path": "x.md", "content": "y"},
     )
     assert r.status_code == 401
@@ -51,7 +51,7 @@ def test_push_returns_401_wrong_scheme(
 ) -> None:
     _make_ws(admin_client, admin_headers, "ws_wrongscheme")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": "Basic abc"},
         json={"workspace": "ws_wrongscheme", "path": "x.md", "content": "y"},
     )
@@ -64,7 +64,7 @@ def test_push_returns_401_for_invalid_api_key(
 ) -> None:
     _make_ws(admin_client, admin_headers, "ws_bad_key")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": "Bearer not-the-real-key"},
         json={"workspace": "ws_bad_key", "path": "x.md", "content": "y"},
     )
@@ -78,7 +78,7 @@ def test_push_returns_202_with_valid_api_key(
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_ok")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={"workspace": "ws_ok", "path": "docs/foo.md", "content": "hello world"},
     )
@@ -95,7 +95,7 @@ def test_push_read_scope_key_returns_401(
     """Une clé de niveau lecture seule ne peut pas pousser d'indexation."""
     read_key = _make_ws(admin_client, admin_headers, "ws_readonly", scope="read")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {read_key}"},
         json={"workspace": "ws_readonly", "path": "x.md", "content": "y"},
     )

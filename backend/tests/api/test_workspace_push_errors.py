@@ -31,7 +31,7 @@ def test_push_returns_422_for_path_traversal(
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_e_a")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={"workspace": "ws_e_a", "path": "foo/../bar", "content": "y"},
     )
@@ -48,7 +48,7 @@ def test_push_returns_422_for_absolute_path(
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_e_b")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={"workspace": "ws_e_b", "path": "/etc/passwd", "content": "y"},
     )
@@ -63,7 +63,7 @@ def test_push_returns_422_for_missing_body_field(
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_e_c")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={"workspace": "ws_e_c", "path": "x.md"},  # content manquant
     )
@@ -80,7 +80,7 @@ def test_push_returns_413_for_content_above_5mb(
     # custom remap en 413 avec payload ContentTooLarge.
     big = "a" * (5 * 1024 * 1024 + 1)
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={"workspace": "ws_e_d", "path": "big.md", "content": big},
     )
@@ -99,7 +99,7 @@ def test_push_returns_422_for_other_validation_errors_unchanged(
     les autres erreurs de validation (champ manquant, mauvais type, etc.)."""
     api_key = _make_ws(admin_client, admin_headers, "ws_e_e")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={"workspace": "ws_e_e", "path": 123, "content": "x"},  # path: int au lieu de str
     )

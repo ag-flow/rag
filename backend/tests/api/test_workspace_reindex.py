@@ -30,7 +30,7 @@ def test_index_force_enqueues_reindex_job(
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_reidx")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={
             "workspace": "ws_reidx",
@@ -73,7 +73,7 @@ def test_index_without_force_is_plain_push(
     """Sans force (défaut) : c'est un push classique, dédup-gardé."""
     api_key = _make_ws(admin_client, admin_headers, "ws_idx_plain")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={"workspace": "ws_idx_plain", "path": "a.md", "content": "hello"},
     )
@@ -102,7 +102,7 @@ def test_index_read_scope_key_returns_401(
 ) -> None:
     read_key = _make_ws(admin_client, admin_headers, "ws_reidx_ro", scope="read")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {read_key}"},
         json={"workspace": "ws_reidx_ro", "path": "x.md", "content": "y", "force": True},
     )
@@ -115,7 +115,7 @@ def test_index_requires_content(
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_reidx_nc")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={"workspace": "ws_reidx_nc", "path": "x.md", "force": True},
     )
@@ -130,7 +130,7 @@ def test_index_stores_source_url(
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_reidx_url")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={
             "workspace": "ws_reidx_url",
@@ -161,7 +161,7 @@ def test_index_rejects_non_http_source_url(
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_reidx_badurl")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={
             "workspace": "ws_reidx_badurl",

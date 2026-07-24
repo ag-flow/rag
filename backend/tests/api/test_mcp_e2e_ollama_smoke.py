@@ -57,7 +57,7 @@ def test_mcp_e2e_ollama_search_returns_relevant_doc(
 
     # 2. Push 2 documents distincts.
     r1 = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers=push_headers,
         json={
             "workspace": "ws_mcp_smoke",
@@ -68,7 +68,7 @@ def test_mcp_e2e_ollama_search_returns_relevant_doc(
     assert r1.status_code == 200, r1.text
 
     r2 = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers=push_headers,
         json={
             "workspace": "ws_mcp_smoke",

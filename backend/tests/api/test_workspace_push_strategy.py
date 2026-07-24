@@ -50,7 +50,7 @@ def test_push_resolves_caller_slug_to_bound_id(
     assert created.status_code == 201, created.text
 
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={
             "workspace": "pushstrat-a",
@@ -68,7 +68,7 @@ def test_push_falls_back_to_system_strategy_slug(
 ) -> None:
     api_key = _setup_ws_and_key(admin_client, admin_headers, "pushstrat-sys")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={
             "workspace": "pushstrat-sys",
@@ -86,7 +86,7 @@ def test_push_unknown_slug_is_422_no_silent_fallback(
 ) -> None:
     api_key = _setup_ws_and_key(admin_client, admin_headers, "pushstrat-bad")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={
             "workspace": "pushstrat-bad",
@@ -104,7 +104,7 @@ def test_push_without_strategy_binds_nothing(
 ) -> None:
     api_key = _setup_ws_and_key(admin_client, admin_headers, "pushstrat-none")
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={"workspace": "pushstrat-none", "path": "doc.md", "content": "# Hello"},
     )

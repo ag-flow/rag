@@ -23,7 +23,7 @@ def test_push_returns_202_with_job_id(
     headers = {"Authorization": f"Bearer {api_key}"}
 
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers=headers,
         json={"workspace": "ws_async1", "path": "doc.md", "content": "hello world"},
     )
@@ -44,7 +44,7 @@ def test_push_payload_stored_in_db(
     headers = {"Authorization": f"Bearer {api_key}"}
 
     r = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers=headers,
         json={"workspace": "ws_async2", "path": "a.md", "content": "stored content"},
     )
@@ -76,12 +76,12 @@ def test_push_two_requests_create_two_jobs(
     headers = {"Authorization": f"Bearer {api_key}"}
 
     r1 = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers=headers,
         json={"workspace": "ws_async3", "path": "doc.md", "content": "same content"},
     )
     r2 = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers=headers,
         json={"workspace": "ws_async3", "path": "doc.md", "content": "same content"},
     )

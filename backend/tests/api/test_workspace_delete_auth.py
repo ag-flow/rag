@@ -23,7 +23,7 @@ def _make_ws(
 def _delete(client: TestClient, *, key: str | None, workspace: str, path: str):
     headers = {"Authorization": f"Bearer {key}"} if key else {}
     return client.request(
-        "DELETE", "/index", headers=headers, json={"workspace": workspace, "path": path}
+        "DELETE", "/api/v1/index", headers=headers, json={"workspace": workspace, "path": path}
     )
 
 

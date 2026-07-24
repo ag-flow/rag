@@ -56,7 +56,7 @@ def test_push_e2e_indexes_embeddings_in_pgvector(
 
     # 2. Push un doc.
     r2 = admin_client.post(
-        "/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={
             "workspace": "ws_smoke_ollama",
