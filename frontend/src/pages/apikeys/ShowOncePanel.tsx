@@ -24,7 +24,7 @@ export function ShowOncePanel({ apiKey }: Props) {
       <p className="text-sm font-medium text-amber-900">{t("created_key_title")}</p>
       <p className="mt-1 text-xs text-amber-800">{t("created_key_warning")}</p>
       <div className="mt-2 flex items-center gap-2">
-        <Input value={apiKey} readOnly className="flex-1 bg-white font-mono text-xs" />
+        <Input value={apiKey} readOnly className="w-full min-w-0 flex-1 bg-white font-mono text-xs" />
         <Button type="button" variant="outline" onClick={() => void copy()}>
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
           <span className="ml-1">{t("copy_btn")}</span>

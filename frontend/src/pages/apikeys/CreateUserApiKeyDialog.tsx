@@ -59,7 +59,7 @@ export function CreateUserApiKeyDialog({ open, onOpenChange }: Props) {
         </DialogHeader>
 
         {createdKey === null ? (
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <div>
               <Label className="text-xs uppercase tracking-wider text-slate-600">
                 {t("field_name")}
@@ -93,7 +93,7 @@ export function CreateUserApiKeyDialog({ open, onOpenChange }: Props) {
             </DialogFooter>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <ShowOncePanel apiKey={createdKey} />
             <McpClientPanel apiKey={createdKey} />
             <DialogFooter>
