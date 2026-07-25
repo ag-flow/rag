@@ -73,11 +73,12 @@ class TestGetAllJobs:
 
         assert resp.status_code == 200
         assert resp.json() == []
-        # args = (query, workspace, status, limit)
-        _query, workspace, status, limit = fetch.await_args.args
+        # args = (query, workspace, status, limit, source)
+        _query, workspace, status, limit, source = fetch.await_args.args
         assert workspace is None
         assert status is None
         assert limit == 50
+        assert source is None
 
     def test_filtres_workspace_et_status_transmis(self) -> None:
         client, fetch = _client([_row("ws-a", status="error")])
@@ -85,10 +86,37 @@ class TestGetAllJobs:
         resp = client.get("/api/admin/jobs?workspace=ws-a&status=error&limit=10")
 
         assert resp.status_code == 200
-        _query, workspace, status, limit = fetch.await_args.args
+        _query, workspace, status, limit, source = fetch.await_args.args
         assert workspace == "ws-a"
         assert status == "error"
         assert limit == 10
+        assert source is None
+
+    def test_filtre_source_transmis(self) -> None:
+        client, fetch = _client([])
+
+        resp = client.get("/api/admin/jobs?source=rest_api")
+
+        assert resp.status_code == 200
+        _query, _workspace, _status, _limit, source = fetch.await_args.args
+        assert source == "rest_api"
+
+    def test_source_invalide_rejetee(self) -> None:
+        client, fetch = _client([])
+
+        resp = client.get("/api/admin/jobs?source=bogus")
+
+        assert resp.status_code == 422
+        fetch.assert_not_awaited()
+
+    def test_expose_source_et_path(self) -> None:
+        client, _ = _client([_row("ws-a")])
+
+        data = client.get("/api/admin/jobs").json()
+
+        # source dérivée (manual + source_id NULL → admin), path remonté (None ici).
+        assert data[0]["source"] == "admin"
+        assert data[0]["path"] is None
 
     def test_limit_superieur_a_200_rejete(self) -> None:
         client, fetch = _client([])

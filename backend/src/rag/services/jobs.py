@@ -110,7 +110,7 @@ async def list_jobs(config_pool: asyncpg.Pool, *, workspace_name: str) -> list[d
     rows = await fetch_all(
         config_pool,
         """
-        SELECT id, triggered_by, status, files_changed, files_skipped,
+        SELECT id, triggered_by, source_id, path, status, files_changed, files_skipped,
                error_message, started_at, finished_at, duration_ms
         FROM index_jobs
         WHERE workspace_id = $1
@@ -127,28 +127,40 @@ async def list_jobs_global(
     limit: int = 50,
     workspace: str | None = None,
     status: str | None = None,
+    source: str | None = None,
 ) -> list[dict[str, Any]]:
     """Liste globale cross-workspace des jobs, plus récents en premier (created_at DESC).
 
     Jointure sur `workspaces` pour exposer `workspace_name`. Filtres optionnels
-    par nom de workspace et par status ; `limit` borné par le caller (API).
+    par nom de workspace, par status et par `source` (rest_api / webhook / git /
+    admin — dérivée de triggered_by + source_id) ; `limit` borné par le caller.
     """
     rows = await fetch_all(
         config_pool,
         """
-        SELECT j.id, j.triggered_by, j.status, j.files_changed, j.files_skipped,
-               j.error_message, j.started_at, j.finished_at, j.duration_ms,
+        SELECT j.id, j.triggered_by, j.source_id, j.path, j.status,
+               j.files_changed, j.files_skipped, j.error_message,
+               j.started_at, j.finished_at, j.duration_ms,
                w.name AS workspace_name
         FROM index_jobs j
         JOIN workspaces w ON w.id = j.workspace_id
         WHERE ($1::text IS NULL OR w.name = $1)
           AND ($2::text IS NULL OR j.status = $2)
+          AND ($4::text IS NULL OR (
+              ($4 = 'rest_api' AND j.triggered_by IN ('push', 'reindex_document', 'delete'))
+              OR ($4 = 'webhook' AND j.triggered_by = 'webhook')
+              OR ($4 = 'git' AND j.source_id IS NOT NULL AND j.triggered_by <> 'webhook')
+              OR ($4 = 'admin' AND j.source_id IS NULL
+                  AND j.triggered_by IN ('manual', 'reindex_indexer_change',
+                                         'reindex_chunking_change', 'rebuild_lexical_index'))
+          ))
         ORDER BY j.created_at DESC, j.id DESC
         LIMIT $3
         """,
         workspace,
         status,
         limit,
+        source,
     )
     return [{**_job_to_dict(r), "workspace_name": r["workspace_name"]} for r in rows]
 
@@ -160,8 +172,9 @@ async def get_job(
     row = await fetch_one(
         config_pool,
         """
-        SELECT j.id, j.triggered_by, j.status, j.files_changed, j.files_skipped,
-               j.error_message, j.started_at, j.finished_at, j.duration_ms
+        SELECT j.id, j.triggered_by, j.source_id, j.path, j.status,
+               j.files_changed, j.files_skipped, j.error_message,
+               j.started_at, j.finished_at, j.duration_ms
         FROM index_jobs j
         JOIN workspaces w ON w.id = j.workspace_id
         WHERE j.id = $1::uuid AND w.name = $2
@@ -217,10 +230,36 @@ async def list_job_files(
     }
 
 
+# Déclencheurs de reconfig admin (source_id NULL, non liés à une source git/API).
+_ADMIN_TRIGGERS = frozenset(
+    {"manual", "reindex_indexer_change", "reindex_chunking_change", "rebuild_lexical_index"}
+)
+_REST_TRIGGERS = frozenset({"push", "reindex_document", "delete"})
+
+
+def _job_source(triggered_by: str, source_id: Any) -> str:
+    """Origine du job, dérivée du déclencheur + de la présence d'une source git.
+
+    - rest_api : indexation par clé API (push / ré-évaluation / suppression) ;
+    - webhook  : notification git entrante ;
+    - git      : synchronisation d'une source git (planifiée ou manuelle) ;
+    - admin    : reconfiguration déclenchée depuis l'IHM (changement d'indexeur…).
+    """
+    if triggered_by in _REST_TRIGGERS:
+        return "rest_api"
+    if triggered_by == "webhook":
+        return "webhook"
+    if source_id is not None:
+        return "git"
+    return "admin"
+
+
 def _job_to_dict(row: asyncpg.Record) -> dict[str, Any]:
     return {
         "id": str(row["id"]),
         "triggered_by": row["triggered_by"],
+        "source": _job_source(row["triggered_by"], row.get("source_id")),
+        "path": row.get("path"),
         "status": row["status"],
         "files_changed": int(row["files_changed"] or 0),
         "files_skipped": int(row["files_skipped"] or 0),

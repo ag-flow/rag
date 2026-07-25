@@ -394,6 +394,9 @@ def build_admin_router() -> APIRouter:
         limit: int = Query(default=50, ge=1, le=200),
         workspace: str | None = Query(default=None),
         status_filter: str | None = Query(default=None, alias="status"),
+        source: str | None = Query(
+            default=None, pattern="^(rest_api|webhook|git|admin)$"
+        ),
     ) -> list[GlobalJobResponse]:
         from rag.services.jobs import list_jobs_global
 
@@ -402,6 +405,7 @@ def build_admin_router() -> APIRouter:
             limit=limit,
             workspace=workspace,
             status=status_filter,
+            source=source,
         )
         return [GlobalJobResponse(**r) for r in rows]
 

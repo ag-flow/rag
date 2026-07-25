@@ -223,6 +223,10 @@ class WebhookEnableResponse(BaseModel):
 class JobResponse(BaseModel):
     id: UUID
     triggered_by: str
+    # Origine du job : rest_api | webhook | git | admin (dérivée côté service).
+    source: str
+    # Document concerné pour les jobs mono-doc (push/reindex/delete) ; None sinon.
+    path: str | None = None
     status: str
     files_changed: int
     files_skipped: int

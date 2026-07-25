@@ -53,13 +53,14 @@ async def _enqueue_push(
     async with pool.acquire() as conn, conn.transaction():
         job_id = await conn.fetchval(
             """
-            INSERT INTO index_jobs (workspace_id, triggered_by, status, correlation_id)
-            VALUES ($1, $2, 'pending', $3)
+            INSERT INTO index_jobs (workspace_id, triggered_by, status, correlation_id, path)
+            VALUES ($1, $2, 'pending', $3, $4)
             RETURNING id
             """,
             workspace_id,
             triggered_by,
             correlation_id,
+            path,
         )
         await conn.execute(
             "INSERT INTO push_job_payloads "
@@ -148,12 +149,13 @@ def build_workspace_router() -> APIRouter:
         async with pool.acquire() as conn, conn.transaction():
             job_id = await conn.fetchval(
                 """
-                INSERT INTO index_jobs (workspace_id, triggered_by, status, correlation_id)
-                VALUES ($1, 'delete', 'pending', $2)
+                INSERT INTO index_jobs (workspace_id, triggered_by, status, correlation_id, path)
+                VALUES ($1, 'delete', 'pending', $2, $3)
                 RETURNING id
                 """,
                 auth.workspace_id,
                 correlation_id,
+                norm_path,
             )
             await conn.execute(
                 "INSERT INTO delete_job_payloads (job_id, path) VALUES ($1, $2)",

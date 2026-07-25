@@ -13,7 +13,14 @@ from rag.api.errors import JobNotFound, WorkspaceNotFound
 from rag.db.migrations import run_migrations
 from rag.schemas.admin import IndexerCreateSpec, WorkspaceCreateResolved
 from rag.schemas.harpocrate_vaults import VaultSummary
-from rag.services.jobs import create_pending_job, get_job, list_job_files, list_jobs
+from rag.services.jobs import (
+    _job_source,
+    create_pending_job,
+    get_job,
+    list_job_files,
+    list_jobs,
+    list_jobs_global,
+)
 from rag.services.workspaces import create_workspace
 from tests.integration._workspace_seed import seed_workspace
 
@@ -175,6 +182,72 @@ async def test_list_job_files_unknown_job_raises(session_pool: asyncpg.Pool) -> 
 
     with pytest.raises(JobNotFound):
         await list_job_files(config_pool=session_pool, workspace_name="ws_jf2", job_id=str(uuid4()))
+
+
+def test_job_source_mapping() -> None:
+    from uuid import uuid4
+
+    sid = uuid4()
+    assert _job_source("push", None) == "rest_api"
+    assert _job_source("reindex_document", None) == "rest_api"
+    assert _job_source("delete", None) == "rest_api"
+    assert _job_source("webhook", sid) == "webhook"
+    assert _job_source("schedule", sid) == "git"
+    assert _job_source("manual", sid) == "git"
+    assert _job_source("manual", None) == "admin"
+    assert _job_source("reindex_indexer_change", None) == "admin"
+    assert _job_source("rebuild_lexical_index", None) == "admin"
+
+
+@pytest.mark.asyncio
+async def test_get_job_exposes_source_and_path(session_pool: asyncpg.Pool) -> None:
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    async with session_pool.acquire() as conn:
+        ws_id = await seed_workspace(conn, name="ws_srcpath")
+        job_id = await conn.fetchval(
+            "INSERT INTO index_jobs (workspace_id, triggered_by, status, path) "
+            "VALUES ($1, 'push', 'done', 'docs/a.md') RETURNING id",
+            ws_id,
+        )
+
+    job = await get_job(session_pool, workspace_name="ws_srcpath", job_id=str(job_id))
+    assert job["source"] == "rest_api"
+    assert job["path"] == "docs/a.md"
+
+
+@pytest.mark.asyncio
+async def test_list_jobs_global_source_filter(session_pool: asyncpg.Pool) -> None:
+    await run_migrations(session_pool, MIGRATIONS_DIR)
+    async with session_pool.acquire() as conn:
+        ws_id = await seed_workspace(conn, name="ws_srcfilter")
+        src_id = await conn.fetchval(
+            "INSERT INTO workspace_sources (workspace_id, type, config) "
+            "VALUES ($1, 'git', '{}') RETURNING id",
+            ws_id,
+        )
+        await conn.execute(
+            "INSERT INTO index_jobs (workspace_id, triggered_by, status, path) "
+            "VALUES ($1, 'push', 'done', 'a.md')",
+            ws_id,
+        )
+        await conn.execute(
+            "INSERT INTO index_jobs (workspace_id, source_id, triggered_by, status) "
+            "VALUES ($1, $2, 'webhook', 'done')",
+            ws_id,
+            src_id,
+        )
+
+    rest = await list_jobs_global(session_pool, workspace="ws_srcfilter", source="rest_api")
+    assert len(rest) == 1
+    assert rest[0]["source"] == "rest_api"
+    assert rest[0]["path"] == "a.md"
+
+    hooks = await list_jobs_global(session_pool, workspace="ws_srcfilter", source="webhook")
+    assert len(hooks) == 1
+    assert hooks[0]["source"] == "webhook"
+
+    everything = await list_jobs_global(session_pool, workspace="ws_srcfilter")
+    assert len(everything) == 2
 
 
 @pytest.mark.asyncio
