@@ -13,6 +13,7 @@ import {
   KeyRound,
   Workflow,
   FileJson,
+  UserRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useVaultExpiries } from "@/hooks/useHarpocrateVaults";
@@ -120,6 +121,7 @@ export function Sidebar() {
           label={t("items.harpocrate_vaults")}
           badge={vaultBadge}
         />
+        <NavItem to="/settings/profile" icon={<UserRound />} label={t("items.profile")} />
         <NavItem to="/settings/api-keys" icon={<KeyRound />} label={t("items.api_keys")} />
         <NavItem to="/settings/oidc-config" icon={<KeyRound />} label={t("items.oidc_config")} />
 

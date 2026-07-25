@@ -1,0 +1,20 @@
+{
+  "page_title": "Mon profil",
+  "page_subtitle": "Identité utilisée pour rattacher vos objets (workspaces, stratégies, clés) et attribuer les appels MCP faits en votre nom.",
+  "username_label": "Nom d'utilisateur",
+  "email_label": "Email",
+  "email_help": "Pivot d'identité : rapproche votre compte à la connexion OIDC (claim email du fournisseur d'identité).",
+  "email_change_warning": "Changer d'email change la clé de possession de vos objets — vos workspaces et stratégies existants devront être repris.",
+  "identity_label": "GUID d'identité (OBO)",
+  "identity_help": "Posez ici le MÊME GUID que dans votre profil du portail : les appels MCP passés par le portail vous seront attribués (contrat OBO).",
+  "identity_placeholder": "ex. 0f8fad5b-d9cb-469f-a165-70867728950e",
+  "identity_note": "Vide = les appels via le portail restent attribués à la clé API, pas à vous.",
+  "generate": "Générer",
+  "save": "Enregistrer",
+  "saved": "Profil enregistré.",
+  "load_error": "Impossible de charger le profil.",
+  "error_identity_taken": "Ce GUID est déjà utilisé par un autre utilisateur.",
+  "error_email_taken": "Cet email est déjà utilisé par un autre utilisateur.",
+  "error_invalid_identity": "Format de GUID invalide.",
+  "error_generic": "Échec de l'enregistrement."
+}

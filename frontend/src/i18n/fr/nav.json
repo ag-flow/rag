@@ -18,7 +18,8 @@
     "prompts": "Prompts",
     "chunking_strategies": "Stratégies de chunking",
     "events_producer": "Events workflow",
-    "integration_contracts": "Contrats"
+    "integration_contracts": "Contrats",
+    "profile": "Mon profil"
   },
   "alerts": {
     "vault_key_expiry": "Une clé de coffre expire bientôt ou est expirée"

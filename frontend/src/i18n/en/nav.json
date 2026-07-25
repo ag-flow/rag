@@ -18,7 +18,8 @@
     "prompts": "Prompts",
     "chunking_strategies": "Chunking strategies",
     "events_producer": "Workflow events",
-    "integration_contracts": "Contracts"
+    "integration_contracts": "Contracts",
+    "profile": "My profile"
   },
   "alerts": {
     "vault_key_expiry": "A vault key is expiring soon or has expired"
