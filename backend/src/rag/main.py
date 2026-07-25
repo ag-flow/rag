@@ -36,6 +36,7 @@ from rag.api.enrichments import router_triggers as enrichment_triggers_router
 from rag.api.errors import register_error_handlers
 from rag.api.git_webhooks import build_git_webhooks_router
 from rag.api.health import build_health_router
+from rag.api.ingestion_journal import IngestionJournalMiddleware
 from rag.api.library_apikey import build_library_apikey_router
 from rag.api.mcp import build_mcp_router
 from rag.api.mcp_standard import (
@@ -294,6 +295,7 @@ def build_app(
     # TaskGroup ». Ce middleware ASGI pur réécrit `/mcp` → `/mcp/` AVANT le
     # routage (pas de redirect HTTP, streaming préservé).
     app.add_middleware(McpPathNormalizerMiddleware)
+    app.add_middleware(IngestionJournalMiddleware)
     app.add_middleware(
         SessionMiddleware,
         secret_key=settings.rag_session_secret.get_secret_value(),

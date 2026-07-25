@@ -141,4 +141,6 @@ class TestGetAllJobs:
 
         query = fetch.await_args.args[0]
         assert "JOIN workspaces w ON w.id = j.workspace_id" in query
-        assert "ORDER BY j.created_at DESC" in query
+        # Union jobs + rejets d'ingestion, trié par horodatage commun.
+        assert "ingestion_rejections" in query
+        assert "ORDER BY u.sort_ts DESC" in query

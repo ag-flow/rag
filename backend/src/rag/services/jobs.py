@@ -138,23 +138,38 @@ async def list_jobs_global(
     rows = await fetch_all(
         config_pool,
         """
-        SELECT j.id, j.triggered_by, j.source_id, j.path, j.status,
-               j.files_changed, j.files_skipped, j.error_message,
-               j.started_at, j.finished_at, j.duration_ms,
-               w.name AS workspace_name
-        FROM index_jobs j
-        JOIN workspaces w ON w.id = j.workspace_id
-        WHERE ($1::text IS NULL OR w.name = $1)
-          AND ($2::text IS NULL OR j.status = $2)
+        SELECT u.id, u.triggered_by, u.source_id, u.path, u.status,
+               u.files_changed, u.files_skipped, u.error_message,
+               u.started_at, u.finished_at, u.duration_ms, u.workspace_name
+        FROM (
+            SELECT j.id::text AS id, j.triggered_by, j.source_id, j.path, j.status,
+                   j.files_changed, j.files_skipped, j.error_message,
+                   j.started_at, j.finished_at, j.duration_ms,
+                   w.name AS workspace_name, j.created_at AS sort_ts
+            FROM index_jobs j
+            JOIN workspaces w ON w.id = j.workspace_id
+            UNION ALL
+            -- Demandes d'ingestion REJETÉES (aucun job) : affichées comme des
+            -- lignes de statut 'rejected', source rest_api, motif en error_message.
+            SELECT r.id::text,
+                   CASE WHEN r.method = 'DELETE' THEN 'delete' ELSE 'push' END,
+                   NULL::uuid, r.doc_path, 'rejected',
+                   0, 0, r.reason,
+                   r.received_at, NULL::timestamptz, NULL::int,
+                   r.workspace, r.received_at
+            FROM ingestion_rejections r
+        ) u
+        WHERE ($1::text IS NULL OR u.workspace_name = $1)
+          AND ($2::text IS NULL OR u.status = $2)
           AND ($4::text IS NULL OR (
-              ($4 = 'rest_api' AND j.triggered_by IN ('push', 'reindex_document', 'delete'))
-              OR ($4 = 'webhook' AND j.triggered_by = 'webhook')
-              OR ($4 = 'git' AND j.source_id IS NOT NULL AND j.triggered_by <> 'webhook')
-              OR ($4 = 'admin' AND j.source_id IS NULL
-                  AND j.triggered_by IN ('manual', 'reindex_indexer_change',
+              ($4 = 'rest_api' AND u.triggered_by IN ('push', 'reindex_document', 'delete'))
+              OR ($4 = 'webhook' AND u.triggered_by = 'webhook')
+              OR ($4 = 'git' AND u.source_id IS NOT NULL AND u.triggered_by <> 'webhook')
+              OR ($4 = 'admin' AND u.source_id IS NULL
+                  AND u.triggered_by IN ('manual', 'reindex_indexer_change',
                                          'reindex_chunking_change', 'rebuild_lexical_index'))
           ))
-        ORDER BY j.created_at DESC, j.id DESC
+        ORDER BY u.sort_ts DESC, u.id DESC
         LIMIT $3
         """,
         workspace,
