@@ -1,78 +1,37 @@
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, Info } from "lucide-react";
+import { AlertTriangle, Info, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useRerankConfig } from "@/hooks/useRerank";
 import { useLlmConfigs } from "@/hooks/usePlayground";
-import { useProviderKeysByProvider } from "@/hooks/useHarpocrateVaults";
-import { useUpdateApiKeyRef } from "@/hooks/useWorkspaces";
 import { useToast } from "@/hooks/useToast";
+import { ApiError } from "@/lib/api";
+import { workspacesApi } from "@/lib/workspaces";
 import type { Workspace } from "@/lib/workspaces.types";
 import { formatRelativeTime } from "@/lib/relativeTime";
 
-/** Sélecteur de clé API par référence (rotation par re-pointage).
-
- * Les options sont les clés provider des coffres (label + coffre) ; la clé
- * couramment référencée est résolue vers son label. Une référence hors
- * référentiel reste sélectionnable (affichée brute).
- */
-function KeyRefEditor({
-  current,
-  provider,
-  onSave,
-  saving,
-  saveLabel,
-  ariaLabel,
-}: {
-  current: string | null;
-  provider: string;
-  onSave: (ref: string) => void;
-  saving: boolean;
-  saveLabel: string;
-  ariaLabel: string;
-}) {
-  const { t } = useTranslation("workspace");
-  const { data: keys = [] } = useProviderKeysByProvider(provider);
-  const [value, setValue] = useState(current ?? "");
-
-  const known = keys.some((k) => k.harpo_path === (current ?? ""));
+/** Corps 409 renvoyé quand la recopie change le modèle d'embedding :
+ * il faut confirmer la réindexation (re-vectorisation complète). */
+function isIndexerChangeRequiresReindex(
+  body: unknown,
+): body is { error: string; current: string; requested: string } {
   return (
-    <div className="flex items-center gap-2">
-      <Select value={value} onValueChange={setValue}>
-        <SelectTrigger className="flex-1 text-xs" aria-label={ariaLabel}>
-          <SelectValue placeholder={t("detail.keyref.none")} />
-        </SelectTrigger>
-        <SelectContent>
-          {current && !known && (
-            <SelectItem value={current} className="font-mono text-xs">
-              {t("detail.keyref.custom", { ref: current })}
-            </SelectItem>
-          )}
-          {keys.map((k) => (
-            <SelectItem key={k.harpo_path} value={k.harpo_path}>
-              {k.label} — {k.vault_label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={saving || value === "" || value === (current ?? "")}
-        onClick={() => onSave(value)}
-      >
-        {saveLabel}
-      </Button>
-    </div>
+    typeof body === "object" &&
+    body !== null &&
+    "error" in body &&
+    (body as { error: unknown }).error === "indexer_change_requires_reindex"
   );
 }
 
@@ -84,19 +43,39 @@ interface Props {
 export function WorkspaceDetailTab({ workspace, enabled }: Props) {
   const { t } = useTranslation("workspace");
   const { toast } = useToast();
+  const qc = useQueryClient();
   const { data: rerankData, isLoading: rerankLoading } = useRerankConfig(workspace.name, enabled);
   const { data: llmConfigs = [] } = useLlmConfigs(workspace.name);
-  const patchMutation = useUpdateApiKeyRef(workspace.name);
 
-  function saveKeyRef(payload: {
-    indexer?: { api_key_ref: string };
-    rerank?: { api_key_ref: string };
-  }) {
-    patchMutation.mutate(payload, {
-      onSuccess: () => toast({ title: t("detail.keyref.saved") }),
-      onError: () => toast({ title: t("detail.keyref.error"), variant: "destructive" }),
-    });
-  }
+  // Recopie indexer/rerank/llm depuis l'endpoint d'ORIGINE du workspace.
+  // 409 indexer_change_requires_reindex → dialog de confirmation puis retry
+  // avec confirm=true (même protocole que le chunking, cf. ChunkingEngineSwitch).
+  const [confirmReindex, setConfirmReindex] = useState<{
+    current: string;
+    requested: string;
+  } | null>(null);
+  const refreshMutation = useMutation({
+    mutationFn: (confirm: boolean) => workspacesApi.refreshEndpoint(workspace.name, confirm),
+    onSuccess: () => {
+      setConfirmReindex(null);
+      void qc.invalidateQueries({ queryKey: ["workspace", workspace.name] });
+      void qc.invalidateQueries({ queryKey: ["workspace", workspace.name, "rerank"] });
+      void qc.invalidateQueries({ queryKey: ["playground", workspace.name, "llm-configs"] });
+      toast({ title: t("detail.refresh.done") });
+    },
+    onError: (err) => {
+      if (
+        err instanceof ApiError &&
+        err.status === 409 &&
+        isIndexerChangeRequiresReindex(err.body)
+      ) {
+        setConfirmReindex({ current: err.body.current, requested: err.body.requested });
+        return;
+      }
+      setConfirmReindex(null);
+      toast({ title: t("detail.refresh.error"), variant: "destructive" });
+    },
+  });
 
   return (
     <div className="space-y-6">
@@ -146,6 +125,22 @@ export function WorkspaceDetailTab({ workspace, enabled }: Props) {
         </div>
       </section>
 
+      {/* Rafraîchir depuis l'endpoint d'ORIGINE (recopie indexer/rerank/llm). */}
+      <section className="flex items-center justify-between rounded-md border bg-slate-50 px-4 py-3">
+        <p className="text-sm text-slate-600">{t("detail.refresh.help")}</p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!workspace.endpoint_id || refreshMutation.isPending}
+          title={!workspace.endpoint_id ? t("detail.refresh.no_link") : undefined}
+          onClick={() => refreshMutation.mutate(false)}
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          <span className="ml-1">{t("detail.refresh.button")}</span>
+        </Button>
+      </section>
+
       {/* Section LLM : exécution des prompts (copié de l'endpoint à la création) */}
       <section>
         <h3 className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">
@@ -193,16 +188,7 @@ export function WorkspaceDetailTab({ workspace, enabled }: Props) {
             <dt className="text-slate-500">{t("rerank.fields.baseUrl")}</dt>
             <dd className="font-mono">{rerankData.base_url ?? "—"}</dd>
             <dt className="text-slate-500">{t("rerank.fields.apiKeyRef")}</dt>
-            <dd>
-              <KeyRefEditor
-                current={rerankData.api_key_ref}
-                provider={rerankData.provider}
-                saving={patchMutation.isPending}
-                saveLabel={t("detail.keyref.save")}
-                ariaLabel={t("rerank.fields.apiKeyRef")}
-                onSave={(ref) => saveKeyRef({ rerank: { api_key_ref: ref } })}
-              />
-            </dd>
+            <dd className="font-mono">{rerankData.api_key_ref ?? "—"}</dd>
             <dt className="text-slate-500">{t("rerank.fields.topK")}</dt>
             <dd className="font-mono">{rerankData.top_k_pre_rerank}</dd>
           </dl>
@@ -226,22 +212,55 @@ export function WorkspaceDetailTab({ workspace, enabled }: Props) {
           <dt className="text-slate-500">{t("model.base_url")}</dt>
           <dd className="font-mono">{workspace.indexer.base_url ?? "—"}</dd>
           <dt className="text-slate-500">{t("model.api_key_ref")}</dt>
-          <dd>
-            <KeyRefEditor
-              current={workspace.indexer.api_key_ref}
-              provider={workspace.indexer.provider}
-              saving={patchMutation.isPending}
-              saveLabel={t("detail.keyref.save")}
-              ariaLabel={t("model.api_key_ref")}
-              onSave={(ref) => saveKeyRef({ indexer: { api_key_ref: ref } })}
-            />
-          </dd>
+          <dd className="font-mono">{workspace.indexer.api_key_ref ?? "—"}</dd>
         </dl>
         <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 flex gap-2 text-sm">
           <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
           <p className="text-amber-900">{t("model.immutableNote")}</p>
         </div>
       </section>
+
+      {/* Confirmation : la recopie change le modèle d'embedding → réindexation */}
+      <AlertDialog
+        open={confirmReindex !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmReindex(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("detail.refresh.confirm.title")}</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>{t("detail.refresh.confirm.intro")}</p>
+                <p>
+                  <span className="font-medium">{t("detail.refresh.confirm.current")}</span>
+                  <br />
+                  <span className="font-mono text-slate-700">{confirmReindex?.current}</span>
+                </p>
+                <p>
+                  <span className="font-medium">{t("detail.refresh.confirm.requested")}</span>
+                  <br />
+                  <span className="font-mono text-slate-700">{confirmReindex?.requested}</span>
+                </p>
+                <p className="text-slate-500">{t("detail.refresh.confirm.consequence")}</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={refreshMutation.isPending}>
+              {t("detail.refresh.confirm.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => refreshMutation.mutate(true)}
+              disabled={refreshMutation.isPending}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              {t("detail.refresh.confirm.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

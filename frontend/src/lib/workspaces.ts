@@ -54,6 +54,13 @@ export const workspacesApi = {
 
   listJobs: (name: string) => api.get<Job[]>(`${BASE}/${name}/jobs`),
 
+  /** Recopie indexer/rerank/llm depuis l'endpoint d'ORIGINE du workspace. */
+  refreshEndpoint: (name: string, confirm = false) =>
+    api.post<{ indexer: string; rerank: string; llm: string }>(
+      `${BASE}/${name}/refresh-endpoint${confirm ? "?confirm=true" : ""}`,
+      {},
+    ),
+
   getJob: (name: string, jobId: string) => api.get<Job>(`${BASE}/${name}/jobs/${jobId}`),
 
   listJobFiles: (name: string, jobId: string) =>

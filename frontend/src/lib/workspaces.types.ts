@@ -11,6 +11,8 @@ export type IndexerSpec = {
 export type Workspace = {
   id: string;
   name: string;
+  /** Endpoint d'origine — null = créé avant le lien (refresh indisponible). */
+  endpoint_id: string | null;
   label: string;
   description: string;
   indexer: IndexerSpec;

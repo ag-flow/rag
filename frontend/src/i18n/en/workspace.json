@@ -65,17 +65,26 @@
       "success": "Reference saved.",
       "error": "Error saving."
     },
-    "keyref": {
-      "save": "Change key",
-      "saved": "Key reference updated.",
-      "error": "Failed to update the key.",
-      "custom": "Custom reference: {{ref}}",
-      "none": "No key"
-    },
     "llm": {
       "title": "LLM (prompt execution)",
       "empty": "No LLM configured — recreate the workspace from an endpoint with LLM (Vaults → Endpoints).",
       "disabled": "disabled"
+    },
+    "refresh": {
+      "help": "Copy the configuration (vectorization, rerank, LLM) back from the workspace's origin endpoint.",
+      "button": "Refresh from endpoint",
+      "no_link": "Workspace created before the endpoint link — recreate it to enable refresh.",
+      "done": "Configuration copied from the endpoint.",
+      "error": "Refresh from endpoint failed.",
+      "confirm": {
+        "title": "Embedding model change",
+        "intro": "The endpoint defines a different vectorization model: copying will trigger a full workspace reindex.",
+        "current": "Current model",
+        "requested": "Endpoint model",
+        "consequence": "All documents will be re-vectorized. The index is unavailable during the operation.",
+        "cancel": "Cancel",
+        "confirm": "Reindex"
+      }
     }
   },
   "sources": {

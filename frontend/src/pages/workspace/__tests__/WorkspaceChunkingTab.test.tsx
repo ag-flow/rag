@@ -32,6 +32,7 @@ import { useChunkingConfig } from "@/hooks/useChunking";
 const mockWorkspace: Workspace = {
   id: "ws-1",
   name: "my-workspace",
+  endpoint_id: null,
   label: "My workspace",
   description: "",
   indexer: {

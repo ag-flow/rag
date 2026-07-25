@@ -1,52 +1,26 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "./testUtils";
 import { WorkspaceDetailTab } from "@/pages/workspace/WorkspaceDetailTab";
+import { workspacesApi } from "@/lib/workspaces";
 import type { Workspace } from "@/lib/workspaces.types";
-
-const mockMutate = vi.fn();
-
-vi.mock("@/hooks/useWorkspaces", () => ({
-  useUpdateApiKeyRef: () => ({
-    mutate: mockMutate,
-    isPending: false,
-  }),
-}));
 
 vi.mock("@/hooks/useToast", () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
-vi.mock("@/hooks/useHarpocrateVaults", () => ({
-  useProviderKeysByProvider: () => ({
-    data: [
-      {
-        id: "pk-1",
-        key_id: "openai-prod",
-        label: "OpenAI prod",
-        provider: "openai",
-        harpo_path: "openai_key",
-        vault_name: "rag",
-        vault_label: "Coffre RAG",
-        created_at: "2026-01-01T00:00:00Z",
-      },
-      {
-        id: "pk-2",
-        key_id: "voyage-prod",
-        label: "Voyage prod",
-        provider: "openai",
-        harpo_path: "voyage_key",
-        vault_name: "rag",
-        vault_label: "Coffre RAG",
-        created_at: "2026-01-01T00:00:00Z",
-      },
-    ],
-  }),
+vi.mock("@/lib/workspaces", () => ({
+  workspacesApi: {
+    refreshEndpoint: vi.fn(),
+  },
 }));
+
+const refreshEndpoint = vi.mocked(workspacesApi.refreshEndpoint);
 
 const mockWorkspace: Workspace = {
   id: "abc-123",
   name: "my-workspace",
+  endpoint_id: null,
   label: "My workspace",
   description: "",
   indexer: {
@@ -74,29 +48,27 @@ describe("WorkspaceDetailTab", () => {
     expect(screen.getByText("abc-123")).toBeInTheDocument();
   });
 
-  it("le bouton Changer la clé est désactivé tant que la valeur est inchangée", () => {
+  it("la référence de clé est affichée en lecture seule (pas de bouton changer la clé)", () => {
     renderWithProviders(<WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />);
-    const saveBtn = screen.getByRole("button", { name: /changer la clé/i });
-    expect(saveBtn).toBeDisabled();
+    expect(screen.getByText("openai_key")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /changer la clé/i })).not.toBeInTheDocument();
   });
 
-  it("affiche le label de la clé couramment référencée", () => {
+  it("refresh désactivé quand le workspace n'a pas d'endpoint d'origine", () => {
     renderWithProviders(<WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />);
-    // openai_key est résolu vers son label + coffre dans le sélecteur.
-    expect(screen.getByText("OpenAI prod — Coffre RAG")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /rafraîchir depuis l'endpoint/i })).toBeDisabled();
   });
 
-  it("changer la clé : autre clé sélectionnée → mutation indexer.api_key_ref", async () => {
-    mockMutate.mockClear();
-    renderWithProviders(<WorkspaceDetailTab workspace={mockWorkspace} enabled={true} />);
-    fireEvent.click(screen.getByRole("combobox", { name: /Référence de clé API/i }));
-    fireEvent.click(await screen.findByText("Voyage prod — Coffre RAG"));
-    const saveBtn = screen.getByRole("button", { name: /changer la clé/i });
-    expect(saveBtn).toBeEnabled();
-    fireEvent.click(saveBtn);
-    expect(mockMutate).toHaveBeenCalledWith(
-      { indexer: { api_key_ref: "voyage_key" } },
-      expect.anything(),
+  it("refresh actif : clic → POST refresh-endpoint sans confirm", async () => {
+    refreshEndpoint.mockResolvedValue({ indexer: "updated", rerank: "none", llm: "none" });
+    renderWithProviders(
+      <WorkspaceDetailTab workspace={{ ...mockWorkspace, endpoint_id: "ep-1" }} enabled={true} />,
     );
+    const btn = screen.getByRole("button", { name: /rafraîchir depuis l'endpoint/i });
+    expect(btn).toBeEnabled();
+    fireEvent.click(btn);
+    await waitFor(() => {
+      expect(refreshEndpoint).toHaveBeenCalledWith("my-workspace", false);
+    });
   });
 });

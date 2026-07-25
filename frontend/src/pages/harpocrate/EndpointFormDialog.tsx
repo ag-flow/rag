@@ -461,28 +461,26 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                     </div>
                     <div>
                       <Label className="text-xs text-slate-600">{t("endpoints.model")}</Label>
-                      {llmModelOptions.length > 0 ? (
-                        <Select value={llmModel} onValueChange={setLlmModel}>
-                          <SelectTrigger className="mt-1" aria-label={t("endpoints.llm_model")}>
-                            <SelectValue placeholder={t("endpoints.select_placeholder")} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {llmModelChoices.map((m) => (
-                              <SelectItem key={m} value={m}>
-                                {m}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Input
-                          value={llmModel}
-                          onChange={(e) => setLlmModel(e.target.value)}
-                          className="mt-1 font-mono"
-                          placeholder="ex. qwen3:14b"
-                          aria-label={t("endpoints.llm_model")}
-                        />
-                      )}
+                      {/* TOUJOURS une liste : le référentiel est la table des
+                          modèles (kind='llm', filtré sur le provider choisi) —
+                          pas de saisie libre. Liste vide → déclarer le modèle
+                          dans la page Models. */}
+                      <Select
+                        value={llmModel}
+                        onValueChange={setLlmModel}
+                        disabled={llmModelChoices.length === 0}
+                      >
+                        <SelectTrigger className="mt-1" aria-label={t("endpoints.llm_model")}>
+                          <SelectValue placeholder={t("endpoints.select_placeholder")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {llmModelChoices.map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       {llmModelOptions.length === 0 && (
                         <p className="mt-1 text-xs text-slate-400">
                           {t("endpoints.llm_models_hint")}

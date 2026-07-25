@@ -54,16 +54,16 @@ export function WorkspaceDetailPanel({ name }: Props) {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="px-6 py-4">
         <TabsList>
           <TabsTrigger value="detail">{t("tabs.detail")}</TabsTrigger>
+          <TabsTrigger value="chunking">{t("tabs.chunking")}</TabsTrigger>
+          <TabsTrigger value="triggers">{t("tabs.triggers")}</TabsTrigger>
+          <TabsTrigger value="jobs">{t("tabs.jobs")}</TabsTrigger>
+          <TabsTrigger value="index">{t("tabs.index")}</TabsTrigger>
           <TabsTrigger value="sources">
             {t("tabs.sources", { count: ws.sources_count })}
           </TabsTrigger>
-          <TabsTrigger value="jobs">{t("tabs.jobs")}</TabsTrigger>
-          <TabsTrigger value="index">{t("tabs.index")}</TabsTrigger>
-          <TabsTrigger value="chunking">{t("tabs.chunking")}</TabsTrigger>
           <TabsTrigger value="search">{t("tabs.search")}</TabsTrigger>
           <TabsTrigger value="webhooks">{t("webhooks.tab")}</TabsTrigger>
           <TabsTrigger value="playground">{t("tabs.playground")}</TabsTrigger>
-          <TabsTrigger value="triggers">{t("tabs.triggers")}</TabsTrigger>
         </TabsList>
         <TabsContent value="detail" className="pt-4">
           <WorkspaceDetailTab workspace={ws} enabled={activeTab === "detail"} />

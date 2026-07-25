@@ -65,17 +65,26 @@
       "success": "Référence enregistrée.",
       "error": "Erreur à l'enregistrement."
     },
-    "keyref": {
-      "save": "Changer la clé",
-      "saved": "Référence de clé mise à jour.",
-      "error": "Échec de la mise à jour de la clé.",
-      "custom": "Référence personnalisée : {{ref}}",
-      "none": "Aucune clé"
-    },
     "llm": {
       "title": "LLM (exécution des prompts)",
       "empty": "Aucun LLM configuré — recréez le workspace depuis un endpoint avec LLM (Coffres → Endpoints).",
       "disabled": "désactivé"
+    },
+    "refresh": {
+      "help": "Recopier la configuration (vectorisation, rerank, LLM) depuis l'endpoint d'origine du workspace.",
+      "button": "Rafraîchir depuis l'endpoint",
+      "no_link": "Workspace créé avant le lien endpoint — recréez-le pour activer le rafraîchissement.",
+      "done": "Configuration recopiée depuis l'endpoint.",
+      "error": "Échec du rafraîchissement depuis l'endpoint.",
+      "confirm": {
+        "title": "Changement de modèle d'embedding",
+        "intro": "L'endpoint définit un autre modèle de vectorisation : la recopie déclenchera une réindexation complète du workspace.",
+        "current": "Modèle actuel",
+        "requested": "Modèle de l'endpoint",
+        "consequence": "Tous les documents seront re-vectorisés. L'index reste indisponible pendant l'opération.",
+        "cancel": "Annuler",
+        "confirm": "Réindexer"
+      }
     }
   },
   "sources": {

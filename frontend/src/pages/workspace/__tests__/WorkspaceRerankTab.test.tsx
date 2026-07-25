@@ -16,6 +16,7 @@ vi.mock("@/hooks/useRerank", () => ({
 const mockWorkspace: Workspace = {
   id: "abc-123",
   name: "my-workspace",
+  endpoint_id: null,
   label: "My workspace",
   description: "",
   indexer: {
