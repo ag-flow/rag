@@ -89,7 +89,7 @@ function JobRow({
         aria-label={isRejected ? undefined : t("table.detail_aria")}
         className={isRejected ? "" : `cursor-pointer ${isOpen ? "bg-slate-50" : ""}`}
       >
-        <TableCell className="font-medium text-slate-900">{job.workspace_name}</TableCell>
+        <TableCell className="font-medium text-slate-900">{job.workspace_name ?? "—"}</TableCell>
         <TableCell>
           <SourceBadge source={current.source} />
         </TableCell>
@@ -114,7 +114,7 @@ function JobRow({
           {current.started_at ? formatRelativeTime(current.started_at, t) : "—"}
         </TableCell>
       </TableRow>
-      {isOpen && !isRejected && (
+      {isOpen && !isRejected && job.workspace_name && (
         <TableRow>
           <TableCell colSpan={7} className="p-0">
             <JobDetailPanel name={job.workspace_name} job={current} />

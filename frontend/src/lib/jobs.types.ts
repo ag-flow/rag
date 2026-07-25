@@ -2,7 +2,8 @@
 // `GlobalJob` correspond à GlobalJobResponse : JobResponse + workspace_name.
 import type { Job, JobSource } from "@/lib/workspaces.types";
 
-export type GlobalJob = Job & { workspace_name: string };
+// workspace_name null = rejet d'ingestion dont le workspace n'a pas pu être lu.
+export type GlobalJob = Job & { workspace_name: string | null };
 
 export type GlobalJobsFilters = {
   workspace?: string;

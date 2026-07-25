@@ -71,6 +71,22 @@ def test_rejected_index_is_journaled(
     assert rej["error_message"] == "Workspace inconnu ou non autorisé pour cette clé"
 
 
+def test_anonymous_rejection_does_not_break_jobs_list(
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
+    cleanup_ws_dbs_api: None,
+) -> None:
+    """Régression : un rejet SANS workspace lisible (bot anonyme, corps vide) ne
+    doit pas casser la liste Push activity (workspace_name NULL → 500 Pydantic)."""
+    r = admin_client.post("/api/v1/index")  # ni auth ni corps → 401 journalisé
+    assert r.status_code == 401
+
+    jobs = admin_client.get("/api/admin/jobs", headers=admin_headers)
+    assert jobs.status_code == 200, jobs.text
+    rejected = [j for j in jobs.json() if j["status"] == "rejected"]
+    assert any(j["workspace_name"] is None for j in rejected)
+
+
 def test_accepted_index_is_not_journaled_as_rejection(
     admin_client: TestClient,
     admin_headers: dict[str, str],

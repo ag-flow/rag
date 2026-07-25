@@ -237,9 +237,12 @@ class JobResponse(BaseModel):
 
 
 class GlobalJobResponse(JobResponse):
-    """Job de la liste globale cross-workspace (GET /api/admin/jobs)."""
+    """Job de la liste globale cross-workspace (GET /api/admin/jobs).
 
-    workspace_name: str
+    `workspace_name` est None pour un REJET d'ingestion dont le workspace n'a
+    pas pu être lu (requête anonyme sans corps, JSON illisible)."""
+
+    workspace_name: str | None
 
 
 class JobFileEntry(BaseModel):

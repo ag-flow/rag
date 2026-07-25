@@ -152,6 +152,24 @@ describe("PushActivityPage", () => {
     expect(getJob).not.toHaveBeenCalled();
   });
 
+  it("affiche un rejet anonyme (workspace inconnu) sans casser la liste", async () => {
+    listGlobal.mockResolvedValue([
+      {
+        ...makeJob("ws-a", "done"),
+        id: "rej-1",
+        workspace_name: null,
+        status: "rejected",
+        path: null,
+        error_message: "En-tête Authorization manquant",
+      },
+    ]);
+    renderWithProviders(<PushActivityPage />);
+
+    expect(await screen.findByText("En-tête Authorization manquant")).toBeInTheDocument();
+    // workspace inconnu affiché en tiret, ligne rendue sans crash.
+    expect(screen.getAllByRole("cell", { name: "—" }).length).toBeGreaterThanOrEqual(1);
+  });
+
   it("ouvre le détail d'un job au clic : re-fetch du statut + fichiers", async () => {
     listGlobal.mockResolvedValue([makeJob("ws-a", "pending")]);
     // Statut re-fetché : le job listé était 'pending', il est en fait 'done'.
