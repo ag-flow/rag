@@ -569,14 +569,22 @@ class RagMcpDispatcher:
             await _json_error(send, 401, "invalid_token")
             return
 
-        # OBO : si le portail a propagé une identité humaine SIGNÉE (secret = le
-        # Bearer de cette requête), l'attribution bascule sur cet humain. Le
-        # login (owner_login) EST l'identité — owner_id dérivé directement, même
-        # clé que la session OIDC (preferred_username). En-tête absent/mal signé
-        # → ignoré (jamais 401), on garde l'identité de la clé. Contrat d0e2dad3.
+        # OBO (contrat d0e2dad3 v6, GUID-only) : si le portail a propagé une
+        # identité humaine SIGNÉE (secret = le Bearer de cette requête),
+        # l'acteur est un GUID OPAQUE mappé sur l'utilisateur dont
+        # users.identity = cette valeur ; l'attribution bascule alors sur son
+        # EMAIL (pivot d'identité — même owner_id que la session OIDC/locale).
+        # En-tête absent/mal signé OU GUID inconnu → ignoré (jamais 401),
+        # on garde l'identité de la clé (fail-safe).
         actor = read_obo_actor(list(scope.get("headers", [])), token)
         if actor is not None:
-            ctx = replace(ctx, owner_id=principal_to_owner_id(actor))
+            from rag.services.user_profile import email_for_identity
+
+            email = await email_for_identity(self._config_pool, actor)
+            if email is not None:
+                ctx = replace(ctx, owner_id=principal_to_owner_id(email))
+            else:
+                log.info("mcp_standard.obo_unknown_identity", actor=actor[:8])
 
         # Le mount Starlette "/mcp" ampute le préfixe : une requête sur `/mcp`
         # nu arrive ici avec un path vide → normalisé sur "/" pour matcher la

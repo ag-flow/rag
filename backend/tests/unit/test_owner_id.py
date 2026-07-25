@@ -72,18 +72,19 @@ def test_get_current_owner_id_oidc_session() -> None:
     assert result == email_to_owner_id("alice@example.com")
 
 
-def test_get_current_owner_id_oidc_prefers_preferred_username() -> None:
-    """Session OIDC → preferred_username (= owner_login portail, clé OBO), pas email.
+def test_get_current_owner_id_oidc_uses_email_pivot() -> None:
+    """Session OIDC → claim EMAIL (pivot d'identité unique, table users).
 
-    Garantit qu'un humain a le MÊME owner_id via sa session OIDC et via
-    l'attribution OBO (qui dérive owner_id du même login)."""
+    L'OBO v6 (GUID-only) mappe x-portal-actor → users.identity → users.email :
+    le même humain a le MÊME owner_id via session OIDC, session locale et OBO —
+    tous dérivés de l'email."""
     import base64
     import json
 
     from rag.auth.owner import principal_to_owner_id
 
     header = base64.urlsafe_b64encode(b'{"alg":"RS256"}').rstrip(b"=").decode()
-    # preferred_username != email : c'est le login qui doit primer.
+    # preferred_username != email : c'est l'EMAIL qui prime (pivot).
     payload_data = {"preferred_username": "gael", "email": "gael@corp.example", "exp": 9999999999}
     payload = base64.urlsafe_b64encode(json.dumps(payload_data).encode()).rstrip(b"=").decode()
     fake_jwt = f"{header}.{payload}.sig"
@@ -92,5 +93,23 @@ def test_get_current_owner_id_oidc_prefers_preferred_username() -> None:
     request.headers.get.return_value = None
     request.session = {"_oidc_session": {"id_token": fake_jwt}}
 
-    # Même valeur que ce que produirait l'attribution OBO pour actor="gael".
+    assert get_current_owner_id(request) == principal_to_owner_id("gael@corp.example")
+
+
+def test_get_current_owner_id_oidc_falls_back_to_username_without_email() -> None:
+    """Token OIDC sans claim email (IdP mal configuré) → repli preferred_username."""
+    import base64
+    import json
+
+    from rag.auth.owner import principal_to_owner_id
+
+    header = base64.urlsafe_b64encode(b'{"alg":"RS256"}').rstrip(b"=").decode()
+    payload_data = {"preferred_username": "gael", "exp": 9999999999}
+    payload = base64.urlsafe_b64encode(json.dumps(payload_data).encode()).rstrip(b"=").decode()
+    fake_jwt = f"{header}.{payload}.sig"
+
+    request = MagicMock()
+    request.headers.get.return_value = None
+    request.session = {"_oidc_session": {"id_token": fake_jwt}}
+
     assert get_current_owner_id(request) == principal_to_owner_id("gael")

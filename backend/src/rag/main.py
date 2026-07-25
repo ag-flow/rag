@@ -46,6 +46,7 @@ from rag.api.mcp_standard import (
     mcp_session_lifespan,
 )
 from rag.api.me_api_keys import build_me_api_keys_router
+from rag.api.me_profile import build_me_profile_router
 from rag.api.openapi_security import install_openapi_security
 from rag.api.playground import router_admin as playground_admin_router
 from rag.api.playground import router_chat as playground_chat_router
@@ -324,6 +325,7 @@ def build_app(
     app.include_router(build_auth_router())
     app.include_router(build_auth_methods_router())
     app.include_router(build_me_api_keys_router())
+    app.include_router(build_me_profile_router())
     app.include_router(build_setup_router())
     # Préfixe /api/v1 : ces endpoints Bearer doivent être sous un chemin routé par
     # le reverse-proxy vers le backend (comme /api/v1/search). À la racine, Caddy
