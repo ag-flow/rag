@@ -112,3 +112,48 @@ def test_create_key_invalid_scope_422(
         json={"name": "cle-bad-scope", "scope": "superuser"},
     )
     assert resp.status_code == 422
+
+
+def test_revoked_key_disappears_from_list_after_24h(
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
+    pg_container: str,
+) -> None:
+    """Une clé révoquée reste visible 24h puis disparaît de la liste (data en base)."""
+    import asyncio
+
+    import asyncpg
+
+    created = admin_client.post(
+        "/api/me/api-keys",
+        headers=admin_headers,
+        json={"name": "cle-a-purger", "scope": "read"},
+    )
+    key_id = created.json()["id"]
+    admin_client.delete(f"/api/me/api-keys/{key_id}", headers=admin_headers)
+
+    # Révoquée à l'instant → encore visible (< 24h).
+    listed = admin_client.get("/api/me/api-keys", headers=admin_headers).json()
+    assert any(k["id"] == key_id for k in listed)
+
+    async def _age_and_check() -> None:
+        conn = await asyncpg.connect(pg_container)
+        try:
+            await conn.execute(
+                "UPDATE user_api_keys SET revoked_at = now() - interval '25 hours' "
+                "WHERE id = $1::uuid",
+                key_id,
+            )
+            # La ligne reste bien en base (audit).
+            still = await conn.fetchval(
+                "SELECT count(*) FROM user_api_keys WHERE id = $1::uuid", key_id
+            )
+            assert still == 1
+        finally:
+            await conn.close()
+
+    asyncio.run(_age_and_check())
+
+    # Révoquée depuis > 24h → masquée de la liste.
+    listed = admin_client.get("/api/me/api-keys", headers=admin_headers).json()
+    assert not any(k["id"] == key_id for k in listed)

@@ -34,6 +34,9 @@ async def list_for_owner(conn: asyncpg.Connection, *, owner_id: str) -> list[Use
                END AS status
         FROM user_api_keys k
         WHERE k.owner_id = $1
+          -- Une clé révoquée reste visible 24h (traçabilité) puis disparaît de
+          -- la liste ; la ligne reste en base pour l'audit.
+          AND (k.revoked_at IS NULL OR k.revoked_at > now() - interval '24 hours')
         ORDER BY k.created_at DESC
         """,
         owner_id,
