@@ -76,6 +76,17 @@ class WorkspaceCreateRequest(BaseModel):
     endpoint_id: UUID
 
 
+class LlmCreateSpec(BaseModel):
+    """Config LLM à la création d'un workspace (copie de l'endpoint)."""
+
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    api_key_ref: str | None = None
+    base_url: str | None = None
+
+
 class WorkspaceCreateResolved(BaseModel):
     """Forme interne après résolution de l'endpoint (consommée par le service)."""
 
@@ -87,6 +98,8 @@ class WorkspaceCreateResolved(BaseModel):
     owner_id: str | None = None  # créateur (sha256 email) ; None = partagé
     indexer: IndexerCreateSpec
     rerank: RerankCreateSpec | None = None
+    # LLM d'exécution des prompts, copié dans workspace_llm_configs (endpoint 3 services).
+    llm: LlmCreateSpec | None = None
 
 
 class IndexerPatchSpec(BaseModel):

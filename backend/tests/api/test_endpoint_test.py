@@ -34,6 +34,10 @@ class _FakeReranker:
         return [(0, 0.9), (1, 0.1)]
 
 
+async def _fake_call_llm(**kwargs):
+    return {"answer": "pong", "usage": {}}
+
+
 def test_endpoint_test_ok_vectorization_and_rerank(
     admin_client: TestClient, admin_headers: dict[str, str], monkeypatch
 ) -> None:
@@ -42,6 +46,7 @@ def test_endpoint_test_ok_vectorization_and_rerank(
 
     monkeypatch.setattr(et, "make_provider", lambda **kw: _FakeEmbedder())
     monkeypatch.setattr(et, "make_rerank_provider", lambda **kw: _FakeReranker())
+    monkeypatch.setattr(et, "call_llm", _fake_call_llm)
 
     r = admin_client.post(
         f"/api/admin/harpocrate-vaults/{vault_id}/endpoints/test",
@@ -50,6 +55,8 @@ def test_endpoint_test_ok_vectorization_and_rerank(
             "indexer": {"provider": "openai", "model": "text-embedding-3-small"},
             "rerank": {"provider": "ollama", "model": "bge-reranker-v2-m3",
                        "base_url": "http://x:11434"},
+            "llm": {"provider": "ollama", "model": "qwen3:14b",
+                    "base_url": "http://x:11434"},
         },
     )
     assert r.status_code == 200, r.text
@@ -57,6 +64,8 @@ def test_endpoint_test_ok_vectorization_and_rerank(
     assert body["vectorization"]["ok"] is True
     assert "1024" in body["vectorization"]["message"]
     assert body["rerank"]["ok"] is True
+    assert body["llm"]["ok"] is True
+    assert "pong" in body["llm"]["message"]
 
 
 def test_endpoint_test_unknown_model_fails_without_calling_provider(
@@ -78,6 +87,7 @@ def test_endpoint_test_unknown_model_fails_without_calling_provider(
     assert body["vectorization"]["ok"] is False
     assert "registre" in body["vectorization"]["message"]
     assert body["rerank"] is None
+    assert body["llm"] is None
     called.assert_not_called()
 
 

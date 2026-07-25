@@ -144,6 +144,20 @@ async def create_workspace(
                 """,
                 ws_row["id"],
             )
+            # LLM d'exécution des prompts : copié de l'endpoint (3e service IA).
+            if request.llm is not None:
+                await conn.execute(
+                    """
+                    INSERT INTO workspace_llm_configs
+                        (workspace_id, provider, model, base_url, api_key_ref)
+                    VALUES ($1, $2, $3, $4, $5)
+                    """,
+                    ws_row["id"],
+                    request.llm.provider,
+                    request.llm.model,
+                    request.llm.base_url,
+                    request.llm.api_key_ref,
+                )
     except asyncpg.UniqueViolationError as e:
         raise WorkspaceAlreadyExists(request.name) from e
 

@@ -105,6 +105,7 @@ def build_admin_router() -> APIRouter:
         # pas ce workspace.
         from rag.schemas.admin import (
             IndexerCreateSpec,
+            LlmCreateSpec,
             RerankCreateSpec,
             WorkspaceCreateResolved,
         )
@@ -137,6 +138,16 @@ def build_admin_router() -> APIRouter:
                     top_k_pre_rerank=endpoint.rerank.top_k_pre_rerank,
                 )
                 if endpoint.rerank is not None
+                else None
+            ),
+            llm=(
+                LlmCreateSpec(
+                    provider=endpoint.llm.provider,
+                    model=endpoint.llm.model,
+                    api_key_ref=endpoint.llm.api_key_ref,
+                    base_url=endpoint.llm.base_url,
+                )
+                if endpoint.llm is not None
                 else None
             ),
         )

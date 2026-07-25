@@ -118,10 +118,12 @@ async def seed_endpoint(
     api_key_ref: str | None = "openai_embedding_key",
     base_url: str | None = None,
     rerank: dict | None = None,
+    llm: dict | None = None,
 ) -> str:
     """Seed un endpoint arbitraire (coffre 'rag' créé au besoin) → endpoint_id.
 
     `rerank` : dict {provider, model, api_key_ref?, base_url?, top_k?}.
+    `llm`    : dict {provider, model, api_key_ref?, base_url?}.
     Sert aux tests qui exercent une sémantique précise (provider inconnu,
     ollama+base_url, rerank à la création…).
     """
@@ -139,14 +141,16 @@ async def seed_endpoint(
             """
         )
         rr = rerank or {}
+        lm = llm or {}
         endpoint_id = await conn.fetchval(
             """
             INSERT INTO vault_endpoints
                 (vault_id, label, slug, indexer_provider, indexer_model,
                  indexer_api_key_ref, indexer_base_url,
                  rerank_provider, rerank_model, rerank_api_key_ref,
-                 rerank_base_url, rerank_top_k)
-            VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                 rerank_base_url, rerank_top_k,
+                 llm_provider, llm_model, llm_api_key_ref, llm_base_url)
+            VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             ON CONFLICT (vault_id, slug) DO UPDATE SET
                 indexer_provider = EXCLUDED.indexer_provider,
                 indexer_model = EXCLUDED.indexer_model,
@@ -156,12 +160,18 @@ async def seed_endpoint(
                 rerank_model = EXCLUDED.rerank_model,
                 rerank_api_key_ref = EXCLUDED.rerank_api_key_ref,
                 rerank_base_url = EXCLUDED.rerank_base_url,
-                rerank_top_k = EXCLUDED.rerank_top_k
+                rerank_top_k = EXCLUDED.rerank_top_k,
+                llm_provider = EXCLUDED.llm_provider,
+                llm_model = EXCLUDED.llm_model,
+                llm_api_key_ref = EXCLUDED.llm_api_key_ref,
+                llm_base_url = EXCLUDED.llm_base_url
             RETURNING id
             """,
             vault_id, slug, provider, model, api_key_ref, base_url,
             rr.get("provider"), rr.get("model"), rr.get("api_key_ref"),
             rr.get("base_url"), rr.get("top_k"),
+            lm.get("provider"), lm.get("model"), lm.get("api_key_ref"),
+            lm.get("base_url"),
         )
         return str(endpoint_id)
     finally:

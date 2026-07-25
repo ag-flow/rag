@@ -12,6 +12,7 @@ from rag.schemas.slug import slugify
 __all__ = [
     "EndpointCreate",
     "EndpointIndexerSpec",
+    "EndpointLlmSpec",
     "EndpointOut",
     "EndpointRerankSpec",
     "EndpointUpdate",
@@ -40,12 +41,27 @@ class EndpointRerankSpec(BaseModel):
     top_k_pre_rerank: int = Field(default=20, ge=1, le=200)
 
 
+class EndpointLlmSpec(BaseModel):
+    """LLM d'exécution des prompts (enrichissements, contexte, chat Playground).
+
+    Copié dans workspace_llm_configs à la création du workspace (snapshot,
+    même modèle que l'indexeur et le rerank)."""
+
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+    provider: str = Field(min_length=1, max_length=64)
+    model: str = Field(min_length=1, max_length=128)
+    api_key_ref: str | None = None
+    base_url: str | None = None
+
+
 class EndpointCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     label: str = Field(min_length=1, max_length=128)
     indexer: EndpointIndexerSpec
     rerank: EndpointRerankSpec | None = None
+    llm: EndpointLlmSpec | None = None
 
 
 class EndpointUpdate(BaseModel):
@@ -60,6 +76,8 @@ class EndpointUpdate(BaseModel):
     indexer: EndpointIndexerSpec | None = None
     rerank: EndpointRerankSpec | None = None
     clear_rerank: bool = False
+    llm: EndpointLlmSpec | None = None
+    clear_llm: bool = False
 
 
 class EndpointOut(BaseModel):
@@ -69,5 +87,6 @@ class EndpointOut(BaseModel):
     slug: str
     indexer: EndpointIndexerSpec
     rerank: EndpointRerankSpec | None
+    llm: EndpointLlmSpec | None
     created_at: datetime
     updated_at: datetime

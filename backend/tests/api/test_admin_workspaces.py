@@ -163,3 +163,49 @@ def test_delete_workspace_204(
     assert r.status_code == 204
     r2 = admin_client.delete("/api/admin/workspaces/ws_del_e2e", headers=admin_headers)
     assert r2.status_code == 404
+
+
+def test_create_workspace_copies_endpoint_llm(
+    admin_client, admin_headers, cleanup_ws_dbs_api, pg_container
+):
+    """L'endpoint paramètre les TROIS services : le LLM est copié dans
+    workspace_llm_configs à la création (snapshot, comme indexer/rerank)."""
+    import asyncio
+
+    import asyncpg
+
+    from tests.api.conftest import seed_endpoint
+
+    endpoint_id = asyncio.run(
+        seed_endpoint(
+            pg_container,
+            slug="ep-avec-llm",
+            provider="openai",
+            model="text-embedding-3-small",
+            llm={"provider": "ollama", "model": "qwen3:14b", "base_url": "http://o:11434"},
+        )
+    )
+    r = admin_client.post(
+        "/api/admin/workspaces",
+        headers=admin_headers,
+        json={"name": "ws-llm-copy", "label": "ws-llm-copy", "endpoint_id": endpoint_id},
+    )
+    assert r.status_code == 201, r.text
+
+    async def check() -> None:
+        conn = await asyncpg.connect(pg_container)
+        try:
+            row = await conn.fetchrow(
+                "SELECT lc.provider, lc.model, lc.base_url, lc.enabled "
+                "FROM workspace_llm_configs lc JOIN workspaces w ON w.id = lc.workspace_id "
+                "WHERE w.name = 'ws-llm-copy'"
+            )
+        finally:
+            await conn.close()
+        assert row is not None
+        assert row["provider"] == "ollama"
+        assert row["model"] == "qwen3:14b"
+        assert row["base_url"] == "http://o:11434"
+        assert row["enabled"] is True
+
+    asyncio.run(check())

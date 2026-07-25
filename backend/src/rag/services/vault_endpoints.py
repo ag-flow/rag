@@ -8,6 +8,7 @@ import structlog
 from rag.schemas.vault_endpoints import (
     EndpointCreate,
     EndpointIndexerSpec,
+    EndpointLlmSpec,
     EndpointOut,
     EndpointRerankSpec,
     EndpointUpdate,
@@ -25,7 +26,9 @@ _SELECT_BY_VAULT = """
     SELECT id, vault_id, label, slug,
            indexer_provider, indexer_model, indexer_api_key_ref, indexer_base_url,
            rerank_provider, rerank_model, rerank_api_key_ref, rerank_base_url,
-           rerank_top_k, created_at, updated_at
+           rerank_top_k,
+           llm_provider, llm_model, llm_api_key_ref, llm_base_url,
+           created_at, updated_at
     FROM vault_endpoints WHERE vault_id = $1 ORDER BY label
 """
 
@@ -33,7 +36,9 @@ _SELECT_BY_ID = """
     SELECT id, vault_id, label, slug,
            indexer_provider, indexer_model, indexer_api_key_ref, indexer_base_url,
            rerank_provider, rerank_model, rerank_api_key_ref, rerank_base_url,
-           rerank_top_k, created_at, updated_at
+           rerank_top_k,
+           llm_provider, llm_model, llm_api_key_ref, llm_base_url,
+           created_at, updated_at
     FROM vault_endpoints WHERE id = $1
 """
 
@@ -42,12 +47,15 @@ _INSERT = """
         (vault_id, label, slug,
          indexer_provider, indexer_model, indexer_api_key_ref, indexer_base_url,
          rerank_provider, rerank_model, rerank_api_key_ref, rerank_base_url,
-         rerank_top_k)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         rerank_top_k,
+         llm_provider, llm_model, llm_api_key_ref, llm_base_url)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
     RETURNING id, vault_id, label, slug,
               indexer_provider, indexer_model, indexer_api_key_ref, indexer_base_url,
               rerank_provider, rerank_model, rerank_api_key_ref, rerank_base_url,
-              rerank_top_k, created_at, updated_at
+              rerank_top_k,
+              llm_provider, llm_model, llm_api_key_ref, llm_base_url,
+              created_at, updated_at
 """
 
 _UPDATE = """
@@ -57,12 +65,16 @@ _UPDATE = """
         indexer_api_key_ref = $5, indexer_base_url = $6,
         rerank_provider = $7, rerank_model = $8,
         rerank_api_key_ref = $9, rerank_base_url = $10, rerank_top_k = $11,
+        llm_provider = $12, llm_model = $13,
+        llm_api_key_ref = $14, llm_base_url = $15,
         updated_at = now()
     WHERE id = $1
     RETURNING id, vault_id, label, slug,
               indexer_provider, indexer_model, indexer_api_key_ref, indexer_base_url,
               rerank_provider, rerank_model, rerank_api_key_ref, rerank_base_url,
-              rerank_top_k, created_at, updated_at
+              rerank_top_k,
+              llm_provider, llm_model, llm_api_key_ref, llm_base_url,
+              created_at, updated_at
 """
 
 
@@ -76,6 +88,14 @@ def _to_out(row: asyncpg.Record) -> EndpointOut:
             base_url=row["rerank_base_url"],
             top_k_pre_rerank=row["rerank_top_k"] or 20,
         )
+    llm = None
+    if row["llm_provider"] is not None:
+        llm = EndpointLlmSpec(
+            provider=row["llm_provider"],
+            model=row["llm_model"],
+            api_key_ref=row["llm_api_key_ref"],
+            base_url=row["llm_base_url"],
+        )
     return EndpointOut(
         id=row["id"],
         vault_id=row["vault_id"],
@@ -88,6 +108,7 @@ def _to_out(row: asyncpg.Record) -> EndpointOut:
             base_url=row["indexer_base_url"],
         ),
         rerank=rerank,
+        llm=llm,
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -121,6 +142,10 @@ async def create_endpoint(
             rerank.api_key_ref if rerank else None,
             rerank.base_url if rerank else None,
             rerank.top_k_pre_rerank if rerank else None,
+            req.llm.provider if req.llm else None,
+            req.llm.model if req.llm else None,
+            req.llm.api_key_ref if req.llm else None,
+            req.llm.base_url if req.llm else None,
         )
     except asyncpg.UniqueViolationError as exc:
         raise EndpointSlugTakenError(slug) from exc
@@ -143,6 +168,7 @@ async def update_endpoint(
     rerank = (
         None if req.clear_rerank else (req.rerank if req.rerank is not None else current.rerank)
     )
+    llm = None if req.clear_llm else (req.llm if req.llm is not None else current.llm)
 
     row = await conn.fetchrow(
         _UPDATE,
@@ -153,6 +179,10 @@ async def update_endpoint(
         rerank.api_key_ref if rerank else None,
         rerank.base_url if rerank else None,
         rerank.top_k_pre_rerank if rerank else None,
+        llm.provider if llm else None,
+        llm.model if llm else None,
+        llm.api_key_ref if llm else None,
+        llm.base_url if llm else None,
     )
     log.info("vault_endpoint.updated", endpoint_id=str(endpoint_id))
     return _to_out(row)

@@ -7,12 +7,15 @@ from pydantic import BaseModel, Field
 from rag.indexer.providers.factory import make_provider
 from rag.rerank.providers.factory import make_rerank_provider
 from rag.secrets.refs import as_vault_ref, is_vault_ref
+from rag.services.llm_clients import call_llm
 
 log = structlog.get_logger(__name__)
 
 _PING_TEXT = "ping ragflow — test de vectorisation"
 _RERANK_QUERY = "test de reranking"
 _RERANK_DOCS = ["premier document de test", "second document de test"]
+_LLM_SYSTEM = "Tu es un test de connectivité. Réponds uniquement « pong »."
+_LLM_PING = "ping"
 
 
 class EndpointTestIndexer(BaseModel):
@@ -29,9 +32,19 @@ class EndpointTestRerank(BaseModel):
     base_url: str | None = None
 
 
+class EndpointTestLlm(BaseModel):
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    api_key_ref: str | None = None
+    base_url: str | None = None
+
+
 class EndpointTestRequest(BaseModel):
-    indexer: EndpointTestIndexer
+    """Chaque section est optionnelle : l'IHM teste onglet par onglet."""
+
+    indexer: EndpointTestIndexer | None = None
     rerank: EndpointTestRerank | None = None
+    llm: EndpointTestLlm | None = None
 
 
 class SectionResult(BaseModel):
@@ -40,8 +53,9 @@ class SectionResult(BaseModel):
 
 
 class EndpointTestResult(BaseModel):
-    vectorization: SectionResult
+    vectorization: SectionResult | None = None
     rerank: SectionResult | None = None
+    llm: SectionResult | None = None
 
 
 async def _resolve_key(request: Request, ref: str | None) -> str | None:
@@ -104,15 +118,33 @@ async def _test_rerank(request: Request, spec: EndpointTestRerank) -> SectionRes
     return SectionResult(ok=True, message=f"OK — {len(results)} document(s) reclassé(s)")
 
 
+async def _test_llm(request: Request, spec: EndpointTestLlm) -> SectionResult:
+    try:
+        api_key = await _resolve_key(request, spec.api_key_ref)
+        result = await call_llm(
+            provider=spec.provider,
+            model=spec.model,
+            api_key=api_key,
+            base_url=spec.base_url,
+            system_prompt=_LLM_SYSTEM,
+            messages=[{"role": "user", "content": _LLM_PING}],
+        )
+    except Exception as exc:
+        return SectionResult(ok=False, message=str(exc))
+    answer = str(result.get("answer", "")).strip()
+    preview = answer[:80] or "(réponse vide)"
+    return SectionResult(ok=True, message=f"OK — réponse : {preview}")
+
+
 async def run_endpoint_test(request: Request, req: EndpointTestRequest) -> EndpointTestResult:
-    """Exécute les tests réels (embedding + rerank éventuel) de la config saisie."""
-    vec = await _test_vectorization(request, req.indexer)
-    rr = await _test_rerank(request, req.rerank) if req.rerank is not None else None
+    """Exécute les tests réels des sections fournies (onglet par onglet côté IHM)."""
+    vec = await _test_vectorization(request, req.indexer) if req.indexer else None
+    rr = await _test_rerank(request, req.rerank) if req.rerank else None
+    llm = await _test_llm(request, req.llm) if req.llm else None
     log.info(
         "endpoint_test.run",
-        vectorization_ok=vec.ok,
+        vectorization_ok=vec.ok if vec else None,
         rerank_ok=rr.ok if rr else None,
-        provider=req.indexer.provider,
-        model=req.indexer.model,
+        llm_ok=llm.ok if llm else None,
     )
-    return EndpointTestResult(vectorization=vec, rerank=rr)
+    return EndpointTestResult(vectorization=vec, rerank=rr, llm=llm)
