@@ -10,6 +10,11 @@ from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.auth.owner import get_current_owner_id
 from rag.schemas.vault_endpoints import EndpointCreate, EndpointOut, EndpointUpdate
 from rag.services import vault_endpoints as svc
+from rag.services.endpoint_test import (
+    EndpointTestRequest,
+    EndpointTestResult,
+    run_endpoint_test,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -80,3 +85,15 @@ async def delete_endpoint(
     if not deleted:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "endpoint not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/test", response_model=EndpointTestResult)
+async def test_endpoint(
+    vault_id: UUID, req: EndpointTestRequest, request: Request
+) -> EndpointTestResult:
+    """Teste RÉELLEMENT la config saisie dans le formulaire (avant Save) :
+    un embedding « ping » pour la vectorisation, un rerank de 2 documents pour
+    le reranking. Retourne ok/message par section — le message d'échec porte le
+    contexte (service appelé, modèle, réponse du provider)."""
+    await _checked_vault(request, vault_id)
+    return await run_endpoint_test(request, req)

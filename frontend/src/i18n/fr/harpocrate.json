@@ -290,7 +290,12 @@
     "cancel": "Annuler",
     "create": "Créer",
     "save": "Enregistrer",
-    "select_placeholder": "Sélectionner…"
+    "select_placeholder": "Sélectionner…",
+    "test_btn": "Tester",
+    "testing": "Test en cours…",
+    "test_vectorization": "Vectorisation",
+    "test_rerank": "Rerank",
+    "test_error": "Le test n'a pas pu être exécuté."
   },
   "expiry": {
     "banner_expired": "La clé d'accès de ce coffre est expirée — remplacez-la (menu ⋯ → Remplacer la clé) avant que la résolution de secrets n'échoue.",

@@ -23,6 +23,7 @@ import { useProviderKeys } from "@/hooks/useHarpocrateVaults";
 import { useModels } from "@/hooks/useModels";
 import { MODELS_BY_PROVIDER, RERANK_PROVIDERS } from "@/pages/workspace/WorkspaceRerankTab.schema";
 import type { RerankProvider } from "@/lib/rerank.types";
+import { vaultEndpointsApi, type EndpointTestResult } from "@/lib/vault-endpoints";
 import { useCreateEndpoint, useUpdateEndpoint } from "@/hooks/useVaultEndpoints";
 import { useToast } from "@/hooks/useToast";
 import { slugifyLabel } from "@/lib/slugify";
@@ -71,6 +72,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
     setRerankKeyRef(endpoint?.rerank?.api_key_ref ?? NONE);
     setRerankBaseUrl(endpoint?.rerank?.base_url ?? "");
     setRerankTopK(endpoint?.rerank?.top_k_pre_rerank ?? 20);
+    setTestResult(null);
   }, [open, endpoint]);
 
   // Défauts en création : premier couple provider/modèle du référentiel.
@@ -155,6 +157,26 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
       onOpenChange(false);
     } catch {
       toast({ title: t("endpoints.error_toast"), variant: "destructive" });
+    }
+  }
+
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<EndpointTestResult | null>(null);
+
+  async function handleTest() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const payload = buildPayload();
+      const result = await vaultEndpointsApi.test(vaultId, {
+        indexer: payload.indexer,
+        rerank: payload.rerank,
+      });
+      setTestResult(result);
+    } catch {
+      toast({ title: t("endpoints.test_error"), variant: "destructive" });
+    } finally {
+      setTesting(false);
     }
   }
 
@@ -330,7 +352,30 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
           </fieldset>
         </div>
 
+        {testResult && (
+          <div className="space-y-1 rounded-md border bg-slate-50 p-3 text-xs">
+            <p className={testResult.vectorization.ok ? "text-emerald-700" : "text-rose-700"}>
+              {testResult.vectorization.ok ? "✓" : "✗"} {t("endpoints.test_vectorization")} —{" "}
+              {testResult.vectorization.message}
+            </p>
+            {testResult.rerank && (
+              <p className={testResult.rerank.ok ? "text-emerald-700" : "text-rose-700"}>
+                {testResult.rerank.ok ? "✓" : "✗"} {t("endpoints.test_rerank")} —{" "}
+                {testResult.rerank.message}
+              </p>
+            )}
+          </div>
+        )}
+
         <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void handleTest()}
+            disabled={model.trim() === "" || (rerankOn && rerankModel.trim() === "") || testing}
+          >
+            {testing ? t("endpoints.testing") : t("endpoints.test_btn")}
+          </Button>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t("endpoints.cancel")}
           </Button>

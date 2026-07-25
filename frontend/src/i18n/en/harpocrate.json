@@ -290,7 +290,12 @@
     "cancel": "Cancel",
     "create": "Create",
     "save": "Save",
-    "select_placeholder": "Select…"
+    "select_placeholder": "Select…",
+    "test_btn": "Test",
+    "testing": "Testing…",
+    "test_vectorization": "Vectorization",
+    "test_rerank": "Rerank",
+    "test_error": "The test could not be executed."
   },
   "expiry": {
     "banner_expired": "This vault's access key has expired — replace it (⋯ menu → Replace key) before secret resolution fails.",
