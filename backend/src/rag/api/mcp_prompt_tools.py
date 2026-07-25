@@ -90,7 +90,10 @@ def register_prompt_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
 
         Paramètres :
         - name         : nom unique dans ta bibliothèque (max 128).
-        - language     : langue/langage visé par le prompt (ex. 'markdown', 'python').
+        - language     : code de langue BCP 47 du référentiel (ex. 'fr-FR', 'en-US') —
+                         la langue du RÉSULTAT produit par le prompt, PAS le format du
+                         document ('markdown' est invalide). Code inconnu → erreur avec
+                         la liste des codes valides.
         - metadata_key : clé de rangement du résultat (ex. 'summary', 'context').
         - prompt       : texte du prompt envoyé au LLM.
         - result_type  : 'text' (défaut) ou 'json' (résultat structuré).

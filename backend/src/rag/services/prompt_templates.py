@@ -26,6 +26,15 @@ class TemplateInUseError(Exception):
         super().__init__(f"template utilisé par {used_by_triggers} trigger(s)")
 
 
+class InvalidLanguageError(Exception):
+    """Langue inconnue du référentiel `languages` (codes BCP 47, spec 14)."""
+
+    def __init__(self, language: str, valid_codes: list[str]) -> None:
+        self.language = language
+        self.valid_codes = valid_codes
+        super().__init__(f"langue inconnue : {language!r}")
+
+
 # Portée bibliothèque (spec chunking §4, S3.3) : templates système (owner
 # NULL) + ceux de l'utilisateur. Le binding des triggers reste PAR ID.
 # Fragments SQL statiques (aucun input utilisateur) — les noqa S608 couvrent
@@ -73,9 +82,22 @@ async def get_prompt_template(
     return _to_out(row) if row else None
 
 
+async def _validate_language(conn: asyncpg.Connection, language: str) -> None:
+    """`language` doit exister dans le référentiel `languages` (codes BCP 47).
+
+    L'IHM contraint déjà la saisie par un sélecteur ; les surfaces
+    programmatiques (MCP, REST direct) passaient n'importe quelle valeur
+    ('markdown'…) — la règle vit ici, partagée par tous les canaux."""
+    known = await conn.fetchval("SELECT 1 FROM languages WHERE code = $1", language)
+    if known is None:
+        codes = [r["code"] for r in await conn.fetch("SELECT code FROM languages ORDER BY code")]
+        raise InvalidLanguageError(language, codes)
+
+
 async def create_prompt_template(
     conn: asyncpg.Connection, *, owner_id: str, req: PromptTemplateCreate
 ) -> PromptTemplateOut:
+    await _validate_language(conn, req.language)
     template_id = await conn.fetchval(
         "INSERT INTO prompt_templates "
         "(owner_id, name, language, description, metadata_key, result_type, "

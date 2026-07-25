@@ -26,6 +26,7 @@ EXPECTED_ERRORS: tuple[type[Exception], ...] = (
     templates_svc.TemplateNotFoundError,
     templates_svc.TemplateImmutableError,
     templates_svc.TemplateInUseError,
+    templates_svc.InvalidLanguageError,
     asyncpg.UniqueViolationError,
     ValidationError,
     ValueError,  # UUID invalide, mode inconnu — ValidationError en hérite déjà
@@ -95,6 +96,12 @@ def explain(exc: Exception) -> str:
         )
     if isinstance(exc, templates_svc.TemplateInUseError):
         return f"Suppression refusée : {exc}. Retire d'abord ces bindings."
+    if isinstance(exc, templates_svc.InvalidLanguageError):
+        return (
+            f"Langue inconnue : {exc.language!r}. `language` est un code de langue "
+            f"BCP 47 du référentiel (la langue du RÉSULTAT du prompt, pas le format "
+            f"du document). Codes valides : {', '.join(exc.valid_codes)}."
+        )
     if isinstance(exc, asyncpg.UniqueViolationError):
         return "Nom déjà utilisé dans ta bibliothèque : choisis un nom différent."
     return f"Paramètres invalides : {exc}"

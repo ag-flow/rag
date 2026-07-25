@@ -67,11 +67,20 @@ async def list_prompts(request: Request) -> list[PromptTemplateOut]:
 
 @router_prompts.post("", response_model=PromptTemplateOut, status_code=201)
 async def create_prompt(body: PromptTemplateCreate, request: Request) -> PromptTemplateOut:
-    from rag.services.prompt_templates import create_prompt_template
+    from rag.services.prompt_templates import InvalidLanguageError, create_prompt_template
     owner_id = get_current_owner_id(request)
     async with _pool(request).acquire() as conn:
         try:
             return await create_prompt_template(conn, owner_id=owner_id, req=body)
+        except InvalidLanguageError as exc:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                {
+                    "error": "invalid_language",
+                    "language": exc.language,
+                    "valid_codes": exc.valid_codes,
+                },
+            ) from exc
         except Exception as exc:
             if "unique" in str(exc).lower():
                 raise HTTPException(status.HTTP_409_CONFLICT, "name already exists") from exc

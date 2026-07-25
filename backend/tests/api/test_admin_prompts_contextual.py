@@ -11,7 +11,7 @@ def test_create_inline_chunk_template(
         headers=admin_headers,
         json={
             "name": "contexte-chunk-api",
-            "language": "markdown",
+            "language": "fr-FR",
             "metadata_key": "chunk_context",
             "prompt": "Situe précisément cet extrait : {chunk}",
             "target": "chunk",
@@ -35,7 +35,7 @@ def test_create_region_template_and_patch_bumps_version(
         headers=admin_headers,
         json={
             "name": "description-mermaid-api",
-            "language": "markdown",
+            "language": "fr-FR",
             "metadata_key": "mermaid_desc",
             "prompt": "Décris ce diagramme : {chunk}",
             "target": "region:code_fence:mermaid",
@@ -62,7 +62,7 @@ def test_unsupported_combo_rejected_422(
         headers=admin_headers,
         json={
             "name": "combo-invalide-api",
-            "language": "markdown",
+            "language": "fr-FR",
             "metadata_key": "x",
             "prompt": "{chunk}",
             "target": "chunk",
@@ -70,3 +70,23 @@ def test_unsupported_combo_rejected_422(
         },
     )
     assert resp.status_code == 422
+
+
+def test_create_unknown_language_rejected_422(admin_client, admin_headers):
+    r = admin_client.post(
+        "/api/admin/prompts",
+        headers=admin_headers,
+        json={
+            "name": "bad-lang",
+            "language": "markdown",
+            "metadata_key": "ctx",
+            "result_type": "text",
+            "prompt": "x {chunk}",
+            "target": "chunk",
+            "timing": "embedding_inline",
+        },
+    )
+    assert r.status_code == 422
+    detail = r.json()["detail"]
+    assert detail["error"] == "invalid_language"
+    assert "fr-FR" in detail["valid_codes"]

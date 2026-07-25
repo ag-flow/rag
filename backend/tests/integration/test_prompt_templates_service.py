@@ -31,7 +31,7 @@ async def _conn(session_pool: asyncpg.Pool) -> asyncpg.Connection:
 def _create(name: str) -> PromptTemplateCreate:
     return PromptTemplateCreate(
         name=name,
-        language="python",
+        language="fr-FR",
         metadata_key="summary",
         prompt="Résume : {content}",
         target="document",
@@ -73,5 +73,30 @@ async def test_other_owner_template_invisible_and_immutable(session_pool: asyncp
             await svc.delete_prompt_template(conn, owner_id=OWNER_A, template_id=tid)
         # B conserve l'accès.
         assert await svc.get_prompt_template(conn, owner_id=OWNER_B, template_id=tid) is not None
+    finally:
+        await session_pool.release(conn)
+
+
+@pytest.mark.asyncio
+async def test_create_rejects_unknown_language(session_pool: asyncpg.Pool) -> None:
+    """`language` doit être un code BCP 47 du référentiel — 'markdown' est invalide.
+
+    La règle vit au service : REST et MCP la partagent (bug : le MCP laissait
+    passer n'importe quelle valeur)."""
+    conn = await _conn(session_pool)
+    try:
+        req = _create("tmpl-bad-lang")
+        req = req.model_copy(update={"language": "markdown"})
+        with pytest.raises(svc.InvalidLanguageError) as exc_info:
+            await svc.create_prompt_template(conn, owner_id=OWNER_A, req=req)
+        assert exc_info.value.language == "markdown"
+        assert "fr-FR" in exc_info.value.valid_codes
+
+        # Le message MCP (explain) est actionnable : il liste les codes valides.
+        from rag.api.mcp_library_support import explain
+
+        msg = explain(exc_info.value)
+        assert "markdown" in msg
+        assert "fr-FR" in msg
     finally:
         await session_pool.release(conn)
