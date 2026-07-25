@@ -1,10 +1,14 @@
 // Types miroirs du schema Pydantic ModelEntry
 // (cf. backend/src/rag/schemas/admin.py:123)
 
+export type ModelKind = "embedding" | "llm";
+
 export type ModelEntry = {
   provider: string;
   model: string;
-  dimension: number;
+  /** embedding = vectorisation (dimension requise) ; llm = exécution des prompts. */
+  kind: ModelKind;
+  dimension: number | null;
   created_at: string;
   /** true = catalogue système (seeds), immuable ; false = modèle de l'utilisateur. */
   is_system: boolean;
@@ -13,7 +17,8 @@ export type ModelEntry = {
 export type ModelCreateRequest = {
   provider: string;
   model: string;
-  dimension: number;
+  kind: ModelKind;
+  dimension: number | null;
 };
 
 // ─── Pricing YAML types ───────────────────────────────────────────────────────

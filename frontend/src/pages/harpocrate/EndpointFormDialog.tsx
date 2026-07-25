@@ -69,6 +69,17 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
   const [llmKeyRef, setLlmKeyRef] = useState<string>(NONE);
   const [llmBaseUrl, setLlmBaseUrl] = useState("");
 
+  // Modèles LLM : la TABLE DES MODÈLES (page Models, kind='llm') est le
+  // référentiel — comme la vectorisation. Repli saisie libre si vide.
+  const llmModelOptions = models
+    .filter((m) => m.kind === "llm" && m.provider === llmProvider)
+    .map((m) => m.model)
+    .sort();
+  const llmModelChoices =
+    llmModel && !llmModelOptions.includes(llmModel)
+      ? [llmModel, ...llmModelOptions]
+      : llmModelOptions;
+
   const [testing, setTesting] = useState<TestSection | null>(null);
   const [testResults, setTestResults] = useState<
     Partial<Record<TestSection, SectionTestResult>>
@@ -107,9 +118,11 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
   }, [open, endpoint, models]);
 
   // Providers/modèles d'embedding depuis model_dimensions (référence backend).
-  const embedProviders = [...new Set(models.map((m) => m.provider))].sort();
+  const embedProviders = [
+    ...new Set(models.filter((m) => m.kind === "embedding").map((m) => m.provider)),
+  ].sort();
   const embedModels = models
-    .filter((m) => m.provider === provider)
+    .filter((m) => m.kind === "embedding" && m.provider === provider)
     .map((m) => m.model)
     .sort();
   // En édition, une valeur hors référentiel reste sélectionnable (pas de perte).
@@ -448,13 +461,33 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                     </div>
                     <div>
                       <Label className="text-xs text-slate-600">{t("endpoints.model")}</Label>
-                      <Input
-                        value={llmModel}
-                        onChange={(e) => setLlmModel(e.target.value)}
-                        className="mt-1 font-mono"
-                        placeholder="ex. qwen3:14b"
-                        aria-label={t("endpoints.llm_model")}
-                      />
+                      {llmModelOptions.length > 0 ? (
+                        <Select value={llmModel} onValueChange={setLlmModel}>
+                          <SelectTrigger className="mt-1" aria-label={t("endpoints.llm_model")}>
+                            <SelectValue placeholder={t("endpoints.select_placeholder")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {llmModelChoices.map((m) => (
+                              <SelectItem key={m} value={m}>
+                                {m}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          value={llmModel}
+                          onChange={(e) => setLlmModel(e.target.value)}
+                          className="mt-1 font-mono"
+                          placeholder="ex. qwen3:14b"
+                          aria-label={t("endpoints.llm_model")}
+                        />
+                      )}
+                      {llmModelOptions.length === 0 && (
+                        <p className="mt-1 text-xs text-slate-400">
+                          {t("endpoints.llm_models_hint")}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="mt-3">

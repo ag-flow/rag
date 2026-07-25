@@ -14,7 +14,10 @@ vi.mock("@/lib/vault-endpoints", () => ({
 }));
 vi.mock("@/hooks/useModels", () => ({
   useModels: () => ({
-    data: [{ provider: "ollama", model: "mxbai-embed-large", dimension: 1024 }],
+    data: [
+      { provider: "ollama", model: "mxbai-embed-large", kind: "embedding", dimension: 1024 },
+      { provider: "ollama", model: "qwen3:14b", kind: "llm", dimension: null },
+    ],
   }),
 }));
 vi.mock("@/hooks/useProviderKeys", () => ({
@@ -54,23 +57,35 @@ describe("EndpointFormDialog — onglets + test par service", () => {
     expect(await screen.findByText(/vecteur de 1024 dimensions/)).toBeInTheDocument();
   });
 
-  it("l'onglet LLM teste le LLM saisi", async () => {
+  it("l'onglet LLM teste le LLM configuré", async () => {
     testApi.mockResolvedValue({
       vectorization: null,
       rerank: null,
       llm: { ok: true, message: "OK — réponse : pong" },
     });
+    const endpoint = {
+      id: "e1",
+      vault_id: "v1",
+      label: "Ollama",
+      slug: "ollama",
+      indexer: {
+        provider: "ollama",
+        model: "mxbai-embed-large",
+        api_key_ref: null,
+        base_url: "http://o:11434",
+      },
+      rerank: null,
+      llm: { provider: "ollama", model: "qwen3:14b", api_key_ref: null, base_url: "http://o:11434" },
+      created_at: "2026-07-01T00:00:00Z",
+      updated_at: "2026-07-01T00:00:00Z",
+    };
     renderWithProviders(
-      <EndpointFormDialog vaultId="v1" endpoint={null} open={true} onOpenChange={() => {}} />,
+      <EndpointFormDialog vaultId="v1" endpoint={endpoint} open={true} onOpenChange={() => {}} />,
     );
 
     const llmTab = screen.getByRole("tab", { name: "LLM" });
     fireEvent.mouseDown(llmTab);
     fireEvent.click(llmTab);
-    fireEvent.click(screen.getByRole("switch", { name: "LLM" }));
-    fireEvent.change(screen.getByLabelText("Modèle LLM"), {
-      target: { value: "qwen3:14b" },
-    });
     fireEvent.click(screen.getByRole("button", { name: "Tester" }));
 
     await waitFor(() => expect(testApi).toHaveBeenCalled());
@@ -80,5 +95,19 @@ describe("EndpointFormDialog — onglets + test par service", () => {
     expect(payload.llm?.provider).toBe("ollama");
 
     expect(await screen.findByText(/réponse : pong/)).toBeInTheDocument();
+  });
+
+  it("propose les modèles LLM de la TABLE DES MODÈLES (kind=llm)", async () => {
+    renderWithProviders(
+      <EndpointFormDialog vaultId="v1" endpoint={null} open={true} onOpenChange={() => {}} />,
+    );
+
+    const llmTab = screen.getByRole("tab", { name: "LLM" });
+    fireEvent.mouseDown(llmTab);
+    fireEvent.click(llmTab);
+    fireEvent.click(screen.getByRole("switch", { name: "LLM" }));
+
+    // Le champ modèle est un Select alimenté par le registre (pas le serveur).
+    expect(await screen.findByRole("combobox", { name: "Modèle LLM" })).toBeInTheDocument();
   });
 });

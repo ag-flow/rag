@@ -302,7 +302,8 @@
     "llm_provider": "Provider LLM",
     "llm_model": "Modèle LLM",
     "llm_api_key": "Clé API LLM",
-    "rerank_toggle": "Activer le reranking"
+    "rerank_toggle": "Activer le reranking",
+    "llm_models_hint": "Aucun modèle LLM de ce provider dans la table des modèles (page Models) — saisie libre."
   },
   "expiry": {
     "banner_expired": "La clé d'accès de ce coffre est expirée — remplacez-la (menu ⋯ → Remplacer la clé) avant que la résolution de secrets n'échoue.",

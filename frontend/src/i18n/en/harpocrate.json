@@ -302,7 +302,8 @@
     "llm_provider": "LLM provider",
     "llm_model": "LLM model",
     "llm_api_key": "LLM API key",
-    "rerank_toggle": "Enable reranking"
+    "rerank_toggle": "Enable reranking",
+    "llm_models_hint": "No LLM model for this provider in the models table (Models page) — free input."
   },
   "expiry": {
     "banner_expired": "This vault's access key has expired — replace it (⋯ menu → Replace key) before secret resolution fails.",

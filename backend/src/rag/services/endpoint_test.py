@@ -72,7 +72,8 @@ async def _resolve_key(request: Request, ref: str | None) -> str | None:
 async def _embedding_service_for(request: Request, provider: str, model: str) -> str | None:
     pool = request.app.state.pools.config_pool
     return await pool.fetchval(
-        "SELECT service FROM model_dimensions WHERE provider = $1 AND model = $2",
+        "SELECT service FROM model_dimensions "
+        "WHERE provider = $1 AND model = $2 AND kind = 'embedding'",
         provider,
         model,
     )

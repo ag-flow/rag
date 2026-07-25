@@ -477,6 +477,7 @@ def build_admin_router() -> APIRouter:
                 model=payload.model,
                 dimension=payload.dimension,
                 owner_id=get_current_owner_id(request),
+                kind=payload.kind,
             )
         except asyncpg.UniqueViolationError as e:
             from fastapi import HTTPException

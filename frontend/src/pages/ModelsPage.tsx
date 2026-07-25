@@ -206,7 +206,7 @@ export function ModelsPage() {
                             <div className="flex items-center gap-3 text-sm">
                               <code className="font-mono text-slate-800">{entry.model}</code>
                               <span className="text-slate-500">
-                                {t("row.dim", { dimension: entry.dimension })}
+                                {entry.kind === "llm" ? "LLM" : t("row.dim", { dimension: entry.dimension })}
                               </span>
                               <span className="text-slate-400 text-xs">
                                 {formatRel(entry.created_at)}

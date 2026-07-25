@@ -45,7 +45,10 @@
         "model_required": "Model name is required.",
         "dimension_positive": "Dimension must be a positive integer.",
         "provider_other_required": "Specify the custom provider name."
-      }
+      },
+      "kind": "Type",
+      "kind_embedding": "Embedding (vectorization)",
+      "kind_llm": "LLM (prompts)"
     },
     "delete": {
       "title": "Delete model",

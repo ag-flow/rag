@@ -30,6 +30,7 @@ const schema = z
     providerSelect: z.enum(PROVIDERS),
     providerOther: z.string().optional(),
     model: z.string().min(1, "model_required"),
+    kind: z.enum(["embedding", "llm"]),
     dimension: z.coerce.number().int().positive("dimension_positive"),
   })
   .refine(
@@ -54,6 +55,7 @@ export function AddModelDialog({ open, onOpenChange }: Props) {
       providerSelect: "openai",
       providerOther: "",
       model: "",
+      kind: "embedding",
       dimension: 1,
     },
   });
@@ -63,12 +65,19 @@ export function AddModelDialog({ open, onOpenChange }: Props) {
   }, [open, form]);
 
   const providerSelect = form.watch("providerSelect");
+  const kind = form.watch("kind");
 
   const onSubmit = (v: FormValues) => {
     const provider =
       v.providerSelect === "autre" ? (v.providerOther ?? "").trim() : v.providerSelect;
     create.mutate(
-      { provider, model: v.model, dimension: v.dimension },
+      {
+        provider,
+        model: v.model,
+        kind: v.kind,
+        // Un LLM ne vectorise pas : pas de dimension.
+        dimension: v.kind === "llm" ? null : v.dimension,
+      },
       {
         onSuccess: () => {
           toast({ title: t("dialog.add.success") });
@@ -135,16 +144,33 @@ export function AddModelDialog({ open, onOpenChange }: Props) {
             )}
           </div>
           <div>
-            <label className="text-xs font-medium text-slate-700">
-              {t("dialog.add.dimension")}
-            </label>
-            <Input type="number" {...form.register("dimension")} min={1} />
-            {form.formState.errors.dimension && (
-              <p className="text-xs text-red-600 mt-1">
-                {t(`dialog.add.errors.${form.formState.errors.dimension.message}`)}
-              </p>
-            )}
+            <label className="text-xs font-medium text-slate-700">{t("dialog.add.kind")}</label>
+            <Select
+              value={kind}
+              onValueChange={(v) => form.setValue("kind", v as "embedding" | "llm")}
+            >
+              <SelectTrigger aria-label={t("dialog.add.kind")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="embedding">{t("dialog.add.kind_embedding")}</SelectItem>
+                <SelectItem value="llm">{t("dialog.add.kind_llm")}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+          {kind === "embedding" && (
+            <div>
+              <label className="text-xs font-medium text-slate-700">
+                {t("dialog.add.dimension")}
+              </label>
+              <Input type="number" {...form.register("dimension")} min={1} />
+              {form.formState.errors.dimension && (
+                <p className="text-xs text-red-600 mt-1">
+                  {t(`dialog.add.errors.${form.formState.errors.dimension.message}`)}
+                </p>
+              )}
+            </div>
+          )}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               {t("dialog.cancel")}

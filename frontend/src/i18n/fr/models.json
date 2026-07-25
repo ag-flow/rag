@@ -45,7 +45,10 @@
         "model_required": "Le nom du modèle est requis.",
         "dimension_positive": "La dimension doit être un entier positif.",
         "provider_other_required": "Indiquez le nom du provider personnalisé."
-      }
+      },
+      "kind": "Type",
+      "kind_embedding": "Embedding (vectorisation)",
+      "kind_llm": "LLM (prompts)"
     },
     "delete": {
       "title": "Supprimer le modèle",
