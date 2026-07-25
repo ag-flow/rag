@@ -10,6 +10,8 @@ export type PromptTemplate = {
   target: string;
   timing: "post_index_metadata" | "embedding_inline";
   prompt_version: number;
+  /** true = prompt système (partagé, immuable) ; false = prompt de l'utilisateur. */
+  is_system: boolean;
   created_at: string;
   updated_at: string;
 };

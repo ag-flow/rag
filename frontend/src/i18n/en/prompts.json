@@ -36,5 +36,16 @@
   "mode_region_help": "Bindable in a strategy with a region parser: the generated description is embedded in place of the region source (changes the vectors → reindex).",
   "field_region_type": "Region type",
   "field_region_qualifier": "Qualifier (optional)",
-  "mode_inline_hint": "Injected into the embedded text ({chunk} and {document} placeholders): never active by default, enable via a trigger. Results are cached by source-chunk hash."
+  "mode_inline_hint": "Injected into the embedded text ({chunk} and {document} placeholders): never active by default, enable via a trigger. Results are cached by source-chunk hash.",
+  "edit_btn": "Edit",
+  "system_immutable": "System prompt — not editable",
+  "edit": {
+    "title": "Edit prompt",
+    "description_label": "Description",
+    "prompt_label": "Prompt",
+    "schema_label": "Expected JSON schema",
+    "schema_invalid": "Invalid JSON.",
+    "save": "Save",
+    "saved": "Prompt saved."
+  }
 }

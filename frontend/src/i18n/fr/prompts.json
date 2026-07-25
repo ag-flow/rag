@@ -36,5 +36,16 @@
   "mode_region_help": "Liable dans une stratégie avec parser de régions : la description générée est embeddée à la place du source de la région (modifie les vecteurs → réindexation).",
   "field_region_type": "Type de région",
   "field_region_qualifier": "Qualifier (optionnel)",
-  "mode_inline_hint": "Injecté dans le texte embeddé (placeholders {chunk} et {document}) : jamais actif par défaut, activez-le via un trigger. Le résultat est mis en cache par hash du chunk source."
+  "mode_inline_hint": "Injecté dans le texte embeddé (placeholders {chunk} et {document}) : jamais actif par défaut, activez-le via un trigger. Le résultat est mis en cache par hash du chunk source.",
+  "edit_btn": "Modifier",
+  "system_immutable": "Prompt système — non modifiable",
+  "edit": {
+    "title": "Modifier le prompt",
+    "description_label": "Description",
+    "prompt_label": "Prompt",
+    "schema_label": "Schéma JSON attendu",
+    "schema_invalid": "JSON invalide.",
+    "save": "Enregistrer",
+    "saved": "Prompt enregistré."
+  }
 }

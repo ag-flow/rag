@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -24,6 +24,7 @@ import { usePrompts, useDeletePrompt } from "@/hooks/useEnrichments";
 import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/lib/api";
 import { AddPromptDialog } from "./workspace/AddPromptDialog";
+import { EditPromptDialog } from "./prompts/EditPromptDialog";
 import type { PromptTemplate } from "@/lib/enrichments.types";
 
 export function PromptsPage() {
@@ -32,6 +33,7 @@ export function PromptsPage() {
   const { data: prompts = [], isLoading } = usePrompts();
   const deleteMutation = useDeletePrompt();
   const [addOpen, setAddOpen] = useState(false);
+  const [toEdit, setToEdit] = useState<PromptTemplate | null>(null);
   const [toDelete, setToDelete] = useState<PromptTemplate | null>(null);
 
   async function handleDelete() {
@@ -103,14 +105,28 @@ export function PromptsPage() {
                     {p.description ?? "—"}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setToDelete(p)}
-                      className="text-rose-600 hover:text-rose-700"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setToEdit(p)}
+                        disabled={p.is_system}
+                        title={p.is_system ? t("system_immutable") : t("edit_btn")}
+                        aria-label={t("edit_btn")}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setToDelete(p)}
+                        disabled={p.is_system}
+                        title={p.is_system ? t("system_immutable") : t("delete_btn")}
+                        className="text-rose-600 hover:text-rose-700"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -120,6 +136,7 @@ export function PromptsPage() {
       )}
 
       <AddPromptDialog open={addOpen} onOpenChange={setAddOpen} />
+      <EditPromptDialog prompt={toEdit} onOpenChange={(o) => !o && setToEdit(null)} />
 
       <AlertDialog
         open={!!toDelete}
