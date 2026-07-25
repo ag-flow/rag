@@ -25,6 +25,7 @@ const baseJob: Job = {
   triggered_by: "schedule",
   source: "git",
   path: null,
+  params: null,
   status: "done",
   files_changed: 3,
   files_skipped: 10,
@@ -90,4 +91,20 @@ describe("JobDetailPanel", () => {
     expect(matches.length).toBeGreaterThan(0);
     expect(matches.some((el) => /500 fichiers/i.test(el.textContent ?? ""))).toBe(true);
   });
+});
+
+it("affiche les paramètres de la demande quand le job en porte", () => {
+  mockFiles.value = { data: undefined, isLoading: false, isError: false };
+  renderWithProviders(
+    <JobDetailPanel
+      name="ws"
+      job={{
+        ...baseJob,
+        params: { force: true, source_url: "https://docs.example/a", content_bytes: 42 },
+      }}
+    />,
+  );
+  expect(screen.getByText("Paramètres de la demande")).toBeInTheDocument();
+  expect(screen.getByText("source_url")).toBeInTheDocument();
+  expect(screen.getByText("https://docs.example/a")).toBeInTheDocument();
 });

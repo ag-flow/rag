@@ -82,6 +82,7 @@ describe("useUpsertChunkingConfig", () => {
         triggered_by: "reindex_chunking_change",
         source: "admin",
         path: null,
+        params: null,
         status: "pending",
         files_changed: 0,
         files_skipped: 0,

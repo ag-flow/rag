@@ -110,6 +110,8 @@ export type Job = {
     | "rebuild_lexical_index";
   source: JobSource;
   path: string | null;
+  /** Instantané des paramètres de la demande (push/reindex) ; null pour git/admin. */
+  params: Record<string, unknown> | null;
   // 'rejected' = demande d'ingestion refusée (aucun job) — cf. journal des rejets.
   status: "pending" | "running" | "done" | "error" | "rejected";
   files_changed: number;

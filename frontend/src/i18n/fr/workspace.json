@@ -161,7 +161,8 @@
       "more": "+ {{count}} fichiers supplémentaires",
       "no_files": "Aucun détail de fichier (job antérieur à cette fonctionnalité).",
       "loading": "Chargement…",
-      "error": "Échec du chargement des fichiers."
+      "error": "Échec du chargement des fichiers.",
+      "params": "Paramètres de la demande"
     }
   },
   "model": {

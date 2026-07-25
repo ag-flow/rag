@@ -61,6 +61,24 @@ def test_index_force_enqueues_reindex_job(
         assert row["path"] == "docs/foo.md"
         assert row["force"] is True
 
+    async def check_params() -> None:
+        conn = await asyncpg.connect(pg_container)
+        try:
+            raw = await conn.fetchval(
+                "SELECT params FROM index_jobs WHERE id=$1::uuid", body["job_id"]
+            )
+        finally:
+            await conn.close()
+        import json
+
+        params = json.loads(raw)
+        # Instantané de la demande : consultable même après purge du payload.
+        assert params["force"] is True
+        assert params["content_bytes"] == len(b"hello world")
+        assert "correlation_id" in params
+
+    asyncio.run(check_params())
+
     asyncio.run(check())
 
 

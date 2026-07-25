@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json as _json
 import uuid as _uuid_mod
 from uuid import UUID
 
@@ -44,23 +45,38 @@ async def _enqueue_push(
     path: str,
     content: str,
     title: str | None,
+    strategy: str | None,
     strategy_id: UUID | None,
     force: bool,
     correlation_id: str,
     source_url: str | None = None,
 ) -> str:
-    """Enfile un job d'indexation + son payload. `force` bypasse le dedup."""
+    """Enfile un job d'indexation + son payload. `force` bypasse le dedup.
+
+    Un instantané des paramètres de la demande est figé sur le job (migration
+    075) : le payload est purgé après traitement, le drill-down IHM doit rester
+    capable de montrer ce qui a été demandé."""
+    params = {
+        "title": title,
+        "strategy": strategy,
+        "force": force,
+        "source_url": source_url,
+        "content_bytes": len(content.encode("utf-8")),
+        "correlation_id": correlation_id,
+    }
     async with pool.acquire() as conn, conn.transaction():
         job_id = await conn.fetchval(
             """
-            INSERT INTO index_jobs (workspace_id, triggered_by, status, correlation_id, path)
-            VALUES ($1, $2, 'pending', $3, $4)
+            INSERT INTO index_jobs
+                (workspace_id, triggered_by, status, correlation_id, path, params)
+            VALUES ($1, $2, 'pending', $3, $4, $5::jsonb)
             RETURNING id
             """,
             workspace_id,
             triggered_by,
             correlation_id,
             path,
+            _json.dumps({k: v for k, v in params.items() if v is not None}),
         )
         await conn.execute(
             "INSERT INTO push_job_payloads "
@@ -113,6 +129,7 @@ def build_workspace_router() -> APIRouter:
             path=norm_path,
             content=payload.content,
             title=payload.title,
+            strategy=payload.strategy,
             strategy_id=strategy_id,
             force=payload.force,
             correlation_id=correlation_id,

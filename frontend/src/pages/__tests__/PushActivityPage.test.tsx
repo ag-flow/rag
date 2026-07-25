@@ -38,6 +38,7 @@ const makeJob = (workspace: string, status: GlobalJob["status"]): GlobalJob => (
   triggered_by: "manual",
   source: "rest_api",
   path: "docs/a.md",
+  params: null,
   status,
   files_changed: 3,
   files_skipped: 1,

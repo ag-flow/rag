@@ -227,6 +227,9 @@ class JobResponse(BaseModel):
     source: str
     # Document concerné pour les jobs mono-doc (push/reindex/delete) ; None sinon.
     path: str | None = None
+    # Instantané des paramètres de la demande (push/reindex : title, strategy,
+    # force, source_url, content_bytes, correlation_id) ; None pour git/admin.
+    params: dict[str, Any] | None = None
     status: str
     files_changed: int
     files_skipped: int

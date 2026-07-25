@@ -110,7 +110,7 @@ async def list_jobs(config_pool: asyncpg.Pool, *, workspace_name: str) -> list[d
     rows = await fetch_all(
         config_pool,
         """
-        SELECT id, triggered_by, source_id, path, status, files_changed, files_skipped,
+        SELECT id, triggered_by, source_id, path, params, status, files_changed, files_skipped,
                error_message, started_at, finished_at, duration_ms
         FROM index_jobs
         WHERE workspace_id = $1
@@ -138,11 +138,11 @@ async def list_jobs_global(
     rows = await fetch_all(
         config_pool,
         """
-        SELECT u.id, u.triggered_by, u.source_id, u.path, u.status,
+        SELECT u.id, u.triggered_by, u.source_id, u.path, u.params, u.status,
                u.files_changed, u.files_skipped, u.error_message,
                u.started_at, u.finished_at, u.duration_ms, u.workspace_name
         FROM (
-            SELECT j.id::text AS id, j.triggered_by, j.source_id, j.path, j.status,
+            SELECT j.id::text AS id, j.triggered_by, j.source_id, j.path, j.params, j.status,
                    j.files_changed, j.files_skipped, j.error_message,
                    j.started_at, j.finished_at, j.duration_ms,
                    w.name AS workspace_name, j.created_at AS sort_ts
@@ -153,7 +153,7 @@ async def list_jobs_global(
             -- lignes de statut 'rejected', source rest_api, motif en error_message.
             SELECT r.id::text,
                    CASE WHEN r.method = 'DELETE' THEN 'delete' ELSE 'push' END,
-                   NULL::uuid, r.doc_path, 'rejected',
+                   NULL::uuid, r.doc_path, NULL::jsonb, 'rejected',
                    0, 0, r.reason,
                    r.received_at, NULL::timestamptz, NULL::int,
                    r.workspace, r.received_at
@@ -187,7 +187,7 @@ async def get_job(
     row = await fetch_one(
         config_pool,
         """
-        SELECT j.id, j.triggered_by, j.source_id, j.path, j.status,
+        SELECT j.id, j.triggered_by, j.source_id, j.path, j.params, j.status,
                j.files_changed, j.files_skipped, j.error_message,
                j.started_at, j.finished_at, j.duration_ms
         FROM index_jobs j
@@ -275,6 +275,7 @@ def _job_to_dict(row: asyncpg.Record) -> dict[str, Any]:
         "triggered_by": row["triggered_by"],
         "source": _job_source(row["triggered_by"], row.get("source_id")),
         "path": row.get("path"),
+        "params": json.loads(row["params"]) if row.get("params") else None,
         "status": row["status"],
         "files_changed": int(row["files_changed"] or 0),
         "files_skipped": int(row["files_skipped"] or 0),

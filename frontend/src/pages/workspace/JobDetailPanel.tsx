@@ -47,6 +47,20 @@ export function JobDetailPanel({ name, job }: Props) {
         </div>
       )}
 
+      {job.params && Object.keys(job.params).length > 0 && (
+        <div className="mb-2">
+          <p className="font-medium text-slate-700 mb-1">{t("jobs.detail.params")}</p>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-slate-600">
+            {Object.entries(job.params).map(([k, v]) => (
+              <div key={k} className="contents">
+                <dt className="font-mono text-slate-500">{k}</dt>
+                <dd className="break-all font-mono">{String(v)}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
+
       {isLoading && <p className="text-slate-500">{t("jobs.detail.loading")}</p>}
       {isError && <p className="text-red-600">{t("jobs.detail.error")}</p>}
 
