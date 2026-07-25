@@ -322,7 +322,7 @@ async def reindex_workspace(
         config_pool,
         """
         SELECT w.id AS workspace_id, w.rag_base,
-               ic.provider, ic.model, ic.api_key_ref, ic.dimension
+               ic.provider, ic.model, ic.api_key_ref, ic.base_url, ic.dimension
         FROM workspaces w
         LEFT JOIN indexer_configs ic ON ic.workspace_id = w.id
         WHERE w.name = $1
@@ -340,10 +340,16 @@ async def reindex_workspace(
     if new_indexer is not None:
         effective_api_key_ref = new_indexer.api_key_ref or row["api_key_ref"]
 
+    # base_url : None = « champ omis » (inchangé), même sémantique que api_key_ref.
+    effective_base_url: str | None = None
+    if new_indexer is not None:
+        effective_base_url = new_indexer.base_url or row["base_url"]
+
     same_indexer = new_indexer is None or (
         new_indexer.provider == row["provider"]
         and new_indexer.model == row["model"]
         and (effective_api_key_ref or None) == (row["api_key_ref"] or None)
+        and (effective_base_url or None) == (row["base_url"] or None)
     )
     if same_indexer:
         return await create_pending_job(
@@ -393,12 +399,13 @@ async def reindex_workspace(
         await conn.execute(
             """
             UPDATE indexer_configs
-            SET provider=$1, model=$2, api_key_ref=$3, dimension=$4
-            WHERE workspace_id=$5
+            SET provider=$1, model=$2, api_key_ref=$3, base_url=$4, dimension=$5
+            WHERE workspace_id=$6
             """,
             new_indexer.provider,
             new_indexer.model,
             effective_api_key_ref,
+            effective_base_url,
             new_dimension,
             row["workspace_id"],
         )

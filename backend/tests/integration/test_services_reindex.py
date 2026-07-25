@@ -129,7 +129,10 @@ async def test_reindex_indexer_change_with_confirm_recreates_table_and_invalidat
 
     job = await reindex_workspace(
         name="ws_reindex_ok",
-        new_indexer=IndexerSpec(provider="voyage", model="voyage-3", api_key_ref="vk"),
+        new_indexer=IndexerSpec(
+            provider="voyage", model="voyage-3", api_key_ref="vk",
+            base_url="https://api.voyage.example",
+        ),
         confirm=True,
         config_pool=session_pool,
         admin_dsn=admin_dsn,
@@ -141,7 +144,7 @@ async def test_reindex_indexer_change_with_confirm_recreates_table_and_invalidat
 
     # indexer_configs mis à jour
     ic = await session_pool.fetchrow(
-        "SELECT provider, model, dimension, api_key_ref FROM indexer_configs ic "
+        "SELECT provider, model, dimension, api_key_ref, base_url FROM indexer_configs ic "
         "JOIN workspaces w ON w.id = ic.workspace_id WHERE w.name='ws_reindex_ok'"
     )
     assert ic is not None
@@ -149,6 +152,8 @@ async def test_reindex_indexer_change_with_confirm_recreates_table_and_invalidat
     assert ic["model"] == "voyage-3"
     assert ic["dimension"] == 1024
     assert ic["api_key_ref"] == "vk"
+    # base_url suit le changement d'indexeur (bug : il restait sur l'ancien).
+    assert ic["base_url"] == "https://api.voyage.example"
 
     # indexed_documents purgés
     count = await session_pool.fetchval(
