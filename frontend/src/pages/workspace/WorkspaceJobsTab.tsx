@@ -18,6 +18,8 @@ const statusVariant: Record<Job["status"], "default" | "secondary" | "destructiv
   pending: "secondary",
   running: "secondary",
   error: "destructive",
+  // Les rejets d'ingestion n'apparaissent qu'en vue globale ; complétude du type.
+  rejected: "destructive",
 };
 
 function formatDuration(ms: number | null): string {

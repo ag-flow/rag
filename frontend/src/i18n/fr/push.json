@@ -24,7 +24,8 @@
     "pending": "En attente",
     "running": "En cours",
     "done": "Terminé",
-    "error": "Erreur"
+    "error": "Erreur",
+    "rejected": "Rejeté"
   },
   "empty": "Aucun job d'indexation.",
   "error": "Impossible de charger les jobs.",

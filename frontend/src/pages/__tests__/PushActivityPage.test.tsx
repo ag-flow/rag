@@ -129,6 +129,29 @@ describe("PushActivityPage", () => {
     });
   });
 
+  it("affiche un rejet d'ingestion avec son motif, sans drill-down", async () => {
+    listGlobal.mockResolvedValue([
+      {
+        ...makeJob("ws-a", "rejected"),
+        error_message: "Workspace inconnu ou non autorisé pour cette clé",
+      },
+    ]);
+    renderWithProviders(<PushActivityPage />);
+    await waitFor(() => {
+      expect(screen.getByRole("cell", { name: "ws-a" })).toBeInTheDocument();
+    });
+
+    // "Rejeté" = option du filtre + badge de la ligne (≥ 2).
+    expect(screen.getAllByText("Rejeté").length).toBeGreaterThanOrEqual(2);
+    expect(
+      screen.getByText("Workspace inconnu ou non autorisé pour cette clé"),
+    ).toBeInTheDocument();
+
+    // Un rejet n'a pas de job : le clic ne déclenche aucun re-fetch.
+    fireEvent.click(screen.getByRole("cell", { name: "ws-a" }));
+    expect(getJob).not.toHaveBeenCalled();
+  });
+
   it("ouvre le détail d'un job au clic : re-fetch du statut + fichiers", async () => {
     listGlobal.mockResolvedValue([makeJob("ws-a", "pending")]);
     // Statut re-fetché : le job listé était 'pending', il est en fait 'done'.

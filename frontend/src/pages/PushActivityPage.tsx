@@ -42,6 +42,7 @@ const statusVariant: Record<Job["status"], "default" | "secondary" | "destructiv
   pending: "secondary",
   running: "secondary",
   error: "destructive",
+  rejected: "destructive",
 };
 
 const statusDotClass: Record<Job["status"], string> = {
@@ -49,9 +50,10 @@ const statusDotClass: Record<Job["status"], string> = {
   pending: "bg-slate-400",
   running: "bg-sky-500",
   error: "bg-rose-500",
+  rejected: "bg-rose-600",
 };
 
-const JOB_STATUSES: Job["status"][] = ["pending", "running", "done", "error"];
+const JOB_STATUSES: Job["status"][] = ["pending", "running", "done", "error", "rejected"];
 
 function StatusBadge({ status }: { status: Job["status"] }) {
   const { t } = useTranslation("push");
@@ -73,17 +75,19 @@ function JobRow({
   onToggle: () => void;
 }) {
   const { t } = useTranslation("push");
-  // Statut re-fetché à l'ouverture (le job listé peut être périmé : pending→done).
-  const { data: fresh } = useWorkspaceJob(job.workspace_name, job.id, isOpen);
+  // Un rejet d'ingestion n'a pas de job → ni re-fetch ni drill-down (le motif
+  // est déjà dans error_message).
+  const isRejected = job.status === "rejected";
+  const { data: fresh } = useWorkspaceJob(job.workspace_name, job.id, isOpen && !isRejected);
   const current: Job = fresh ?? job;
 
   return (
     <>
       <TableRow
-        onClick={onToggle}
-        aria-expanded={isOpen}
-        aria-label={t("table.detail_aria")}
-        className={`cursor-pointer ${isOpen ? "bg-slate-50" : ""}`}
+        onClick={isRejected ? undefined : onToggle}
+        aria-expanded={isRejected ? undefined : isOpen}
+        aria-label={isRejected ? undefined : t("table.detail_aria")}
+        className={isRejected ? "" : `cursor-pointer ${isOpen ? "bg-slate-50" : ""}`}
       >
         <TableCell className="font-medium text-slate-900">{job.workspace_name}</TableCell>
         <TableCell>
@@ -97,16 +101,20 @@ function JobRow({
           <StatusBadge status={current.status} />
         </TableCell>
         <TableCell className="text-xs text-slate-600">
-          {t("files_summary", {
-            changed: current.files_changed,
-            skipped: current.files_skipped,
-          })}
+          {isRejected ? (
+            <span className="text-rose-700">{current.error_message}</span>
+          ) : (
+            t("files_summary", {
+              changed: current.files_changed,
+              skipped: current.files_skipped,
+            })
+          )}
         </TableCell>
         <TableCell className="text-xs text-slate-500">
           {current.started_at ? formatRelativeTime(current.started_at, t) : "—"}
         </TableCell>
       </TableRow>
-      {isOpen && (
+      {isOpen && !isRejected && (
         <TableRow>
           <TableCell colSpan={7} className="p-0">
             <JobDetailPanel name={job.workspace_name} job={current} />

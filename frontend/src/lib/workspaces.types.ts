@@ -110,7 +110,8 @@ export type Job = {
     | "rebuild_lexical_index";
   source: JobSource;
   path: string | null;
-  status: "pending" | "running" | "done" | "error";
+  // 'rejected' = demande d'ingestion refusée (aucun job) — cf. journal des rejets.
+  status: "pending" | "running" | "done" | "error" | "rejected";
   files_changed: number;
   files_skipped: number;
   error_message: string | null;

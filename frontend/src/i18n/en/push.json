@@ -24,7 +24,8 @@
     "pending": "Pending",
     "running": "Running",
     "done": "Done",
-    "error": "Error"
+    "error": "Error",
+    "rejected": "Rejected"
   },
   "empty": "No indexing job.",
   "error": "Failed to load jobs.",
