@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +24,7 @@ import { useProviderKeys } from "@/hooks/useHarpocrateVaults";
 import { useModels } from "@/hooks/useModels";
 import { MODELS_BY_PROVIDER, RERANK_PROVIDERS } from "@/pages/workspace/WorkspaceRerankTab.schema";
 import type { RerankProvider } from "@/lib/rerank.types";
-import { vaultEndpointsApi, type EndpointTestResult } from "@/lib/vault-endpoints";
+import { vaultEndpointsApi, type SectionTestResult } from "@/lib/vault-endpoints";
 import { useCreateEndpoint, useUpdateEndpoint } from "@/hooks/useVaultEndpoints";
 import { useToast } from "@/hooks/useToast";
 import { slugifyLabel } from "@/lib/slugify";
@@ -37,6 +38,11 @@ interface Props {
 }
 
 const NONE = "__none__";
+
+// LLM d'exécution des prompts — mêmes providers que workspace_llm_configs.
+const LLM_PROVIDERS = ["claude", "openai", "azure-openai", "ollama"] as const;
+
+type TestSection = "vectorization" | "rerank" | "llm";
 
 export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Props) {
   const { t } = useTranslation("harpocrate");
@@ -57,8 +63,17 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
   const [rerankKeyRef, setRerankKeyRef] = useState<string>(NONE);
   const [rerankBaseUrl, setRerankBaseUrl] = useState("");
   const [rerankTopK, setRerankTopK] = useState(20);
+  const [llmOn, setLlmOn] = useState(false);
+  const [llmProvider, setLlmProvider] = useState("ollama");
+  const [llmModel, setLlmModel] = useState("");
+  const [llmKeyRef, setLlmKeyRef] = useState<string>(NONE);
+  const [llmBaseUrl, setLlmBaseUrl] = useState("");
 
-  // Pré-remplit en mode édition, reset en création.
+  const [testing, setTesting] = useState<TestSection | null>(null);
+  const [testResults, setTestResults] = useState<
+    Partial<Record<TestSection, SectionTestResult>>
+  >({});
+
   useEffect(() => {
     if (!open) return;
     setLabel(endpoint?.label ?? "");
@@ -72,7 +87,12 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
     setRerankKeyRef(endpoint?.rerank?.api_key_ref ?? NONE);
     setRerankBaseUrl(endpoint?.rerank?.base_url ?? "");
     setRerankTopK(endpoint?.rerank?.top_k_pre_rerank ?? 20);
-    setTestResult(null);
+    setLlmOn(endpoint?.llm != null);
+    setLlmProvider(endpoint?.llm?.provider ?? "ollama");
+    setLlmModel(endpoint?.llm?.model ?? "");
+    setLlmKeyRef(endpoint?.llm?.api_key_ref ?? NONE);
+    setLlmBaseUrl(endpoint?.llm?.base_url ?? "");
+    setTestResults({});
   }, [open, endpoint]);
 
   // Défauts en création : premier couple provider/modèle du référentiel.
@@ -119,7 +139,8 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
     label.trim().length > 0 &&
     model.trim().length > 0 &&
     slug.length > 0 &&
-    (!rerankOn || rerankModel.trim().length > 0);
+    (!rerankOn || rerankModel.trim().length > 0) &&
+    (!llmOn || llmModel.trim().length > 0);
 
   function buildPayload() {
     return {
@@ -139,6 +160,14 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
             top_k_pre_rerank: rerankTopK,
           }
         : null,
+      llm: llmOn
+        ? {
+            provider: llmProvider,
+            model: llmModel,
+            api_key_ref: llmKeyRef === NONE ? null : llmKeyRef,
+            base_url: llmBaseUrl.trim() === "" ? null : llmBaseUrl,
+          }
+        : null,
     };
   }
 
@@ -147,7 +176,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
       if (endpoint) {
         await updateMutation.mutateAsync({
           endpointId: endpoint.id,
-          payload: { ...buildPayload(), clear_rerank: !rerankOn },
+          payload: { ...buildPayload(), clear_rerank: !rerankOn, clear_llm: !llmOn },
         });
         toast({ title: t("endpoints.updated_toast") });
       } else {
@@ -160,23 +189,25 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
     }
   }
 
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<EndpointTestResult | null>(null);
-
-  async function handleTest() {
-    setTesting(true);
-    setTestResult(null);
+  async function handleTest(section: TestSection) {
+    setTesting(section);
+    setTestResults((prev) => ({ ...prev, [section]: undefined }));
     try {
       const payload = buildPayload();
       const result = await vaultEndpointsApi.test(vaultId, {
-        indexer: payload.indexer,
-        rerank: payload.rerank,
+        indexer: section === "vectorization" ? payload.indexer : null,
+        rerank: section === "rerank" ? payload.rerank : null,
+        llm: section === "llm" ? payload.llm : null,
       });
-      setTestResult(result);
+      const sectionResult =
+        section === "vectorization" ? result.vectorization : result[section];
+      if (sectionResult) {
+        setTestResults((prev) => ({ ...prev, [section]: sectionResult }));
+      }
     } catch {
       toast({ title: t("endpoints.test_error"), variant: "destructive" });
     } finally {
-      setTesting(false);
+      setTesting(null);
     }
   }
 
@@ -196,6 +227,30 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
     </Select>
   );
 
+  const testFooter = (section: TestSection, enabled: boolean) => {
+    const result = testResults[section];
+    return (
+      <div className="mt-3 flex items-start justify-between gap-3 border-t pt-3">
+        <div className="min-w-0 flex-1 text-xs">
+          {result && (
+            <p className={result.ok ? "text-emerald-700" : "text-rose-700"}>
+              {result.ok ? "✓" : "✗"} {result.message}
+            </p>
+          )}
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => void handleTest(section)}
+          disabled={!enabled || testing !== null}
+        >
+          {testing === section ? t("endpoints.testing") : t("endpoints.test_btn")}
+        </Button>
+      </div>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[560px]">
@@ -206,7 +261,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
           <DialogDescription>{t("endpoints.form_desc")}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <div>
             <Label className="text-xs uppercase tracking-wider text-slate-600">
               {t("endpoints.field_label")}
@@ -223,159 +278,206 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
             </p>
           </div>
 
-          <fieldset className="rounded-md border border-slate-200 p-3">
-            <legend className="px-1 text-xs font-semibold uppercase text-slate-500">
-              {t("endpoints.vectorization")}
-            </legend>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs text-slate-600">{t("endpoints.provider")}</Label>
-                <Select value={provider} onValueChange={handleProviderChange}>
-                  <SelectTrigger className="mt-1" aria-label={t("endpoints.provider")}>
-                    <SelectValue placeholder={t("endpoints.select_placeholder")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {providerOptions.map((pv) => (
-                      <SelectItem key={pv} value={pv}>
-                        {pv}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs text-slate-600">{t("endpoints.model")}</Label>
-                <Select value={model} onValueChange={setModel}>
-                  <SelectTrigger className="mt-1" aria-label={t("endpoints.model")}>
-                    <SelectValue placeholder={t("endpoints.select_placeholder")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {modelOptions.map((m) => (
-                      <SelectItem key={m} value={m}>
-                        {m}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="mt-3">
-              <Label className="text-xs text-slate-600">{t("endpoints.api_key")}</Label>
-              {keySelect(apiKeyRef, setApiKeyRef, t("endpoints.api_key"))}
-            </div>
-            <div className="mt-3">
-              <Label className="text-xs text-slate-600">{t("endpoints.base_url")}</Label>
-              <Input
-                value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
-                className="mt-1 font-mono"
-                placeholder="http://ollama:11434 (optionnel)"
-              />
-            </div>
-          </fieldset>
+          <Tabs defaultValue="vectorization">
+            <TabsList>
+              <TabsTrigger value="vectorization">{t("endpoints.vectorization")}</TabsTrigger>
+              <TabsTrigger value="rerank">{t("endpoints.rerank")}</TabsTrigger>
+              <TabsTrigger value="llm">{t("endpoints.llm")}</TabsTrigger>
+            </TabsList>
 
-          <fieldset className="rounded-md border border-slate-200 p-3">
-            <legend className="flex items-center gap-2 px-1 text-xs font-semibold uppercase text-slate-500">
-              {t("endpoints.rerank")}
-              <Switch
-                checked={rerankOn}
-                onCheckedChange={(v) => {
-                  setRerankOn(v);
-                  if (v && rerankModel === "") {
-                    setRerankModel(MODELS_BY_PROVIDER[rerankProvider as RerankProvider]?.[0] ?? "");
-                  }
-                }}
-                aria-label={t("endpoints.rerank")}
-              />
-            </legend>
-            {rerankOn && (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-slate-600">{t("endpoints.provider")}</Label>
-                    <Select value={rerankProvider} onValueChange={handleRerankProviderChange}>
-                      <SelectTrigger className="mt-1" aria-label={t("endpoints.provider")}>
-                        <SelectValue placeholder={t("endpoints.select_placeholder")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {RERANK_PROVIDERS.map((pv) => (
-                          <SelectItem key={pv} value={pv}>
-                            {pv}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-slate-600">{t("endpoints.model")}</Label>
-                    <Select value={rerankModel} onValueChange={setRerankModel}>
-                      <SelectTrigger className="mt-1" aria-label={t("endpoints.model")}>
-                        <SelectValue placeholder={t("endpoints.select_placeholder")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {rerankModelOptions.map((m) => (
-                          <SelectItem key={m} value={m}>
-                            {m}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+            <TabsContent value="vectorization" className="rounded-md border p-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-slate-600">{t("endpoints.provider")}</Label>
+                  <Select value={provider} onValueChange={handleProviderChange}>
+                    <SelectTrigger className="mt-1" aria-label={t("endpoints.provider")}>
+                      <SelectValue placeholder={t("endpoints.select_placeholder")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {providerOptions.map((pv) => (
+                        <SelectItem key={pv} value={pv}>
+                          {pv}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="mt-3">
-                  <Label className="text-xs text-slate-600">{t("endpoints.api_key")}</Label>
-                  {keySelect(rerankKeyRef, setRerankKeyRef, t("endpoints.rerank_api_key"))}
+                <div>
+                  <Label className="text-xs text-slate-600">{t("endpoints.model")}</Label>
+                  <Select value={model} onValueChange={setModel}>
+                    <SelectTrigger className="mt-1" aria-label={t("endpoints.model")}>
+                      <SelectValue placeholder={t("endpoints.select_placeholder")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {modelOptions.map((m) => (
+                        <SelectItem key={m} value={m}>
+                          {m}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <div>
+              </div>
+              <div className="mt-3">
+                <Label className="text-xs text-slate-600">{t("endpoints.api_key")}</Label>
+                {keySelect(apiKeyRef, setApiKeyRef, t("endpoints.api_key"))}
+              </div>
+              <div className="mt-3">
+                <Label className="text-xs text-slate-600">{t("endpoints.base_url")}</Label>
+                <Input
+                  value={baseUrl}
+                  onChange={(e) => setBaseUrl(e.target.value)}
+                  className="mt-1 font-mono"
+                  placeholder="http://ollama:11434 (optionnel)"
+                />
+              </div>
+              {testFooter("vectorization", model.trim() !== "")}
+            </TabsContent>
+
+            <TabsContent value="rerank" className="rounded-md border p-3">
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={rerankOn}
+                  onCheckedChange={(v) => {
+                    setRerankOn(v);
+                    if (v && rerankModel === "") {
+                      setRerankModel(
+                        MODELS_BY_PROVIDER[rerankProvider as RerankProvider]?.[0] ?? "",
+                      );
+                    }
+                  }}
+                  aria-label={t("endpoints.rerank")}
+                />
+                <span className="text-xs font-medium text-slate-600">
+                  {t("endpoints.rerank_toggle")}
+                </span>
+              </div>
+              {rerankOn && (
+                <>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs text-slate-600">{t("endpoints.provider")}</Label>
+                      <Select value={rerankProvider} onValueChange={handleRerankProviderChange}>
+                        <SelectTrigger className="mt-1" aria-label={t("endpoints.provider")}>
+                          <SelectValue placeholder={t("endpoints.select_placeholder")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {RERANK_PROVIDERS.map((pv) => (
+                            <SelectItem key={pv} value={pv}>
+                              {pv}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-slate-600">{t("endpoints.model")}</Label>
+                      <Select value={rerankModel} onValueChange={setRerankModel}>
+                        <SelectTrigger className="mt-1" aria-label={t("endpoints.model")}>
+                          <SelectValue placeholder={t("endpoints.select_placeholder")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {rerankModelOptions.map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <Label className="text-xs text-slate-600">{t("endpoints.api_key")}</Label>
+                    {keySelect(rerankKeyRef, setRerankKeyRef, t("endpoints.rerank_api_key"))}
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs text-slate-600">{t("endpoints.base_url")}</Label>
+                      <Input
+                        value={rerankBaseUrl}
+                        onChange={(e) => setRerankBaseUrl(e.target.value)}
+                        className="mt-1 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-slate-600">{t("endpoints.top_k")}</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={200}
+                        value={rerankTopK}
+                        onChange={(e) => setRerankTopK(Number(e.target.value))}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                  {testFooter("rerank", rerankModel.trim() !== "")}
+                </>
+              )}
+            </TabsContent>
+
+            <TabsContent value="llm" className="rounded-md border p-3">
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={llmOn}
+                  onCheckedChange={setLlmOn}
+                  aria-label={t("endpoints.llm")}
+                />
+                <span className="text-xs font-medium text-slate-600">
+                  {t("endpoints.llm_toggle")}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-400">{t("endpoints.llm_help")}</p>
+              {llmOn && (
+                <>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs text-slate-600">{t("endpoints.provider")}</Label>
+                      <Select value={llmProvider} onValueChange={setLlmProvider}>
+                        <SelectTrigger className="mt-1" aria-label={t("endpoints.llm_provider")}>
+                          <SelectValue placeholder={t("endpoints.select_placeholder")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {LLM_PROVIDERS.map((pv) => (
+                            <SelectItem key={pv} value={pv}>
+                              {pv}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-slate-600">{t("endpoints.model")}</Label>
+                      <Input
+                        value={llmModel}
+                        onChange={(e) => setLlmModel(e.target.value)}
+                        className="mt-1 font-mono"
+                        placeholder="ex. qwen3:14b"
+                        aria-label={t("endpoints.llm_model")}
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <Label className="text-xs text-slate-600">{t("endpoints.api_key")}</Label>
+                    {keySelect(llmKeyRef, setLlmKeyRef, t("endpoints.llm_api_key"))}
+                  </div>
+                  <div className="mt-3">
                     <Label className="text-xs text-slate-600">{t("endpoints.base_url")}</Label>
                     <Input
-                      value={rerankBaseUrl}
-                      onChange={(e) => setRerankBaseUrl(e.target.value)}
+                      value={llmBaseUrl}
+                      onChange={(e) => setLlmBaseUrl(e.target.value)}
                       className="mt-1 font-mono"
+                      placeholder="http://ollama:11434 (ollama / azure)"
                     />
                   </div>
-                  <div>
-                    <Label className="text-xs text-slate-600">{t("endpoints.top_k")}</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={200}
-                      value={rerankTopK}
-                      onChange={(e) => setRerankTopK(Number(e.target.value))}
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-          </fieldset>
+                  {testFooter("llm", llmModel.trim() !== "")}
+                </>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
 
-        {testResult && (
-          <div className="space-y-1 rounded-md border bg-slate-50 p-3 text-xs">
-            <p className={testResult.vectorization.ok ? "text-emerald-700" : "text-rose-700"}>
-              {testResult.vectorization.ok ? "✓" : "✗"} {t("endpoints.test_vectorization")} —{" "}
-              {testResult.vectorization.message}
-            </p>
-            {testResult.rerank && (
-              <p className={testResult.rerank.ok ? "text-emerald-700" : "text-rose-700"}>
-                {testResult.rerank.ok ? "✓" : "✗"} {t("endpoints.test_rerank")} —{" "}
-                {testResult.rerank.message}
-              </p>
-            )}
-          </div>
-        )}
-
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void handleTest()}
-            disabled={model.trim() === "" || (rerankOn && rerankModel.trim() === "") || testing}
-          >
-            {testing ? t("endpoints.testing") : t("endpoints.test_btn")}
-          </Button>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t("endpoints.cancel")}
           </Button>

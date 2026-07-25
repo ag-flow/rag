@@ -32,6 +32,7 @@ const EP: VaultEndpoint = {
     base_url: null,
     top_k_pre_rerank: 25,
   },
+  llm: null,
   created_at: "2026-07-01T00:00:00Z",
   updated_at: "2026-07-01T00:00:00Z",
 };

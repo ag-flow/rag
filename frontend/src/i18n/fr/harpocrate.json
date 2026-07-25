@@ -295,7 +295,14 @@
     "testing": "Test en cours…",
     "test_vectorization": "Vectorisation",
     "test_rerank": "Rerank",
-    "test_error": "Le test n'a pas pu être exécuté."
+    "test_error": "Le test n'a pas pu être exécuté.",
+    "llm": "LLM",
+    "llm_toggle": "Configurer le LLM des prompts",
+    "llm_help": "Exécute les prompts : enrichissements, contexte de chunks, chat du Playground. Copié au workspace à sa création.",
+    "llm_provider": "Provider LLM",
+    "llm_model": "Modèle LLM",
+    "llm_api_key": "Clé API LLM",
+    "rerank_toggle": "Activer le reranking"
   },
   "expiry": {
     "banner_expired": "La clé d'accès de ce coffre est expirée — remplacez-la (menu ⋯ → Remplacer la clé) avant que la résolution de secrets n'échoue.",

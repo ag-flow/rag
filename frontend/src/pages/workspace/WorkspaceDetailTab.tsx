@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useRerankConfig } from "@/hooks/useRerank";
+import { useLlmConfigs } from "@/hooks/usePlayground";
 import { useProviderKeysByProvider } from "@/hooks/useHarpocrateVaults";
 import { useUpdateApiKeyRef } from "@/hooks/useWorkspaces";
 import { useToast } from "@/hooks/useToast";
@@ -84,6 +85,7 @@ export function WorkspaceDetailTab({ workspace, enabled }: Props) {
   const { t } = useTranslation("workspace");
   const { toast } = useToast();
   const { data: rerankData, isLoading: rerankLoading } = useRerankConfig(workspace.name, enabled);
+  const { data: llmConfigs = [] } = useLlmConfigs(workspace.name);
   const patchMutation = useUpdateApiKeyRef(workspace.name);
 
   function saveKeyRef(payload: {
@@ -142,6 +144,33 @@ export function WorkspaceDetailTab({ workspace, enabled }: Props) {
             )}
           </div>
         </div>
+      </section>
+
+      {/* Section LLM : exécution des prompts (copié de l'endpoint à la création) */}
+      <section>
+        <h3 className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">
+          {t("detail.llm.title")}
+        </h3>
+        {llmConfigs.length === 0 ? (
+          <p className="text-sm text-slate-500">{t("detail.llm.empty")}</p>
+        ) : (
+          <dl className="grid grid-cols-2 gap-2 text-sm">
+            {llmConfigs.map((c) => (
+              <div key={c.id} className="contents">
+                <dt className="text-slate-500">
+                  {c.provider}
+                  {!c.enabled && (
+                    <span className="ml-1 text-xs text-slate-400">({t("detail.llm.disabled")})</span>
+                  )}
+                </dt>
+                <dd className="font-mono">
+                  {c.model}
+                  {c.base_url ? <span className="text-slate-400"> · {c.base_url}</span> : null}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
       </section>
 
       {/* Section 3 : Reranking */}

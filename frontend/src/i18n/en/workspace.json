@@ -71,6 +71,11 @@
       "error": "Failed to update the key.",
       "custom": "Custom reference: {{ref}}",
       "none": "No key"
+    },
+    "llm": {
+      "title": "LLM (prompt execution)",
+      "empty": "No LLM configured — recreate the workspace from an endpoint with LLM (Vaults → Endpoints).",
+      "disabled": "disabled"
     }
   },
   "sources": {

@@ -295,7 +295,14 @@
     "testing": "Testing…",
     "test_vectorization": "Vectorization",
     "test_rerank": "Rerank",
-    "test_error": "The test could not be executed."
+    "test_error": "The test could not be executed.",
+    "llm": "LLM",
+    "llm_toggle": "Configure the prompts LLM",
+    "llm_help": "Runs the prompts: enrichments, chunk context, Playground chat. Copied to the workspace at creation.",
+    "llm_provider": "LLM provider",
+    "llm_model": "LLM model",
+    "llm_api_key": "LLM API key",
+    "rerank_toggle": "Enable reranking"
   },
   "expiry": {
     "banner_expired": "This vault's access key has expired — replace it (⋯ menu → Replace key) before secret resolution fails.",
