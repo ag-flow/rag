@@ -100,6 +100,8 @@ class WorkspaceCreateResolved(BaseModel):
     rerank: RerankCreateSpec | None = None
     # LLM d'exécution des prompts, copié dans workspace_llm_configs (endpoint 3 services).
     llm: LlmCreateSpec | None = None
+    # Endpoint d'origine (lien pour « Rafraîchir depuis l'endpoint »).
+    endpoint_id: UUID | None = None
 
 
 class IndexerPatchSpec(BaseModel):
@@ -136,6 +138,8 @@ class WorkspaceResponse(BaseModel):
 
     id: UUID
     name: str
+    # Endpoint d'origine (None = workspace d'avant le lien, refresh indisponible).
+    endpoint_id: UUID | None = None
     label: str
     description: str
     indexer: IndexerSpec

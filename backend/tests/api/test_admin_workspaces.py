@@ -209,3 +209,69 @@ def test_create_workspace_copies_endpoint_llm(
         assert row["enabled"] is True
 
     asyncio.run(check())
+
+
+def test_refresh_endpoint_updates_llm_and_key(
+    admin_client, admin_headers, cleanup_ws_dbs_api, pg_container
+):
+    """Refresh depuis le MÊME endpoint : clé/URL (même modèle) → update direct ;
+    llm remplacé ; pas de reindex tant que provider/modèle inchangés."""
+    import asyncio
+
+    import asyncpg
+
+    from tests.api.conftest import seed_endpoint
+
+    endpoint_id = asyncio.run(
+        seed_endpoint(
+            pg_container,
+            slug="ep-refresh",
+            provider="openai",
+            model="text-embedding-3-small",
+        )
+    )
+    r = admin_client.post(
+        "/api/admin/workspaces",
+        headers=admin_headers,
+        json={"name": "ws-refresh", "label": "ws-refresh", "endpoint_id": endpoint_id},
+    )
+    assert r.status_code == 201, r.text
+
+    # L'endpoint évolue APRÈS la création : nouvelle clé + LLM ajouté.
+    asyncio.run(
+        seed_endpoint(
+            pg_container,
+            slug="ep-refresh",
+            provider="openai",
+            model="text-embedding-3-small",
+            api_key_ref="openai_embedding_key_v2",
+            llm={"provider": "ollama", "model": "qwen3:14b", "base_url": "http://o:11434"},
+        )
+    )
+
+    resp = admin_client.post(
+        "/api/admin/workspaces/ws-refresh/refresh-endpoint", headers=admin_headers
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["indexer"] == "updated"  # même modèle : pas de reindex
+    assert body["llm"] == "updated"
+    assert body["job"] is None
+
+    async def check() -> None:
+        conn = await asyncpg.connect(pg_container)
+        try:
+            key = await conn.fetchval(
+                "SELECT ic.api_key_ref FROM indexer_configs ic "
+                "JOIN workspaces w ON w.id = ic.workspace_id WHERE w.name='ws-refresh'"
+            )
+            llm = await conn.fetchval(
+                "SELECT lc.model FROM workspace_llm_configs lc "
+                "JOIN workspaces w ON w.id = lc.workspace_id WHERE w.name='ws-refresh'"
+            )
+        finally:
+            await conn.close()
+        assert key == "openai_embedding_key_v2"
+        assert llm == "qwen3:14b"
+
+    asyncio.run(check())
