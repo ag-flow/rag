@@ -17,6 +17,7 @@ from rag.api.errors import (
     OidcStateMissing,
     SetupRequired,
 )
+from rag.api.public_base import public_base_from_request
 from rag.auth.bearer import _LOCAL_SESSION_KEY
 from rag.auth.oidc_dependency import require_oidc_role
 from rag.schemas.local_auth import LocalLoginRequest, LocalLoginResponse
@@ -129,10 +130,15 @@ def build_auth_router() -> APIRouter:
         request.session.pop(_SESSION_KEY, None)
         request.session.pop(_STATE_KEY, None)
 
+        # Base dérivée de l'ADRESSE D'APPEL (X-Forwarded-Host) : fiable même si
+        # RAG_PUBLIC_URL est erroné (sinon le logout renvoyait sur localhost).
+        public_base = public_base_from_request(request)
         if cfg is not None and id_token:
-            logout_url = await oidc.build_logout_url(id_token=id_token, config=cfg)
+            logout_url = await oidc.build_logout_url(
+                id_token=id_token, config=cfg, post_logout_redirect_uri=f"{public_base}/"
+            )
         else:
-            logout_url = f"{request.app.state.public_url}/"
+            logout_url = f"{public_base}/"
         return RedirectResponse(url=logout_url, status_code=302)
 
     @router.post("/auth/local/login", response_model=LocalLoginResponse)

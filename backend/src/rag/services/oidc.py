@@ -384,11 +384,21 @@ class OidcService:
             expires_at=now + int(body.get("expires_in", 300)),
         )
 
-    async def build_logout_url(self, *, id_token: str, config: OidcConfig) -> str:
-        """Construit l'URL de logout Keycloak avec id_token_hint."""
+    async def build_logout_url(
+        self,
+        *,
+        id_token: str,
+        config: OidcConfig,
+        post_logout_redirect_uri: str | None = None,
+    ) -> str:
+        """Construit l'URL de logout Keycloak avec id_token_hint.
+
+        `post_logout_redirect_uri` : fourni par le caller (dérivé de l'adresse
+        d'appel — fiable même si RAG_PUBLIC_URL est erroné) ; repli sur l'URL
+        publique de config."""
         discovery = await self._discover(config)
         params = {
             "id_token_hint": id_token,
-            "post_logout_redirect_uri": f"{self._public_url}/",
+            "post_logout_redirect_uri": post_logout_redirect_uri or f"{self._public_url}/",
         }
         return f"{discovery.end_session_endpoint}?{urlencode(params)}"

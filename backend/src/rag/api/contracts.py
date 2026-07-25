@@ -7,6 +7,8 @@ from fastapi import APIRouter, Request
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import HTMLResponse
 
+from rag.api.public_base import public_base_from_request
+
 log = structlog.get_logger(__name__)
 
 
@@ -21,29 +23,8 @@ def build_contracts_router() -> APIRouter:
     """
     router = APIRouter(prefix="/api/contracts", tags=["contracts"])
 
-    def _public_base(request: Request) -> str:
-        """URL publique de base résolue depuis l'ADRESSE D'APPEL.
-
-        On prend le Host réellement utilisé par le client (header `Host`, ou
-        `X-Forwarded-Host` derrière proxy) + le schéma public — reflète le
-        domaine exact (ex. https://rag.yoops.org), quelle que soit la config.
-
-        Schéma : derrière un proxy public (`X-Forwarded-Host` présent), le TLS est
-        terminé en amont (Cloudflare/Caddy) et le hop interne vers le backend est
-        en HTTP — `X-Forwarded-Proto` reflète alors ce hop (`http`), pas l'entrée
-        publique. On force donc `https` dès qu'on est derrière le proxy public.
-        Sans proxy, on honore `X-Forwarded-Proto` (premier maillon si liste) puis
-        l'URL de la requête."""
-        fwd_host = request.headers.get("x-forwarded-host")
-        host = fwd_host or request.headers.get("host")
-        if not host:
-            return str(request.base_url).rstrip("/")
-        if fwd_host:
-            scheme = "https"
-        else:
-            proto = request.headers.get("x-forwarded-proto")
-            scheme = proto.split(",")[0].strip() if proto else request.url.scheme
-        return f"{scheme}://{host}"
+    # Base publique dérivée de l'adresse d'appel — helper partagé (logout, etc.).
+    _public_base = public_base_from_request
 
     @router.get("")
     async def contracts_index() -> dict[str, Any]:

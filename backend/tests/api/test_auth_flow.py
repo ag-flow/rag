@@ -203,6 +203,35 @@ def test_logout_clears_session_and_redirects_keycloak_logout(
     assert me_r.status_code == 401
 
 
+def test_logout_redirect_uses_public_host_behind_proxy(
+    admin_client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    """Le post_logout_redirect_uri est dérivé de l'ADRESSE D'APPEL (X-Forwarded-Host),
+    pas de RAG_PUBLIC_URL — sinon un env mal posé renvoyait sur localhost."""
+    _seed_oidc_config(admin_client, admin_headers)
+    _install_keycloak_mock(admin_client)
+    _stub_secret_resolver(admin_client)
+
+    login_r = admin_client.get("/auth/login", follow_redirects=False)
+    params = parse_qs(urlparse(login_r.headers["location"]).query)
+    admin_client.app.state._kc_mock_state["last_nonce"] = params["nonce"][0]  # type: ignore[attr-defined]
+    admin_client.get(
+        f"/auth/callback?code=x&state={params['state'][0]}", follow_redirects=False
+    )
+
+    out_r = admin_client.post(
+        "/auth/logout",
+        follow_redirects=False,
+        headers={"x-forwarded-host": "rag.yoops.org", "x-forwarded-proto": "http"},
+    )
+    assert out_r.status_code == 302
+    redirect = parse_qs(urlparse(out_r.headers["location"]).query)[
+        "post_logout_redirect_uri"
+    ][0]
+    # https forcé derrière le proxy public, host de l'appel.
+    assert redirect == "https://rag.yoops.org/"
+
+
 def test_refresh_returns_ok_with_new_tokens(
     admin_client: TestClient, admin_headers: dict[str, str]
 ) -> None:
