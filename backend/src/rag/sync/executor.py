@@ -306,7 +306,7 @@ async def _execute_push_job(
             final_status = "skipped"
             files_skipped = 1
         else:
-            await indexer.index_file(
+            outcome = await indexer.index_file(
                 workspace_id=job.workspace_id,
                 path=path,
                 content=content,
@@ -315,6 +315,20 @@ async def _execute_push_job(
                 title=title,
                 strategy_id=strategy_id,
                 source_url=source_url,
+            )
+            # Observabilité : fige sur le job la stratégie EFFECTIVEMENT
+            # appliquée (cascade slug > trigger > défaut workspace) et le nombre
+            # de chunks produits — comparables à la demande (params.strategy).
+            await config_pool.execute(
+                """
+                UPDATE index_jobs
+                SET params = COALESCE(params, '{}'::jsonb) || jsonb_build_object(
+                    'executed_strategy', $2::text, 'chunks_created', $3::int)
+                WHERE id = $1
+                """,
+                job.job_id,
+                outcome.strategy,
+                outcome.chunks,
             )
 
             # Enrichissements LLM post-indexation

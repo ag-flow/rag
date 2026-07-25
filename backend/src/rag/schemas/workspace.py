@@ -29,6 +29,14 @@ class PushRequest(BaseModel):
     workspace: str = Field(..., min_length=1, max_length=_WS_NAME_MAX)
     path: str = Field(..., min_length=1, max_length=_PATH_MAX_LEN)
     content: str = Field(..., min_length=1)
+
+    # Les templates d'appel (docflow…) envoient les champs optionnels en chaîne
+    # VIDE plutôt qu'absents : "" = non renseigné. Une strategy vide déclenche
+    # ainsi la cascade normale (trigger d'extension → défaut du workspace).
+    @field_validator("title", "strategy", "source_url", mode="before")
+    @classmethod
+    def _empty_string_is_none(cls, v: object) -> object:
+        return None if v == "" else v
     title: str | None = Field(default=None, min_length=1, max_length=512)
     # Slug de stratégie (mode service, spec chunking §5) : résolu à l'acceptation
     # dans la bibliothèque du caller puis côté système. 128 = borne des labels

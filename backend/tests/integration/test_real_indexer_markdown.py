@@ -154,7 +154,7 @@ async def test_real_indexer_markdown_strategy_produces_section_metadata(
             provider_factory=lambda **_kw: _StubProvider(),
         )
 
-        nb = await indexer.index_file(
+        outcome = await indexer.index_file(
             workspace_id=ws["id"],
             path="README.md",
             content=README_DEMO,
@@ -162,7 +162,7 @@ async def test_real_indexer_markdown_strategy_produces_section_metadata(
             indexer_used="ollama/mxbai-embed-large",
         )
         # Au moins 4 sections : préambule + Installation + Usage + Reference.
-        assert nb >= 4
+        assert outcome.chunks >= 4
 
         # Vérifier la metadata stockée.
         conn = await asyncpg.connect(ws_dsn)

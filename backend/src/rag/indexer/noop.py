@@ -7,6 +7,8 @@ from uuid import UUID
 import asyncpg
 import structlog
 
+from rag.indexer.protocol import IndexOutcome
+
 log = structlog.get_logger(__name__)
 
 
@@ -33,10 +35,10 @@ class NoOpIndexer:
         strategy_id: UUID | None = None,
         extra_metadata: Mapping[str, Any] | None = None,
         source_url: str | None = None,
-    ) -> int:
-        """INSERT/UPDATE `indexed_documents` via ON CONFLICT. Retourne 1
-        (1 chunk fictif). `content`, `strategy_id` et `extra_metadata`
-        ignorés en M3.
+    ) -> IndexOutcome:
+        """INSERT/UPDATE `indexed_documents` via ON CONFLICT. Retourne un
+        résultat fictif (1 chunk, pas de stratégie). `content`, `strategy_id`
+        et `extra_metadata` ignorés en M3.
         """
         async with self._config_pool.acquire() as conn:
             await conn.execute(
@@ -66,7 +68,7 @@ class NoOpIndexer:
             path=path,
             content_len=len(content),
         )
-        return 1
+        return IndexOutcome(chunks=1, strategy=None)
 
     async def delete_file(self, *, workspace_id: UUID, path: str) -> None:
         """DELETE indexed_documents. Idempotent (silencieux si absent)."""

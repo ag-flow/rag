@@ -106,14 +106,14 @@ async def test_structured_produces_sections_and_children(
     )
     ws_dsn = derive_workspace_dsn(admin_dsn, rag_base)
     try:
-        nb = await indexer.index_file(
+        outcome = await indexer.index_file(
             workspace_id=ws["id"],
             path="t.md",
             content=_CONTENT,
             content_hash="sha256:x",
             indexer_used="ollama/mxbai-embed-large",
         )
-        assert nb > 0
+        assert outcome.chunks > 0
         conn = await asyncpg.connect(ws_dsn)
         try:
             section_keys = {

@@ -197,6 +197,34 @@ async def _run_once(pool: asyncpg.Pool, tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_execution_records_outcome_in_job_params(
+    pool: asyncpg.Pool, tmp_path: Path
+) -> None:
+    """Après exécution, le job porte la stratégie effective et le nb de chunks
+    (observabilité « demandé vs exécuté » — NoOp : 1 chunk, stratégie None)."""
+    job_id, _ = await _seed_push_job(pool, "ws_outcome", "a.md", "hello")
+
+    await execute_next_pending_job(
+        config_pool=pool,
+        storage=RepoStorage(tmp_path),
+        indexer=NoOpIndexer(pool),
+        resolver=_StubResolver(),  # type: ignore[arg-type]
+        client_provider=_StubClientProvider(),  # type: ignore[arg-type]
+        webhook_secret=None,
+    )
+
+    async with pool.acquire() as conn:
+        raw = await conn.fetchval(
+            "SELECT params FROM index_jobs WHERE id=$1::uuid", job_id
+        )
+    import json
+
+    params = json.loads(raw)
+    assert params["chunks_created"] == 1
+    assert params["executed_strategy"] is None  # NoOp n'a pas de stratégie
+
+
+@pytest.mark.asyncio
 async def test_source_url_persisted_and_preserved_on_reindex(
     pool: asyncpg.Pool, tmp_path: Path
 ) -> None:

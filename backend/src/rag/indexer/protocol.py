@@ -1,8 +1,23 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any, Protocol
 from uuid import UUID
+
+
+@dataclass(frozen=True)
+class IndexOutcome:
+    """Résultat d'une indexation de fichier — observabilité du job.
+
+    - chunks   : nombre de chunks produits (0 = contenu vide, purge).
+    - strategy : identifiant de la stratégie EFFECTIVEMENT appliquée (slug en
+      moteur structured, algo en legacy) ; None quand la notion n'existe pas
+      (NoOpIndexer). Permet d'afficher « demandé vs exécuté » sur le job.
+    """
+
+    chunks: int
+    strategy: str | None = None
 
 
 class IndexerProtocol(Protocol):
@@ -25,8 +40,8 @@ class IndexerProtocol(Protocol):
         strategy_id: UUID | None = None,
         extra_metadata: Mapping[str, Any] | None = None,
         source_url: str | None = None,
-    ) -> int:
-        """Index un fichier. Retourne le nombre de chunks créés.
+    ) -> IndexOutcome:
+        """Index un fichier. Retourne le résultat (chunks créés + stratégie).
 
         - `workspace_id` : workspace cible (sert au routing du pool pgvector).
         - `path` : chemin relatif au worktree (clé d'upsert).

@@ -24,6 +24,7 @@ from rag.indexer.chunking import Chunk, make_chunker
 from rag.indexer.chunking.hashing import compute_chunk_hash
 from rag.indexer.chunking.languages import language_for_path
 from rag.indexer.chunking.tokens import HeuristicTokenEstimator
+from rag.indexer.protocol import IndexOutcome
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
 from rag.secrets.refs import build_ref, is_vault_ref
@@ -97,10 +98,10 @@ class RealIndexer:
         strategy_id: UUID | None = None,
         extra_metadata: Mapping[str, Any] | None = None,
         source_url: str | None = None,
-    ) -> int:
+    ) -> IndexOutcome:
         ctx = await self._load_workspace_context(workspace_id)
         if ctx["chunking_engine"] == "structured":
-            n_chunks = await self._index_structured(
+            outcome = await self._index_structured(
                 workspace_id=workspace_id,
                 path=path,
                 content=content,
@@ -110,19 +111,19 @@ class RealIndexer:
                 indexer_used=indexer_used,
             )
         else:
-            n_chunks = await self._index_legacy(
+            outcome = await self._index_legacy(
                 workspace_id=workspace_id,
                 path=path,
                 content=content,
                 ctx=ctx,
                 extra_metadata=extra_metadata or {},
             )
-        if n_chunks == 0:
+        if outcome.chunks == 0:
             log.info("real_indexer.empty_content_purged", path=path)
         await self._record_indexed_document(
             workspace_id, path, content_hash, indexer_used, title, source_url
         )
-        return n_chunks
+        return outcome
 
     async def _index_legacy(
         self,
@@ -132,7 +133,7 @@ class RealIndexer:
         content: str,
         ctx: dict[str, Any],
         extra_metadata: Mapping[str, Any] = {},
-    ) -> int:
+    ) -> IndexOutcome:
         chunker = make_chunker(
             strategy=ctx["chunking_strategy"],
             max_chars=ctx["chunking_max_chars"],
@@ -156,7 +157,7 @@ class RealIndexer:
             # Contenu vidé/tronqué : purge les chunks périmés de ce path plutôt
             # que de les laisser cherchables indéfiniment (cf. BUG-031).
             await delete_path(ws_pool, path)
-            return 0
+            return IndexOutcome(chunks=0, strategy=ctx["chunking_strategy"])
 
         api_key = await self._resolve_api_key(ctx, workspace_id, path)
         provider = self._build_provider(ctx, api_key)
@@ -178,7 +179,7 @@ class RealIndexer:
             chunking_strategy=ctx["chunking_strategy"],
             engine="legacy",
         )
-        return len(chunks)
+        return IndexOutcome(chunks=len(chunks), strategy=ctx["chunking_strategy"])
 
     async def _index_structured(
         self,
@@ -190,7 +191,7 @@ class RealIndexer:
         strategy_id: UUID | None,
         extra_metadata: Mapping[str, Any] = {},
         indexer_used: str = "",
-    ) -> int:
+    ) -> IndexOutcome:
         # Cascade du mode job (spec chunking §5) : push lié par id > trigger de
         # l'extension > cascade textuelle > défaut workspace lié par id.
         # StrategyBindingLostError si un id lié ne résout plus — pas de repli.
@@ -240,7 +241,7 @@ class RealIndexer:
             # Contenu vidé/tronqué : purge les sections/enfants périmés de ce
             # path plutôt que de les laisser cherchables indéfiniment (BUG-031).
             await delete_sections_for_path(ws_pool, path)
-            return 0
+            return IndexOutcome(chunks=0, strategy=strategy_name)
 
         existing = await load_existing_chunk_hashes(ws_pool, path)
         # Si l'indexeur (provider/modèle) a changé depuis la dernière indexation
@@ -302,7 +303,7 @@ class RealIndexer:
             strategy=strategy_name,
             **result,
         )
-        return len(child_rows)
+        return IndexOutcome(chunks=len(child_rows), strategy=strategy_name)
 
     async def _resolve_api_key(
         self,

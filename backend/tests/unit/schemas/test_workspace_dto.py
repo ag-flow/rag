@@ -25,11 +25,6 @@ def test_push_request_accepts_strategy_override() -> None:
     assert r.strategy == "table"
 
 
-def test_push_request_rejects_empty_strategy() -> None:
-    with pytest.raises(ValidationError):
-        PushRequest(workspace="ws", path="ok.md", content="x", strategy="")
-
-
 def test_push_request_rejects_empty_path() -> None:
     with pytest.raises(ValidationError):
         PushRequest(workspace="ws", path="", content="x")
@@ -63,3 +58,12 @@ def test_push_request_counts_utf8_bytes_not_chars_for_size() -> None:
 def test_push_request_rejects_path_above_1024_chars() -> None:
     with pytest.raises(ValidationError):
         PushRequest(workspace="ws", path="a" * 1025, content="x")
+
+
+def test_push_request_empty_strings_mean_absent() -> None:
+    """Les templates d'appel (docflow) envoient les optionnels en chaîne vide :
+    "" ≡ non renseigné — une strategy vide déclenche la cascade par défaut."""
+    r = PushRequest(workspace="ws", path="a.md", content="x", strategy="", title="", source_url="")
+    assert r.strategy is None
+    assert r.title is None
+    assert r.source_url is None

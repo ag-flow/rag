@@ -164,7 +164,7 @@ async def test_real_indexer_index_file_inserts_chunks_and_indexed_documents(
         provider_factory=_factory_with_stub(stub),
     )
 
-    chunks_count = await indexer.index_file(
+    outcome = await indexer.index_file(
         workspace_id=setup["workspace_id"],
         path="docs/a.md",
         content="Hello world.\n\nSecond paragraph.",
@@ -172,7 +172,7 @@ async def test_real_indexer_index_file_inserts_chunks_and_indexed_documents(
         indexer_used="openai/text-embedding-3-small",
     )
 
-    assert chunks_count >= 1
+    assert outcome.chunks >= 1
     assert len(stub.calls) == 1  # 1 batch d'embeddings
 
     # Vérifie indexed_documents
@@ -192,7 +192,7 @@ async def test_real_indexer_index_file_inserts_chunks_and_indexed_documents(
     chunks_in_db = await ws_pool.fetch(
         "SELECT chunk_index FROM embeddings WHERE path='docs/a.md' ORDER BY chunk_index"
     )
-    assert len(chunks_in_db) == chunks_count
+    assert len(chunks_in_db) == outcome.chunks
 
 
 @pytest.mark.asyncio
@@ -246,14 +246,14 @@ async def test_real_indexer_index_file_empty_content_returns_zero(
         client_provider=_StubClientProvider(),  # type: ignore[arg-type]
         provider_factory=_factory_with_stub(stub),
     )
-    n = await indexer.index_file(
+    outcome_empty = await indexer.index_file(
         workspace_id=setup["workspace_id"],
         path="empty.md",
         content="",
         content_hash="h0",
         indexer_used="openai/text-embedding-3-small",
     )
-    assert n == 0
+    assert outcome_empty.chunks == 0
     assert stub.calls == []  # pas d'appel provider
 
     # indexed_documents : le document est tout de même enregistré (dédup par

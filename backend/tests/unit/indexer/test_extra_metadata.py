@@ -20,7 +20,7 @@ class TestExtraMetadataSignature:
         pool.acquire = MagicMock(return_value=conn)
 
         indexer = NoOpIndexer(pool)
-        n = await indexer.index_file(
+        outcome = await indexer.index_file(
             workspace_id=uuid4(),
             path="src/a.py",
             content="x",
@@ -28,7 +28,7 @@ class TestExtraMetadataSignature:
             indexer_used="openai/m",
             extra_metadata=None,
         )
-        assert n == 1
+        assert outcome.chunks == 1
 
     @pytest.mark.asyncio
     async def test_noop_accepts_extra_metadata_dict(self):
@@ -40,7 +40,7 @@ class TestExtraMetadataSignature:
         pool.acquire = MagicMock(return_value=conn)
 
         indexer = NoOpIndexer(pool)
-        n = await indexer.index_file(
+        outcome = await indexer.index_file(
             workspace_id=uuid4(),
             path="src/b.py",
             content="x",
@@ -48,7 +48,7 @@ class TestExtraMetadataSignature:
             indexer_used="openai/m",
             extra_metadata={"enrichment_key": "public_functions", "source_path": "src/b.py"},
         )
-        assert n == 1
+        assert outcome.chunks == 1
 
 
 class TestExtraMetadataMergeLogic:

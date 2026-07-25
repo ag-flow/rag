@@ -122,14 +122,14 @@ async def test_real_indexer_respects_chunking_config_max_chars(
 
         # 1500-char text → avec max_chars=500 doit produire >= 2 chunks.
         content = "Phrase courte. " * 100
-        nb = await indexer.index_file(
+        outcome = await indexer.index_file(
             workspace_id=ws["id"],
             path="t.md",
             content=content,
             content_hash="sha256:x",
             indexer_used="ollama/mxbai-embed-large",
         )
-        assert nb >= 2
+        assert outcome.chunks >= 2
 
         # metadata doit être vide pour chaque chunk (ParagraphChunker).
         conn = await asyncpg.connect(ws_dsn)
@@ -137,7 +137,7 @@ async def test_real_indexer_respects_chunking_config_max_chars(
             rows = await conn.fetch(
                 "SELECT chunk_index, metadata FROM embeddings WHERE path = 't.md'"
             )
-            assert len(rows) == nb
+            assert len(rows) == outcome.chunks
             for r in rows:
                 # asyncpg renvoie jsonb en str par défaut
                 assert r["metadata"] in ("{}", {})
