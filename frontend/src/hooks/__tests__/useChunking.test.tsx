@@ -80,6 +80,8 @@ describe("useUpsertChunkingConfig", () => {
       job: {
         id: "j",
         triggered_by: "reindex_chunking_change",
+        source: "admin",
+        path: null,
         status: "pending",
         files_changed: 0,
         files_skipped: 0,

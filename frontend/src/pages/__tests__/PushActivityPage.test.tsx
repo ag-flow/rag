@@ -36,6 +36,8 @@ const makeJob = (workspace: string, status: GlobalJob["status"]): GlobalJob => (
   id: `job-${workspace}-${status}`,
   workspace_name: workspace,
   triggered_by: "manual",
+  source: "rest_api",
+  path: "docs/a.md",
   status,
   files_changed: 3,
   files_skipped: 1,
@@ -104,6 +106,26 @@ describe("PushActivityPage", () => {
 
     await waitFor(() => {
       expect(listGlobal).toHaveBeenLastCalledWith({ workspace: "ws-b", status: "error" });
+    });
+  });
+
+  it("affiche la source + le document et filtre par source", async () => {
+    listGlobal.mockResolvedValue([makeJob("ws-a", "done")]);
+    renderWithProviders(<PushActivityPage />);
+    await waitFor(() => {
+      expect(screen.getByRole("cell", { name: "ws-a" })).toBeInTheDocument();
+    });
+
+    // "API REST" apparaît en option du filtre ET en badge de la ligne (≥ 2).
+    expect(screen.getAllByText("API REST").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("docs/a.md")).toBeInTheDocument();
+
+    listGlobal.mockResolvedValue([]);
+    fireEvent.change(screen.getByLabelText("Filtrer par source"), {
+      target: { value: "git" },
+    });
+    await waitFor(() => {
+      expect(listGlobal).toHaveBeenLastCalledWith({ source: "git" });
     });
   });
 

@@ -5,7 +5,9 @@
     "workspace_label": "Filter by workspace",
     "all_workspaces": "All workspaces",
     "status_label": "Filter by status",
-    "all_statuses": "All statuses"
+    "all_statuses": "All statuses",
+    "source_label": "Filter by source",
+    "all_sources": "All sources"
   },
   "table": {
     "workspace": "Workspace",
@@ -13,7 +15,9 @@
     "status": "Status",
     "files": "Files",
     "date": "Date",
-    "detail_aria": "View job detail"
+    "detail_aria": "View job detail",
+    "source": "Source",
+    "path": "Document"
   },
   "files_summary": "{{changed}} changed / {{skipped}} skipped",
   "status": {
@@ -29,5 +33,11 @@
     "minutesAgo": "{{count}} min ago",
     "hoursAgo": "{{count}} h ago",
     "daysAgo": "{{count}} d ago"
+  },
+  "source": {
+    "rest_api": "REST API",
+    "webhook": "Webhook",
+    "git": "Git",
+    "admin": "Admin"
   }
 }

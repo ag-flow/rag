@@ -23,6 +23,8 @@ vi.mock("@/hooks/useWorkspaces", () => ({
 const baseJob: Job = {
   id: "j1",
   triggered_by: "schedule",
+  source: "git",
+  path: null,
   status: "done",
   files_changed: 3,
   files_skipped: 10,

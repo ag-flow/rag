@@ -13,9 +13,29 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useGlobalJobs } from "@/hooks/useGlobalJobs";
 import { useWorkspaces, useWorkspaceJob } from "@/hooks/useWorkspaces";
 import type { GlobalJob, GlobalJobsFilters } from "@/lib/jobs.types";
-import type { Job } from "@/lib/workspaces.types";
+import type { Job, JobSource } from "@/lib/workspaces.types";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { JobDetailPanel } from "@/pages/workspace/JobDetailPanel";
+
+const JOB_SOURCES: JobSource[] = ["rest_api", "webhook", "git", "admin"];
+
+const sourceClass: Record<JobSource, string> = {
+  rest_api: "bg-violet-50 text-violet-700",
+  webhook: "bg-amber-50 text-amber-700",
+  git: "bg-sky-50 text-sky-700",
+  admin: "bg-slate-100 text-slate-600",
+};
+
+function SourceBadge({ source }: { source: JobSource }) {
+  const { t } = useTranslation("push");
+  return (
+    <span
+      className={`rounded px-1.5 py-0.5 text-xs font-medium ${sourceClass[source]}`}
+    >
+      {t(`source.${source}`)}
+    </span>
+  );
+}
 
 const statusVariant: Record<Job["status"], "default" | "secondary" | "destructive"> = {
   done: "default",
@@ -66,7 +86,13 @@ function JobRow({
         className={`cursor-pointer ${isOpen ? "bg-slate-50" : ""}`}
       >
         <TableCell className="font-medium text-slate-900">{job.workspace_name}</TableCell>
+        <TableCell>
+          <SourceBadge source={current.source} />
+        </TableCell>
         <TableCell className="font-mono text-xs text-slate-600">{current.triggered_by}</TableCell>
+        <TableCell className="max-w-[220px] truncate font-mono text-xs text-slate-700">
+          {current.path ?? "—"}
+        </TableCell>
         <TableCell>
           <StatusBadge status={current.status} />
         </TableCell>
@@ -82,7 +108,7 @@ function JobRow({
       </TableRow>
       {isOpen && (
         <TableRow>
-          <TableCell colSpan={5} className="p-0">
+          <TableCell colSpan={7} className="p-0">
             <JobDetailPanel name={job.workspace_name} job={current} />
           </TableCell>
         </TableRow>
@@ -95,11 +121,13 @@ export function PushActivityPage() {
   const { t } = useTranslation("push");
   const [workspace, setWorkspace] = useState("");
   const [status, setStatus] = useState("");
+  const [source, setSource] = useState("");
   const [openJobId, setOpenJobId] = useState<string | null>(null);
 
   const filters: GlobalJobsFilters = {
     ...(workspace ? { workspace } : {}),
     ...(status ? { status: status as Job["status"] } : {}),
+    ...(source ? { source: source as JobSource } : {}),
   };
   const { data: jobs, isLoading, isError } = useGlobalJobs(filters);
   const { data: workspaces = [] } = useWorkspaces();
@@ -138,6 +166,19 @@ export function PushActivityPage() {
             </option>
           ))}
         </select>
+        <select
+          className="border rounded px-2 py-1 text-sm"
+          aria-label={t("filters.source_label")}
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
+        >
+          <option value="">{t("filters.all_sources")}</option>
+          {JOB_SOURCES.map((s) => (
+            <option key={s} value={s}>
+              {t(`source.${s}`)}
+            </option>
+          ))}
+        </select>
       </div>
 
       {isLoading && <LoadingSpinner />}
@@ -155,7 +196,9 @@ export function PushActivityPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t("table.workspace")}</TableHead>
+                <TableHead>{t("table.source")}</TableHead>
                 <TableHead>{t("table.trigger")}</TableHead>
+                <TableHead>{t("table.path")}</TableHead>
                 <TableHead>{t("table.status")}</TableHead>
                 <TableHead>{t("table.files")}</TableHead>
                 <TableHead>{t("table.date")}</TableHead>

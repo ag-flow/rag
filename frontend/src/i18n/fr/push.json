@@ -5,7 +5,9 @@
     "workspace_label": "Filtrer par workspace",
     "all_workspaces": "Tous les workspaces",
     "status_label": "Filtrer par statut",
-    "all_statuses": "Tous les statuts"
+    "all_statuses": "Tous les statuts",
+    "source_label": "Filtrer par source",
+    "all_sources": "Toutes les sources"
   },
   "table": {
     "workspace": "Workspace",
@@ -13,7 +15,9 @@
     "status": "Statut",
     "files": "Fichiers",
     "date": "Date",
-    "detail_aria": "Voir le détail du job"
+    "detail_aria": "Voir le détail du job",
+    "source": "Source",
+    "path": "Document"
   },
   "files_summary": "{{changed}} modifiés / {{skipped}} ignorés",
   "status": {
@@ -29,5 +33,11 @@
     "minutesAgo": "il y a {{count}} min",
     "hoursAgo": "il y a {{count}} h",
     "daysAgo": "il y a {{count}} j"
+  },
+  "source": {
+    "rest_api": "API REST",
+    "webhook": "Webhook",
+    "git": "Git",
+    "admin": "Admin"
   }
 }

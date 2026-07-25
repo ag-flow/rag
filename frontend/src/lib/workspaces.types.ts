@@ -94,6 +94,8 @@ export type SourceUpdateRequest = {
   config: SourceConfigInput;
 };
 
+export type JobSource = "rest_api" | "webhook" | "git" | "admin";
+
 export type Job = {
   id: string;
   triggered_by:
@@ -106,6 +108,8 @@ export type Job = {
     | "reindex_document"
     | "delete"
     | "rebuild_lexical_index";
+  source: JobSource;
+  path: string | null;
   status: "pending" | "running" | "done" | "error";
   files_changed: number;
   files_skipped: number;
