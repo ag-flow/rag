@@ -276,6 +276,9 @@ async def duplicate_strategy(
         )
         if source is None:
             raise StrategyNotFoundError(str(source_id))
+        # Une source corrompue (donnée historique, cf. migration 076) ne doit
+        # pas se propager : la copie est validée comme une création.
+        _validate_spec(source["algo"], _params_of(source), source["parser_slug"])
         try:
             new_id = await conn.fetchval(
                 "INSERT INTO chunking_strategies "
