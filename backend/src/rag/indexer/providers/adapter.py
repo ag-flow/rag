@@ -151,17 +151,23 @@ class EmbeddingProviderAdapter:
                 await asyncio.sleep(delay)
                 continue
 
+            # Contexte systématique des erreurs : le message du job doit dire
+            # QUEL service d'embedding est appelé (URL + modèle), pas juste un
+            # code HTTP muet.
+            ctx = f"service d'embedding {url} (modèle '{self._model}')"
             if response.status_code == 200:
                 return self._service.parse_response(response.json())
             if response.status_code == 402:
-                raise EmbeddingQuotaExhausted("Quota exhausted: HTTP 402")
+                raise EmbeddingQuotaExhausted(f"{ctx} : quota épuisé (HTTP 402)")
             if response.status_code in (401, 403):
-                raise EmbeddingAuthError(f"Auth error: HTTP {response.status_code}")
+                raise EmbeddingAuthError(
+                    f"{ctx} : authentification refusée (HTTP {response.status_code})"
+                )
             if response.status_code in (429, 503):
                 if is_last:
                     if response.status_code == 429:
-                        raise EmbeddingRateLimited("Rate limit (after retries)")
-                    raise EmbeddingProviderUnreachable("503 (after retries)")
+                        raise EmbeddingRateLimited(f"{ctx} : rate limit (après retries)")
+                    raise EmbeddingProviderUnreachable(f"{ctx} : HTTP 503 (après retries)")
                 retry_after = _parse_retry_after(response.headers.get("retry-after"))
                 delay = self._retry_delay(attempt, retry_after)
                 log.warning(
@@ -175,15 +181,14 @@ class EmbeddingProviderAdapter:
                 continue
             if 400 <= response.status_code < 500:
                 # Le corps porte la cause exploitable (ex. Ollama 404 :
-                # « model 'x' not found, try pulling it first ») — sans lui,
-                # le job n'affiche qu'un code HTTP muet.
+                # « model 'x' not found, try pulling it first »).
                 detail = response.text[:200].strip()
                 raise EmbeddingBadRequest(
-                    f"Bad request: HTTP {response.status_code}"
+                    f"{ctx} : HTTP {response.status_code}"
                     + (f" — {detail}" if detail else "")
                 )
             raise EmbeddingProviderUnreachable(
-                f"Unexpected HTTP {response.status_code}"
+                f"{ctx} : HTTP {response.status_code} inattendu"
             )
 
         raise EmbeddingProviderUnreachable("Retry loop exited unexpectedly")
