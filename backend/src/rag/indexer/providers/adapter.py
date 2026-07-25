@@ -174,8 +174,13 @@ class EmbeddingProviderAdapter:
                 await asyncio.sleep(delay)
                 continue
             if 400 <= response.status_code < 500:
+                # Le corps porte la cause exploitable (ex. Ollama 404 :
+                # « model 'x' not found, try pulling it first ») — sans lui,
+                # le job n'affiche qu'un code HTTP muet.
+                detail = response.text[:200].strip()
                 raise EmbeddingBadRequest(
                     f"Bad request: HTTP {response.status_code}"
+                    + (f" — {detail}" if detail else "")
                 )
             raise EmbeddingProviderUnreachable(
                 f"Unexpected HTTP {response.status_code}"
