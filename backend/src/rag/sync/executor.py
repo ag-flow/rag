@@ -315,6 +315,9 @@ async def _execute_push_job(
                 title=title,
                 strategy_id=strategy_id,
                 source_url=source_url,
+                # Document poussé = pas de source git re-clonable : on conserve
+                # le contenu brut pour que la réindexation soit rejouable.
+                store_source=True,
             )
             # Observabilité : fige sur le job la stratégie EFFECTIVEMENT
             # appliquée (cascade slug > trigger > défaut workspace) et le nombre
@@ -666,27 +669,15 @@ async def execute_next_pending_job(
                 resolver=resolver,
             )
         elif job.source_id is None:
-            # Jobs 'manual'/'reindex_*' créés sans source : le pipeline git ne
-            # peut pas les exécuter (pas de config source → KeyError 'url'), et
-            # le contenu des documents poussés n'est pas conservé (migration
-            # 070). Erreur explicite plutôt que crash ; pas de circuit-breaker
-            # (l'indexeur n'est pas en cause).
-            msg = (
-                f"job '{job.triggered_by}' sans source git : le contenu des documents "
-                "poussés n'est pas conservé côté rag, la réindexation ne peut pas être "
-                "rejouée localement — re-poussez les documents depuis la source pour "
-                "reconstruire l'index"
+            # Jobs 'manual'/'reindex_*' créés sans source : orchestration de
+            # réindexation — fan-out en un job git par source + re-chunk local
+            # des documents poussés depuis `source_documents`.
+            await _execute_reindex_job(
+                job=job,
+                config_pool=config_pool,
+                indexer=indexer,
+                job_log_bus=job_log_bus,
             )
-            await _mark_job_error(config_pool, job_id=job.job_id, error_message=msg)
-            log.error(
-                "sync.executor.job_without_source",
-                job_id=str(job.job_id),
-                workspace=job.workspace_name,
-                triggered_by=job.triggered_by,
-            )
-            if job_log_bus is not None:
-                job_log_bus.publish(str(job.job_id), "error", msg)
-                job_log_bus.complete(str(job.job_id), status="error")
         else:
             default_vault_name = await client_provider.get_default_vault_name()
             await _execute_git_job(
@@ -744,6 +735,131 @@ async def execute_next_pending_job(
                 job_log_bus.publish(jid, "error", f"Erreur : {msg}")
                 job_log_bus.complete(jid, status="error")
     return True
+
+
+async def _execute_reindex_job(
+    *,
+    job: JobToProcess,
+    config_pool: asyncpg.Pool,
+    indexer: IndexerProtocol,
+    job_log_bus: JobLogBus | None = None,
+) -> None:
+    """Orchestre une réindexation de workspace (job `manual`/`reindex_*`, sans
+    source_id).
+
+    Deux volets, selon l'origine des documents :
+    - sources git : **fan-out** — un job pending par source (même
+      triggered_by) ; le pipeline git existant re-liste tout (last_commit ==
+      HEAD → liste exhaustive) et la dédup purgée à l'enqueue force le
+      re-chunk de chaque fichier ;
+    - documents poussés : **re-chunk local** depuis `source_documents` (le
+      contenu brut est conservé au push — migration workspace 006), avec le
+      même skip dédup que le push : un retry après échec partiel ne refait pas
+      les fichiers déjà réindexés.
+
+    Les erreurs provider-level remontent au handler générique du worker
+    (retry/backoff + circuit breaker) ; les erreurs permanentes par fichier
+    sont isolées comme dans le pipeline git (BUG-033).
+    """
+    jid = str(job.job_id)
+
+    def _log_bus(level: str, msg: str) -> None:
+        if job_log_bus is not None:
+            job_log_bus.publish(jid, level, msg)
+
+    # 1. Fan-out git — même garde anti-doublon que le scheduler.
+    sources = await config_pool.fetch(
+        """
+        SELECT s.id FROM workspace_sources s
+        WHERE s.workspace_id = $1
+          AND NOT EXISTS (
+              SELECT 1 FROM index_jobs j
+              WHERE j.source_id = s.id AND j.status IN ('pending', 'running')
+          )
+        """,
+        job.workspace_id,
+    )
+    for src in sources:
+        await config_pool.execute(
+            "INSERT INTO index_jobs (workspace_id, source_id, triggered_by, status) "
+            "VALUES ($1, $2, $3, 'pending')",
+            job.workspace_id,
+            src["id"],
+            job.triggered_by,
+        )
+    if sources:
+        _log_bus("info", f"Fan-out : {len(sources)} job(s) de source git enfilé(s).")
+
+    # 2. Re-chunk local des documents poussés.
+    stored = await indexer.stored_sources(workspace_id=job.workspace_id)
+    files_changed = 0
+    files_skipped = 0
+    failed_files: list[tuple[str, str]] = []
+    for doc in stored:
+        existing = await config_pool.fetchrow(
+            "SELECT content_hash, indexer_used FROM indexed_documents "
+            "WHERE workspace_id=$1 AND path=$2",
+            job.workspace_id,
+            doc.path,
+        )
+        if (
+            existing is not None
+            and existing["content_hash"] == doc.content_hash
+            and existing["indexer_used"] == job.indexer_used
+        ):
+            files_skipped += 1
+            continue
+        try:
+            await indexer.index_file(
+                workspace_id=job.workspace_id,
+                path=doc.path,
+                content=doc.content,
+                content_hash=doc.content_hash,
+                indexer_used=job.indexer_used,
+                title=doc.title,
+                source_url=doc.source_url,
+            )
+        except Exception as exc:
+            if classify_indexer_error(exc) != "permanent":
+                raise
+            err = _truncate(str(exc), 200)
+            failed_files.append((doc.path, err))
+            log.warning("sync.reindex.file_failed", job_id=jid, path=doc.path, error=err)
+            _log_bus("warning", f"Échec fichier {doc.path} : {err} — ignoré, on continue.")
+            continue
+        files_changed += 1
+
+    await config_pool.execute(
+        """
+        UPDATE index_jobs
+        SET status='done', finished_at=now(), files_changed=$2, files_skipped=$3,
+            params = COALESCE(params, '{}'::jsonb) || jsonb_build_object(
+                'fanout_sources', $4::int, 'failed_files', $5::jsonb),
+            duration_ms=CASE WHEN started_at IS NOT NULL THEN
+                EXTRACT(MILLISECONDS FROM (now() - started_at))::int ELSE 0 END
+        WHERE id=$1
+        """,
+        job.job_id,
+        files_changed,
+        files_skipped,
+        len(sources),
+        json.dumps([{"path": p, "error": e} for p, e in failed_files]),
+    )
+    log.info(
+        "sync.reindex.done",
+        job_id=jid,
+        workspace=job.workspace_name,
+        fanout_sources=len(sources),
+        files_changed=files_changed,
+        files_skipped=files_skipped,
+        failed=len(failed_files),
+    )
+    _log_bus(
+        "info",
+        f"Réindexation locale : {files_changed} re-chunké(s), {files_skipped} inchangé(s).",
+    )
+    if job_log_bus is not None:
+        job_log_bus.complete(jid, status="done")
 
 
 async def _execute_git_job(

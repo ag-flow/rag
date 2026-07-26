@@ -7,7 +7,7 @@ from uuid import UUID
 import asyncpg
 import structlog
 
-from rag.indexer.protocol import IndexOutcome
+from rag.indexer.protocol import IndexOutcome, StoredSourceDocument
 
 log = structlog.get_logger(__name__)
 
@@ -35,10 +35,11 @@ class NoOpIndexer:
         strategy_id: UUID | None = None,
         extra_metadata: Mapping[str, Any] | None = None,
         source_url: str | None = None,
+        store_source: bool = False,
     ) -> IndexOutcome:
         """INSERT/UPDATE `indexed_documents` via ON CONFLICT. Retourne un
-        résultat fictif (1 chunk, pas de stratégie). `content`, `strategy_id`
-        et `extra_metadata` ignorés en M3.
+        résultat fictif (1 chunk, pas de stratégie). `content`, `strategy_id`,
+        `extra_metadata` et `store_source` ignorés en M3.
         """
         async with self._config_pool.acquire() as conn:
             await conn.execute(
@@ -83,3 +84,7 @@ class NoOpIndexer:
             workspace_id=str(workspace_id),
             path=path,
         )
+
+    async def stored_sources(self, *, workspace_id: UUID) -> list[StoredSourceDocument]:
+        """M3 : aucun stockage de source — toujours vide."""
+        return []

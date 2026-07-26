@@ -7,6 +7,18 @@ from uuid import UUID
 
 
 @dataclass(frozen=True)
+class StoredSourceDocument:
+    """Document poussé dont le contenu source est conservé côté workspace
+    (table `source_documents`) — matière première du job de réindexation."""
+
+    path: str
+    content: str
+    content_hash: str
+    title: str | None
+    source_url: str | None
+
+
+@dataclass(frozen=True)
 class IndexOutcome:
     """Résultat d'une indexation de fichier — observabilité du job.
 
@@ -40,6 +52,7 @@ class IndexerProtocol(Protocol):
         strategy_id: UUID | None = None,
         extra_metadata: Mapping[str, Any] | None = None,
         source_url: str | None = None,
+        store_source: bool = False,
     ) -> IndexOutcome:
         """Index un fichier. Retourne le résultat (chunks créés + stratégie).
 
@@ -53,11 +66,19 @@ class IndexerProtocol(Protocol):
           en amont, à l'acceptation du push) ; prime sur le routage par
           extension. Ignoré en moteur `legacy`. Le mode job n'a jamais de
           contexte utilisateur : seul un id déjà lié circule jusqu'ici.
+        - `store_source` : True pour les documents poussés (sans source git
+          re-clonable) — conserve le contenu brut dans `source_documents`
+          pour que la réindexation puisse être rejouée localement.
         """
         ...
 
     async def delete_file(self, *, workspace_id: UUID, path: str) -> None:
         """Supprime tous les chunks pgvector d'un fichier + DELETE
-        `indexed_documents`. Idempotent.
+        `indexed_documents` + son éventuel source stocké. Idempotent.
         """
+        ...
+
+    async def stored_sources(self, *, workspace_id: UUID) -> list[StoredSourceDocument]:
+        """Documents poussés dont le source est conservé (`source_documents`),
+        en ordre stable — matière première du job de réindexation."""
         ...

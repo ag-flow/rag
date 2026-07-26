@@ -11,6 +11,11 @@ import structlog
 
 from rag.db.path_strategies import get_strategy
 from rag.db.pool import WorkspacePoolRegistry
+from rag.db.source_documents import (
+    delete_source_document,
+    list_source_documents,
+    upsert_source_document,
+)
 from rag.db.workspace_embeddings import delete_path, upsert_chunks
 from rag.db.workspace_structured import (
     ChildRow,
@@ -24,7 +29,7 @@ from rag.indexer.chunking import Chunk, make_chunker
 from rag.indexer.chunking.hashing import compute_chunk_hash
 from rag.indexer.chunking.languages import language_for_path
 from rag.indexer.chunking.tokens import HeuristicTokenEstimator
-from rag.indexer.protocol import IndexOutcome
+from rag.indexer.protocol import IndexOutcome, StoredSourceDocument
 from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
 from rag.secrets.refs import build_ref, is_vault_ref
@@ -98,6 +103,7 @@ class RealIndexer:
         strategy_id: UUID | None = None,
         extra_metadata: Mapping[str, Any] | None = None,
         source_url: str | None = None,
+        store_source: bool = False,
     ) -> IndexOutcome:
         ctx = await self._load_workspace_context(workspace_id)
         if ctx["chunking_engine"] == "structured":
@@ -120,6 +126,18 @@ class RealIndexer:
             )
         if outcome.chunks == 0:
             log.info("real_indexer.empty_content_purged", path=path)
+        if store_source:
+            ws_pool = await self._pool_registry.get_workspace_pool(
+                ctx["workspace_name"], ctx["rag_cnx"]
+            )
+            await upsert_source_document(
+                ws_pool,
+                path=path,
+                content=content,
+                content_hash=content_hash,
+                title=title,
+                source_url=source_url,
+            )
         await self._record_indexed_document(
             workspace_id, path, content_hash, indexer_used, title, source_url
         )
@@ -393,6 +411,7 @@ class RealIndexer:
         )
         await delete_path(ws_pool, path)
         await delete_sections_for_path(ws_pool, path)
+        await delete_source_document(ws_pool, path)
         async with self._config_pool.acquire() as conn:
             await conn.execute(
                 "DELETE FROM indexed_documents WHERE workspace_id=$1 AND path=$2",
@@ -404,6 +423,23 @@ class RealIndexer:
             workspace_id=str(workspace_id),
             path=path,
         )
+
+    async def stored_sources(self, *, workspace_id: UUID) -> list[StoredSourceDocument]:
+        ctx = await self._load_workspace_context(workspace_id)
+        ws_pool = await self._pool_registry.get_workspace_pool(
+            ctx["workspace_name"], ctx["rag_cnx"]
+        )
+        rows = await list_source_documents(ws_pool)
+        return [
+            StoredSourceDocument(
+                path=r["path"],
+                content=r["content"],
+                content_hash=r["content_hash"],
+                title=r["title"],
+                source_url=r["source_url"],
+            )
+            for r in rows
+        ]
 
     async def _load_workspace_context(
         self,
