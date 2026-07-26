@@ -20,6 +20,7 @@ vi.mock("@/hooks/useModels", () => ({
     ],
   }),
   useRerankPairings: () => ({ data: [] }),
+  useProviderUrlTemplates: () => ({ data: {} }),
 }));
 vi.mock("@/hooks/useProviderKeys", () => ({
   useProviderKeys: () => ({ data: [] }),

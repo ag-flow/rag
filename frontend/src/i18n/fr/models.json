@@ -51,7 +51,9 @@
       "kind": "Type",
       "kind_embedding": "Embedding (vectorisation)",
       "kind_llm": "LLM (prompts)",
-      "kind_rerank": "Reranking (reclassement)"
+      "kind_rerank": "Reranking (reclassement)",
+      "url_template": "Template d'URL (optionnel)",
+      "url_template_hint": "URL d'appel complète — {url} et {model} disponibles. Prime sur le masque du provider (cas Azure : nom de déploiement différent du modèle)."
     },
     "delete": {
       "title": "Supprimer le modèle",

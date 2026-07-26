@@ -305,7 +305,10 @@
     "rerank_toggle": "Activer le reranking",
     "llm_models_hint": "Aucun modèle LLM de ce provider dans la table des modèles — déclarez-le dans la page Models.",
     "rerank_models_hint": "Aucun modèle de rerank de ce provider dans la table des modèles — déclarez-le dans la page Models.",
-    "preco": "préco"
+    "preco": "préco",
+    "call_url_mask": "Masque",
+    "call_url": "URL d'appel",
+    "call_url_missing_base": "— renseignez la Base URL"
   },
   "expiry": {
     "banner_expired": "La clé d'accès de ce coffre est expirée — remplacez-la (menu ⋯ → Remplacer la clé) avant que la résolution de secrets n'échoue.",

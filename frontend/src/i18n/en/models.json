@@ -51,7 +51,9 @@
       "kind": "Type",
       "kind_embedding": "Embedding (vectorization)",
       "kind_llm": "LLM (prompts)",
-      "kind_rerank": "Reranking"
+      "kind_rerank": "Reranking",
+      "url_template": "URL template (optional)",
+      "url_template_hint": "Full call URL — {url} and {model} placeholders. Overrides the provider mask (Azure case: deployment name differs from model)."
     },
     "delete": {
       "title": "Delete model",

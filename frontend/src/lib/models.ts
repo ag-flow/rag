@@ -1,5 +1,11 @@
 import { api } from "@/lib/api";
-import type { ModelCreateRequest, ModelEntry, PricingData, RerankPairing } from "@/lib/models.types";
+import type {
+  ModelCreateRequest,
+  ModelEntry,
+  PricingData,
+  ProviderUrlTemplates,
+  RerankPairing,
+} from "@/lib/models.types";
 
 const BASE = "/api/admin/models";
 
@@ -10,6 +16,7 @@ export const modelsApi = {
     api.delete<void>(`${BASE}/${encodeURIComponent(provider)}/${encodeURIComponent(model)}`),
   pricing: () => api.get<PricingData>(`${BASE}/pricing`),
   rerankPairings: () => api.get<RerankPairing[]>(`${BASE}/rerank-pairings`),
+  urlTemplates: () => api.get<ProviderUrlTemplates>("/api/admin/providers/url-templates"),
 };
 
 /** Match LIKE SQL insensible à la casse ('%' = joker), ancré début/fin. */
@@ -36,4 +43,19 @@ export function pairingNote(
     }
   }
   return null;
+}
+
+/** URL réelle d'appel — miroir client de services/provider_urls.resolve_url. */
+export function resolveCallUrl(
+  templates: ProviderUrlTemplates,
+  capability: "embeddings" | "chat" | "rerank",
+  args: { provider: string; model: string; baseUrl?: string | null; template?: string | null },
+): string | null {
+  const entry = templates[args.provider]?.[capability];
+  let tpl = (args.template ?? "").trim() || entry?.template;
+  if (!tpl) return null;
+  tpl = tpl.replaceAll("{url}", "{base_url}");
+  const base = (args.baseUrl ?? "").trim() || entry?.default_base_url || "";
+  if (tpl.includes("{base_url}") && !base) return null;
+  return tpl.replaceAll("{base_url}", base.replace(/\/+$/, "")).replaceAll("{model}", args.model);
 }

@@ -44,3 +44,11 @@ export function useRerankPairings() {
     staleTime: 5 * 60 * 1000, // référentiel seedé par migration, quasi statique
   });
 }
+
+export function useProviderUrlTemplates() {
+  return useQuery({
+    queryKey: ["provider-url-templates"],
+    queryFn: () => modelsApi.urlTemplates(),
+    staleTime: 5 * 60 * 1000, // référentiel statique côté backend
+  });
+}

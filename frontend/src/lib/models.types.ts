@@ -9,6 +9,8 @@ export type ModelEntry = {
   /** embedding = vectorisation (dimension requise) ; llm = exécution des prompts. */
   kind: ModelKind;
   dimension: number | null;
+  /** URL d'appel complète optionnelle ({url}/{base_url}, {model}) — prime sur le masque provider. */
+  url_template?: string | null;
   created_at: string;
   /** true = catalogue système (seeds), immuable ; false = modèle de l'utilisateur. */
   is_system: boolean;
@@ -19,6 +21,8 @@ export type ModelCreateRequest = {
   model: string;
   kind: ModelKind;
   dimension: number | null;
+  /** URL d'appel complète optionnelle ({url}/{base_url}, {model}) — prime sur le masque provider. */
+  url_template?: string | null;
 };
 
 // ─── Pricing YAML types ───────────────────────────────────────────────────────
@@ -49,6 +53,17 @@ export interface PricingData {
 }
 
 /** Préconisation de pairing embedder → reranker (motifs LIKE, '%' joker). */
+/** Masque d'URL d'une capacité d'un provider (référentiel backend). */
+export interface CapabilityUrl {
+  template: string;
+  default_base_url: string | null;
+}
+
+export type ProviderUrlTemplates = Record<
+  string,
+  Partial<Record<"embeddings" | "chat" | "rerank", CapabilityUrl>>
+>;
+
 export interface RerankPairing {
   embed_provider_like: string;
   embed_model_like: string;

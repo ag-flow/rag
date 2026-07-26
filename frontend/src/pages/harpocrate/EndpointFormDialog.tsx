@@ -21,8 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useProviderKeys } from "@/hooks/useHarpocrateVaults";
-import { useModels, useRerankPairings } from "@/hooks/useModels";
-import { pairingNote } from "@/lib/models";
+import { useModels, useProviderUrlTemplates, useRerankPairings } from "@/hooks/useModels";
+import { pairingNote, resolveCallUrl } from "@/lib/models";
 import { RERANK_PROVIDERS } from "@/pages/workspace/WorkspaceRerankTab.schema";
 import { vaultEndpointsApi, type SectionTestResult } from "@/lib/vault-endpoints";
 import { useCreateEndpoint, useUpdateEndpoint } from "@/hooks/useVaultEndpoints";
@@ -59,6 +59,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
   const { data: providerKeys = [] } = useProviderKeys(vaultId);
   const { data: models = [] } = useModels();
   const { data: rerankPairings = [] } = useRerankPairings();
+  const { data: urlTemplates = {} } = useProviderUrlTemplates();
   const createMutation = useCreateEndpoint(vaultId);
   const updateMutation = useUpdateEndpoint(vaultId);
 
@@ -159,6 +160,38 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
       { provider: rerankProvider, model: rerankModelName },
     );
   const selectedPrecoNote = rerankModel ? precoNote(rerankModel) : null;
+
+  // URL réelle d'appel affichée sous chaque champ Base URL. Le masque vient du
+  // référentiel backend ; un url_template porté par le modèle du registre prime.
+  function callUrlHint(
+    capability: "embeddings" | "chat" | "rerank",
+    providerName: string,
+    modelName: string,
+    baseUrlValue: string,
+  ) {
+    const registryEntry = models.find(
+      (m) => m.provider === providerName && m.model === modelName,
+    );
+    const resolved = resolveCallUrl(urlTemplates, capability, {
+      provider: providerName,
+      model: modelName,
+      baseUrl: baseUrlValue,
+      template: registryEntry?.url_template ?? null,
+    });
+    const mask =
+      (registryEntry?.url_template ?? "").trim() ||
+      urlTemplates[providerName]?.[capability]?.template;
+    if (!mask) return null;
+    return (
+      <p className="mt-1 text-xs text-slate-500">
+        <span className="text-slate-400">{t("endpoints.call_url_mask")} :</span>{" "}
+        <span className="font-mono">{mask}</span>
+        <br />
+        <span className="text-slate-400">{t("endpoints.call_url")} :</span>{" "}
+        <span className="font-mono">{resolved ?? t("endpoints.call_url_missing_base")}</span>
+      </p>
+    );
+  }
 
   function handleProviderChange(next: string) {
     setProvider(next);
@@ -371,6 +404,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                   className="mt-1 font-mono"
                   placeholder="http://ollama:11434 (optionnel)"
                 />
+                {callUrlHint("embeddings", provider, model, baseUrl)}
               </div>
               {testFooter("vectorization", model.trim() !== "")}
             </TabsContent>
@@ -451,6 +485,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                         onChange={(e) => setRerankBaseUrl(e.target.value)}
                         className="mt-1 font-mono"
                       />
+                      {callUrlHint("rerank", rerankProvider, rerankModel, rerankBaseUrl)}
                     </div>
                     <div>
                       <Label className="text-xs text-slate-600">{t("endpoints.top_k")}</Label>
@@ -540,6 +575,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                       className="mt-1 font-mono"
                       placeholder="http://ollama:11434 (ollama / azure)"
                     />
+                    {callUrlHint("chat", llmProvider, llmModel, llmBaseUrl)}
                   </div>
                   {testFooter("llm", llmModel.trim() !== "")}
                 </>

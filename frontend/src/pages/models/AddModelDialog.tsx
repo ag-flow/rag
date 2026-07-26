@@ -32,6 +32,7 @@ const schema = z
     model: z.string().min(1, "model_required"),
     kind: z.enum(["embedding", "llm", "rerank"]),
     dimension: z.coerce.number().int().positive("dimension_positive"),
+    urlTemplate: z.string().optional(),
   })
   .refine(
     (v) => v.providerSelect !== "autre" || (v.providerOther && v.providerOther.trim().length > 0),
@@ -57,6 +58,7 @@ export function AddModelDialog({ open, onOpenChange }: Props) {
       model: "",
       kind: "embedding",
       dimension: 1,
+      urlTemplate: "",
     },
   });
 
@@ -77,6 +79,7 @@ export function AddModelDialog({ open, onOpenChange }: Props) {
         kind: v.kind,
         // Seul un modèle d'embedding a une dimension.
         dimension: v.kind === "embedding" ? v.dimension : null,
+        url_template: (v.urlTemplate ?? "").trim() || null,
       },
       {
         onSuccess: () => {
@@ -172,6 +175,17 @@ export function AddModelDialog({ open, onOpenChange }: Props) {
               )}
             </div>
           )}
+          <div>
+            <label className="text-xs font-medium text-slate-700">
+              {t("dialog.add.url_template")}
+            </label>
+            <Input
+              {...form.register("urlTemplate")}
+              className="font-mono"
+              placeholder="{url}/openai/deployments/mon-deploiement/embeddings?api-version=2024-02-01"
+            />
+            <p className="text-xs text-slate-400 mt-1">{t("dialog.add.url_template_hint")}</p>
+          </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               {t("dialog.cancel")}
