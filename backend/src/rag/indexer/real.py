@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Callable, Mapping
+from contextlib import nullcontext
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -34,6 +35,7 @@ from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
 from rag.secrets.refs import build_ref, is_vault_ref
 from rag.services.chunking_routing import build_strategy_chunker, resolve_strategy_for_file
+from rag.services.endpoint_throttle import estimate_tokens, get_throttle_registry
 from rag.services.inline_context import apply_inline_context, load_inline_bindings
 from rag.services.llm_clients import CONTEXT_MAX_TOKENS
 
@@ -61,6 +63,23 @@ class _NoDefaultVaultError(RuntimeError):
 
     def __init__(self) -> None:
         super().__init__("no default Harpocrate vault configured")
+
+
+def _embedding_slot(ctx: dict[str, Any], texts: list[str]) -> Any:
+    """Créneau de throttling cross-workspace pour la vectorisation — enabler
+    a7e2ec90. Limites lues sur l'ENDPOINT du workspace (rpm/tpm migration 087,
+    max_concurrency migration 091) : tous les workspaces qui partagent
+    l'endpoint consomment le même budget. Sans endpoint lié : passthrough."""
+    if ctx.get("endpoint_id") is None:
+        return nullcontext()
+    return get_throttle_registry().slot(
+        str(ctx["endpoint_id"]),
+        "vectorization",
+        max_concurrency=ctx.get("ep_indexer_max_concurrency"),
+        rpm_limit=ctx.get("ep_indexer_rpm_limit"),
+        tpm_limit=ctx.get("ep_indexer_tpm_limit"),
+        tokens=estimate_tokens(*texts),
+    )
 
 
 class RealIndexer:
@@ -179,7 +198,9 @@ class RealIndexer:
 
         api_key = await self._resolve_api_key(ctx, workspace_id, path)
         provider = self._build_provider(ctx, api_key)
-        embeddings = await provider.embed_texts([c.content for c in chunks])
+        texts = [c.content for c in chunks]
+        async with _embedding_slot(ctx, texts):
+            embeddings = await provider.embed_texts(texts)
 
         strategy = await get_strategy(self._config_pool, workspace_id, path)
         await upsert_chunks(
@@ -283,9 +304,11 @@ class RealIndexer:
         to_embed = [(h, child) for h, child in ordered if h in new_set]
         api_key = await self._resolve_api_key(ctx, workspace_id, path)
         provider = self._build_provider(ctx, api_key)
-        embeddings = (
-            await provider.embed_texts([c.embed_text for _, c in to_embed]) if to_embed else []
-        )
+        embeddings: list[Any] = []
+        if to_embed:
+            texts = [c.embed_text for _, c in to_embed]
+            async with _embedding_slot(ctx, texts):
+                embeddings = await provider.embed_texts(texts)
         emb_by_hash = {h: emb for (h, _), emb in zip(to_embed, embeddings, strict=True)}
 
         child_rows = [
@@ -464,11 +487,16 @@ class RealIndexer:
                 cc.max_chars AS chunking_max_chars,
                 cc.min_chars AS chunking_min_chars,
                 cc.overlap_chars AS chunking_overlap_chars,
-                cc.extras AS chunking_extras
+                cc.extras AS chunking_extras,
+                w.endpoint_id AS endpoint_id,
+                ve.indexer_rpm_limit AS ep_indexer_rpm_limit,
+                ve.indexer_tpm_limit AS ep_indexer_tpm_limit,
+                ve.indexer_max_concurrency AS ep_indexer_max_concurrency
             FROM workspaces w
             JOIN indexer_configs ic ON ic.workspace_id = w.id
             JOIN model_dimensions md ON md.provider = ic.provider AND md.model = ic.model
             JOIN chunking_configs cc ON cc.workspace_id = w.id
+            LEFT JOIN vault_endpoints ve ON ve.id = w.endpoint_id
             WHERE w.id = $1
             """,
             workspace_id,

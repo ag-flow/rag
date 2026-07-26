@@ -33,6 +33,7 @@ _SELECT_BY_VAULT = """
            rerank_rpm_limit, rerank_tpm_limit,
            llm_rpm_limit, llm_tpm_limit,
            fallback_endpoint_id, failure_threshold, cooldown_seconds,
+           indexer_max_concurrency, rerank_max_concurrency, llm_max_concurrency,
            created_at, updated_at
     FROM vault_endpoints WHERE vault_id = $1 ORDER BY label
 """
@@ -47,6 +48,7 @@ _SELECT_BY_ID = """
            rerank_rpm_limit, rerank_tpm_limit,
            llm_rpm_limit, llm_tpm_limit,
            fallback_endpoint_id, failure_threshold, cooldown_seconds,
+           indexer_max_concurrency, rerank_max_concurrency, llm_max_concurrency,
            created_at, updated_at
     FROM vault_endpoints WHERE id = $1
 """
@@ -60,9 +62,10 @@ _INSERT = """
          llm_provider, llm_model, llm_api_key_ref, llm_base_url,
          indexer_rpm_limit, indexer_tpm_limit,
          rerank_rpm_limit, rerank_tpm_limit,
-         llm_rpm_limit, llm_tpm_limit)
+         llm_rpm_limit, llm_tpm_limit,
+         indexer_max_concurrency, rerank_max_concurrency, llm_max_concurrency)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-            $17, $18, $19, $20, $21, $22)
+            $17, $18, $19, $20, $21, $22, $23, $24, $25)
     RETURNING id, vault_id, label, slug,
               indexer_provider, indexer_model, indexer_api_key_ref, indexer_base_url,
               rerank_provider, rerank_model, rerank_api_key_ref, rerank_base_url,
@@ -72,6 +75,7 @@ _INSERT = """
               rerank_rpm_limit, rerank_tpm_limit,
               llm_rpm_limit, llm_tpm_limit,
               fallback_endpoint_id, failure_threshold, cooldown_seconds,
+              indexer_max_concurrency, rerank_max_concurrency, llm_max_concurrency,
               created_at, updated_at
 """
 
@@ -88,6 +92,8 @@ _UPDATE = """
         rerank_rpm_limit = $18, rerank_tpm_limit = $19,
         llm_rpm_limit = $20, llm_tpm_limit = $21,
         fallback_endpoint_id = $22, failure_threshold = $23, cooldown_seconds = $24,
+        indexer_max_concurrency = $25, rerank_max_concurrency = $26,
+        llm_max_concurrency = $27,
         updated_at = now()
     WHERE id = $1
     RETURNING id, vault_id, label, slug,
@@ -99,6 +105,7 @@ _UPDATE = """
               rerank_rpm_limit, rerank_tpm_limit,
               llm_rpm_limit, llm_tpm_limit,
               fallback_endpoint_id, failure_threshold, cooldown_seconds,
+              indexer_max_concurrency, rerank_max_concurrency, llm_max_concurrency,
               created_at, updated_at
 """
 
@@ -114,6 +121,7 @@ def _to_out(row: asyncpg.Record) -> EndpointOut:
             top_k_pre_rerank=row["rerank_top_k"] or 20,
             rpm_limit=row["rerank_rpm_limit"],
             tpm_limit=row["rerank_tpm_limit"],
+            max_concurrency=row["rerank_max_concurrency"],
         )
     llm = None
     if row["llm_provider"] is not None:
@@ -124,6 +132,7 @@ def _to_out(row: asyncpg.Record) -> EndpointOut:
             base_url=row["llm_base_url"],
             rpm_limit=row["llm_rpm_limit"],
             tpm_limit=row["llm_tpm_limit"],
+            max_concurrency=row["llm_max_concurrency"],
         )
     return EndpointOut(
         id=row["id"],
@@ -137,6 +146,7 @@ def _to_out(row: asyncpg.Record) -> EndpointOut:
             base_url=row["indexer_base_url"],
             rpm_limit=row["indexer_rpm_limit"],
             tpm_limit=row["indexer_tpm_limit"],
+            max_concurrency=row["indexer_max_concurrency"],
         ),
         rerank=rerank,
         llm=llm,
@@ -190,6 +200,9 @@ async def create_endpoint(
             rerank.tpm_limit if rerank else None,
             req.llm.rpm_limit if req.llm else None,
             req.llm.tpm_limit if req.llm else None,
+            req.indexer.max_concurrency,
+            rerank.max_concurrency if rerank else None,
+            req.llm.max_concurrency if req.llm else None,
         )
     except asyncpg.UniqueViolationError as exc:
         raise EndpointSlugTakenError(slug) from exc
@@ -268,6 +281,9 @@ async def update_endpoint(
         fallback_id,
         threshold,
         cooldown,
+        indexer.max_concurrency,
+        rerank.max_concurrency if rerank else None,
+        llm.max_concurrency if llm else None,
     )
     log.info("vault_endpoint.updated", endpoint_id=str(endpoint_id))
     return _to_out(row)

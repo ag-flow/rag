@@ -88,6 +88,9 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
   const [rerankTpm, setRerankTpm] = useState("");
   const [llmRpm, setLlmRpm] = useState("");
   const [llmTpm, setLlmTpm] = useState("");
+  const [idxConc, setIdxConc] = useState("");
+  const [rerankConc, setRerankConc] = useState("");
+  const [llmConc, setLlmConc] = useState("");
   // Fallback (édition seulement) — chaînes pour les champs numériques.
   const [fallbackId, setFallbackId] = useState<string>(FALLBACK_NONE);
   const [failThreshold, setFailThreshold] = useState("3");
@@ -133,6 +136,13 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
     setRerankTpm(endpoint?.rerank?.tpm_limit != null ? String(endpoint.rerank.tpm_limit) : "");
     setLlmRpm(endpoint?.llm?.rpm_limit != null ? String(endpoint.llm.rpm_limit) : "");
     setLlmTpm(endpoint?.llm?.tpm_limit != null ? String(endpoint.llm.tpm_limit) : "");
+    setIdxConc(
+      endpoint?.indexer.max_concurrency != null ? String(endpoint.indexer.max_concurrency) : "",
+    );
+    setRerankConc(
+      endpoint?.rerank?.max_concurrency != null ? String(endpoint.rerank.max_concurrency) : "",
+    );
+    setLlmConc(endpoint?.llm?.max_concurrency != null ? String(endpoint.llm.max_concurrency) : "");
     setFallbackId(endpoint?.fallback_endpoint_id ?? FALLBACK_NONE);
     setFailThreshold(String(endpoint?.failure_threshold ?? 3));
     setCooldownSecs(String(endpoint?.cooldown_seconds ?? 60));
@@ -220,6 +230,8 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
     setRpm: (v: string) => void,
     tpm: string,
     setTpm: (v: string) => void,
+    conc: string,
+    setConc: (v: string) => void,
   ) {
     const rule = (
       value: string,
@@ -249,6 +261,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
         <p className="text-xs font-medium text-slate-600">{t("endpoints.limits_title")}</p>
         {rule(rpm, setRpm, "endpoints.limit_rpm", "3000")}
         {rule(tpm, setTpm, "endpoints.limit_tpm", "500000")}
+        {rule(conc, setConc, "endpoints.limit_concurrency", "4")}
       </div>
     );
   }
@@ -304,6 +317,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
         base_url: baseUrl.trim() === "" ? null : baseUrl,
         rpm_limit: limitOrNull(idxRpm),
         tpm_limit: limitOrNull(idxTpm),
+        max_concurrency: limitOrNull(idxConc),
       },
       rerank: rerankOn
         ? {
@@ -314,6 +328,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
             top_k_pre_rerank: rerankTopK,
             rpm_limit: limitOrNull(rerankRpm),
             tpm_limit: limitOrNull(rerankTpm),
+            max_concurrency: limitOrNull(rerankConc),
           }
         : null,
       llm: llmOn
@@ -324,6 +339,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
             base_url: llmBaseUrl.trim() === "" ? null : llmBaseUrl,
             rpm_limit: limitOrNull(llmRpm),
             tpm_limit: limitOrNull(llmTpm),
+            max_concurrency: limitOrNull(llmConc),
           }
         : null,
     };
@@ -524,7 +540,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                 />
                 {callUrlHint("embeddings", provider, model, baseUrl)}
               </div>
-              {limitRules(idxRpm, setIdxRpm, idxTpm, setIdxTpm)}
+              {limitRules(idxRpm, setIdxRpm, idxTpm, setIdxTpm, idxConc, setIdxConc)}
               {testFooter("vectorization", model.trim() !== "")}
             </TabsContent>
 
@@ -619,7 +635,14 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                       />
                     </div>
                   </div>
-                  {limitRules(rerankRpm, setRerankRpm, rerankTpm, setRerankTpm)}
+                  {limitRules(
+                    rerankRpm,
+                    setRerankRpm,
+                    rerankTpm,
+                    setRerankTpm,
+                    rerankConc,
+                    setRerankConc,
+                  )}
                   {testFooter("rerank", rerankModel.trim() !== "")}
                 </>
               )}
@@ -701,7 +724,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                     />
                     {callUrlHint("chat", llmProvider, llmModel, llmBaseUrl)}
                   </div>
-                  {limitRules(llmRpm, setLlmRpm, llmTpm, setLlmTpm)}
+                  {limitRules(llmRpm, setLlmRpm, llmTpm, setLlmTpm, llmConc, setLlmConc)}
                   {testFooter("llm", llmModel.trim() !== "")}
                 </>
               )}

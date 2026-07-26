@@ -38,12 +38,14 @@ def _merge_spec(
     base_url: str | None,
     rpm_limit: int | None,
     tpm_limit: int | None,
+    max_concurrency: int | None,
     extra: dict[str, Any],
 ) -> Any:
     """Fusionne les champs fournis avec la section courante (None = conservé).
 
     Sentinelles d'effacement explicites : `api_key_ref=""` / `base_url=""`
-    retirent la valeur ; `rpm_limit=0` / `tpm_limit=0` désactivent la règle.
+    retirent la valeur ; `rpm_limit=0` / `tpm_limit=0` / `max_concurrency=0`
+    désactivent la règle.
     """
 
     def _text(new: str | None, old: str | None) -> str | None:
@@ -63,6 +65,7 @@ def _merge_spec(
         "base_url": _text(base_url, getattr(current, "base_url", None)),
         "rpm_limit": _limit(rpm_limit, getattr(current, "rpm_limit", None)),
         "tpm_limit": _limit(tpm_limit, getattr(current, "tpm_limit", None)),
+        "max_concurrency": _limit(max_concurrency, getattr(current, "max_concurrency", None)),
     }
     values.update(extra)
     if values["provider"] is None or values["model"] is None:
@@ -84,6 +87,7 @@ def build_service_update(
     base_url: str | None,
     rpm_limit: int | None,
     tpm_limit: int | None,
+    max_concurrency: int | None,
     top_k_pre_rerank: int | None,
 ) -> EndpointUpdate:
     """Traduit la mise à jour partielle d'UN service en EndpointUpdate complet."""
@@ -99,6 +103,7 @@ def build_service_update(
         "base_url": base_url,
         "rpm_limit": rpm_limit,
         "tpm_limit": tpm_limit,
+        "max_concurrency": max_concurrency,
     }
     if service == "vectorization":
         spec = _merge_spec(EndpointIndexerSpec, ep.indexer, **common, extra={})

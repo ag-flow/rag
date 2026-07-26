@@ -9,6 +9,8 @@ export type EndpointIndexerSpec = {
   /** Limites de débit du service — null = règle désactivée. */
   rpm_limit?: number | null;
   tpm_limit?: number | null;
+  /** Requêtes parallèles max — appliqué au niveau endpoint, cross-workspace. */
+  max_concurrency?: number | null;
 };
 
 export type EndpointRerankSpec = {
@@ -20,6 +22,8 @@ export type EndpointRerankSpec = {
   /** Limites de débit du service — null = règle désactivée. */
   rpm_limit?: number | null;
   tpm_limit?: number | null;
+  /** Requêtes parallèles max — appliqué au niveau endpoint, cross-workspace. */
+  max_concurrency?: number | null;
 };
 
 /** LLM d'exécution des prompts (enrichissements, contexte, chat Playground). */
@@ -31,6 +35,8 @@ export type EndpointLlmSpec = {
   /** Limites de débit du service — null = règle désactivée. */
   rpm_limit?: number | null;
   tpm_limit?: number | null;
+  /** Requêtes parallèles max — appliqué au niveau endpoint, cross-workspace. */
+  max_concurrency?: number | null;
 };
 
 export type VaultEndpoint = {

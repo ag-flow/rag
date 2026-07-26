@@ -144,6 +144,7 @@ def register_endpoint_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
         base_url: str | None = None,
         rpm_limit: int | None = None,
         tpm_limit: int | None = None,
+        max_concurrency: int | None = None,
         top_k_pre_rerank: int | None = None,
         clear: bool = False,
     ) -> str:
@@ -152,10 +153,12 @@ def register_endpoint_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
         Mise à jour PARTIELLE : un paramètre omis conserve sa valeur. Pour
         créer une section absente (ex. premier rerank), `provider` et `model`
         sont requis. Effacement explicite : api_key_ref="" ou base_url=""
-        retire la valeur ; rpm_limit=0 ou tpm_limit=0 désactive la limite ;
-        clear=true supprime toute la section (rerank et llm uniquement — la
-        vectorisation est obligatoire). `api_key_ref` est un NOM de secret du
-        coffre, jamais une valeur.
+        retire la valeur ; rpm_limit=0, tpm_limit=0 ou max_concurrency=0
+        désactive la limite ; clear=true supprime toute la section (rerank et
+        llm uniquement — la vectorisation est obligatoire). `api_key_ref` est
+        un NOM de secret du coffre, jamais une valeur. `max_concurrency` borne
+        les requêtes parallèles vers ce service, agrégées sur TOUS les
+        workspaces qui partagent l'endpoint (comme rpm/tpm).
 
         Effet différé (snapshot) : les workspaces existants gardent leur
         configuration copiée — la modification ne s'applique qu'aux workspaces
@@ -192,6 +195,7 @@ def register_endpoint_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
                     base_url=base_url,
                     rpm_limit=rpm_limit,
                     tpm_limit=tpm_limit,
+                    max_concurrency=max_concurrency,
                     top_k_pre_rerank=top_k_pre_rerank,
                 )
             except (ValidationError, ValueError) as exc:

@@ -33,6 +33,9 @@ class EndpointIndexerSpec(BaseModel):
     # config workspace à la création et au refresh.
     rpm_limit: int | None = Field(default=None, ge=1)
     tpm_limit: int | None = Field(default=None, ge=1)
+    # Requêtes parallèles max vers ce service — appliqué au niveau ENDPOINT,
+    # agrégé cross-workspace (enabler a7e2ec90). NULL = pas de limite.
+    max_concurrency: int | None = Field(default=None, ge=1)
 
 
 class EndpointRerankSpec(BaseModel):
@@ -47,6 +50,9 @@ class EndpointRerankSpec(BaseModel):
     # config workspace à la création et au refresh.
     rpm_limit: int | None = Field(default=None, ge=1)
     tpm_limit: int | None = Field(default=None, ge=1)
+    # Requêtes parallèles max vers ce service — appliqué au niveau ENDPOINT,
+    # agrégé cross-workspace (enabler a7e2ec90). NULL = pas de limite.
+    max_concurrency: int | None = Field(default=None, ge=1)
 
 
 class EndpointLlmSpec(BaseModel):
@@ -65,6 +71,9 @@ class EndpointLlmSpec(BaseModel):
     # config workspace à la création et au refresh.
     rpm_limit: int | None = Field(default=None, ge=1)
     tpm_limit: int | None = Field(default=None, ge=1)
+    # Requêtes parallèles max vers ce service — appliqué au niveau ENDPOINT,
+    # agrégé cross-workspace (enabler a7e2ec90). NULL = pas de limite.
+    max_concurrency: int | None = Field(default=None, ge=1)
 
 
 class EndpointCreate(BaseModel):

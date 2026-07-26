@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager, nullcontext
 from dataclasses import dataclass
 from hashlib import sha256
 from typing import Any, Protocol
@@ -32,6 +33,7 @@ from rag.schemas.mcp import (
     SingleWorkspaceRequest,
 )
 from rag.secrets.refs import build_ref, is_vault_ref
+from rag.services.endpoint_throttle import estimate_tokens, get_throttle_registry
 
 log = structlog.get_logger(__name__)
 
@@ -143,11 +145,19 @@ async def _load_workspace_context(
             rc.model AS rerank_model,
             rc.api_key_ref AS rerank_api_key_ref,
             rc.base_url AS rerank_base_url,
-            rc.top_k_pre_rerank AS rerank_top_k_pre_rerank
+            rc.top_k_pre_rerank AS rerank_top_k_pre_rerank,
+            w.endpoint_id AS endpoint_id,
+            ve.indexer_rpm_limit AS ep_indexer_rpm_limit,
+            ve.indexer_tpm_limit AS ep_indexer_tpm_limit,
+            ve.indexer_max_concurrency AS ep_indexer_max_concurrency,
+            ve.rerank_rpm_limit AS ep_rerank_rpm_limit,
+            ve.rerank_tpm_limit AS ep_rerank_tpm_limit,
+            ve.rerank_max_concurrency AS ep_rerank_max_concurrency
         FROM workspaces w
         JOIN indexer_configs ic ON ic.workspace_id = w.id
         JOIN model_dimensions md ON md.provider = ic.provider AND md.model = ic.model
         LEFT JOIN rerank_configs rc ON rc.workspace_id = w.id
+        LEFT JOIN vault_endpoints ve ON ve.id = w.endpoint_id
         WHERE w.name = $1
         """,
         name,
@@ -328,6 +338,25 @@ def _validate_rerank_results(
     return valid
 
 
+def _endpoint_slot(
+    ctx: dict[str, Any], service: str, prefix: str, *, tokens: int
+) -> AbstractAsyncContextManager[None]:
+    """Créneau de throttling cross-workspace par (endpoint, service) — enabler
+    a7e2ec90. Les limites (rpm/tpm migration 087, max_concurrency migration
+    091) sont lues sur l'ENDPOINT : tous les workspaces qui le partagent
+    consomment le même budget. Workspace sans endpoint lié = passthrough."""
+    if ctx.get("endpoint_id") is None:
+        return nullcontext()
+    return get_throttle_registry().slot(
+        str(ctx["endpoint_id"]),
+        service,
+        max_concurrency=ctx.get(f"{prefix}_max_concurrency"),
+        rpm_limit=ctx.get(f"{prefix}_rpm_limit"),
+        tpm_limit=ctx.get(f"{prefix}_tpm_limit"),
+        tokens=tokens,
+    )
+
+
 async def _search_one(
     *,
     ref: McpWorkspaceRef,
@@ -362,7 +391,11 @@ async def _search_one(
         api_key=api_key,
         base_url=ctx["base_url"],
     )
-    query_vec = await provider.embed_query(query)
+    # Throttling cross-workspace par (endpoint, service) — enabler a7e2ec90 :
+    # les limites vivent sur l'endpoint et sont partagées par tous les
+    # workspaces qui le référencent (workspace sans endpoint = pas de limite).
+    async with _endpoint_slot(ctx, "vectorization", "ep_indexer", tokens=len(query) // 4):
+        query_vec = await provider.embed_query(query)
 
     rerank_cfg = ctx.get("rerank")
     pre_top_k = max(top_k, rerank_cfg["top_k_pre_rerank"]) if rerank_cfg else top_k
@@ -416,7 +449,9 @@ async def _search_one(
         )
         documents = [h.content for h in hits]
         try:
-            results = await reranker.rerank(query=query, documents=documents, top_k=top_k)
+            tokens = estimate_tokens(query, *documents)
+            async with _endpoint_slot(ctx, "rerank", "ep_rerank", tokens=tokens):
+                results = await reranker.rerank(query=query, documents=documents, top_k=top_k)
             results = _validate_rerank_results(results, n_documents=len(documents))
         except RerankProviderError as exc:
             # Fallback dégradé (BUG-002) : un échec provider (429 / timeout /

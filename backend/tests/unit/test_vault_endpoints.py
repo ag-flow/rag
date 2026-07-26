@@ -59,6 +59,9 @@ def _row(**overrides):
         "fallback_endpoint_id": None,
         "failure_threshold": 3,
         "cooldown_seconds": 60,
+        "indexer_max_concurrency": None,
+        "rerank_max_concurrency": None,
+        "llm_max_concurrency": None,
         "created_at": datetime(2026, 7, 16, tzinfo=UTC),
         "updated_at": datetime(2026, 7, 16, tzinfo=UTC),
     }
@@ -101,9 +104,7 @@ class TestCreateEndpoint:
         req = EndpointCreate(
             label="Docs OpenAI",
             indexer=EndpointIndexerSpec(provider="openai", model="text-embedding-3-small"),
-            rerank=EndpointRerankSpec(
-                provider="cohere", model="rerank-v3.5", top_k_pre_rerank=25
-            ),
+            rerank=EndpointRerankSpec(provider="cohere", model="rerank-v3.5", top_k_pre_rerank=25),
         )
         out = await create_endpoint(conn, vault_id=uuid4(), req=req)
         assert out.rerank is not None
