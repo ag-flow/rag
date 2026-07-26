@@ -117,3 +117,18 @@ def test_delete_model_409_in_use(
     )
     assert r.status_code == 403
     assert r.json()["error"] == "model_system_immutable"
+
+
+def test_get_rerank_pairings_returns_seed(
+    admin_client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    """La migration 085 seed les préconisations embedder → reranker."""
+    r = admin_client.get("/api/admin/models/rerank-pairings", headers=admin_headers)
+    assert r.status_code == 200
+    pairings = r.json()
+    assert len(pairings) >= 7
+    cohere = next(p for p in pairings if p["embed_provider_like"] == "cohere")
+    assert cohere["rerank_model_like"] == "rerank-%"
+    assert cohere["note"]
+    qwen = next(p for p in pairings if "qwen3-embedding" in p["embed_model_like"])
+    assert qwen["rerank_model_like"] == "%qwen3-reranker%"

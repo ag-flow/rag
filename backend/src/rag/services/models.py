@@ -4,7 +4,7 @@ import asyncpg
 
 from rag.api.errors import ModelInUse, ModelNotOwned, ModelNotSupported
 from rag.db.helpers import fetch_all, fetch_one
-from rag.schemas.admin import ModelEntry
+from rag.schemas.admin import ModelEntry, RerankPairing
 
 
 async def list_models(config_pool: asyncpg.Pool, *, owner_id: str) -> list[ModelEntry]:
@@ -137,3 +137,14 @@ async def get_dimension_or_raise(config_pool: asyncpg.Pool, *, provider: str, mo
         supported = [(r["provider"], r["model"]) for r in all_models]
         raise ModelNotSupported(provider=provider, model=model, supported=supported)
     return int(row["dimension"])
+
+
+async def list_rerank_pairings(config_pool: asyncpg.Pool) -> list[RerankPairing]:
+    """Préconisations de pairing embedder → reranker (référentiel seedé en 085)."""
+    rows = await fetch_all(
+        config_pool,
+        "SELECT embed_provider_like, embed_model_like,"
+        " rerank_provider_like, rerank_model_like, note"
+        " FROM rerank_pairings ORDER BY id",
+    )
+    return [RerankPairing(**dict(r)) for r in rows]

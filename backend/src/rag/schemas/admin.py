@@ -315,6 +315,22 @@ class ModelEntry(BaseModel):
     is_system: bool = False
 
 
+class RerankPairing(BaseModel):
+    """Préconisation de pairing embedder → reranker (motifs LIKE, '%' joker).
+
+    L'IHM matche l'embedder sélectionné contre (embed_provider_like,
+    embed_model_like) et affiche « préco » sur les rerankers qui matchent
+    (rerank_provider_like, rerank_model_like)."""
+
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+    embed_provider_like: str
+    embed_model_like: str
+    rerank_provider_like: str
+    rerank_model_like: str
+    note: str
+
+
 class RerankSpec(BaseModel):
     """Body PUT /workspaces/{name}/rerank."""
 

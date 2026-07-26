@@ -25,6 +25,7 @@ from rag.schemas.admin import (
     ModelEntry,
     ReindexRequest,
     RerankConfigResponse,
+    RerankPairing,
     RerankSpec,
     SourceCreateRequest,
     SourceResponse,
@@ -577,6 +578,12 @@ def build_admin_router() -> APIRouter:
 
         settings = request.app.state.settings
         return load_pricing(settings.pricing_file)
+
+    @router.get("/models/rerank-pairings")
+    async def get_rerank_pairings(request: Request) -> list[RerankPairing]:
+        from rag.services.models import list_rerank_pairings
+
+        return await list_rerank_pairings(_config_pool(request))
 
     @router.get("/models")
     async def get_models(request: Request) -> list[ModelEntry]:
