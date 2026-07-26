@@ -15,15 +15,22 @@ Usage (depuis la racine du repo) :
         --golden golden/queries.yaml \
         [--api-key … | env RAG_BENCH_API_KEY] [--passes 3] [--top-k 10]
 
-Jeu YAML — une entrée par question. `family` ∈ litterale|paraphrasee|
+Jeu YAML — deux formats acceptés : la liste brute d'entrées, ou le format
+versionné du bloc Recherche (en-tête `version:` + `queries:` — D9.3, le
+rapport référence alors la version). `family` ∈ litterale|paraphrasee|
 indirecte (optionnel : jeux hors D9). Match : `expected_paths` (exact sur
 `path`/`source_path`) et/ou `expected_path_contains` (sous-chaîne — ex. l'id
 docflow du document source dans le path poussé) :
 
-    - query: "Comment créer un workspace ?"
-      family: paraphrasee
-      expected_paths: [manuel/02-workspaces.md]
-      expected_path_contains: ["6a398cd2"]
+    version: v1
+    queries:
+      - query: "Comment créer un workspace ?"
+        family: paraphrasee
+        expected_paths: [manuel/02-workspaces.md]
+        expected_path_contains: ["6a398cd2"]
+
+`--config-note` décrit la configuration testée (moteur, curseurs, contexte
+F6 actif ou non) et est reprise telle quelle dans le rapport.
 """
 
 from __future__ import annotations
@@ -32,6 +39,7 @@ import argparse
 import os
 import statistics
 import sys
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
@@ -42,16 +50,29 @@ DEFAULT_TOP_K = 10
 DEFAULT_PASSES = 3  # le reranking peut varier → moyenne sur plusieurs passes
 
 
-def load_golden(path: str) -> list[dict[str, Any]]:
+@dataclass(frozen=True)
+class GoldenSet:
+    """Jeu de requêtes-vérité chargé : entrées + version (None = jeu non versionné)."""
+
+    version: str | None
+    queries: list[dict[str, Any]]
+
+
+def load_golden(path: str) -> GoldenSet:
+    """Charge le jeu : liste brute, ou format versionné du bloc Recherche (D9.3)."""
     with open(path, encoding="utf-8") as fh:
-        entries = yaml.safe_load(fh)
-    if not isinstance(entries, list) or not entries:
+        raw = yaml.safe_load(fh)
+    version: str | None = None
+    if isinstance(raw, dict):
+        version = str(raw["version"]) if raw.get("version") is not None else None
+        raw = raw.get("queries")
+    if not isinstance(raw, list) or not raw:
         sys.exit(f"golden set vide ou invalide : {path}")
-    for i, entry in enumerate(entries):
+    for i, entry in enumerate(raw):
         has_expected = entry.get("expected_paths") or entry.get("expected_path_contains")
         if not entry.get("query") or not has_expected:
             sys.exit(f"entrée {i} invalide (query + expected_paths/_contains requis)")
-    return entries
+    return GoldenSet(version=version, queries=raw)
 
 
 def search(
@@ -106,42 +127,52 @@ def metrics(ranks: list[int | None]) -> dict[str, float]:
 
 
 def render_report(
-    golden: list[dict[str, Any]],
+    golden: GoldenSet,
     all_ranks: list[list[int | None]],
     *,
     workspace: str,
     top_k: int,
+    config_note: str | None = None,
 ) -> str:
-    """Rapport markdown à déposer dans le bloc Recherche (SR1.2)."""
+    """Rapport markdown à déposer dans le bloc Recherche (SR1.2) : version du
+    jeu, configuration testée, métriques globales et par famille, échecs."""
 
     def avg(rows: list[dict[str, float]]) -> dict[str, float]:
         keys = rows[0].keys()
         return {k: statistics.mean(r[k] for r in rows) for k in keys}
 
+    queries = golden.queries
     lines = [
         "# Rapport de campagne de recherche",
         "",
         f"- Workspace : `{workspace}` — top_k={top_k}, passes={len(all_ranks)}",
-        f"- Jeu : {len(golden)} question(s)",
+        f"- Jeu : {golden.version or 'non versionné'} — {len(queries)} question(s)",
+        f"- Configuration testée : {config_note or 'non renseignée'}",
         "",
         "## Métriques globales",
         "",
     ]
     overall = avg([metrics(ranks) for ranks in all_ranks])
     lines += [f"- **{k}** : {v:.3f}" for k, v in overall.items()]
-    families = sorted({e.get("family", "sans-famille") for e in golden})
+    families = sorted({e.get("family", "sans-famille") for e in queries})
     if len(families) > 1:
         lines += ["", "## Par famille", ""]
         for family in families:
-            idx = [i for i, e in enumerate(golden) if e.get("family", "sans-famille") == family]
+            idx = [i for i, e in enumerate(queries) if e.get("family", "sans-famille") == family]
             fam = avg([metrics([ranks[i] for i in idx]) for ranks in all_ranks])
             fam_str = "  ".join(f"{k}={v:.3f}" for k, v in fam.items())
             lines.append(f"- **{family}** ({len(idx)} q) : {fam_str}")
     last = all_ranks[-1]
-    misses = [golden[i]["query"] for i, r in enumerate(last) if r is None]
+    misses = [i for i, r in enumerate(last) if r is None]
     if misses:
         lines += ["", f"## Échecs (dernière passe : {len(misses)})", ""]
-        lines += [f"- {q}" for q in misses]
+        for i in misses:
+            entry = queries[i]
+            expected = entry.get("expected_paths") or entry.get("expected_path_contains")
+            lines.append(
+                f"- {entry['query']} — famille : {entry.get('family', 'sans-famille')}, "
+                f"attendu : {expected}, absent du top-{top_k}"
+            )
     return "\n".join(lines) + "\n"
 
 
@@ -305,6 +336,11 @@ def main() -> None:
     parser.add_argument("--passes", type=int, default=DEFAULT_PASSES)
     parser.add_argument("--report", help="chemin du rapport markdown (bloc Recherche)")
     parser.add_argument(
+        "--config-note",
+        help="configuration testée, reprise dans le rapport "
+        "(moteur, curseurs, contexte F6 actif ou non)",
+    )
+    parser.add_argument(
         "--diagnose",
         help="chemin du dossier de diagnostic : re-joue chaque échec de la "
         "dernière passe avec debug=true et dumpe fusion + canaux (SR1.3)",
@@ -314,7 +350,10 @@ def main() -> None:
         sys.exit("clé API requise : --api-key ou env RAG_BENCH_API_KEY")
 
     golden = load_golden(args.golden)
-    print(f"Jeu : {len(golden)} question(s) — {args.passes} passe(s), top_k={args.top_k}")
+    print(
+        f"Jeu : {golden.version or 'non versionné'} — {len(golden.queries)} question(s) "
+        f"— {args.passes} passe(s), top_k={args.top_k}"
+    )
 
     all_ranks: list[list[int | None]] = []
     with httpx.Client() as client:
@@ -324,7 +363,7 @@ def main() -> None:
                 base_url=args.base_url,
                 workspace=args.workspace,
                 api_key=args.api_key,
-                golden=golden,
+                golden=golden.queries,
                 top_k=args.top_k,
             )
             all_ranks.append(ranks)
@@ -332,7 +371,13 @@ def main() -> None:
             summary = "  ".join(f"{k}={v:.3f}" for k, v in pass_metrics.items())
             print(f"  passe {i + 1}: {summary}")
 
-    report = render_report(golden, all_ranks, workspace=args.workspace, top_k=args.top_k)
+    report = render_report(
+        golden,
+        all_ranks,
+        workspace=args.workspace,
+        top_k=args.top_k,
+        config_note=args.config_note,
+    )
     print("\n" + report)
     if args.report:
         with open(args.report, "w", encoding="utf-8") as fh:
@@ -340,7 +385,7 @@ def main() -> None:
         print(f"Rapport écrit : {args.report}")
 
     if args.diagnose:
-        failed = [(golden[i]) for i, r in enumerate(all_ranks[-1]) if r is None]
+        failed = [golden.queries[i] for i, r in enumerate(all_ranks[-1]) if r is None]
         with httpx.Client() as client:
             failures = [
                 (

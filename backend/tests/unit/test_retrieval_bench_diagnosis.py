@@ -7,12 +7,14 @@ et render_diagnosis sur des payloads synthétiques (canaux D8).
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 
 _BENCH = Path(__file__).resolve().parents[2].parent / "scripts" / "retrieval_bench.py"
 _spec = importlib.util.spec_from_file_location("retrieval_bench", _BENCH)
 assert _spec and _spec.loader
 bench = importlib.util.module_from_spec(_spec)
+sys.modules[_spec.name] = bench  # requis par @dataclass (résolution via sys.modules)
 _spec.loader.exec_module(bench)
 
 
