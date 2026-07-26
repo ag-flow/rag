@@ -463,11 +463,13 @@ async def list_workspaces() -> str:
 # ── Outils de bibliothèque (stratégies de chunking + templates de prompts) ──
 # Import en bas de fichier : les outils ont besoin du singleton `_mcp` et du
 # ContextVar `_ws_ctx` déjà définis, sans créer d'import circulaire.
+from rag.api.mcp_endpoint_tools import register_endpoint_tools  # noqa: E402
 from rag.api.mcp_library_tools import register_library_tools  # noqa: E402
 from rag.api.mcp_ops_tools import register_ops_tools  # noqa: E402
 
 register_library_tools(_mcp, _ws_ctx)
 register_ops_tools(_mcp, _ws_ctx)
+register_endpoint_tools(_mcp, _ws_ctx)
 
 
 class McpPathNormalizerMiddleware:
