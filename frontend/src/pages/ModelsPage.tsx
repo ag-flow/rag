@@ -122,6 +122,14 @@ export function ModelsPage() {
   const getProviderPricing = (provider: string): ProviderPricing | undefined =>
     pricingData?.providers?.[provider];
 
+  // Catégories d'affichage : 'ollama' = exécution locale, 'ollama-cloud' =
+  // modèles hébergés par Ollama Cloud. La valeur en base reste inchangée
+  // (elle route les adapters backend).
+  const providerLabel = (provider: string): string =>
+    provider === "ollama" || provider === "ollama-cloud"
+      ? t(`provider_labels.${provider}`)
+      : provider;
+
   const getModelPricingEntry = (provider: string, model: string): ModelPricingEntry | undefined => {
     const prov = getProviderPricing(provider);
     return prov?.models.find((m) => m.name === model);
@@ -194,7 +202,7 @@ export function ModelsPage() {
                     ) : (
                       <ChevronRight className="h-4 w-4 text-slate-500" />
                     )}
-                    {provider}{" "}
+                    {providerLabel(provider)}{" "}
                     <span className="text-slate-500 font-normal">
                       {t("section.count", { count: entries.length })}
                     </span>

@@ -66,5 +66,9 @@
     "embedding": "Embedding",
     "rerank": "Reranking",
     "llm": "LLM"
+  },
+  "provider_labels": {
+    "ollama": "ollama local",
+    "ollama-cloud": "ollama cloud"
   }
 }

@@ -39,7 +39,7 @@ interface Props {
 const NONE = "__none__";
 
 // LLM d'exécution des prompts — mêmes providers que workspace_llm_configs.
-const LLM_PROVIDERS = ["claude", "openai", "azure-openai", "ollama"] as const;
+const LLM_PROVIDERS = ["claude", "openai", "azure-openai", "ollama", "ollama-cloud"] as const;
 
 type TestSection = "vectorization" | "rerank" | "llm";
 
