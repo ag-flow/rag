@@ -564,16 +564,16 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                     <Label className="text-xs text-slate-600">{t("endpoints.api_key")}</Label>
                     {keySelect(rerankKeyRef, setRerankKeyRef, t("endpoints.rerank_api_key"))}
                   </div>
+                  <div className="mt-3">
+                    <Label className="text-xs text-slate-600">{t("endpoints.base_url")}</Label>
+                    <Input
+                      value={rerankBaseUrl}
+                      onChange={(e) => setRerankBaseUrl(e.target.value)}
+                      className="mt-1 font-mono"
+                    />
+                    {callUrlHint("rerank", rerankProvider, rerankModel, rerankBaseUrl)}
+                  </div>
                   <div className="mt-3 grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs text-slate-600">{t("endpoints.base_url")}</Label>
-                      <Input
-                        value={rerankBaseUrl}
-                        onChange={(e) => setRerankBaseUrl(e.target.value)}
-                        className="mt-1 font-mono"
-                      />
-                      {callUrlHint("rerank", rerankProvider, rerankModel, rerankBaseUrl)}
-                    </div>
                     <div>
                       <Label className="text-xs text-slate-600">{t("endpoints.top_k")}</Label>
                       <Input
