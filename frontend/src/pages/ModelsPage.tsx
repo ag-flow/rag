@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useModels, usePricing } from "@/hooks/useModels";
-import type { ModelEntry, ModelPricingEntry, ProviderPricing } from "@/lib/models.types";
+import type { ModelEntry, ModelKind, ModelPricingEntry, ProviderPricing } from "@/lib/models.types";
 import { AddModelDialog } from "@/pages/models/AddModelDialog";
 import { DeleteModelAlert } from "@/pages/models/DeleteModelAlert";
 
@@ -82,10 +82,12 @@ export function ModelsPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [toDelete, setToDelete] = useState<{ provider: string; model: string } | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [kindFilter, setKindFilter] = useState<ModelKind | "all">("all");
 
   const grouped = useMemo(() => {
     const map = new Map<string, ModelEntry[]>();
     for (const entry of data ?? []) {
+      if (kindFilter !== "all" && entry.kind !== kindFilter) continue;
       const list = map.get(entry.provider) ?? [];
       list.push(entry);
       map.set(entry.provider, list);
@@ -95,7 +97,7 @@ export function ModelsPage() {
       list.sort((a, b) => a.model.localeCompare(b.model));
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [data]);
+  }, [data, kindFilter]);
 
   // Open all sections by default once data loads.
   useEffect(() => {
@@ -155,6 +157,21 @@ export function ModelsPage() {
         </Button>
       </div>
 
+      {/* Filtre par besoin : la page gère les trois types de modèles. */}
+      <div className="mb-4 flex gap-1">
+        {(["all", "embedding", "rerank", "llm"] as const).map((k) => (
+          <Button
+            key={k}
+            type="button"
+            size="sm"
+            variant={kindFilter === k ? "default" : "outline"}
+            onClick={() => setKindFilter(k)}
+          >
+            {t(`filter.${k}`)}
+          </Button>
+        ))}
+      </div>
+
       {models.length === 0 ? (
         <div className="rounded-md border border-dashed border-slate-300 p-12 text-center text-sm text-slate-500">
           {t("empty")}
@@ -206,7 +223,9 @@ export function ModelsPage() {
                             <div className="flex items-center gap-3 text-sm">
                               <code className="font-mono text-slate-800">{entry.model}</code>
                               <span className="text-slate-500">
-                                {entry.kind === "llm" ? "LLM" : t("row.dim", { dimension: entry.dimension })}
+                                {entry.kind === "embedding"
+                                  ? t("row.dim", { dimension: entry.dimension })
+                                  : t(`row.kind_${entry.kind}`)}
                               </span>
                               <span className="text-slate-400 text-xs">
                                 {formatRel(entry.created_at)}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import i18next from "i18next";
@@ -17,6 +17,7 @@ vi.mock("@/hooks/useModels", () => ({
       {
         provider: "openai",
         model: "text-embedding-3-small",
+        kind: "embedding",
         dimension: 1536,
         created_at: "2026-05-15T00:00:00Z",
         is_system: true,
@@ -24,6 +25,7 @@ vi.mock("@/hooks/useModels", () => ({
       {
         provider: "openai",
         model: "text-embedding-3-large",
+        kind: "embedding",
         dimension: 3072,
         created_at: "2026-05-15T00:00:00Z",
         is_system: true,
@@ -31,9 +33,26 @@ vi.mock("@/hooks/useModels", () => ({
       {
         provider: "ollama",
         model: "nomic-embed-text",
+        kind: "embedding",
         dimension: 768,
         created_at: "2026-05-15T00:00:00Z",
         is_system: false,
+      },
+      {
+        provider: "ollama",
+        model: "llama3.1:8b",
+        kind: "llm",
+        dimension: null,
+        created_at: "2026-05-15T00:00:00Z",
+        is_system: false,
+      },
+      {
+        provider: "cohere",
+        model: "rerank-v3.5",
+        kind: "rerank",
+        dimension: null,
+        created_at: "2026-05-15T00:00:00Z",
+        is_system: true,
       },
     ],
     isLoading: false,
@@ -83,9 +102,34 @@ describe("ModelsPage", () => {
 
   it("badge Système sur les modèles du catalogue, suppression réservée aux modèles possédés", () => {
     renderPage();
-    // 2 modèles système → 2 badges ; le modèle utilisateur n'en a pas.
-    expect(screen.getAllByText("Système")).toHaveLength(2);
-    // Un seul menu d'actions (le modèle utilisateur) : les système n'en ont pas.
-    expect(document.querySelectorAll('[aria-haspopup="menu"]')).toHaveLength(1);
+    // 3 modèles système → 3 badges ; les modèles utilisateur n'en ont pas.
+    expect(screen.getAllByText("Système")).toHaveLength(3);
+    // Deux menus d'actions (les modèles utilisateur) : les système n'en ont pas.
+    expect(document.querySelectorAll('[aria-haspopup="menu"]')).toHaveLength(2);
+  });
+
+  it("affiche le type sur les lignes rerank et llm (pas de dimension)", () => {
+    renderPage();
+    // "LLM" existe aussi comme bouton de filtre → on cible les spans de ligne.
+    const rowLabels = [...document.querySelectorAll("li span.text-slate-500")].map(
+      (el) => el.textContent,
+    );
+    expect(rowLabels).toContain("Rerank");
+    expect(rowLabels).toContain("LLM");
+  });
+
+  it("filtre par type : Reranking ne garde que les modèles kind=rerank", () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Reranking" }));
+    expect(screen.getByText("rerank-v3.5")).toBeInTheDocument();
+    expect(screen.queryByText("text-embedding-3-small")).not.toBeInTheDocument();
+    expect(screen.queryByText("llama3.1:8b")).not.toBeInTheDocument();
+  });
+
+  it("filtre par type : LLM ne garde que les modèles kind=llm", () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "LLM" }));
+    expect(screen.getByText("llama3.1:8b")).toBeInTheDocument();
+    expect(screen.queryByText("rerank-v3.5")).not.toBeInTheDocument();
   });
 });

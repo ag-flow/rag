@@ -30,7 +30,7 @@ const schema = z
     providerSelect: z.enum(PROVIDERS),
     providerOther: z.string().optional(),
     model: z.string().min(1, "model_required"),
-    kind: z.enum(["embedding", "llm"]),
+    kind: z.enum(["embedding", "llm", "rerank"]),
     dimension: z.coerce.number().int().positive("dimension_positive"),
   })
   .refine(
@@ -75,8 +75,8 @@ export function AddModelDialog({ open, onOpenChange }: Props) {
         provider,
         model: v.model,
         kind: v.kind,
-        // Un LLM ne vectorise pas : pas de dimension.
-        dimension: v.kind === "llm" ? null : v.dimension,
+        // Seul un modèle d'embedding a une dimension.
+        dimension: v.kind === "embedding" ? v.dimension : null,
       },
       {
         onSuccess: () => {
@@ -147,13 +147,14 @@ export function AddModelDialog({ open, onOpenChange }: Props) {
             <label className="text-xs font-medium text-slate-700">{t("dialog.add.kind")}</label>
             <Select
               value={kind}
-              onValueChange={(v) => form.setValue("kind", v as "embedding" | "llm")}
+              onValueChange={(v) => form.setValue("kind", v as "embedding" | "llm" | "rerank")}
             >
               <SelectTrigger aria-label={t("dialog.add.kind")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="embedding">{t("dialog.add.kind_embedding")}</SelectItem>
+                <SelectItem value="rerank">{t("dialog.add.kind_rerank")}</SelectItem>
                 <SelectItem value="llm">{t("dialog.add.kind_llm")}</SelectItem>
               </SelectContent>
             </Select>

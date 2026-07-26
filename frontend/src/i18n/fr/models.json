@@ -10,7 +10,9 @@
   "row": {
     "dim": "dim {{dimension}}",
     "delete": "Supprimer",
-    "system": "Système"
+    "system": "Système",
+    "kind_rerank": "Rerank",
+    "kind_llm": "LLM"
   },
   "time": {
     "now": "à l'instant",
@@ -48,7 +50,8 @@
       },
       "kind": "Type",
       "kind_embedding": "Embedding (vectorisation)",
-      "kind_llm": "LLM (prompts)"
+      "kind_llm": "LLM (prompts)",
+      "kind_rerank": "Reranking (reclassement)"
     },
     "delete": {
       "title": "Supprimer le modèle",
@@ -57,5 +60,11 @@
       "success": "Modèle supprimé.",
       "error": "Échec de la suppression."
     }
+  },
+  "filter": {
+    "all": "Tous",
+    "embedding": "Embedding",
+    "rerank": "Reranking",
+    "llm": "LLM"
   }
 }

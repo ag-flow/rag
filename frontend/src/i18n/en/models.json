@@ -10,7 +10,9 @@
   "row": {
     "dim": "dim {{dimension}}",
     "delete": "Delete",
-    "system": "System"
+    "system": "System",
+    "kind_rerank": "Rerank",
+    "kind_llm": "LLM"
   },
   "time": {
     "now": "just now",
@@ -48,7 +50,8 @@
       },
       "kind": "Type",
       "kind_embedding": "Embedding (vectorization)",
-      "kind_llm": "LLM (prompts)"
+      "kind_llm": "LLM (prompts)",
+      "kind_rerank": "Reranking"
     },
     "delete": {
       "title": "Delete model",
@@ -57,5 +60,11 @@
       "success": "Model deleted.",
       "error": "Failed to delete."
     }
+  },
+  "filter": {
+    "all": "All",
+    "embedding": "Embedding",
+    "rerank": "Reranking",
+    "llm": "LLM"
   }
 }

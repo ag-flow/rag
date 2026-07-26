@@ -1,7 +1,7 @@
 // Types miroirs du schema Pydantic ModelEntry
 // (cf. backend/src/rag/schemas/admin.py:123)
 
-export type ModelKind = "embedding" | "llm";
+export type ModelKind = "embedding" | "llm" | "rerank";
 
 export type ModelEntry = {
   provider: string;

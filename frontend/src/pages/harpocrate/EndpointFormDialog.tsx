@@ -22,8 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useProviderKeys } from "@/hooks/useHarpocrateVaults";
 import { useModels } from "@/hooks/useModels";
-import { MODELS_BY_PROVIDER, RERANK_PROVIDERS } from "@/pages/workspace/WorkspaceRerankTab.schema";
-import type { RerankProvider } from "@/lib/rerank.types";
+import { RERANK_PROVIDERS } from "@/pages/workspace/WorkspaceRerankTab.schema";
 import { vaultEndpointsApi, type SectionTestResult } from "@/lib/vault-endpoints";
 import { useCreateEndpoint, useUpdateEndpoint } from "@/hooks/useVaultEndpoints";
 import { useToast } from "@/hooks/useToast";
@@ -130,7 +129,12 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
     provider && !embedProviders.includes(provider) ? [provider, ...embedProviders] : embedProviders;
   const modelOptions =
     model && !embedModels.includes(model) ? [model, ...embedModels] : embedModels;
-  const rerankModels = MODELS_BY_PROVIDER[rerankProvider as RerankProvider] ?? [];
+  // Modèles de rerank : la table des modèles (kind='rerank') est le
+  // référentiel unique, filtré sur le provider choisi.
+  const rerankModels = models
+    .filter((m) => m.kind === "rerank" && m.provider === rerankProvider)
+    .map((m) => m.model)
+    .sort();
   const rerankModelOptions =
     rerankModel && !rerankModels.includes(rerankModel)
       ? [rerankModel, ...rerankModels]
@@ -144,7 +148,11 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
 
   function handleRerankProviderChange(next: string) {
     setRerankProvider(next);
-    setRerankModel(MODELS_BY_PROVIDER[next as RerankProvider]?.[0] ?? "");
+    const first = models
+      .filter((m) => m.kind === "rerank" && m.provider === next)
+      .map((m) => m.model)
+      .sort()[0];
+    setRerankModel(first ?? "");
   }
 
   const slug = endpoint?.slug ?? slugifyLabel(label);
@@ -354,9 +362,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                   onCheckedChange={(v) => {
                     setRerankOn(v);
                     if (v && rerankModel === "") {
-                      setRerankModel(
-                        MODELS_BY_PROVIDER[rerankProvider as RerankProvider]?.[0] ?? "",
-                      );
+                      setRerankModel(rerankModels[0] ?? "");
                     }
                   }}
                   aria-label={t("endpoints.rerank")}
@@ -385,7 +391,11 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                     </div>
                     <div>
                       <Label className="text-xs text-slate-600">{t("endpoints.model")}</Label>
-                      <Select value={rerankModel} onValueChange={setRerankModel}>
+                      <Select
+                        value={rerankModel}
+                        onValueChange={setRerankModel}
+                        disabled={rerankModelOptions.length === 0}
+                      >
                         <SelectTrigger className="mt-1" aria-label={t("endpoints.model")}>
                           <SelectValue placeholder={t("endpoints.select_placeholder")} />
                         </SelectTrigger>
@@ -397,6 +407,11 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                           ))}
                         </SelectContent>
                       </Select>
+                      {rerankModels.length === 0 && (
+                        <p className="mt-1 text-xs text-slate-400">
+                          {t("endpoints.rerank_models_hint")}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="mt-3">
