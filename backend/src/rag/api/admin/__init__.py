@@ -23,6 +23,7 @@ from rag.schemas.admin import (
     JobFilesResponse,
     JobResponse,
     ModelEntry,
+    ModelUpdate,
     ReindexRequest,
     RerankConfigResponse,
     RerankPairing,
@@ -626,6 +627,32 @@ def build_admin_router() -> APIRouter:
                 },
             ) from e
         return payload
+
+    @router.patch("/models/{provider}/{model:path}")
+    async def patch_model(
+        provider: str, model: str, payload: ModelUpdate, request: Request
+    ) -> ModelEntry:
+        from rag.auth.owner import get_current_owner_id
+        from rag.services.models import update_model
+
+        found = await update_model(
+            _config_pool(request),
+            provider=provider,
+            model=model,
+            owner_id=get_current_owner_id(request),
+            kind=payload.kind,
+            dimension=payload.dimension,
+            url_template=(payload.url_template or "").strip() or None,
+        )
+        if not found:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "model not found")
+        return ModelEntry(
+            provider=provider,
+            model=model,
+            kind=payload.kind,
+            dimension=payload.dimension,
+            url_template=payload.url_template,
+        )
 
     @router.delete(
         "/models/{provider}/{model:path}",

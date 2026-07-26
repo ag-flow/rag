@@ -165,3 +165,45 @@ def test_post_model_with_url_template_roundtrip(
     entries = admin_client.get("/api/admin/models", headers=admin_headers).json()
     entry = next(e for e in entries if e["model"] == "m-azure-deploy")
     assert "mon-deploiement" in entry["url_template"]
+
+
+def test_patch_model_updates_owned_entry(
+    admin_client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    admin_client.post(
+        "/api/admin/models",
+        headers=admin_headers,
+        json={"provider": "custom", "model": "m-patch-1", "dimension": 256},
+    )
+    r = admin_client.patch(
+        "/api/admin/models/custom/m-patch-1",
+        headers=admin_headers,
+        json={"kind": "embedding", "dimension": 512, "url_template": "{url}/embed"},
+    )
+    assert r.status_code == 200
+    entries = admin_client.get("/api/admin/models", headers=admin_headers).json()
+    entry = next(e for e in entries if e["model"] == "m-patch-1")
+    assert entry["dimension"] == 512
+    assert entry["url_template"] == "{url}/embed"
+
+
+def test_patch_model_system_entry_forbidden(
+    admin_client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    r = admin_client.patch(
+        "/api/admin/models/openai/text-embedding-3-small",
+        headers=admin_headers,
+        json={"kind": "embedding", "dimension": 1536},
+    )
+    assert r.status_code == 403
+
+
+def test_patch_model_unknown_404(
+    admin_client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    r = admin_client.patch(
+        "/api/admin/models/nope/nope-model",
+        headers=admin_headers,
+        json={"kind": "llm"},
+    )
+    assert r.status_code == 404

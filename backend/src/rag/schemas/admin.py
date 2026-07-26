@@ -319,6 +319,27 @@ class ModelEntry(BaseModel):
     is_system: bool = False
 
 
+class ModelUpdate(BaseModel):
+    """Body PATCH /models/{provider}/{model} — la clé (provider, model) est
+    immuable ; on édite la nature et le template d'URL. Mêmes règles de
+    cohérence kind/dimension que ModelEntry."""
+
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+    kind: Literal["embedding", "llm", "rerank"] = "embedding"
+    dimension: int | None = Field(default=None, gt=0, validate_default=True)
+    url_template: str | None = None
+
+    @field_validator("dimension")
+    @classmethod
+    def _dimension_by_kind(cls, v: int | None, info: ValidationInfo) -> int | None:
+        if info.data.get("kind", "embedding") == "embedding" and v is None:
+            raise ValueError("dimension requise pour un modèle d'embedding")
+        if info.data.get("kind") in ("llm", "rerank") and v is not None:
+            raise ValueError("un modèle llm ou rerank n'a pas de dimension")
+        return v
+
+
 class RerankPairing(BaseModel):
     """Préconisation de pairing embedder → reranker (motifs LIKE, '%' joker).
 

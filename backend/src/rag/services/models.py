@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncpg
 
 from rag.api.errors import ModelInUse, ModelNotOwned, ModelNotSupported
-from rag.db.helpers import fetch_all, fetch_one
+from rag.db.helpers import execute, fetch_all, fetch_one
 from rag.schemas.admin import ModelEntry, RerankPairing
 
 
@@ -80,6 +80,44 @@ async def add_model(
             service_for_provider(provider),
             url_template,
         )
+
+
+async def update_model(
+    config_pool: asyncpg.Pool,
+    *,
+    provider: str,
+    model: str,
+    owner_id: str,
+    kind: str,
+    dimension: int | None,
+    url_template: str | None,
+) -> bool:
+    """Édite une entrée possédée par le caller (clé provider/model immuable).
+
+    Lève `ModelNotOwned` pour une entrée système ou d'un autre utilisateur.
+    Retourne False si l'entrée n'existe pas.
+    """
+    row = await fetch_one(
+        config_pool,
+        "SELECT owner_id FROM model_dimensions WHERE provider=$1 AND model=$2",
+        provider,
+        model,
+    )
+    if row is None:
+        return False
+    if row["owner_id"] is None or row["owner_id"] != owner_id:
+        raise ModelNotOwned(provider, model, is_system=row["owner_id"] is None)
+    await execute(
+        config_pool,
+        "UPDATE model_dimensions SET kind=$3, dimension=$4, url_template=$5"
+        " WHERE provider=$1 AND model=$2",
+        provider,
+        model,
+        kind,
+        dimension,
+        url_template,
+    )
+    return True
 
 
 async def delete_model(
