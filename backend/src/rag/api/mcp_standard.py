@@ -42,6 +42,10 @@ class _KeyCtx:
     resolver: Any
     client_provider: Any
     default_vault_name: str | None = None
+    # Administration (outils create_workspace / reset_workspace_from_endpoint) :
+    # DSN admin Postgres (CREATE DATABASE) et service coffres Harpocrate.
+    admin_dsn: str | None = None
+    vaults_service: Any = None
 
 
 @dataclass(frozen=True)
@@ -466,10 +470,12 @@ async def list_workspaces() -> str:
 from rag.api.mcp_endpoint_tools import register_endpoint_tools  # noqa: E402
 from rag.api.mcp_library_tools import register_library_tools  # noqa: E402
 from rag.api.mcp_ops_tools import register_ops_tools  # noqa: E402
+from rag.api.mcp_workspace_admin_tools import register_workspace_admin_tools  # noqa: E402
 
 register_library_tools(_mcp, _ws_ctx)
 register_ops_tools(_mcp, _ws_ctx)
 register_endpoint_tools(_mcp, _ws_ctx)
+register_workspace_admin_tools(_mcp, _ws_ctx)
 
 
 class McpPathNormalizerMiddleware:
@@ -543,6 +549,8 @@ class RagMcpDispatcher:
         self._pool_registry: Any = None
         self._resolver: Any = None
         self._client_provider: Any = None
+        self._admin_dsn: str | None = None
+        self._vaults_service: Any = None
 
     def set_app_state(self, app_state: Any) -> None:
         """Appelé depuis le lifespan après initialisation des pools."""
@@ -550,6 +558,8 @@ class RagMcpDispatcher:
         self._pool_registry = app_state.pools
         self._resolver = app_state.resolver
         self._client_provider = app_state.client_provider
+        self._admin_dsn = getattr(app_state, "admin_dsn", None)
+        self._vaults_service = getattr(app_state, "harpocrate_vaults_service", None)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in ("http", "websocket"):
@@ -632,6 +642,8 @@ class RagMcpDispatcher:
             resolver=self._resolver,
             client_provider=self._client_provider,
             default_vault_name=default_vault_name,
+            admin_dsn=self._admin_dsn,
+            vaults_service=self._vaults_service,
         )
 
 

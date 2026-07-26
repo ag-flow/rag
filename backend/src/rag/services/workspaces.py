@@ -19,7 +19,14 @@ from rag.db.workspace_schema import (
     drop_workspace_database,
     provision_workspace_schema,
 )
-from rag.schemas.admin import WorkspaceCreateResolved, WorkspacePatchRequest
+from rag.schemas.admin import (
+    IndexerCreateSpec,
+    LlmCreateSpec,
+    RerankCreateSpec,
+    WorkspaceCreateResolved,
+    WorkspacePatchRequest,
+)
+from rag.schemas.vault_endpoints import EndpointOut
 from rag.secrets.refs import build_ref
 from rag.secrets.resolver import VaultLookupFailed
 from rag.services.harpocrate_vaults import HarpocrateVaultsService
@@ -57,6 +64,62 @@ async def _validate_ref_via_vault(
         raise RefNotFoundInVault(logical_key) from e
     except (ConnectionError, TimeoutError) as e:
         raise VaultUnreachable() from e
+
+
+def resolved_from_endpoint(
+    *,
+    name: str,
+    label: str,
+    description: str,
+    owner_id: str | None,
+    endpoint: EndpointOut,
+) -> WorkspaceCreateResolved:
+    """Copie la config d'un endpoint (préréglage du coffre) en payload résolu.
+
+    Snapshot : les modifications ultérieures de l'endpoint n'affectent pas le
+    workspace créé. Partagé entre le POST /workspaces et l'outil MCP
+    create_workspace.
+    """
+    return WorkspaceCreateResolved(
+        name=name,
+        label=label,
+        description=description,
+        owner_id=owner_id,
+        indexer=IndexerCreateSpec(
+            provider=endpoint.indexer.provider,
+            model=endpoint.indexer.model,
+            api_key_ref=endpoint.indexer.api_key_ref,
+            base_url=endpoint.indexer.base_url,
+            rpm_limit=endpoint.indexer.rpm_limit,
+            tpm_limit=endpoint.indexer.tpm_limit,
+        ),
+        rerank=(
+            RerankCreateSpec(
+                provider=endpoint.rerank.provider,  # type: ignore[arg-type]
+                model=endpoint.rerank.model,
+                api_key_ref=endpoint.rerank.api_key_ref,
+                base_url=endpoint.rerank.base_url,
+                top_k_pre_rerank=endpoint.rerank.top_k_pre_rerank,
+                rpm_limit=endpoint.rerank.rpm_limit,
+                tpm_limit=endpoint.rerank.tpm_limit,
+            )
+            if endpoint.rerank is not None
+            else None
+        ),
+        llm=(
+            LlmCreateSpec(
+                provider=endpoint.llm.provider,
+                model=endpoint.llm.model,
+                api_key_ref=endpoint.llm.api_key_ref,
+                base_url=endpoint.llm.base_url,
+                rpm_limit=endpoint.llm.rpm_limit,
+                tpm_limit=endpoint.llm.tpm_limit,
+            )
+            if endpoint.llm is not None
+            else None
+        ),
+        endpoint_id=endpoint.id,
+    )
 
 
 async def create_workspace(

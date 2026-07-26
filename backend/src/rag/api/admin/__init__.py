@@ -105,13 +105,8 @@ def build_admin_router() -> APIRouter:
         # Résout l'endpoint choisi (préréglage du coffre) et copie sa config —
         # snapshot : les modifications ultérieures de l'endpoint n'affectent
         # pas ce workspace.
-        from rag.schemas.admin import (
-            IndexerCreateSpec,
-            LlmCreateSpec,
-            RerankCreateSpec,
-            WorkspaceCreateResolved,
-        )
         from rag.services.vault_endpoints import get_endpoint
+        from rag.services.workspaces import resolved_from_endpoint
 
         pool = _config_pool(request)
         async with pool.acquire() as conn:
@@ -120,45 +115,12 @@ def build_admin_router() -> APIRouter:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="endpoint_not_found")
         from rag.auth.owner import get_current_owner_id
 
-        resolved = WorkspaceCreateResolved(
+        resolved = resolved_from_endpoint(
             name=payload.name,
             label=payload.label,
             description=payload.description,
             owner_id=get_current_owner_id(request),
-            indexer=IndexerCreateSpec(
-                provider=endpoint.indexer.provider,
-                model=endpoint.indexer.model,
-                api_key_ref=endpoint.indexer.api_key_ref,
-                base_url=endpoint.indexer.base_url,
-                rpm_limit=endpoint.indexer.rpm_limit,
-                tpm_limit=endpoint.indexer.tpm_limit,
-            ),
-            rerank=(
-                RerankCreateSpec(
-                    provider=endpoint.rerank.provider,  # type: ignore[arg-type]
-                    model=endpoint.rerank.model,
-                    api_key_ref=endpoint.rerank.api_key_ref,
-                    base_url=endpoint.rerank.base_url,
-                    top_k_pre_rerank=endpoint.rerank.top_k_pre_rerank,
-                    rpm_limit=endpoint.rerank.rpm_limit,
-                    tpm_limit=endpoint.rerank.tpm_limit,
-                )
-                if endpoint.rerank is not None
-                else None
-            ),
-            llm=(
-                LlmCreateSpec(
-                    provider=endpoint.llm.provider,
-                    model=endpoint.llm.model,
-                    api_key_ref=endpoint.llm.api_key_ref,
-                    base_url=endpoint.llm.base_url,
-                    rpm_limit=endpoint.llm.rpm_limit,
-                    tpm_limit=endpoint.llm.tpm_limit,
-                )
-                if endpoint.llm is not None
-                else None
-            ),
-            endpoint_id=payload.endpoint_id,
+            endpoint=endpoint,
         )
         resp = await create_workspace(
             request=resolved,
@@ -422,132 +384,43 @@ def build_admin_router() -> APIRouter:
           409 sans confirm) ;
         - rerank et llm : remplacés par la config de l'endpoint (retirés si
           l'endpoint ne les définit plus).
+
+        Logique dans `services/endpoint_refresh.py` (partagée avec l'outil MCP
+        reset_workspace_from_endpoint).
         """
-        from rag.schemas.admin import IndexerSpec, RerankSpec
-        from rag.services.jobs import reindex_workspace
-        from rag.services.rerank_configs import delete_rerank_config, upsert_rerank_config
-        from rag.services.vault_endpoints import get_endpoint as get_vault_endpoint
+        from rag.services.endpoint_refresh import (
+            DefaultVaultMissingError,
+            EndpointGoneError,
+            NoEndpointLinkedError,
+            refresh_workspace_from_endpoint,
+        )
 
         pool = _config_pool(request)
         ws_id = await require_owned_workspace_id(request, name, pool)
-        row = await pool.fetchrow(
-            "SELECT w.endpoint_id, ic.provider, ic.model, ic.api_key_ref, ic.base_url, "
-            "ic.rpm_limit, ic.tpm_limit "
-            "FROM workspaces w JOIN indexer_configs ic ON ic.workspace_id = w.id "
-            "WHERE w.id = $1",
-            ws_id,
-        )
-        if row["endpoint_id"] is None:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                {"error": "no_endpoint_linked",
-                 "hint": "workspace créé avant le lien endpoint — le recréer"},
-            )
-        async with pool.acquire() as conn:
-            endpoint = await get_vault_endpoint(conn, endpoint_id=row["endpoint_id"])
-        if endpoint is None:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "endpoint_deleted")
-
-        result: dict = {"indexer": "unchanged", "rerank": "none", "llm": "none", "job": None}
-
-        # ── Indexeur ────────────────────────────────────────────────────────
-        ep_idx = endpoint.indexer
-        model_changed = (ep_idx.provider, ep_idx.model) != (row["provider"], row["model"])
-        cfg_changed = (
-            ep_idx.api_key_ref or None,
-            ep_idx.base_url or None,
-            ep_idx.rpm_limit,
-            ep_idx.tpm_limit,
-        ) != (
-            row["api_key_ref"] or None,
-            row["base_url"] or None,
-            row["rpm_limit"],
-            row["tpm_limit"],
-        )
-        if model_changed:
-            default_vault = await _resolve_default_vault_or_503(request)
-            job = await reindex_workspace(
-                name=name,
-                new_indexer=IndexerSpec(
-                    provider=ep_idx.provider,
-                    model=ep_idx.model,
-                    api_key_ref=ep_idx.api_key_ref,
-                    base_url=ep_idx.base_url,
-                ),
+        default_vault = await request.app.state.client_provider.get_default_vault_name()
+        try:
+            return await refresh_workspace_from_endpoint(
+                workspace_id=ws_id,
+                workspace_name=name,
                 confirm=confirm,
                 config_pool=pool,
                 admin_dsn=_admin_dsn(request),
                 resolver=_resolver(request),  # type: ignore[arg-type]
                 default_vault_name=default_vault,
             )
-            await pool.execute(
-                "UPDATE indexer_configs SET rpm_limit=$2, tpm_limit=$3 WHERE workspace_id=$1",
-                ws_id,
-                ep_idx.rpm_limit,
-                ep_idx.tpm_limit,
-            )
-            result["indexer"] = "reindex_triggered"
-            result["job"] = job
-        elif cfg_changed:
-            # Même modèle : rotation de clé / d'URL / limites — vecteurs valides.
-            await pool.execute(
-                "UPDATE indexer_configs SET api_key_ref=$2, base_url=$3, "
-                "rpm_limit=$4, tpm_limit=$5 WHERE workspace_id=$1",
-                ws_id,
-                ep_idx.api_key_ref,
-                ep_idx.base_url,
-                ep_idx.rpm_limit,
-                ep_idx.tpm_limit,
-            )
-            result["indexer"] = "updated"
-
-        # ── Rerank ──────────────────────────────────────────────────────────
-        if endpoint.rerank is not None:
-            default_vault = await _resolve_default_vault_or_503(request)
-            await upsert_rerank_config(
-                workspace_id=ws_id,
-                spec=RerankSpec(
-                    provider=endpoint.rerank.provider,  # type: ignore[arg-type]
-                    model=endpoint.rerank.model,
-                    api_key_ref=endpoint.rerank.api_key_ref,
-                    base_url=endpoint.rerank.base_url,
-                    top_k_pre_rerank=endpoint.rerank.top_k_pre_rerank,
-                    rpm_limit=endpoint.rerank.rpm_limit,
-                    tpm_limit=endpoint.rerank.tpm_limit,
-                ),
-                config_pool=pool,
-                resolver=_resolver(request),  # type: ignore[arg-type]
-                default_vault_name=default_vault,
-            )
-            result["rerank"] = "updated"
-        else:
-            await delete_rerank_config(workspace_id=ws_id, config_pool=pool)
-            result["rerank"] = "removed"
-
-        # ── LLM ─────────────────────────────────────────────────────────────
-        async with pool.acquire() as conn, conn.transaction():
-            await conn.execute(
-                "DELETE FROM workspace_llm_configs WHERE workspace_id = $1", ws_id
-            )
-            if endpoint.llm is not None:
-                await conn.execute(
-                    "INSERT INTO workspace_llm_configs "
-                    "(workspace_id, provider, model, base_url, api_key_ref, "
-                    "rpm_limit, tpm_limit) "
-                    "VALUES ($1, $2, $3, $4, $5, $6, $7)",
-                    ws_id,
-                    endpoint.llm.provider,
-                    endpoint.llm.model,
-                    endpoint.llm.base_url,
-                    endpoint.llm.api_key_ref,
-                    endpoint.llm.rpm_limit,
-                    endpoint.llm.tpm_limit,
-                )
-                result["llm"] = "updated"
-            else:
-                result["llm"] = "removed"
-
-        return result
+        except NoEndpointLinkedError as exc:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                {"error": "no_endpoint_linked",
+                 "hint": "workspace créé avant le lien endpoint — le recréer"},
+            ) from exc
+        except EndpointGoneError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "endpoint_deleted") from exc
+        except DefaultVaultMissingError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": "no_default_vault_configured"},
+            ) from exc
 
     @router.get("/jobs")
     async def get_all_jobs(
