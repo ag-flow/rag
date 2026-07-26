@@ -665,6 +665,28 @@ async def execute_next_pending_job(
                 webhook_secret=webhook_secret,
                 resolver=resolver,
             )
+        elif job.source_id is None:
+            # Jobs 'manual'/'reindex_*' créés sans source : le pipeline git ne
+            # peut pas les exécuter (pas de config source → KeyError 'url'), et
+            # le contenu des documents poussés n'est pas conservé (migration
+            # 070). Erreur explicite plutôt que crash ; pas de circuit-breaker
+            # (l'indexeur n'est pas en cause).
+            msg = (
+                f"job '{job.triggered_by}' sans source git : le contenu des documents "
+                "poussés n'est pas conservé côté rag, la réindexation ne peut pas être "
+                "rejouée localement — re-poussez les documents depuis la source pour "
+                "reconstruire l'index"
+            )
+            await _mark_job_error(config_pool, job_id=job.job_id, error_message=msg)
+            log.error(
+                "sync.executor.job_without_source",
+                job_id=str(job.job_id),
+                workspace=job.workspace_name,
+                triggered_by=job.triggered_by,
+            )
+            if job_log_bus is not None:
+                job_log_bus.publish(str(job.job_id), "error", msg)
+                job_log_bus.complete(str(job.job_id), status="error")
         else:
             default_vault_name = await client_provider.get_default_vault_name()
             await _execute_git_job(
