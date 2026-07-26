@@ -239,3 +239,23 @@ def test_source_create_rejects_non_git_type() -> None:
 def test_model_entry_dimension_must_be_positive() -> None:
     with pytest.raises(ValidationError):
         ModelEntry.model_validate({"provider": "p", "model": "m", "dimension": 0})
+
+
+def test_model_entry_embedding_requires_dimension() -> None:
+    with pytest.raises(ValidationError):
+        ModelEntry.model_validate({"provider": "p", "model": "m", "kind": "embedding"})
+
+
+def test_model_entry_llm_and_rerank_reject_dimension() -> None:
+    for kind in ("llm", "rerank"):
+        with pytest.raises(ValidationError):
+            ModelEntry.model_validate(
+                {"provider": "p", "model": "m", "kind": kind, "dimension": 1024}
+            )
+
+
+def test_model_entry_llm_and_rerank_valid_without_dimension() -> None:
+    for kind in ("llm", "rerank"):
+        entry = ModelEntry.model_validate({"provider": "p", "model": "m", "kind": kind})
+        assert entry.kind == kind
+        assert entry.dimension is None

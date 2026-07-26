@@ -277,17 +277,20 @@ class JobFilesResponse(BaseModel):
 
 
 class ModelEntry(BaseModel):
-    """Une entrée du registre des modèles (embedding OU llm).
+    """Une entrée du registre des modèles (embedding, llm OU rerank).
 
     kind='embedding' : dimension requise (vectorisation).
-    kind='llm'       : pas de dimension (exécution des prompts)."""
+    kind='llm'       : pas de dimension (exécution des prompts).
+    kind='rerank'    : pas de dimension (reclassement des résultats)."""
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
     provider: str = Field(min_length=1)
     model: str = Field(min_length=1)
-    kind: Literal["embedding", "llm"] = "embedding"
-    dimension: int | None = Field(default=None, gt=0)
+    kind: Literal["embedding", "llm", "rerank"] = "embedding"
+    # validate_default : le validateur doit voir None même si dimension est
+    # omise, pour exiger la dimension d'un modèle d'embedding.
+    dimension: int | None = Field(default=None, gt=0, validate_default=True)
     created_at: str | None = None
 
     @field_validator("dimension")
@@ -295,8 +298,8 @@ class ModelEntry(BaseModel):
     def _dimension_by_kind(cls, v: int | None, info: ValidationInfo) -> int | None:
         if info.data.get("kind", "embedding") == "embedding" and v is None:
             raise ValueError("dimension requise pour un modèle d'embedding")
-        if info.data.get("kind") == "llm" and v is not None:
-            raise ValueError("un modèle llm n'a pas de dimension")
+        if info.data.get("kind") in ("llm", "rerank") and v is not None:
+            raise ValueError("un modèle llm ou rerank n'a pas de dimension")
         return v
     # Sortie uniquement : owner_id NULL en base = catalogue système, immuable.
     is_system: bool = False

@@ -19,6 +19,31 @@ def test_post_model_201(admin_client: TestClient, admin_headers: dict[str, str])
     assert r.status_code == 201
 
 
+def test_post_model_rerank_201_and_listed(
+    admin_client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    r = admin_client.post(
+        "/api/admin/models",
+        headers=admin_headers,
+        json={"provider": "custom", "model": "m-rerank-1", "kind": "rerank"},
+    )
+    assert r.status_code == 201
+    entries = admin_client.get("/api/admin/models", headers=admin_headers).json()
+    entry = next(e for e in entries if e["model"] == "m-rerank-1")
+    assert entry["kind"] == "rerank"
+    assert entry["dimension"] is None
+
+
+def test_get_models_includes_rerank_seed(
+    admin_client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    """La migration 080 seed les modèles de rerank connus (référentiel unique)."""
+    entries = admin_client.get("/api/admin/models", headers=admin_headers).json()
+    rerank = {(e["provider"], e["model"]) for e in entries if e["kind"] == "rerank"}
+    assert ("cohere", "rerank-v3.5") in rerank
+    assert ("ollama", "bge-reranker-v2-m3") in rerank
+
+
 def test_post_model_409_duplicate(admin_client: TestClient, admin_headers: dict[str, str]) -> None:
     r = admin_client.post(
         "/api/admin/models",
