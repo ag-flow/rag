@@ -68,12 +68,16 @@ class EmbeddingProviderAdapter:
         model: str,
         transport: httpx.AsyncBaseTransport | None = None,
         retry_sleep_seconds: float = _DEFAULT_RETRY_SLEEP_SECONDS,
+        url_override: str | None = None,
     ) -> None:
         self._service = service
         self._platform = platform
         self._model = model
         self._transport = transport
         self._retry_sleep = retry_sleep_seconds
+        # URL complète résolue depuis model_dimensions.url_template — prime
+        # sur la construction plateforme + service.
+        self._url_override = url_override
 
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
         self._platform.validate_auth()
@@ -93,7 +97,7 @@ class EmbeddingProviderAdapter:
         payload = self._platform.modify_payload(
             self._service.build_query_payload(text, self._model)
         )
-        url = self._platform.url(self._service.embeddings_path)
+        url = self._url_override or self._platform.url(self._service.embeddings_path)
         headers = self._platform.auth_headers()
         async with httpx.AsyncClient(
             transport=self._transport, timeout=_TIMEOUT_SECONDS
@@ -109,7 +113,7 @@ class EmbeddingProviderAdapter:
         payload = self._platform.modify_payload(
             self._service.build_document_payload(batch, self._model)
         )
-        url = self._platform.url(self._service.embeddings_path)
+        url = self._url_override or self._platform.url(self._service.embeddings_path)
         headers = self._platform.auth_headers()
         return await self._call(client, url, headers, payload)
 

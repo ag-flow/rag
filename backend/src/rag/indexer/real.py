@@ -339,6 +339,7 @@ class RealIndexer:
             model=ctx["model"],
             api_key=api_key,
             base_url=ctx["base_url"],
+            url_template=ctx["url_template"],
         )
 
     async def _stored_indexer_used(self, workspace_id: UUID, path: str) -> str | None:
@@ -418,6 +419,7 @@ class RealIndexer:
                 ic.api_key_ref AS api_key_ref,
                 ic.base_url AS base_url,
                 md.service AS service,
+                md.url_template AS url_template,
                 md.max_input_tokens AS max_input_tokens,
                 md.token_char_ratio AS token_char_ratio,
                 cc.engine AS chunking_engine,

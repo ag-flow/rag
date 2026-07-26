@@ -311,6 +311,10 @@ class ModelEntry(BaseModel):
         if info.data.get("kind") in ("llm", "rerank") and v is not None:
             raise ValueError("un modèle llm ou rerank n'a pas de dimension")
         return v
+    # Template d'URL d'appel optionnel ({url}/{base_url}, {model}) — prime sur
+    # le masque du provider (services/provider_urls.py). Cas Azure : nom de
+    # déploiement différent du nom de modèle.
+    url_template: str | None = None
     # Sortie uniquement : owner_id NULL en base = catalogue système, immuable.
     is_system: bool = False
 

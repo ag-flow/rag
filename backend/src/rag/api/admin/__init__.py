@@ -579,6 +579,13 @@ def build_admin_router() -> APIRouter:
         settings = request.app.state.settings
         return load_pricing(settings.pricing_file)
 
+    @router.get("/providers/url-templates")
+    async def get_provider_url_templates() -> dict:
+        """Masques d'URL d'appel par provider et capacité (référentiel statique)."""
+        from rag.services.provider_urls import PROVIDER_URL_TEMPLATES
+
+        return PROVIDER_URL_TEMPLATES
+
     @router.get("/models/rerank-pairings")
     async def get_rerank_pairings(request: Request) -> list[RerankPairing]:
         from rag.services.models import list_rerank_pairings
@@ -605,6 +612,7 @@ def build_admin_router() -> APIRouter:
                 dimension=payload.dimension,
                 owner_id=get_current_owner_id(request),
                 kind=payload.kind,
+                url_template=payload.url_template,
             )
         except asyncpg.UniqueViolationError as e:
             from fastapi import HTTPException

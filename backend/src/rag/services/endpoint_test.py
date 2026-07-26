@@ -69,19 +69,23 @@ async def _resolve_key(request: Request, ref: str | None) -> str | None:
     return None
 
 
-async def _embedding_service_for(request: Request, provider: str, model: str) -> str | None:
+async def _embedding_entry_for(
+    request: Request, provider: str, model: str
+) -> tuple[str, str | None] | None:
+    """(service, url_template) du modèle au registre, ou None si inconnu."""
     pool = request.app.state.pools.config_pool
-    return await pool.fetchval(
-        "SELECT service FROM model_dimensions "
+    row = await pool.fetchrow(
+        "SELECT service, url_template FROM model_dimensions "
         "WHERE provider = $1 AND model = $2 AND kind = 'embedding'",
         provider,
         model,
     )
+    return (row["service"], row["url_template"]) if row else None
 
 
 async def _test_vectorization(request: Request, spec: EndpointTestIndexer) -> SectionResult:
-    service = await _embedding_service_for(request, spec.provider, spec.model)
-    if service is None:
+    entry = await _embedding_entry_for(request, spec.provider, spec.model)
+    if entry is None:
         return SectionResult(
             ok=False,
             message=(
@@ -89,6 +93,7 @@ async def _test_vectorization(request: Request, spec: EndpointTestIndexer) -> Se
                 "(page Models)"
             ),
         )
+    service, url_template = entry
     try:
         api_key = await _resolve_key(request, spec.api_key_ref)
         embedder = make_provider(
@@ -97,6 +102,7 @@ async def _test_vectorization(request: Request, spec: EndpointTestIndexer) -> Se
             model=spec.model,
             api_key=api_key,
             base_url=spec.base_url,
+            url_template=url_template,
         )
         vector = await embedder.embed_query(_PING_TEXT)
     except Exception as exc:  # message contextualisé par l'adapter (url + modèle)

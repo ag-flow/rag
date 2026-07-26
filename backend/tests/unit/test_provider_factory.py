@@ -96,3 +96,38 @@ def test_unknown_provider_raises() -> None:
 def test_unknown_service_raises() -> None:
     with pytest.raises(ValueError, match="Unsupported service"):
         _make(service="unknown-svc")
+
+
+def test_azure_openai_accepts_resource_root_base_url() -> None:
+    """La racine de ressource suffit : le chemin de déploiement est dérivé du
+    modèle (une base legacy avec /openai/deployments/ passe inchangée)."""
+    p = _make(
+        service="openai",
+        provider="azure-openai",
+        model="text-embedding-3-large",
+        base_url="https://rag-agflow.openai.azure.com",
+    )
+    assert isinstance(p, EmbeddingProviderAdapter)
+    assert p._platform._base_url == (
+        "https://rag-agflow.openai.azure.com/openai/deployments/text-embedding-3-large"
+    )
+
+
+def test_azure_openai_legacy_full_deployment_url_unchanged() -> None:
+    legacy = "https://x.openai.azure.com/openai/deployments/mon-deploiement"
+    p = _make(service="openai", provider="azure-openai", model="m", base_url=legacy)
+    assert p._platform._base_url == legacy
+
+
+def test_url_template_override_short_circuits_platform() -> None:
+    p = _make(
+        service="openai",
+        provider="azure-openai",
+        model="text-embedding-3-large",
+        base_url="https://x.openai.azure.com",
+        url_template="{url}/openai/deployments/deploy-x/embeddings?api-version=2024-02-01",
+    )
+    assert p._url_override == (
+        "https://x.openai.azure.com/openai/deployments/deploy-x/embeddings"
+        "?api-version=2024-02-01"
+    )

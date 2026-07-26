@@ -11,6 +11,7 @@ from rag.indexer.providers.services.jina import JinaService
 from rag.indexer.providers.services.ollama import OllamaService
 from rag.indexer.providers.services.openai_compatible import OpenAICompatibleService
 from rag.indexer.providers.services.voyage import VoyageService
+from rag.services.provider_urls import resolve_url
 
 _DIRECT_URLS: dict[str, str] = {
     "openai":    "https://api.openai.com/v1",
@@ -36,17 +37,31 @@ def make_provider(
     model: str,
     api_key: str | None,
     base_url: str | None,
+    url_template: str | None = None,
 ) -> EmbeddingProvider:
     """Construit un EmbeddingProvider à partir du service + provider configurés.
 
-    service  : capacité IA (openai, voyage, jina, dashscope, ollama, mistral, gemini).
-               Disponible dans model_dimensions.service.
-    provider : plateforme d'accès (openai, voyage, mistral, jina, gemini,
-               dashscope, ollama, azure-openai, azure-foundry).
+    service      : capacité IA (openai, voyage, jina, dashscope, ollama, mistral,
+                   gemini). Disponible dans model_dimensions.service.
+    provider     : plateforme d'accès (openai, voyage, mistral, jina, gemini,
+                   dashscope, ollama, azure-openai, azure-foundry, plateformes
+                   cloud OpenAI-compatibles).
+    url_template : surcharge d'URL portée par le modèle du registre
+                   (model_dimensions.url_template) — résolue en URL complète
+                   qui court-circuite la construction plateforme+service.
     """
     svc = _make_service(service)
-    plat = _make_platform(provider, api_key=api_key, base_url=base_url)
-    return EmbeddingProviderAdapter(service=svc, platform=plat, model=model)
+    plat = _make_platform(provider, api_key=api_key, base_url=base_url, model=model)
+    url_override = resolve_url(
+        provider=provider,
+        capability="embeddings",
+        model=model,
+        base_url=base_url,
+        template=url_template,
+    ) if url_template else None
+    return EmbeddingProviderAdapter(
+        service=svc, platform=plat, model=model, url_override=url_override
+    )
 
 
 def _make_service(service: str):
@@ -63,13 +78,20 @@ def _make_service(service: str):
     raise ValueError(f"Unsupported service: {service!r}")
 
 
-def _make_platform(provider: str, *, api_key: str | None, base_url: str | None):
+def _make_platform(
+    provider: str, *, api_key: str | None, base_url: str | None, model: str = ""
+):
     if provider == "azure-openai":
         if not base_url:
             raise ValueError(
                 "azure-openai provider requires base_url "
-                "(https://{resource}.openai.azure.com/openai/deployments/{deployment_name})"
+                "(https://{resource}.openai.azure.com — racine de la ressource)"
             )
+        # Racine de ressource acceptée : le chemin de déploiement est dérivé du
+        # modèle. Une base_url legacy contenant déjà /openai/deployments/ passe
+        # inchangée (compat).
+        if "/openai/deployments/" not in base_url:
+            base_url = f"{base_url.rstrip('/')}/openai/deployments/{model}"
         return AzureOpenAIPlatform(base_url, api_key)
     if provider == "azure-foundry":
         if not base_url:

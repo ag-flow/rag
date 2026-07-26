@@ -11,7 +11,7 @@ async def list_models(config_pool: asyncpg.Pool, *, owner_id: str) -> list[Model
     """Catalogue système (owner_id NULL) + modèles du caller, jamais ceux des autres."""
     rows = await fetch_all(
         config_pool,
-        "SELECT provider, model, kind, dimension, created_at, owner_id"
+        "SELECT provider, model, kind, dimension, url_template, created_at, owner_id"
         " FROM model_dimensions"
         " WHERE owner_id IS NULL OR owner_id = $1"
         " ORDER BY provider, model",
@@ -23,6 +23,7 @@ async def list_models(config_pool: asyncpg.Pool, *, owner_id: str) -> list[Model
             model=r["model"],
             kind=r["kind"],
             dimension=r["dimension"],
+            url_template=r["url_template"],
             created_at=r["created_at"].isoformat() if r["created_at"] else None,
             is_system=r["owner_id"] is None,
         )
@@ -58,6 +59,7 @@ async def add_model(
     dimension: int | None,
     owner_id: str,
     kind: str = "embedding",
+    url_template: str | None = None,
 ) -> None:
     """Ajoute une entrée dans la bibliothèque du caller.
 
@@ -67,14 +69,16 @@ async def add_model(
     """
     async with config_pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO model_dimensions (provider, model, dimension, owner_id, kind, service)"
-            " VALUES ($1, $2, $3, $4, $5, $6)",
+            "INSERT INTO model_dimensions"
+            " (provider, model, dimension, owner_id, kind, service, url_template)"
+            " VALUES ($1, $2, $3, $4, $5, $6, $7)",
             provider,
             model,
             dimension,
             owner_id,
             kind,
             service_for_provider(provider),
+            url_template,
         )
 
 

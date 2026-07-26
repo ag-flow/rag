@@ -132,3 +132,36 @@ def test_get_rerank_pairings_returns_seed(
     assert cohere["note"]
     qwen = next(p for p in pairings if "qwen3-embedding" in p["embed_model_like"])
     assert qwen["rerank_model_like"] == "%qwen3-reranker%"
+
+
+def test_get_provider_url_templates(
+    admin_client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    r = admin_client.get("/api/admin/providers/url-templates", headers=admin_headers)
+    assert r.status_code == 200
+    templates = r.json()
+    azure = templates["azure-openai"]["embeddings"]
+    assert azure["template"] == (
+        "{base_url}/openai/deployments/{model}/embeddings?api-version=2024-02-01"
+    )
+    assert templates["openai"]["embeddings"]["default_base_url"] == "https://api.openai.com/v1"
+
+
+def test_post_model_with_url_template_roundtrip(
+    admin_client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    r = admin_client.post(
+        "/api/admin/models",
+        headers=admin_headers,
+        json={
+            "provider": "azure-openai",
+            "model": "m-azure-deploy",
+            "dimension": 3072,
+            "url_template": "{url}/openai/deployments/mon-deploiement/embeddings"
+            "?api-version=2024-02-01",
+        },
+    )
+    assert r.status_code == 201
+    entries = admin_client.get("/api/admin/models", headers=admin_headers).json()
+    entry = next(e for e in entries if e["model"] == "m-azure-deploy")
+    assert "mon-deploiement" in entry["url_template"]
