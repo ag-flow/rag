@@ -6,6 +6,9 @@ export type IndexerSpec = {
   model: string;
   api_key_ref: string | null;
   base_url: string | null;
+  /** Limites de débit copiées de l'endpoint — null = règle désactivée. */
+  rpm_limit?: number | null;
+  tpm_limit?: number | null;
 };
 
 export type Workspace = {

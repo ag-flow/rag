@@ -85,6 +85,11 @@
         "cancel": "Annuler",
         "confirm": "Réindexer"
       }
+    },
+    "limits": {
+      "title": "Limites",
+      "rpm": "{{value}} req/min",
+      "tpm": "{{value}} tokens/min"
     }
   },
   "sources": {

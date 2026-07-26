@@ -6,6 +6,9 @@ export type EndpointIndexerSpec = {
   model: string;
   api_key_ref: string | null;
   base_url: string | null;
+  /** Limites de débit du service — null = règle désactivée. */
+  rpm_limit?: number | null;
+  tpm_limit?: number | null;
 };
 
 export type EndpointRerankSpec = {
@@ -14,6 +17,9 @@ export type EndpointRerankSpec = {
   api_key_ref: string | null;
   base_url: string | null;
   top_k_pre_rerank: number;
+  /** Limites de débit du service — null = règle désactivée. */
+  rpm_limit?: number | null;
+  tpm_limit?: number | null;
 };
 
 /** LLM d'exécution des prompts (enrichissements, contexte, chat Playground). */
@@ -22,6 +28,9 @@ export type EndpointLlmSpec = {
   model: string;
   api_key_ref: string | null;
   base_url: string | null;
+  /** Limites de débit du service — null = règle désactivée. */
+  rpm_limit?: number | null;
+  tpm_limit?: number | null;
 };
 
 export type VaultEndpoint = {

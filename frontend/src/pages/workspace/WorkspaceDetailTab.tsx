@@ -40,6 +40,19 @@ interface Props {
   enabled: boolean;
 }
 
+/** « 3000 req/min · 500000 tokens/min » — null = règle désactivée. */
+function formatLimits(
+  rpm: number | null | undefined,
+  tpm: number | null | undefined,
+  t: ReturnType<typeof useTranslation>["t"],
+): string | null {
+  const parts = [
+    rpm != null ? t("detail.limits.rpm", { value: rpm }) : null,
+    tpm != null ? t("detail.limits.tpm", { value: tpm }) : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 export function WorkspaceDetailTab({ workspace, enabled }: Props) {
   const { t } = useTranslation("workspace");
   const { toast } = useToast();
@@ -161,6 +174,11 @@ export function WorkspaceDetailTab({ workspace, enabled }: Props) {
                 <dd className="font-mono">
                   {c.model}
                   {c.base_url ? <span className="text-slate-400"> · {c.base_url}</span> : null}
+                  {formatLimits(c.rpm_limit, c.tpm_limit, t) && (
+                    <span className="block text-xs text-slate-400">
+                      {t("detail.limits.title")} : {formatLimits(c.rpm_limit, c.tpm_limit, t)}
+                    </span>
+                  )}
                 </dd>
               </div>
             ))}
@@ -191,6 +209,14 @@ export function WorkspaceDetailTab({ workspace, enabled }: Props) {
             <dd className="font-mono">{rerankData.api_key_ref ?? "—"}</dd>
             <dt className="text-slate-500">{t("rerank.fields.topK")}</dt>
             <dd className="font-mono">{rerankData.top_k_pre_rerank}</dd>
+            {formatLimits(rerankData.rpm_limit, rerankData.tpm_limit, t) && (
+              <>
+                <dt className="text-slate-500">{t("detail.limits.title")}</dt>
+                <dd className="font-mono">
+                  {formatLimits(rerankData.rpm_limit, rerankData.tpm_limit, t)}
+                </dd>
+              </>
+            )}
           </dl>
         )}
         <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 flex gap-2 text-sm">
@@ -213,6 +239,14 @@ export function WorkspaceDetailTab({ workspace, enabled }: Props) {
           <dd className="font-mono">{workspace.indexer.base_url ?? "—"}</dd>
           <dt className="text-slate-500">{t("model.api_key_ref")}</dt>
           <dd className="font-mono">{workspace.indexer.api_key_ref ?? "—"}</dd>
+          {formatLimits(workspace.indexer.rpm_limit, workspace.indexer.tpm_limit, t) && (
+            <>
+              <dt className="text-slate-500">{t("detail.limits.title")}</dt>
+              <dd className="font-mono">
+                {formatLimits(workspace.indexer.rpm_limit, workspace.indexer.tpm_limit, t)}
+              </dd>
+            </>
+          )}
         </dl>
         <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 flex gap-2 text-sm">
           <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />

@@ -7,6 +7,8 @@ export type LlmConfig = {
   base_url: string | null;
   api_key_ref: string | null;
   enabled: boolean;
+  rpm_limit?: number | null;
+  tpm_limit?: number | null;
   created_at: string;
 };
 

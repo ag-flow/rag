@@ -79,6 +79,13 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
   const [llmModel, setLlmModel] = useState("");
   const [llmKeyRef, setLlmKeyRef] = useState<string>(NONE);
   const [llmBaseUrl, setLlmBaseUrl] = useState("");
+  // Limites de débit par service — chaîne vide = règle désactivée.
+  const [idxRpm, setIdxRpm] = useState("");
+  const [idxTpm, setIdxTpm] = useState("");
+  const [rerankRpm, setRerankRpm] = useState("");
+  const [rerankTpm, setRerankTpm] = useState("");
+  const [llmRpm, setLlmRpm] = useState("");
+  const [llmTpm, setLlmTpm] = useState("");
 
   // Modèles LLM : la TABLE DES MODÈLES (page Models, kind='llm') est le
   // référentiel — comme la vectorisation. Repli saisie libre si vide.
@@ -114,6 +121,12 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
     setLlmModel(endpoint?.llm?.model ?? "");
     setLlmKeyRef(endpoint?.llm?.api_key_ref ?? NONE);
     setLlmBaseUrl(endpoint?.llm?.base_url ?? "");
+    setIdxRpm(endpoint?.indexer.rpm_limit != null ? String(endpoint.indexer.rpm_limit) : "");
+    setIdxTpm(endpoint?.indexer.tpm_limit != null ? String(endpoint.indexer.tpm_limit) : "");
+    setRerankRpm(endpoint?.rerank?.rpm_limit != null ? String(endpoint.rerank.rpm_limit) : "");
+    setRerankTpm(endpoint?.rerank?.tpm_limit != null ? String(endpoint.rerank.tpm_limit) : "");
+    setLlmRpm(endpoint?.llm?.rpm_limit != null ? String(endpoint.llm.rpm_limit) : "");
+    setLlmTpm(endpoint?.llm?.tpm_limit != null ? String(endpoint.llm.tpm_limit) : "");
     setTestResults({});
   }, [open, endpoint]);
 
@@ -193,6 +206,46 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
     );
   }
 
+  // Règles de limites de débit d'un service : deux règles activables
+  // (requêtes/min, tokens/min). Switch OFF → valeur vidée → null au save.
+  function limitRules(
+    rpm: string,
+    setRpm: (v: string) => void,
+    tpm: string,
+    setTpm: (v: string) => void,
+  ) {
+    const rule = (
+      value: string,
+      setValue: (v: string) => void,
+      labelKey: string,
+      placeholder: string,
+    ) => (
+      <div className="flex items-center gap-2">
+        <Switch
+          checked={value !== ""}
+          onCheckedChange={(on) => setValue(on ? placeholder : "")}
+          aria-label={t(labelKey)}
+        />
+        <span className="w-40 text-xs text-slate-600">{t(labelKey)}</span>
+        <Input
+          type="number"
+          min={1}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          disabled={value === ""}
+          className="w-32"
+        />
+      </div>
+    );
+    return (
+      <div className="mt-3 space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+        <p className="text-xs font-medium text-slate-600">{t("endpoints.limits_title")}</p>
+        {rule(rpm, setRpm, "endpoints.limit_rpm", "3000")}
+        {rule(tpm, setTpm, "endpoints.limit_tpm", "500000")}
+      </div>
+    );
+  }
+
   // Si le modèle du registre porte une URL de paramétrage SANS masque
   // (aucun placeholder {…}, ex. https://api.jina.ai/v1), elle est une base
   // directement utilisable : on préremplit le champ Base URL avec.
@@ -229,6 +282,11 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
     (!rerankOn || rerankModel.trim().length > 0) &&
     (!llmOn || llmModel.trim().length > 0);
 
+  const limitOrNull = (v: string): number | null => {
+    const n = Number(v.trim());
+    return v.trim() !== "" && Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+  };
+
   function buildPayload() {
     return {
       label,
@@ -237,6 +295,8 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
         model,
         api_key_ref: apiKeyRef === NONE ? null : apiKeyRef,
         base_url: baseUrl.trim() === "" ? null : baseUrl,
+        rpm_limit: limitOrNull(idxRpm),
+        tpm_limit: limitOrNull(idxTpm),
       },
       rerank: rerankOn
         ? {
@@ -245,6 +305,8 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
             api_key_ref: rerankKeyRef === NONE ? null : rerankKeyRef,
             base_url: rerankBaseUrl.trim() === "" ? null : rerankBaseUrl,
             top_k_pre_rerank: rerankTopK,
+            rpm_limit: limitOrNull(rerankRpm),
+            tpm_limit: limitOrNull(rerankTpm),
           }
         : null,
       llm: llmOn
@@ -253,6 +315,8 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
             model: llmModel,
             api_key_ref: llmKeyRef === NONE ? null : llmKeyRef,
             base_url: llmBaseUrl.trim() === "" ? null : llmBaseUrl,
+            rpm_limit: limitOrNull(llmRpm),
+            tpm_limit: limitOrNull(llmTpm),
           }
         : null,
     };
@@ -425,6 +489,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                 />
                 {callUrlHint("embeddings", provider, model, baseUrl)}
               </div>
+              {limitRules(idxRpm, setIdxRpm, idxTpm, setIdxTpm)}
               {testFooter("vectorization", model.trim() !== "")}
             </TabsContent>
 
@@ -521,6 +586,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                       />
                     </div>
                   </div>
+                  {limitRules(rerankRpm, setRerankRpm, rerankTpm, setRerankTpm)}
                   {testFooter("rerank", rerankModel.trim() !== "")}
                 </>
               )}
@@ -602,6 +668,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                     />
                     {callUrlHint("chat", llmProvider, llmModel, llmBaseUrl)}
                   </div>
+                  {limitRules(llmRpm, setLlmRpm, llmTpm, setLlmTpm)}
                   {testFooter("llm", llmModel.trim() !== "")}
                 </>
               )}

@@ -308,7 +308,10 @@
     "preco": "recommended",
     "call_url_mask": "Mask",
     "call_url": "Call URL",
-    "call_url_missing_base": "— fill in the Base URL"
+    "call_url_missing_base": "— fill in the Base URL",
+    "limits_title": "Rate limits (provider quota)",
+    "limit_rpm": "Requests / minute",
+    "limit_tpm": "Tokens / minute"
   },
   "expiry": {
     "banner_expired": "This vault's access key has expired — replace it (⋯ menu → Replace key) before secret resolution fails.",
