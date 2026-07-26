@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from pathlib import PurePosixPath
 from typing import Any
 from uuid import UUID
 
@@ -19,6 +18,7 @@ from rag.indexer.chunking.resolution import (
 from rag.indexer.chunking.structured import StructuredChunkerProtocol
 from rag.indexer.chunking.structured_factory import make_structured_chunker
 from rag.indexer.chunking.tokens import TokenEstimator
+from rag.services.trigger_match import resolve_trigger
 
 # Fragment SQL statique (aucun input utilisateur) — les noqa S608 ci-dessous
 # couvrent uniquement son interpolation.
@@ -202,8 +202,8 @@ async def resolve_strategy_for_file(
 
     Priorité décroissante :
     1. `strategy_id` — binding explicite du push (résolu à l'acceptation, F4) ;
-    2. `workspace_extension_triggers.strategy_id` — binding par extension du
-       workspace (trigger actif uniquement) ;
+    2. `workspace_extension_triggers.strategy_id` — binding par pattern glob
+       de chemin du workspace (trigger actif le plus spécifique) ;
     3. cascade textuelle extension → catégorie → stratégie (système/workspace)
        pour les catégories spécialisées ;
     4. `default_strategy_id` — défaut du workspace lié par id, qui remplace la
@@ -229,15 +229,10 @@ async def resolve_strategy_for_file(
 async def _trigger_strategy_id(
     config_pool: asyncpg.Pool, workspace_id: UUID, path: str
 ) -> UUID | None:
-    extension = PurePosixPath(path).suffix.lower()  # même convention que resolution.py
-    if not extension:
-        return None
-    return await config_pool.fetchval(
-        "SELECT strategy_id FROM workspace_extension_triggers "
-        "WHERE workspace_id = $1 AND extension = $2 AND enabled AND strategy_id IS NOT NULL",
-        workspace_id,
-        extension,
+    trigger = await resolve_trigger(
+        config_pool, workspace_id=workspace_id, path=path, require_strategy=True
     )
+    return trigger["strategy_id"] if trigger is not None else None
 
 
 async def build_strategy_chunker(

@@ -227,7 +227,7 @@ export function WorkspaceTriggersTab({ workspaceName }: Props) {
                   )}
                 </button>
                 <span className="font-mono text-sm font-semibold text-slate-700 flex-1">
-                  {trigger.extension}
+                  {trigger.pattern}
                 </span>
                 <Select
                   value={trigger.strategy_id ?? CASCADE_STRATEGY}
@@ -240,7 +240,7 @@ export function WorkspaceTriggersTab({ workspaceName }: Props) {
                 >
                   <SelectTrigger
                     className="h-8 w-56 text-xs"
-                    aria-label={t("strategy_select", { extension: trigger.extension })}
+                    aria-label={t("strategy_select", { pattern: trigger.pattern })}
                   >
                     <SelectValue />
                   </SelectTrigger>

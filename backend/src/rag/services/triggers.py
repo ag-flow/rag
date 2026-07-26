@@ -40,11 +40,11 @@ async def list_triggers(
 ) -> list[TriggerOut]:
     rows = await conn.fetch(
         """
-        SELECT t.id, t.extension, t.enabled, t.strategy_id, t.created_at
+        SELECT t.id, t.pattern, t.enabled, t.strategy_id, t.created_at
         FROM workspace_extension_triggers t
         JOIN workspaces w ON w.id = t.workspace_id
         WHERE w.name = $1
-        ORDER BY t.extension
+        ORDER BY t.pattern
         """,
         workspace_name,
     )
@@ -58,15 +58,15 @@ async def create_trigger(
         await _check_strategy_visible(conn, strategy_id=req.strategy_id, owner_id=owner_id)
     row = await conn.fetchrow(
         """
-        INSERT INTO workspace_extension_triggers (workspace_id, extension, enabled, strategy_id)
+        INSERT INTO workspace_extension_triggers (workspace_id, pattern, enabled, strategy_id)
         SELECT w.id, $2, $3, $4 FROM workspaces w WHERE w.name = $1
-        RETURNING id, extension, enabled, strategy_id, created_at
+        RETURNING id, pattern, enabled, strategy_id, created_at
         """,
-        workspace_name, req.extension, req.enabled, req.strategy_id,
+        workspace_name, req.pattern, req.enabled, req.strategy_id,
     )
     if row is None:
         raise ValueError(f"workspace {workspace_name!r} not found")
-    log.info("trigger.created", workspace=workspace_name, extension=req.extension)
+    log.info("trigger.created", workspace=workspace_name, pattern=req.pattern)
     return TriggerOut.model_validate(dict(row))
 
 
@@ -102,7 +102,7 @@ async def patch_trigger(
             UPDATE workspace_extension_triggers t SET enabled = $3, strategy_id = $4
             FROM workspaces w
             WHERE w.id = t.workspace_id AND w.name = $1 AND t.id = $2::uuid
-            RETURNING t.id, t.extension, t.enabled, t.strategy_id, t.created_at
+            RETURNING t.id, t.pattern, t.enabled, t.strategy_id, t.created_at
             """,
             workspace_name, trigger_id, enabled, strategy_id,
         )

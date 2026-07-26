@@ -45,7 +45,7 @@ async def test_bindings_columns_with_restrict(session_pool: asyncpg.Pool) -> Non
         )
         await conn.execute(
             "INSERT INTO workspace_extension_triggers "
-            "(workspace_id, extension, enabled, strategy_id) VALUES ($1, '.md', true, $2)",
+            "(workspace_id, pattern, enabled, strategy_id) VALUES ($1, '**/*.md', true, $2)",
             ws_id,
             trigger_sid,
         )

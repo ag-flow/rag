@@ -10,7 +10,11 @@ from rag.services.enrichments import run_enrichments
 
 def _make_conn(trigger_rows=None, enrichment_row=None):
     conn = MagicMock()
-    conn.fetch = AsyncMock(return_value=trigger_rows or [])
+    prompts = trigger_rows or []
+    # 1er fetch = résolution du trigger par pattern glob (trigger_match),
+    # 2e fetch = prompts du trigger gagnant.
+    matches = [{"id": "trig1", "pattern": "**/*", "strategy_id": None}] if prompts else []
+    conn.fetch = AsyncMock(side_effect=[matches, prompts])
     conn.fetchrow = AsyncMock(return_value=enrichment_row)
     conn.execute = AsyncMock(return_value="UPDATE 1")
     conn.fetchval = AsyncMock(return_value=None)

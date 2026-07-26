@@ -182,7 +182,7 @@ async def create_trigger(
             raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
         except Exception as exc:
             if "unique" in str(exc).lower():
-                msg = "extension already has trigger"
+                msg = "pattern already has trigger"
                 raise HTTPException(status.HTTP_409_CONFLICT, msg) from exc
             raise
 

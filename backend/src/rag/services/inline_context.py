@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from pathlib import PurePosixPath
 from typing import Protocol
 from uuid import UUID
 
@@ -13,6 +12,7 @@ from rag.indexer.chunking.hashing import compute_chunk_hash
 from rag.indexer.chunking.structured import ChildChunk, ChunkedDocument, RoutedRegion
 from rag.secrets.refs import is_vault_ref
 from rag.services.llm_clients import call_llm_with_cached_prefix
+from rag.services.trigger_match import resolve_trigger
 
 log = structlog.get_logger(__name__)
 
@@ -46,33 +46,33 @@ async def load_inline_bindings(
     """Bindings `embedding_inline` actifs pour ce fichier — jamais par défaut.
 
     Deux chemins d'activation, fusionnés :
-    1. triggers par extension (workspace-scopés, LLM explicite au binding) ;
+    1. triggers par pattern glob de chemin (workspace-scopés, LLM explicite
+       au binding) — un seul trigger s'applique, le plus spécifique
+       (`rag.services.trigger_match`) ;
     2. prompts de la STRATÉGIE résolue (S6.4) — le template voyage avec la
        stratégie ; le LLM d'exécution est la première config LLM active du
        workspace (aucune → bindings stratégie ignorés avec warning, politique
        S6.2). Un template lié par les deux chemins ne s'applique qu'une fois
        (le trigger, décision locale au workspace, gagne).
     """
-    extension = PurePosixPath(path).suffix.lower()
-    if not extension:
-        return []
-    rows = await config_pool.fetch(
-        """
-        SELECT tp.template_id, pt.metadata_key, pt.prompt, pt.prompt_version, pt.target,
-               lc.provider AS llm_provider, lc.model AS llm_model,
-               lc.api_key_ref, lc.base_url AS llm_base_url
-        FROM workspace_extension_trigger_prompts tp
-        JOIN workspace_extension_triggers t ON t.id = tp.trigger_id
-        JOIN prompt_templates pt ON pt.id = tp.template_id
-        JOIN workspace_llm_configs lc ON lc.id = tp.llm_id
-        WHERE t.workspace_id = $1 AND t.extension = $2
-          AND t.enabled AND tp.enabled AND lc.enabled
-          AND pt.timing = 'embedding_inline'
-        ORDER BY tp.order_index
-        """,
-        workspace_id,
-        extension,
-    )
+    trigger = await resolve_trigger(config_pool, workspace_id=workspace_id, path=path)
+    rows: list[asyncpg.Record] = []
+    if trigger is not None:
+        rows = await config_pool.fetch(
+            """
+            SELECT tp.template_id, pt.metadata_key, pt.prompt, pt.prompt_version, pt.target,
+                   lc.provider AS llm_provider, lc.model AS llm_model,
+                   lc.api_key_ref, lc.base_url AS llm_base_url
+            FROM workspace_extension_trigger_prompts tp
+            JOIN prompt_templates pt ON pt.id = tp.template_id
+            JOIN workspace_llm_configs lc ON lc.id = tp.llm_id
+            WHERE tp.trigger_id = $1
+              AND tp.enabled AND lc.enabled
+              AND pt.timing = 'embedding_inline'
+            ORDER BY tp.order_index
+            """,
+            trigger["id"],
+        )
     bindings = [_binding_from_row(r) for r in rows]
     if strategy_id is not None:
         bound = {b.template_id for b in bindings}

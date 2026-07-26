@@ -10,6 +10,7 @@ from pathlib import Path
 
 import structlog
 
+from rag.globmatch import glob_to_regex
 from rag.schemas.sync import ChangeSet
 
 log = structlog.get_logger(__name__)
@@ -360,45 +361,6 @@ async def diff_changes(
     return ChangeSet(added=added, modified=modified, deleted=deleted)
 
 
-def _glob_to_regex(pattern: str) -> re.Pattern[str]:
-    """Compile un pattern glob (avec `**`) en expression régulière.
-
-    Sémantique :
-    - `*`   : n'importe quel caractère sauf `/` (un seul segment)
-    - `?`   : un caractère quelconque sauf `/`
-    - `**/` : zéro ou plusieurs segments suivis de `/`
-    - `**`  : n'importe quoi (y compris `/`) — utilisé en fin de pattern
-    - Tout le reste est échappé littéralement.
-
-    Exemples :
-    - `**/*.md`          → matche `a.md`, `docs/a.md`, `deep/path/a.md`
-    - `**/node_modules/**` → matche `node_modules/x`, `a/b/node_modules/x`
-    - `docs/**`          → matche uniquement les chemins commençant par `docs/`
-    """
-    result: list[str] = []
-    i = 0
-    while i < len(pattern):
-        if pattern[i] == "*" and i + 1 < len(pattern) and pattern[i + 1] == "*":
-            if i + 2 < len(pattern) and pattern[i + 2] == "/":
-                # `**/` → zéro ou plusieurs segments avec slash final
-                result.append("(.+/)?")
-                i += 3
-            else:
-                # `**` en fin de pattern → n'importe quoi
-                result.append(".*")
-                i += 2
-        elif pattern[i] == "*":
-            result.append("[^/]*")
-            i += 1
-        elif pattern[i] == "?":
-            result.append("[^/]")
-            i += 1
-        else:
-            result.append(re.escape(pattern[i]))
-            i += 1
-    return re.compile("^" + "".join(result) + "$")
-
-
 def filter_glob(
     cs: ChangeSet,
     *,
@@ -411,13 +373,13 @@ def filter_glob(
       - il matche au moins un pattern `include`
       - ET il ne matche aucun pattern `exclude`
 
-    Utilise `_glob_to_regex` qui gère `**` correctement :
+    Utilise `glob_to_regex` (rag.globmatch) qui gère `**` correctement :
     `**/node_modules/**` exclut les chemins imbriqués comme
     `tools/md2pdf/node_modules/x.md`, et `**/*.md` matche les `.md`
     à n'importe quelle profondeur y compris à la racine.
     """
-    include_re = [_glob_to_regex(p) for p in include]
-    exclude_re = [_glob_to_regex(p) for p in exclude]
+    include_re = [glob_to_regex(p) for p in include]
+    exclude_re = [glob_to_regex(p) for p in exclude]
 
     def _match(path: str, patterns: list[re.Pattern[str]]) -> bool:
         return any(rx.match(path) for rx in patterns)

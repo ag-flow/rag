@@ -93,10 +93,22 @@ class PromptTemplateOut(BaseModel):
 class TriggerCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    extension: str = Field(min_length=2, max_length=16)
+    # Pattern glob sur le chemin complet du fichier (migration 089) :
+    # `backlog/**/*.md`, `datasets/*.csv`, `**/*.py`…
+    pattern: str = Field(min_length=1, max_length=256)
     enabled: bool = True
-    # Stratégie de chunking LIÉE PAR ID pour cette extension (spec chunking §5).
+    # Stratégie de chunking LIÉE PAR ID pour ce pattern (spec chunking §5).
     strategy_id: UUID | None = None
+
+    @field_validator("pattern")
+    @classmethod
+    def _validate_pattern(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("pattern vide")
+        if value.startswith("/"):
+            raise ValueError("pattern relatif au dépôt attendu (pas de `/` initial)")
+        return value
 
 
 class TriggerPatch(BaseModel):
@@ -113,7 +125,7 @@ class TriggerOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    extension: str
+    pattern: str
     enabled: bool
     strategy_id: UUID | None = None
     created_at: datetime

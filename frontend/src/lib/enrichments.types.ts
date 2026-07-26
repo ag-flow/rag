@@ -36,14 +36,15 @@ export type PromptTemplatePatch = {
 
 export type Trigger = {
   id: string;
-  extension: string;
+  /** Pattern glob sur le chemin complet (ex. backlog/**\/*.md). */
+  pattern: string;
   enabled: boolean;
   strategy_id: string | null;
   created_at: string;
 };
 
 export type TriggerCreate = {
-  extension: string;
+  pattern: string;
   enabled?: boolean;
   strategy_id?: string | null;
 };

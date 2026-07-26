@@ -15,8 +15,8 @@ def _row(strategy_id: UUID, slug: str, algo: str = "prose") -> dict[str, Any]:
 
 
 class _FakePool:
-    """Simule le pool config : triggers (fetchval), tables de routage (fetch)
-    et catalogue de stratégies (fetchrow, par id ou par slug)."""
+    """Simule le pool config : triggers (fetch, patterns glob), tables de
+    routage (fetch via acquire) et catalogue de stratégies (fetchrow)."""
 
     def __init__(
         self,
@@ -27,6 +27,7 @@ class _FakePool:
         category_strategies: dict[str, str] | None = None,
     ) -> None:
         self._strategies = strategies
+        # pattern glob → strategy_id (contrat post-migration 089)
         self._triggers = trigger_bindings or {}
         self._ext = extension_categories if extension_categories is not None else {".py": "code"}
         self._cat = (
@@ -35,9 +36,12 @@ class _FakePool:
             else {"prose": "markdown-deep", "code": "code-aware"}
         )
 
-    async def fetchval(self, query: str, *args: Any) -> Any:
+    async def fetch(self, query: str, *args: Any) -> list[dict[str, Any]]:
         assert "workspace_extension_triggers" in query
-        return self._triggers.get(args[1])
+        return [
+            {"id": uuid4(), "pattern": pattern, "strategy_id": sid}
+            for pattern, sid in self._triggers.items()
+        ]
 
     def acquire(self) -> _FakePool._Ctx:
         return _FakePool._Ctx(self)
@@ -79,7 +83,7 @@ async def test_explicit_push_binding_wins() -> None:
     bound = uuid4()
     pool = _FakePool(
         strategies=[_row(bound, "poussee")],
-        trigger_bindings={".md": uuid4()},  # ne doit même pas être consulté
+        trigger_bindings={"**/*.md": uuid4()},  # ne doit même pas être consulté
     )
     record = await resolve_strategy_for_file(
         pool,  # type: ignore[arg-type]
@@ -97,7 +101,7 @@ async def test_trigger_binding_beats_cascade_and_default() -> None:
     default = uuid4()
     pool = _FakePool(
         strategies=[_row(trigger_target, "via-trigger"), _row(default, "defaut-ws")],
-        trigger_bindings={".md": trigger_target},
+        trigger_bindings={"**/*.md": trigger_target},
     )
     record = await resolve_strategy_for_file(
         pool,  # type: ignore[arg-type]
@@ -106,6 +110,28 @@ async def test_trigger_binding_beats_cascade_and_default() -> None:
         default_strategy_id=default,
     )
     assert record.slug == "via-trigger"
+
+
+@pytest.mark.asyncio
+async def test_most_specific_trigger_pattern_wins() -> None:
+    generic = uuid4()
+    backlog = uuid4()
+    default = uuid4()
+    pool = _FakePool(
+        strategies=[
+            _row(generic, "generique"),
+            _row(backlog, "backlog-dedie"),
+            _row(default, "defaut-ws"),
+        ],
+        trigger_bindings={"**/*.md": generic, "backlog/**/*.md": backlog},
+    )
+    record = await resolve_strategy_for_file(
+        pool,  # type: ignore[arg-type]
+        workspace_id=_WS,
+        path="backlog/2026/tache.md",
+        default_strategy_id=default,
+    )
+    assert record.slug == "backlog-dedie"
 
 
 @pytest.mark.asyncio

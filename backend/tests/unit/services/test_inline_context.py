@@ -40,6 +40,12 @@ class _FakePool:
         self.inserts = 0
 
     async def fetch(self, query: str, *args: Any) -> list[dict[str, Any]]:
+        if "workspace_extension_triggers" in query:
+            # Résolution du trigger par pattern (trigger_match) : un trigger
+            # générique matche dès qu'il y a des bindings à servir.
+            if not self._bindings:
+                return []
+            return [{"id": uuid4(), "pattern": "**/*.md", "strategy_id": None}]
         assert "embedding_inline" in query
         return self._bindings
 

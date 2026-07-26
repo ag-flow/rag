@@ -85,7 +85,7 @@ def test_trigger_strategy_binding_roundtrip(
     created = admin_client.post(
         "/api/admin/workspaces/bind-trigger/triggers",
         headers=admin_headers,
-        json={"extension": ".md", "strategy_id": strategy["id"]},
+        json={"pattern": "**/*.md", "strategy_id": strategy["id"]},
     )
     assert created.status_code == 201, created.text
     trigger = created.json()
