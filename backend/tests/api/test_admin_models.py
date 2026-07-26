@@ -42,6 +42,10 @@ def test_get_models_includes_rerank_seed(
     rerank = {(e["provider"], e["model"]) for e in entries if e["kind"] == "rerank"}
     assert ("cohere", "rerank-v3.5") in rerank
     assert ("ollama", "bge-reranker-v2-m3") in rerank
+    # Migration 083 : rerankers cloud.
+    assert ("fireworks", "accounts/fireworks/models/qwen3-reranker-8b") in rerank
+    assert ("deepinfra", "Qwen/Qwen3-Reranker-8B") in rerank
+    assert ("mixedbread", "mxbai-rerank-large-v2") in rerank
 
 
 def test_get_models_includes_cloud_embedding_seed(

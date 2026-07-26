@@ -44,7 +44,17 @@ class RerankCreateSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
-    provider: Literal["cohere", "voyage", "ollama", "jina", "dashscope", "azure-foundry"]
+    provider: Literal[
+        "cohere",
+        "voyage",
+        "ollama",
+        "jina",
+        "dashscope",
+        "azure-foundry",
+        "fireworks",
+        "deepinfra",
+        "mixedbread",
+    ]
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
     base_url: str | None = Field(
@@ -310,7 +320,17 @@ class RerankSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
-    provider: Literal["cohere", "voyage", "ollama", "jina", "dashscope", "azure-foundry"]
+    provider: Literal[
+        "cohere",
+        "voyage",
+        "ollama",
+        "jina",
+        "dashscope",
+        "azure-foundry",
+        "fireworks",
+        "deepinfra",
+        "mixedbread",
+    ]
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
     base_url: str | None = Field(
