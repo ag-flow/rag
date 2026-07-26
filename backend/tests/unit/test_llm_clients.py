@@ -84,3 +84,63 @@ async def test_call_llm_openai_returns_answer() -> None:
 
     assert result["answer"] == "Réponse OpenAI."
     assert result["usage"]["prompt_tokens"] == 80
+
+
+@pytest.mark.asyncio
+async def test_call_llm_ollama_cloud_uses_bearer_and_default_url() -> None:
+    """ollama-cloud : même API que le daemon local, mais https://ollama.com
+    par défaut et clé API en Authorization Bearer."""
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "message": {"content": "Réponse cloud."},
+        "prompt_eval_count": 10,
+        "eval_count": 5,
+    }
+    mock_response.raise_for_status = MagicMock()
+
+    mock_client = MagicMock()
+    mock_client.post = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("rag.services.llm_clients.httpx.AsyncClient", return_value=mock_client):
+        result = await call_llm(
+            provider="ollama-cloud",
+            model="gpt-oss:120b-cloud",
+            api_key="ok-test",
+            base_url=None,
+            system_prompt="You are helpful.",
+            messages=[{"role": "user", "content": "hello"}],
+        )
+
+    assert result["answer"] == "Réponse cloud."
+    url = mock_client.post.call_args.args[0]
+    assert url == "https://ollama.com/api/chat"
+    headers = mock_client.post.call_args.kwargs["headers"]
+    assert headers == {"Authorization": "Bearer ok-test"}
+
+
+@pytest.mark.asyncio
+async def test_call_llm_ollama_local_no_auth_header() -> None:
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"message": {"content": "ok"}}
+    mock_response.raise_for_status = MagicMock()
+
+    mock_client = MagicMock()
+    mock_client.post = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("rag.services.llm_clients.httpx.AsyncClient", return_value=mock_client):
+        await call_llm(
+            provider="ollama",
+            model="llama3.1:8b",
+            api_key=None,
+            base_url="http://192.168.10.80:11434",
+            system_prompt="s",
+            messages=[{"role": "user", "content": "hello"}],
+        )
+
+    url = mock_client.post.call_args.args[0]
+    assert url == "http://192.168.10.80:11434/api/chat"
+    assert mock_client.post.call_args.kwargs["headers"] == {}

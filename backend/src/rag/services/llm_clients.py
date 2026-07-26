@@ -77,9 +77,12 @@ async def call_llm(
         return await _call_azure_openai(
             model=model, api_key=api_key, base_url=base_url, system=system_prompt, messages=messages
         )
-    if provider == "ollama":
+    if provider in ("ollama", "ollama-cloud"):
+        # ollama-cloud : même API que le daemon local, hébergée sur
+        # https://ollama.com avec authentification Bearer par clé API.
+        default_url = "https://ollama.com" if provider == "ollama-cloud" else "http://localhost:11434"
         return await _call_ollama(
-            model=model, base_url=base_url or "http://localhost:11434",
+            model=model, api_key=api_key, base_url=base_url or default_url,
             system=system_prompt, messages=messages,
         )
     if provider == "azure-foundry":
@@ -161,13 +164,20 @@ async def _call_azure_foundry(
 
 
 async def _call_ollama(
-    *, model: str, base_url: str, system: str, messages: list[dict[str, str]]
+    *,
+    model: str,
+    base_url: str,
+    system: str,
+    messages: list[dict[str, str]],
+    api_key: str | None = None,
 ) -> dict[str, Any]:
     full_messages = [{"role": "system", "content": system}, *messages]
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(
             f"{base_url.rstrip('/')}/api/chat",
             json={"model": model, "messages": full_messages, "stream": False},
+            headers=headers,
         )
         response.raise_for_status()
         data = response.json()
