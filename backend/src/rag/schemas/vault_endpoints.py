@@ -29,6 +29,10 @@ class EndpointIndexerSpec(BaseModel):
     model: str = Field(min_length=1, max_length=128)
     api_key_ref: str | None = None
     base_url: str | None = None
+    # Limites de débit du service (NULL = règle désactivée). Copiées dans la
+    # config workspace à la création et au refresh.
+    rpm_limit: int | None = Field(default=None, ge=1)
+    tpm_limit: int | None = Field(default=None, ge=1)
 
 
 class EndpointRerankSpec(BaseModel):
@@ -39,6 +43,10 @@ class EndpointRerankSpec(BaseModel):
     api_key_ref: str | None = None
     base_url: str | None = None
     top_k_pre_rerank: int = Field(default=20, ge=1, le=200)
+    # Limites de débit du service (NULL = règle désactivée). Copiées dans la
+    # config workspace à la création et au refresh.
+    rpm_limit: int | None = Field(default=None, ge=1)
+    tpm_limit: int | None = Field(default=None, ge=1)
 
 
 class EndpointLlmSpec(BaseModel):
@@ -53,6 +61,10 @@ class EndpointLlmSpec(BaseModel):
     model: str = Field(min_length=1, max_length=128)
     api_key_ref: str | None = None
     base_url: str | None = None
+    # Limites de débit du service (NULL = règle désactivée). Copiées dans la
+    # config workspace à la création et au refresh.
+    rpm_limit: int | None = Field(default=None, ge=1)
+    tpm_limit: int | None = Field(default=None, ge=1)
 
 
 class EndpointCreate(BaseModel):

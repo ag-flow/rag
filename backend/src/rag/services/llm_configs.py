@@ -16,7 +16,7 @@ async def list_llm_configs(
     rows = await conn.fetch(
         """
         SELECT lc.id, lc.provider, lc.model, lc.base_url, lc.api_key_ref,
-               lc.enabled, lc.created_at
+               lc.enabled, lc.rpm_limit, lc.tpm_limit, lc.created_at
         FROM workspace_llm_configs lc
         JOIN workspaces w ON w.id = lc.workspace_id
         WHERE w.name = $1

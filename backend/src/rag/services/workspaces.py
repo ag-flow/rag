@@ -127,8 +127,9 @@ async def create_workspace(
             await conn.execute(
                 """
                 INSERT INTO indexer_configs
-                    (workspace_id, provider, model, api_key_ref, base_url, dimension)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                    (workspace_id, provider, model, api_key_ref, base_url, dimension,
+                     rpm_limit, tpm_limit)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 """,
                 ws_row["id"],
                 request.indexer.provider,
@@ -136,6 +137,8 @@ async def create_workspace(
                 indexer_api_key_ref,
                 request.indexer.base_url,
                 dimension,
+                request.indexer.rpm_limit,
+                request.indexer.tpm_limit,
             )
             await conn.execute(
                 """
@@ -150,14 +153,17 @@ async def create_workspace(
                 await conn.execute(
                     """
                     INSERT INTO workspace_llm_configs
-                        (workspace_id, provider, model, base_url, api_key_ref)
-                    VALUES ($1, $2, $3, $4, $5)
+                        (workspace_id, provider, model, base_url, api_key_ref,
+                         rpm_limit, tpm_limit)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
                     """,
                     ws_row["id"],
                     request.llm.provider,
                     request.llm.model,
                     request.llm.base_url,
                     request.llm.api_key_ref,
+                    request.llm.rpm_limit,
+                    request.llm.tpm_limit,
                 )
     except asyncpg.UniqueViolationError as e:
         raise WorkspaceAlreadyExists(request.name) from e
@@ -241,6 +247,7 @@ async def list_workspaces(
         SELECT
             w.id, w.name, w.label, w.description, w.created_at, w.endpoint_id,
             ic.provider, ic.model, ic.api_key_ref, ic.base_url,
+            ic.rpm_limit, ic.tpm_limit,
             (SELECT COUNT(*) FROM workspace_sources WHERE workspace_id = w.id) AS sources_count,
             (SELECT COUNT(*) FROM indexed_documents WHERE workspace_id = w.id) AS documents_count,
             (SELECT MAX(indexed_at) FROM indexed_documents WHERE workspace_id = w.id)
@@ -265,6 +272,7 @@ async def get_workspace(
         SELECT
             w.id, w.name, w.label, w.description, w.created_at, w.endpoint_id,
             ic.provider, ic.model, ic.api_key_ref, ic.base_url,
+            ic.rpm_limit, ic.tpm_limit,
             (SELECT COUNT(*) FROM workspace_sources WHERE workspace_id = w.id) AS sources_count,
             (SELECT COUNT(*) FROM indexed_documents WHERE workspace_id = w.id) AS documents_count,
             (SELECT MAX(indexed_at) FROM indexed_documents WHERE workspace_id = w.id)
@@ -355,6 +363,8 @@ def _to_workspace_dict(row: asyncpg.Record) -> dict[str, object]:
             "model": row["model"],
             "api_key_ref": row["api_key_ref"],
             "base_url": row["base_url"],
+            "rpm_limit": row["rpm_limit"],
+            "tpm_limit": row["tpm_limit"],
         },
         "sources_count": int(row["sources_count"]),
         "documents_count": int(row["documents_count"]),

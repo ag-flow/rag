@@ -50,6 +50,12 @@ def _row(**overrides):
         "llm_api_key_ref": None,
         "llm_base_url": None,
         "rerank_top_k": None,
+        "indexer_rpm_limit": None,
+        "indexer_tpm_limit": None,
+        "rerank_rpm_limit": None,
+        "rerank_tpm_limit": None,
+        "llm_rpm_limit": None,
+        "llm_tpm_limit": None,
         "created_at": datetime(2026, 7, 16, tzinfo=UTC),
         "updated_at": datetime(2026, 7, 16, tzinfo=UTC),
     }

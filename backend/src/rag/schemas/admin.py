@@ -22,6 +22,9 @@ class IndexerSpec(BaseModel):
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
     base_url: str | None = None
+    # Limites de débit copiées de l'endpoint (NULL = règle désactivée).
+    rpm_limit: int | None = None
+    tpm_limit: int | None = None
 
 
 class IndexerCreateSpec(BaseModel):
@@ -37,6 +40,9 @@ class IndexerCreateSpec(BaseModel):
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
     base_url: str | None = None
+    # Limites de débit copiées de l'endpoint (NULL = règle désactivée).
+    rpm_limit: int | None = Field(default=None, ge=1)
+    tpm_limit: int | None = Field(default=None, ge=1)
 
 
 class RerankCreateSpec(BaseModel):
@@ -68,6 +74,9 @@ class RerankCreateSpec(BaseModel):
         ),
     )
     top_k_pre_rerank: int = Field(default=50, gt=0, le=500)
+    # Limites de débit (NULL = règle désactivée), copiées de l'endpoint.
+    rpm_limit: int | None = Field(default=None, ge=1)
+    tpm_limit: int | None = Field(default=None, ge=1)
 
 
 class WorkspaceCreateRequest(BaseModel):
@@ -95,6 +104,9 @@ class LlmCreateSpec(BaseModel):
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
     base_url: str | None = None
+    # Limites de débit copiées de l'endpoint (NULL = règle désactivée).
+    rpm_limit: int | None = Field(default=None, ge=1)
+    tpm_limit: int | None = Field(default=None, ge=1)
 
 
 class WorkspaceCreateResolved(BaseModel):
@@ -385,6 +397,9 @@ class RerankSpec(BaseModel):
         ),
     )
     top_k_pre_rerank: int = Field(default=50, gt=0, le=500)
+    # Limites de débit (NULL = règle désactivée), copiées de l'endpoint.
+    rpm_limit: int | None = Field(default=None, ge=1)
+    tpm_limit: int | None = Field(default=None, ge=1)
 
 
 class RerankConfigResponse(BaseModel):
@@ -396,6 +411,8 @@ class RerankConfigResponse(BaseModel):
     api_key_ref: str | None
     base_url: str | None
     top_k_pre_rerank: int
+    rpm_limit: int | None = None
+    tpm_limit: int | None = None
     created_at: str
     updated_at: str
 

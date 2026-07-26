@@ -36,6 +36,8 @@ class LlmConfigOut(BaseModel):
     base_url: str | None
     api_key_ref: str | None
     enabled: bool
+    rpm_limit: int | None = None
+    tpm_limit: int | None = None
     created_at: datetime
 
 

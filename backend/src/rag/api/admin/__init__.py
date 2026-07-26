@@ -130,6 +130,8 @@ def build_admin_router() -> APIRouter:
                 model=endpoint.indexer.model,
                 api_key_ref=endpoint.indexer.api_key_ref,
                 base_url=endpoint.indexer.base_url,
+                rpm_limit=endpoint.indexer.rpm_limit,
+                tpm_limit=endpoint.indexer.tpm_limit,
             ),
             rerank=(
                 RerankCreateSpec(
@@ -138,6 +140,8 @@ def build_admin_router() -> APIRouter:
                     api_key_ref=endpoint.rerank.api_key_ref,
                     base_url=endpoint.rerank.base_url,
                     top_k_pre_rerank=endpoint.rerank.top_k_pre_rerank,
+                    rpm_limit=endpoint.rerank.rpm_limit,
+                    tpm_limit=endpoint.rerank.tpm_limit,
                 )
                 if endpoint.rerank is not None
                 else None
@@ -148,6 +152,8 @@ def build_admin_router() -> APIRouter:
                     model=endpoint.llm.model,
                     api_key_ref=endpoint.llm.api_key_ref,
                     base_url=endpoint.llm.base_url,
+                    rpm_limit=endpoint.llm.rpm_limit,
+                    tpm_limit=endpoint.llm.tpm_limit,
                 )
                 if endpoint.llm is not None
                 else None
@@ -425,7 +431,8 @@ def build_admin_router() -> APIRouter:
         pool = _config_pool(request)
         ws_id = await require_owned_workspace_id(request, name, pool)
         row = await pool.fetchrow(
-            "SELECT w.endpoint_id, ic.provider, ic.model, ic.api_key_ref, ic.base_url "
+            "SELECT w.endpoint_id, ic.provider, ic.model, ic.api_key_ref, ic.base_url, "
+            "ic.rpm_limit, ic.tpm_limit "
             "FROM workspaces w JOIN indexer_configs ic ON ic.workspace_id = w.id "
             "WHERE w.id = $1",
             ws_id,
@@ -446,9 +453,16 @@ def build_admin_router() -> APIRouter:
         # ── Indexeur ────────────────────────────────────────────────────────
         ep_idx = endpoint.indexer
         model_changed = (ep_idx.provider, ep_idx.model) != (row["provider"], row["model"])
-        cfg_changed = (ep_idx.api_key_ref or None, ep_idx.base_url or None) != (
+        cfg_changed = (
+            ep_idx.api_key_ref or None,
+            ep_idx.base_url or None,
+            ep_idx.rpm_limit,
+            ep_idx.tpm_limit,
+        ) != (
             row["api_key_ref"] or None,
             row["base_url"] or None,
+            row["rpm_limit"],
+            row["tpm_limit"],
         )
         if model_changed:
             default_vault = await _resolve_default_vault_or_503(request)
@@ -466,15 +480,24 @@ def build_admin_router() -> APIRouter:
                 resolver=_resolver(request),  # type: ignore[arg-type]
                 default_vault_name=default_vault,
             )
+            await pool.execute(
+                "UPDATE indexer_configs SET rpm_limit=$2, tpm_limit=$3 WHERE workspace_id=$1",
+                ws_id,
+                ep_idx.rpm_limit,
+                ep_idx.tpm_limit,
+            )
             result["indexer"] = "reindex_triggered"
             result["job"] = job
         elif cfg_changed:
-            # Même modèle : rotation de clé / d'URL — les vecteurs restent valides.
+            # Même modèle : rotation de clé / d'URL / limites — vecteurs valides.
             await pool.execute(
-                "UPDATE indexer_configs SET api_key_ref=$2, base_url=$3 WHERE workspace_id=$1",
+                "UPDATE indexer_configs SET api_key_ref=$2, base_url=$3, "
+                "rpm_limit=$4, tpm_limit=$5 WHERE workspace_id=$1",
                 ws_id,
                 ep_idx.api_key_ref,
                 ep_idx.base_url,
+                ep_idx.rpm_limit,
+                ep_idx.tpm_limit,
             )
             result["indexer"] = "updated"
 
@@ -489,6 +512,8 @@ def build_admin_router() -> APIRouter:
                     api_key_ref=endpoint.rerank.api_key_ref,
                     base_url=endpoint.rerank.base_url,
                     top_k_pre_rerank=endpoint.rerank.top_k_pre_rerank,
+                    rpm_limit=endpoint.rerank.rpm_limit,
+                    tpm_limit=endpoint.rerank.tpm_limit,
                 ),
                 config_pool=pool,
                 resolver=_resolver(request),  # type: ignore[arg-type]
@@ -507,13 +532,16 @@ def build_admin_router() -> APIRouter:
             if endpoint.llm is not None:
                 await conn.execute(
                     "INSERT INTO workspace_llm_configs "
-                    "(workspace_id, provider, model, base_url, api_key_ref) "
-                    "VALUES ($1, $2, $3, $4, $5)",
+                    "(workspace_id, provider, model, base_url, api_key_ref, "
+                    "rpm_limit, tpm_limit) "
+                    "VALUES ($1, $2, $3, $4, $5, $6, $7)",
                     ws_id,
                     endpoint.llm.provider,
                     endpoint.llm.model,
                     endpoint.llm.base_url,
                     endpoint.llm.api_key_ref,
+                    endpoint.llm.rpm_limit,
+                    endpoint.llm.tpm_limit,
                 )
                 result["llm"] = "updated"
             else:

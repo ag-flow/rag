@@ -28,6 +28,9 @@ _SELECT_BY_VAULT = """
            rerank_provider, rerank_model, rerank_api_key_ref, rerank_base_url,
            rerank_top_k,
            llm_provider, llm_model, llm_api_key_ref, llm_base_url,
+           indexer_rpm_limit, indexer_tpm_limit,
+           rerank_rpm_limit, rerank_tpm_limit,
+           llm_rpm_limit, llm_tpm_limit,
            created_at, updated_at
     FROM vault_endpoints WHERE vault_id = $1 ORDER BY label
 """
@@ -38,6 +41,9 @@ _SELECT_BY_ID = """
            rerank_provider, rerank_model, rerank_api_key_ref, rerank_base_url,
            rerank_top_k,
            llm_provider, llm_model, llm_api_key_ref, llm_base_url,
+           indexer_rpm_limit, indexer_tpm_limit,
+           rerank_rpm_limit, rerank_tpm_limit,
+           llm_rpm_limit, llm_tpm_limit,
            created_at, updated_at
     FROM vault_endpoints WHERE id = $1
 """
@@ -48,13 +54,20 @@ _INSERT = """
          indexer_provider, indexer_model, indexer_api_key_ref, indexer_base_url,
          rerank_provider, rerank_model, rerank_api_key_ref, rerank_base_url,
          rerank_top_k,
-         llm_provider, llm_model, llm_api_key_ref, llm_base_url)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+         llm_provider, llm_model, llm_api_key_ref, llm_base_url,
+         indexer_rpm_limit, indexer_tpm_limit,
+         rerank_rpm_limit, rerank_tpm_limit,
+         llm_rpm_limit, llm_tpm_limit)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+            $17, $18, $19, $20, $21, $22)
     RETURNING id, vault_id, label, slug,
               indexer_provider, indexer_model, indexer_api_key_ref, indexer_base_url,
               rerank_provider, rerank_model, rerank_api_key_ref, rerank_base_url,
               rerank_top_k,
               llm_provider, llm_model, llm_api_key_ref, llm_base_url,
+              indexer_rpm_limit, indexer_tpm_limit,
+              rerank_rpm_limit, rerank_tpm_limit,
+              llm_rpm_limit, llm_tpm_limit,
               created_at, updated_at
 """
 
@@ -67,6 +80,9 @@ _UPDATE = """
         rerank_api_key_ref = $9, rerank_base_url = $10, rerank_top_k = $11,
         llm_provider = $12, llm_model = $13,
         llm_api_key_ref = $14, llm_base_url = $15,
+        indexer_rpm_limit = $16, indexer_tpm_limit = $17,
+        rerank_rpm_limit = $18, rerank_tpm_limit = $19,
+        llm_rpm_limit = $20, llm_tpm_limit = $21,
         updated_at = now()
     WHERE id = $1
     RETURNING id, vault_id, label, slug,
@@ -74,6 +90,9 @@ _UPDATE = """
               rerank_provider, rerank_model, rerank_api_key_ref, rerank_base_url,
               rerank_top_k,
               llm_provider, llm_model, llm_api_key_ref, llm_base_url,
+              indexer_rpm_limit, indexer_tpm_limit,
+              rerank_rpm_limit, rerank_tpm_limit,
+              llm_rpm_limit, llm_tpm_limit,
               created_at, updated_at
 """
 
@@ -87,6 +106,8 @@ def _to_out(row: asyncpg.Record) -> EndpointOut:
             api_key_ref=row["rerank_api_key_ref"],
             base_url=row["rerank_base_url"],
             top_k_pre_rerank=row["rerank_top_k"] or 20,
+            rpm_limit=row["rerank_rpm_limit"],
+            tpm_limit=row["rerank_tpm_limit"],
         )
     llm = None
     if row["llm_provider"] is not None:
@@ -95,6 +116,8 @@ def _to_out(row: asyncpg.Record) -> EndpointOut:
             model=row["llm_model"],
             api_key_ref=row["llm_api_key_ref"],
             base_url=row["llm_base_url"],
+            rpm_limit=row["llm_rpm_limit"],
+            tpm_limit=row["llm_tpm_limit"],
         )
     return EndpointOut(
         id=row["id"],
@@ -106,6 +129,8 @@ def _to_out(row: asyncpg.Record) -> EndpointOut:
             model=row["indexer_model"],
             api_key_ref=row["indexer_api_key_ref"],
             base_url=row["indexer_base_url"],
+            rpm_limit=row["indexer_rpm_limit"],
+            tpm_limit=row["indexer_tpm_limit"],
         ),
         rerank=rerank,
         llm=llm,
@@ -146,6 +171,11 @@ async def create_endpoint(
             req.llm.model if req.llm else None,
             req.llm.api_key_ref if req.llm else None,
             req.llm.base_url if req.llm else None,
+            req.indexer.rpm_limit, req.indexer.tpm_limit,
+            rerank.rpm_limit if rerank else None,
+            rerank.tpm_limit if rerank else None,
+            req.llm.rpm_limit if req.llm else None,
+            req.llm.tpm_limit if req.llm else None,
         )
     except asyncpg.UniqueViolationError as exc:
         raise EndpointSlugTakenError(slug) from exc
@@ -183,6 +213,11 @@ async def update_endpoint(
         llm.model if llm else None,
         llm.api_key_ref if llm else None,
         llm.base_url if llm else None,
+        indexer.rpm_limit, indexer.tpm_limit,
+        rerank.rpm_limit if rerank else None,
+        rerank.tpm_limit if rerank else None,
+        llm.rpm_limit if llm else None,
+        llm.tpm_limit if llm else None,
     )
     log.info("vault_endpoint.updated", endpoint_id=str(endpoint_id))
     return _to_out(row)

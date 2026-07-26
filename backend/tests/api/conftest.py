@@ -119,11 +119,13 @@ async def seed_endpoint(
     base_url: str | None = None,
     rerank: dict | None = None,
     llm: dict | None = None,
+    indexer_limits: tuple[int | None, int | None] = (None, None),
 ) -> str:
     """Seed un endpoint arbitraire (coffre 'rag' créé au besoin) → endpoint_id.
 
-    `rerank` : dict {provider, model, api_key_ref?, base_url?, top_k?}.
-    `llm`    : dict {provider, model, api_key_ref?, base_url?}.
+    `rerank` : dict {provider, model, api_key_ref?, base_url?, top_k?, rpm?, tpm?}.
+    `llm`    : dict {provider, model, api_key_ref?, base_url?, rpm?, tpm?}.
+    `indexer_limits` : (rpm_limit, tpm_limit) du service de vectorisation.
     Sert aux tests qui exercent une sémantique précise (provider inconnu,
     ollama+base_url, rerank à la création…).
     """
@@ -149,8 +151,12 @@ async def seed_endpoint(
                  indexer_api_key_ref, indexer_base_url,
                  rerank_provider, rerank_model, rerank_api_key_ref,
                  rerank_base_url, rerank_top_k,
-                 llm_provider, llm_model, llm_api_key_ref, llm_base_url)
-            VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                 llm_provider, llm_model, llm_api_key_ref, llm_base_url,
+                 indexer_rpm_limit, indexer_tpm_limit,
+                 rerank_rpm_limit, rerank_tpm_limit,
+                 llm_rpm_limit, llm_tpm_limit)
+            VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+                    $16, $17, $18, $19, $20, $21)
             ON CONFLICT (vault_id, slug) DO UPDATE SET
                 indexer_provider = EXCLUDED.indexer_provider,
                 indexer_model = EXCLUDED.indexer_model,
@@ -164,7 +170,13 @@ async def seed_endpoint(
                 llm_provider = EXCLUDED.llm_provider,
                 llm_model = EXCLUDED.llm_model,
                 llm_api_key_ref = EXCLUDED.llm_api_key_ref,
-                llm_base_url = EXCLUDED.llm_base_url
+                llm_base_url = EXCLUDED.llm_base_url,
+                indexer_rpm_limit = EXCLUDED.indexer_rpm_limit,
+                indexer_tpm_limit = EXCLUDED.indexer_tpm_limit,
+                rerank_rpm_limit = EXCLUDED.rerank_rpm_limit,
+                rerank_tpm_limit = EXCLUDED.rerank_tpm_limit,
+                llm_rpm_limit = EXCLUDED.llm_rpm_limit,
+                llm_tpm_limit = EXCLUDED.llm_tpm_limit
             RETURNING id
             """,
             vault_id, slug, provider, model, api_key_ref, base_url,
@@ -172,6 +184,9 @@ async def seed_endpoint(
             rr.get("base_url"), rr.get("top_k"),
             lm.get("provider"), lm.get("model"), lm.get("api_key_ref"),
             lm.get("base_url"),
+            indexer_limits[0], indexer_limits[1],
+            rr.get("rpm"), rr.get("tpm"),
+            lm.get("rpm"), lm.get("tpm"),
         )
         return str(endpoint_id)
     finally:

@@ -275,3 +275,75 @@ def test_refresh_endpoint_updates_llm_and_key(
         assert llm == "qwen3:14b"
 
     asyncio.run(check())
+
+
+def test_rate_limits_copied_at_creation_and_refresh(
+    admin_client, admin_headers, cleanup_ws_dbs_api, pg_container
+):
+    """Les limites RPM/TPM par service suivent l'endpoint : copiées à la
+    création du workspace, mises à jour au refresh (NULL = désactivée)."""
+    import asyncio
+
+    import asyncpg
+
+    from tests.api.conftest import seed_endpoint
+
+    endpoint_id = asyncio.run(
+        seed_endpoint(
+            pg_container,
+            slug="ep-limits",
+            provider="openai",
+            model="text-embedding-3-small",
+            indexer_limits=(3000, 500_000),
+            llm={"provider": "ollama", "model": "qwen3:14b", "rpm": 60, "tpm": 100_000},
+        )
+    )
+    r = admin_client.post(
+        "/api/admin/workspaces",
+        headers=admin_headers,
+        json={"name": "ws-limits", "label": "ws-limits", "endpoint_id": endpoint_id},
+    )
+    assert r.status_code == 201, r.text
+    detail = admin_client.get("/api/admin/workspaces/ws-limits", headers=admin_headers).json()
+    assert detail["indexer"]["rpm_limit"] == 3000
+    assert detail["indexer"]["tpm_limit"] == 500_000
+
+    async def fetch_limits() -> tuple:
+        conn = await asyncpg.connect(pg_container)
+        try:
+            idx = await conn.fetchrow(
+                "SELECT ic.rpm_limit, ic.tpm_limit FROM indexer_configs ic "
+                "JOIN workspaces w ON w.id = ic.workspace_id WHERE w.name='ws-limits'"
+            )
+            llm = await conn.fetchrow(
+                "SELECT lc.rpm_limit, lc.tpm_limit FROM workspace_llm_configs lc "
+                "JOIN workspaces w ON w.id = lc.workspace_id WHERE w.name='ws-limits'"
+            )
+        finally:
+            await conn.close()
+        return idx, llm
+
+    idx, llm = asyncio.run(fetch_limits())
+    assert (idx["rpm_limit"], idx["tpm_limit"]) == (3000, 500_000)
+    assert (llm["rpm_limit"], llm["tpm_limit"]) == (60, 100_000)
+
+    # L'endpoint évolue : limite indexeur modifiée, règle TPM llm désactivée.
+    asyncio.run(
+        seed_endpoint(
+            pg_container,
+            slug="ep-limits",
+            provider="openai",
+            model="text-embedding-3-small",
+            indexer_limits=(1500, None),
+            llm={"provider": "ollama", "model": "qwen3:14b", "rpm": 30},
+        )
+    )
+    resp = admin_client.post(
+        "/api/admin/workspaces/ws-limits/refresh-endpoint", headers=admin_headers
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["indexer"] == "updated"  # limites seules = pas de reindex
+
+    idx, llm = asyncio.run(fetch_limits())
+    assert (idx["rpm_limit"], idx["tpm_limit"]) == (1500, None)
+    assert (llm["rpm_limit"], llm["tpm_limit"]) == (30, None)
