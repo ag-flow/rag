@@ -36,3 +36,11 @@ export function usePricing() {
     staleTime: 5 * 60 * 1000, // 5 min — le fichier ne change pas souvent
   });
 }
+
+export function useRerankPairings() {
+  return useQuery({
+    queryKey: ["models-rerank-pairings"],
+    queryFn: () => modelsApi.rerankPairings(),
+    staleTime: 5 * 60 * 1000, // référentiel seedé par migration, quasi statique
+  });
+}

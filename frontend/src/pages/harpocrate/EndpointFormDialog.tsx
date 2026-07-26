@@ -21,7 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useProviderKeys } from "@/hooks/useHarpocrateVaults";
-import { useModels } from "@/hooks/useModels";
+import { useModels, useRerankPairings } from "@/hooks/useModels";
+import { pairingNote } from "@/lib/models";
 import { RERANK_PROVIDERS } from "@/pages/workspace/WorkspaceRerankTab.schema";
 import { vaultEndpointsApi, type SectionTestResult } from "@/lib/vault-endpoints";
 import { useCreateEndpoint, useUpdateEndpoint } from "@/hooks/useVaultEndpoints";
@@ -57,6 +58,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
   const { toast } = useToast();
   const { data: providerKeys = [] } = useProviderKeys(vaultId);
   const { data: models = [] } = useModels();
+  const { data: rerankPairings = [] } = useRerankPairings();
   const createMutation = useCreateEndpoint(vaultId);
   const updateMutation = useUpdateEndpoint(vaultId);
 
@@ -148,6 +150,15 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
     rerankModel && !rerankModels.includes(rerankModel)
       ? [rerankModel, ...rerankModels]
       : rerankModels;
+  // Préco : pairing embedder (onglet Vectorisation) → reranker validé
+  // (référentiel rerank_pairings, migration 085).
+  const precoNote = (rerankModelName: string): string | null =>
+    pairingNote(
+      rerankPairings,
+      { provider, model },
+      { provider: rerankProvider, model: rerankModelName },
+    );
+  const selectedPrecoNote = rerankModel ? precoNote(rerankModel) : null;
 
   function handleProviderChange(next: string) {
     setProvider(next);
@@ -411,11 +422,16 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                         <SelectContent>
                           {rerankModelOptions.map((m) => (
                             <SelectItem key={m} value={m}>
-                              {m}
+                              {precoNote(m) ? `${m} · ${t("endpoints.preco")}` : m}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      {selectedPrecoNote && (
+                        <p className="mt-1 text-xs text-emerald-700">
+                          ★ {selectedPrecoNote}
+                        </p>
+                      )}
                       {rerankModels.length === 0 && (
                         <p className="mt-1 text-xs text-slate-400">
                           {t("endpoints.rerank_models_hint")}

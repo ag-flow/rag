@@ -47,3 +47,12 @@ export interface PricingData {
   providers?: Record<string, ProviderPricing>;
   remarques_globales?: Array<{ fr?: string; en?: string }>;
 }
+
+/** Préconisation de pairing embedder → reranker (motifs LIKE, '%' joker). */
+export interface RerankPairing {
+  embed_provider_like: string;
+  embed_model_like: string;
+  rerank_provider_like: string;
+  rerank_model_like: string;
+  note: string;
+}

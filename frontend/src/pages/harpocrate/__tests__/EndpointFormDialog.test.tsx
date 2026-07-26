@@ -19,6 +19,7 @@ vi.mock("@/hooks/useModels", () => ({
       { provider: "ollama", model: "qwen3:14b", kind: "llm", dimension: null },
     ],
   }),
+  useRerankPairings: () => ({ data: [] }),
 }));
 vi.mock("@/hooks/useProviderKeys", () => ({
   useProviderKeys: () => ({ data: [] }),
