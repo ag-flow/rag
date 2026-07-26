@@ -81,9 +81,16 @@ def test_azure_foundry_without_base_url_raises() -> None:
         _make(service="voyage", provider="azure-foundry", base_url=None)
 
 
+def test_cloud_openai_compatible_platforms_return_adapter() -> None:
+    """fireworks / deepinfra / together / cohere : Bearer + service openai."""
+    for provider in ("fireworks", "deepinfra", "together", "cohere"):
+        p = _make(service="openai", provider=provider, model="m")
+        assert isinstance(p, EmbeddingProviderAdapter)
+
+
 def test_unknown_provider_raises() -> None:
     with pytest.raises(ValueError, match="Unsupported provider"):
-        _make(provider="cohere")
+        _make(provider="nope-provider")
 
 
 def test_unknown_service_raises() -> None:

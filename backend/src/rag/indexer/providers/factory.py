@@ -19,6 +19,11 @@ _DIRECT_URLS: dict[str, str] = {
     "jina":      "https://api.jina.ai/v1",
     "gemini":    "https://generativelanguage.googleapis.com/v1beta/openai",
     "dashscope": "https://dashscope-intl.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding",
+    # Plateformes cloud OpenAI-compatibles (service 'openai', auth Bearer).
+    "fireworks": "https://api.fireworks.ai/inference/v1",
+    "deepinfra": "https://api.deepinfra.com/v1/openai",
+    "together":  "https://api.together.xyz/v1",
+    "cohere":    "https://api.cohere.ai/compatibility/v1",
 }
 
 _OLLAMA_DEFAULT_BASE_URL = "http://192.168.10.80:11434"

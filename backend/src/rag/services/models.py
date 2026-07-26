@@ -30,6 +30,26 @@ async def list_models(config_pool: asyncpg.Pool, *, owner_id: str) -> list[Model
     ]
 
 
+# Capacité IA (protocole d'appel) par plateforme d'accès — cf. factory.
+# Les plateformes absentes de la table sont OpenAI-compatibles par défaut.
+_SERVICE_BY_PROVIDER: dict[str, str] = {
+    "openai": "openai",
+    "voyage": "voyage",
+    "mistral": "mistral",
+    "jina": "jina",
+    "gemini": "gemini",
+    "dashscope": "dashscope",
+    "ollama": "ollama",
+    "ollama-cloud": "ollama",
+    "bedrock": "bedrock",
+}
+
+
+def service_for_provider(provider: str) -> str:
+    """Service (protocole) à router pour une plateforme donnée."""
+    return _SERVICE_BY_PROVIDER.get(provider, "openai")
+
+
 async def add_model(
     config_pool: asyncpg.Pool,
     *,
@@ -47,13 +67,14 @@ async def add_model(
     """
     async with config_pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO model_dimensions (provider, model, dimension, owner_id, kind)"
-            " VALUES ($1, $2, $3, $4, $5)",
+            "INSERT INTO model_dimensions (provider, model, dimension, owner_id, kind, service)"
+            " VALUES ($1, $2, $3, $4, $5, $6)",
             provider,
             model,
             dimension,
             owner_id,
             kind,
+            service_for_provider(provider),
         )
 
 

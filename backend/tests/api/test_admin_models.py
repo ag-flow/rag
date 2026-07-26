@@ -44,6 +44,24 @@ def test_get_models_includes_rerank_seed(
     assert ("ollama", "bge-reranker-v2-m3") in rerank
 
 
+def test_get_models_includes_cloud_embedding_seed(
+    admin_client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    """La migration 082 seed les embeddings cloud (cohere, fireworks,
+    deepinfra, together, bedrock)."""
+    entries = admin_client.get("/api/admin/models", headers=admin_headers).json()
+    embed = {
+        (e["provider"], e["model"]): e["dimension"]
+        for e in entries
+        if e["kind"] == "embedding"
+    }
+    assert embed[("cohere", "embed-v4")] == 1536
+    assert embed[("deepinfra", "BAAI/bge-m3")] == 1024
+    assert embed[("together", "intfloat/multilingual-e5-large-instruct")] == 1024
+    assert embed[("bedrock", "amazon.titan-embed-text-v2:0")] == 1024
+    assert embed[("fireworks", "nomic-ai/nomic-embed-text-v1.5")] == 768
+
+
 def test_post_model_409_duplicate(admin_client: TestClient, admin_headers: dict[str, str]) -> None:
     r = admin_client.post(
         "/api/admin/models",
