@@ -311,7 +311,16 @@
     "call_url_missing_base": "— fill in the Base URL",
     "limits_title": "Rate limits (provider quota)",
     "limit_rpm": "Requests / minute",
-    "limit_tpm": "Tokens / minute"
+    "limit_tpm": "Tokens / minute",
+    "fallback": "Fallback",
+    "fallback_intro": "If a service of this endpoint becomes unavailable (connection refused, timeout, 5xx — never 429s), the matching service of the fallback takes over, service by service, then the primary is retried automatically.",
+    "fallback_select": "Fallback endpoint",
+    "fallback_none": "No fallback",
+    "fallback_incompatible_hint": "different embedding model (will be rejected)",
+    "fallback_vector_rule": "The fallback's vectorization must serve the same embedding model (index vectors are tied to the model). Rerank and LLM can be substituted freely.",
+    "fallback_threshold": "Failures before switching",
+    "fallback_cooldown": "Primary retry (seconds)",
+    "fallback_breaker_help": "After this many consecutive failures, calls switch to the fallback; after the delay, the primary is retried and takes over again as soon as it responds."
   },
   "expiry": {
     "banner_expired": "This vault's access key has expired — replace it (⋯ menu → Replace key) before secret resolution fails.",

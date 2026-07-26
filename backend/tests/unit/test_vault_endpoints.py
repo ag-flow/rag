@@ -56,6 +56,9 @@ def _row(**overrides):
         "rerank_tpm_limit": None,
         "llm_rpm_limit": None,
         "llm_tpm_limit": None,
+        "fallback_endpoint_id": None,
+        "failure_threshold": 3,
+        "cooldown_seconds": 60,
         "created_at": datetime(2026, 7, 16, tzinfo=UTC),
         "updated_at": datetime(2026, 7, 16, tzinfo=UTC),
     }

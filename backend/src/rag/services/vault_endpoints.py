@@ -14,6 +14,7 @@ from rag.schemas.vault_endpoints import (
     EndpointUpdate,
     slugify,
 )
+from rag.services.endpoint_fallback import validate_fallback
 
 log = structlog.get_logger(__name__)
 
@@ -31,6 +32,7 @@ _SELECT_BY_VAULT = """
            indexer_rpm_limit, indexer_tpm_limit,
            rerank_rpm_limit, rerank_tpm_limit,
            llm_rpm_limit, llm_tpm_limit,
+           fallback_endpoint_id, failure_threshold, cooldown_seconds,
            created_at, updated_at
     FROM vault_endpoints WHERE vault_id = $1 ORDER BY label
 """
@@ -44,6 +46,7 @@ _SELECT_BY_ID = """
            indexer_rpm_limit, indexer_tpm_limit,
            rerank_rpm_limit, rerank_tpm_limit,
            llm_rpm_limit, llm_tpm_limit,
+           fallback_endpoint_id, failure_threshold, cooldown_seconds,
            created_at, updated_at
     FROM vault_endpoints WHERE id = $1
 """
@@ -68,6 +71,7 @@ _INSERT = """
               indexer_rpm_limit, indexer_tpm_limit,
               rerank_rpm_limit, rerank_tpm_limit,
               llm_rpm_limit, llm_tpm_limit,
+              fallback_endpoint_id, failure_threshold, cooldown_seconds,
               created_at, updated_at
 """
 
@@ -83,6 +87,7 @@ _UPDATE = """
         indexer_rpm_limit = $16, indexer_tpm_limit = $17,
         rerank_rpm_limit = $18, rerank_tpm_limit = $19,
         llm_rpm_limit = $20, llm_tpm_limit = $21,
+        fallback_endpoint_id = $22, failure_threshold = $23, cooldown_seconds = $24,
         updated_at = now()
     WHERE id = $1
     RETURNING id, vault_id, label, slug,
@@ -93,6 +98,7 @@ _UPDATE = """
               indexer_rpm_limit, indexer_tpm_limit,
               rerank_rpm_limit, rerank_tpm_limit,
               llm_rpm_limit, llm_tpm_limit,
+              fallback_endpoint_id, failure_threshold, cooldown_seconds,
               created_at, updated_at
 """
 
@@ -134,6 +140,9 @@ def _to_out(row: asyncpg.Record) -> EndpointOut:
         ),
         rerank=rerank,
         llm=llm,
+        fallback_endpoint_id=row["fallback_endpoint_id"],
+        failure_threshold=row["failure_threshold"],
+        cooldown_seconds=row["cooldown_seconds"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -159,9 +168,13 @@ async def create_endpoint(
     try:
         row = await conn.fetchrow(
             _INSERT,
-            vault_id, req.label, slug,
-            req.indexer.provider, req.indexer.model,
-            req.indexer.api_key_ref, req.indexer.base_url,
+            vault_id,
+            req.label,
+            slug,
+            req.indexer.provider,
+            req.indexer.model,
+            req.indexer.api_key_ref,
+            req.indexer.base_url,
             rerank.provider if rerank else None,
             rerank.model if rerank else None,
             rerank.api_key_ref if rerank else None,
@@ -171,7 +184,8 @@ async def create_endpoint(
             req.llm.model if req.llm else None,
             req.llm.api_key_ref if req.llm else None,
             req.llm.base_url if req.llm else None,
-            req.indexer.rpm_limit, req.indexer.tpm_limit,
+            req.indexer.rpm_limit,
+            req.indexer.tpm_limit,
             rerank.rpm_limit if rerank else None,
             rerank.tpm_limit if rerank else None,
             req.llm.rpm_limit if req.llm else None,
@@ -189,6 +203,8 @@ async def update_endpoint(
     """Met à jour label et/ou configs. Le slug reste figé (identité stable).
 
     Snapshot : la modification n'affecte que les workspaces créés ensuite.
+    Le fallback est validé avant écriture (même coffre, un seul niveau,
+    vectorisation compatible) — lève EndpointFallbackInvalidError sinon.
     """
     current = await get_endpoint(conn, endpoint_id=endpoint_id)
     if current is None:
@@ -199,11 +215,41 @@ async def update_endpoint(
         None if req.clear_rerank else (req.rerank if req.rerank is not None else current.rerank)
     )
     llm = None if req.clear_llm else (req.llm if req.llm is not None else current.llm)
+    fallback_id = (
+        None
+        if req.clear_fallback
+        else (
+            req.fallback_endpoint_id
+            if req.fallback_endpoint_id is not None
+            else current.fallback_endpoint_id
+        )
+    )
+    threshold = (
+        req.failure_threshold if req.failure_threshold is not None else current.failure_threshold
+    )
+    cooldown = (
+        req.cooldown_seconds if req.cooldown_seconds is not None else current.cooldown_seconds
+    )
+    if fallback_id is not None:
+        # Revalidé même quand seul l'indexeur change : la compatibilité de
+        # vectorisation dépend du couple (primaire, fallback).
+        await validate_fallback(
+            conn,
+            endpoint_id=endpoint_id,
+            vault_id=current.vault_id,
+            fallback_id=fallback_id,
+            indexer_provider=indexer.provider,
+            indexer_model=indexer.model,
+        )
 
     row = await conn.fetchrow(
         _UPDATE,
-        endpoint_id, label,
-        indexer.provider, indexer.model, indexer.api_key_ref, indexer.base_url,
+        endpoint_id,
+        label,
+        indexer.provider,
+        indexer.model,
+        indexer.api_key_ref,
+        indexer.base_url,
         rerank.provider if rerank else None,
         rerank.model if rerank else None,
         rerank.api_key_ref if rerank else None,
@@ -213,11 +259,15 @@ async def update_endpoint(
         llm.model if llm else None,
         llm.api_key_ref if llm else None,
         llm.base_url if llm else None,
-        indexer.rpm_limit, indexer.tpm_limit,
+        indexer.rpm_limit,
+        indexer.tpm_limit,
         rerank.rpm_limit if rerank else None,
         rerank.tpm_limit if rerank else None,
         llm.rpm_limit if llm else None,
         llm.tpm_limit if llm else None,
+        fallback_id,
+        threshold,
+        cooldown,
     )
     log.info("vault_endpoint.updated", endpoint_id=str(endpoint_id))
     return _to_out(row)

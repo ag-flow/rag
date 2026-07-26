@@ -32,9 +32,14 @@ vi.mock("@/hooks/useModels", () => ({
 vi.mock("@/hooks/useProviderKeys", () => ({
   useProviderKeys: () => ({ data: [] }),
 }));
+const { updateMutateAsync, vaultEndpointsData } = vi.hoisted(() => ({
+  updateMutateAsync: vi.fn(),
+  vaultEndpointsData: [] as unknown[],
+}));
 vi.mock("@/hooks/useVaultEndpoints", () => ({
   useCreateEndpoint: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useUpdateEndpoint: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateEndpoint: () => ({ mutateAsync: updateMutateAsync, isPending: false }),
+  useVaultEndpoints: () => ({ data: vaultEndpointsData }),
 }));
 
 import { vaultEndpointsApi } from "@/lib/vault-endpoints";
@@ -84,7 +89,15 @@ describe("EndpointFormDialog — onglets + test par service", () => {
         base_url: "http://o:11434",
       },
       rerank: null,
-      llm: { provider: "ollama", model: "qwen3:14b", api_key_ref: null, base_url: "http://o:11434" },
+      llm: {
+        provider: "ollama",
+        model: "qwen3:14b",
+        api_key_ref: null,
+        base_url: "http://o:11434",
+      },
+      fallback_endpoint_id: null,
+      failure_threshold: 3,
+      cooldown_seconds: 60,
       created_at: "2026-07-01T00:00:00Z",
       updated_at: "2026-07-01T00:00:00Z",
     };
@@ -118,6 +131,54 @@ describe("EndpointFormDialog — onglets + test par service", () => {
 
     // Le champ modèle est un Select alimenté par le registre (pas le serveur).
     expect(await screen.findByRole("combobox", { name: "Modèle LLM" })).toBeInTheDocument();
+  });
+
+  it("l'onglet Fallback n'existe qu'en édition et envoie les paramètres du breaker", async () => {
+    updateMutateAsync.mockReset().mockResolvedValue(undefined);
+    const endpoint = {
+      id: "e1",
+      vault_id: "v1",
+      label: "Ollama",
+      slug: "ollama",
+      indexer: {
+        provider: "ollama",
+        model: "mxbai-embed-large",
+        api_key_ref: null,
+        base_url: "http://o:11434",
+      },
+      rerank: null,
+      llm: null,
+      fallback_endpoint_id: null,
+      failure_threshold: 3,
+      cooldown_seconds: 60,
+      created_at: "2026-07-01T00:00:00Z",
+      updated_at: "2026-07-01T00:00:00Z",
+    };
+    renderWithProviders(
+      <EndpointFormDialog vaultId="v1" endpoint={endpoint} open={true} onOpenChange={() => {}} />,
+    );
+
+    const fallbackTab = screen.getByRole("tab", { name: "Fallback" });
+    fireEvent.mouseDown(fallbackTab);
+    fireEvent.click(fallbackTab);
+    const threshold = await screen.findByRole("spinbutton", { name: "Échecs avant bascule" });
+    expect(threshold).toHaveValue(3);
+    fireEvent.change(threshold, { target: { value: "5" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() => expect(updateMutateAsync).toHaveBeenCalled());
+    const { payload } = updateMutateAsync.mock.calls[0]![0];
+    expect(payload.clear_fallback).toBe(true); // aucun fallback sélectionné
+    expect(payload.failure_threshold).toBe(5);
+    expect(payload.cooldown_seconds).toBe(60);
+  });
+
+  it("pas d'onglet Fallback en création", () => {
+    renderWithProviders(
+      <EndpointFormDialog vaultId="v1" endpoint={null} open={true} onOpenChange={() => {}} />,
+    );
+    expect(screen.queryByRole("tab", { name: "Fallback" })).not.toBeInTheDocument();
   });
 
   it("URL de paramétrage sans masque → préremplit la Base URL à la sélection du modèle", async () => {

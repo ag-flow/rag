@@ -33,6 +33,9 @@ const EP: VaultEndpoint = {
     top_k_pre_rerank: 25,
   },
   llm: null,
+  fallback_endpoint_id: null,
+  failure_threshold: 3,
+  cooldown_seconds: 60,
   created_at: "2026-07-01T00:00:00Z",
   updated_at: "2026-07-01T00:00:00Z",
 };
@@ -84,9 +87,7 @@ describe("VaultEndpointsTab", () => {
     const dialog = await screen.findByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: /Supprimer/i }));
     await waitFor(() =>
-      expect(deleteSpy).toHaveBeenCalledWith(
-        "/api/admin/harpocrate-vaults/v-1/endpoints/ep-1",
-      ),
+      expect(deleteSpy).toHaveBeenCalledWith("/api/admin/harpocrate-vaults/v-1/endpoints/ep-1"),
     );
   });
 });

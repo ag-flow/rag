@@ -10,6 +10,7 @@ from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.auth.owner import get_current_owner_id
 from rag.schemas.vault_endpoints import EndpointCreate, EndpointOut, EndpointUpdate
 from rag.services import vault_endpoints as svc
+from rag.services.endpoint_fallback import EndpointFallbackInvalidError
 from rag.services.endpoint_test import (
     EndpointTestRequest,
     EndpointTestResult,
@@ -45,9 +46,7 @@ async def list_endpoints(vault_id: UUID, request: Request) -> list[EndpointOut]:
 
 
 @router.post("", response_model=EndpointOut, status_code=201)
-async def create_endpoint(
-    vault_id: UUID, req: EndpointCreate, request: Request
-) -> EndpointOut:
+async def create_endpoint(vault_id: UUID, req: EndpointCreate, request: Request) -> EndpointOut:
     await _checked_vault(request, vault_id)
     pool = request.app.state.pools.config_pool
     async with pool.acquire() as conn:
@@ -68,16 +67,17 @@ async def update_endpoint(
     await _checked_vault(request, vault_id)
     pool = request.app.state.pools.config_pool
     async with pool.acquire() as conn:
-        updated = await svc.update_endpoint(conn, endpoint_id=endpoint_id, req=req)
+        try:
+            updated = await svc.update_endpoint(conn, endpoint_id=endpoint_id, req=req)
+        except EndpointFallbackInvalidError as exc:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
     if updated is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "endpoint not found")
     return updated
 
 
 @router.delete("/{endpoint_id}", status_code=204)
-async def delete_endpoint(
-    vault_id: UUID, endpoint_id: UUID, request: Request
-) -> Response:
+async def delete_endpoint(vault_id: UUID, endpoint_id: UUID, request: Request) -> Response:
     await _checked_vault(request, vault_id)
     pool = request.app.state.pools.config_pool
     async with pool.acquire() as conn:

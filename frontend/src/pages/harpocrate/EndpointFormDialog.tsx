@@ -25,7 +25,8 @@ import { useModels, useProviderUrlTemplates, useRerankPairings } from "@/hooks/u
 import { pairingNote, resolveCallUrl } from "@/lib/models";
 import { RERANK_PROVIDERS } from "@/pages/workspace/WorkspaceRerankTab.schema";
 import { vaultEndpointsApi, type SectionTestResult } from "@/lib/vault-endpoints";
-import { useCreateEndpoint, useUpdateEndpoint } from "@/hooks/useVaultEndpoints";
+import { useCreateEndpoint, useUpdateEndpoint, useVaultEndpoints } from "@/hooks/useVaultEndpoints";
+import { EndpointFallbackSection, FALLBACK_NONE } from "@/pages/harpocrate/EndpointFallbackSection";
 import { useToast } from "@/hooks/useToast";
 import { slugifyLabel } from "@/lib/slugify";
 import type { VaultEndpoint } from "@/lib/vault-endpoints.types";
@@ -62,6 +63,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
   const { data: urlTemplates = {} } = useProviderUrlTemplates();
   const createMutation = useCreateEndpoint(vaultId);
   const updateMutation = useUpdateEndpoint(vaultId);
+  const { data: vaultEndpoints = [] } = useVaultEndpoints(vaultId);
 
   const [label, setLabel] = useState("");
   const [provider, setProvider] = useState("openai");
@@ -86,6 +88,10 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
   const [rerankTpm, setRerankTpm] = useState("");
   const [llmRpm, setLlmRpm] = useState("");
   const [llmTpm, setLlmTpm] = useState("");
+  // Fallback (édition seulement) — chaînes pour les champs numériques.
+  const [fallbackId, setFallbackId] = useState<string>(FALLBACK_NONE);
+  const [failThreshold, setFailThreshold] = useState("3");
+  const [cooldownSecs, setCooldownSecs] = useState("60");
 
   // Modèles LLM : la TABLE DES MODÈLES (page Models, kind='llm') est le
   // référentiel — comme la vectorisation. Repli saisie libre si vide.
@@ -99,9 +105,9 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
       : llmModelOptions;
 
   const [testing, setTesting] = useState<TestSection | null>(null);
-  const [testResults, setTestResults] = useState<
-    Partial<Record<TestSection, SectionTestResult>>
-  >({});
+  const [testResults, setTestResults] = useState<Partial<Record<TestSection, SectionTestResult>>>(
+    {},
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -127,6 +133,9 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
     setRerankTpm(endpoint?.rerank?.tpm_limit != null ? String(endpoint.rerank.tpm_limit) : "");
     setLlmRpm(endpoint?.llm?.rpm_limit != null ? String(endpoint.llm.rpm_limit) : "");
     setLlmTpm(endpoint?.llm?.tpm_limit != null ? String(endpoint.llm.tpm_limit) : "");
+    setFallbackId(endpoint?.fallback_endpoint_id ?? FALLBACK_NONE);
+    setFailThreshold(String(endpoint?.failure_threshold ?? 3));
+    setCooldownSecs(String(endpoint?.cooldown_seconds ?? 60));
     setTestResults({});
   }, [open, endpoint]);
 
@@ -182,9 +191,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
     modelName: string,
     baseUrlValue: string,
   ) {
-    const registryEntry = models.find(
-      (m) => m.provider === providerName && m.model === modelName,
-    );
+    const registryEntry = models.find((m) => m.provider === providerName && m.model === modelName);
     const resolved = resolveCallUrl(urlTemplates, capability, {
       provider: providerName,
       model: modelName,
@@ -325,9 +332,22 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
   async function handleSubmit() {
     try {
       if (endpoint) {
+        const intOr = (v: string, dflt: number): number => {
+          const n = Number(v.trim());
+          return Number.isFinite(n) && n >= 1 ? Math.floor(n) : dflt;
+        };
         await updateMutation.mutateAsync({
           endpointId: endpoint.id,
-          payload: { ...buildPayload(), clear_rerank: !rerankOn, clear_llm: !llmOn },
+          payload: {
+            ...buildPayload(),
+            clear_rerank: !rerankOn,
+            clear_llm: !llmOn,
+            ...(fallbackId === FALLBACK_NONE
+              ? { clear_fallback: true }
+              : { fallback_endpoint_id: fallbackId }),
+            failure_threshold: intOr(failThreshold, 3),
+            cooldown_seconds: intOr(cooldownSecs, 60),
+          },
         });
         toast({ title: t("endpoints.updated_toast") });
       } else {
@@ -350,8 +370,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
         rerank: section === "rerank" ? payload.rerank : null,
         llm: section === "llm" ? payload.llm : null,
       });
-      const sectionResult =
-        section === "vectorization" ? result.vectorization : result[section];
+      const sectionResult = section === "vectorization" ? result.vectorization : result[section];
       if (sectionResult) {
         setTestResults((prev) => ({ ...prev, [section]: sectionResult }));
       }
@@ -434,7 +453,23 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
               <TabsTrigger value="vectorization">{t("endpoints.vectorization")}</TabsTrigger>
               <TabsTrigger value="rerank">{t("endpoints.rerank")}</TabsTrigger>
               <TabsTrigger value="llm">{t("endpoints.llm")}</TabsTrigger>
+              {endpoint && <TabsTrigger value="fallback">{t("endpoints.fallback")}</TabsTrigger>}
             </TabsList>
+
+            {endpoint && (
+              <TabsContent value="fallback" className="rounded-md border p-3">
+                <EndpointFallbackSection
+                  endpoint={endpoint}
+                  endpoints={vaultEndpoints}
+                  fallbackId={fallbackId}
+                  onFallbackChange={setFallbackId}
+                  failureThreshold={failThreshold}
+                  onFailureThresholdChange={setFailThreshold}
+                  cooldownSeconds={cooldownSecs}
+                  onCooldownChange={setCooldownSecs}
+                />
+              </TabsContent>
+            )}
 
             <TabsContent value="vectorization" className="rounded-md border p-3">
               <div className="grid grid-cols-2 gap-3">
@@ -549,9 +584,7 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                         </SelectContent>
                       </Select>
                       {selectedPrecoNote && (
-                        <p className="mt-1 text-xs text-emerald-700">
-                          ★ {selectedPrecoNote}
-                        </p>
+                        <p className="mt-1 text-xs text-emerald-700">★ {selectedPrecoNote}</p>
                       )}
                       {rerankModels.length === 0 && (
                         <p className="mt-1 text-xs text-slate-400">

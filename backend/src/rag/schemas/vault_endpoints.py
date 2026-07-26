@@ -80,6 +80,8 @@ class EndpointUpdate(BaseModel):
     """Le slug est figé à la création ; label et configs restent éditables.
 
     Snapshot : la modification n'affecte que les workspaces créés ensuite.
+    Le fallback (même coffre, un seul niveau, vectorisation compatible) et les
+    paramètres du breaker se règlent ici — `clear_fallback` retire le lien.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -90,6 +92,10 @@ class EndpointUpdate(BaseModel):
     clear_rerank: bool = False
     llm: EndpointLlmSpec | None = None
     clear_llm: bool = False
+    fallback_endpoint_id: UUID | None = None
+    clear_fallback: bool = False
+    failure_threshold: int | None = Field(default=None, ge=1, le=100)
+    cooldown_seconds: int | None = Field(default=None, ge=1, le=3600)
 
 
 class EndpointOut(BaseModel):
@@ -100,5 +106,8 @@ class EndpointOut(BaseModel):
     indexer: EndpointIndexerSpec
     rerank: EndpointRerankSpec | None
     llm: EndpointLlmSpec | None
+    fallback_endpoint_id: UUID | None = None
+    failure_threshold: int = 3
+    cooldown_seconds: int = 60
     created_at: datetime
     updated_at: datetime

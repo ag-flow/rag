@@ -41,6 +41,10 @@ export type VaultEndpoint = {
   indexer: EndpointIndexerSpec;
   rerank: EndpointRerankSpec | null;
   llm: EndpointLlmSpec | null;
+  /** Fallback par service (même coffre, un seul niveau) + paramètres breaker. */
+  fallback_endpoint_id: string | null;
+  failure_threshold: number;
+  cooldown_seconds: number;
   created_at: string;
   updated_at: string;
 };
@@ -59,4 +63,8 @@ export type EndpointUpdate = {
   clear_rerank?: boolean;
   llm?: EndpointLlmSpec | null;
   clear_llm?: boolean;
+  fallback_endpoint_id?: string | null;
+  clear_fallback?: boolean;
+  failure_threshold?: number | null;
+  cooldown_seconds?: number | null;
 };

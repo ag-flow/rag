@@ -311,7 +311,16 @@
     "call_url_missing_base": "— renseignez la Base URL",
     "limits_title": "Limites de débit (rate limit du provider)",
     "limit_rpm": "Requêtes / minute",
-    "limit_tpm": "Tokens / minute"
+    "limit_tpm": "Tokens / minute",
+    "fallback": "Fallback",
+    "fallback_intro": "En cas d'indisponibilité d'un service de cet endpoint (connexion refusée, timeout, 5xx — jamais les 429), le service homologue du fallback prend le relais, service par service, puis le primaire est re-testé automatiquement.",
+    "fallback_select": "Endpoint de fallback",
+    "fallback_none": "Aucun fallback",
+    "fallback_incompatible_hint": "modèle d'embedding différent (sera refusé)",
+    "fallback_vector_rule": "La vectorisation du fallback doit servir le même modèle d'embedding (les vecteurs de l'index sont liés au modèle). Rerank et LLM sont substituables librement.",
+    "fallback_threshold": "Échecs avant bascule",
+    "fallback_cooldown": "Re-test du primaire (secondes)",
+    "fallback_breaker_help": "Après ce nombre d'échecs consécutifs, les appels basculent sur le fallback ; passé le délai, le primaire est re-testé et reprend la main dès qu'il répond."
   },
   "expiry": {
     "banner_expired": "La clé d'accès de ce coffre est expirée — remplacez-la (menu ⋯ → Remplacer la clé) avant que la résolution de secrets n'échoue.",

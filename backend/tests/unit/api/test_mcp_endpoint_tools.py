@@ -111,9 +111,7 @@ async def test_list_endpoints_groups_by_vault_with_writable_flag(
     shared = _vault_row(name="commun", owner_id="", is_default=True)
     conn = MagicMock()
     conn.fetch = AsyncMock(return_value=[own, shared])
-    monkeypatch.setattr(
-        endpoints_svc, "list_endpoints", AsyncMock(return_value=[_endpoint_out()])
-    )
+    monkeypatch.setattr(endpoints_svc, "list_endpoints", AsyncMock(return_value=[_endpoint_out()]))
     tools = _register(conn)
 
     payload = json.loads(await tools["list_endpoints"]())
@@ -134,9 +132,7 @@ async def test_get_endpoint_configuration_exposes_quotas_not_ids(
     vault = _vault_row()
     conn = MagicMock()
     conn.fetchrow = AsyncMock(return_value=vault)
-    monkeypatch.setattr(
-        endpoints_svc, "list_endpoints", AsyncMock(return_value=[_endpoint_out()])
-    )
+    monkeypatch.setattr(endpoints_svc, "list_endpoints", AsyncMock(return_value=[_endpoint_out()]))
     tools = _register(conn)
 
     payload = json.loads(await tools["get_endpoint_configuration"]("coffre-a", "azure-prod"))
@@ -202,9 +198,7 @@ async def test_configure_new_section_requires_provider_and_model(
     vault = _vault_row()
     conn = MagicMock()
     conn.fetchrow = AsyncMock(return_value=vault)
-    monkeypatch.setattr(
-        endpoints_svc, "list_endpoints", AsyncMock(return_value=[_endpoint_out()])
-    )
+    monkeypatch.setattr(endpoints_svc, "list_endpoints", AsyncMock(return_value=[_endpoint_out()]))
     tools = _register(conn)
 
     out = await tools["configure_endpoint_service"](
@@ -219,9 +213,7 @@ async def test_configure_clear_vectorization_refused(monkeypatch: pytest.MonkeyP
     vault = _vault_row()
     conn = MagicMock()
     conn.fetchrow = AsyncMock(return_value=vault)
-    monkeypatch.setattr(
-        endpoints_svc, "list_endpoints", AsyncMock(return_value=[_endpoint_out()])
-    )
+    monkeypatch.setattr(endpoints_svc, "list_endpoints", AsyncMock(return_value=[_endpoint_out()]))
     tools = _register(conn)
 
     out = await tools["configure_endpoint_service"](
@@ -238,3 +230,84 @@ async def test_configure_unknown_service() -> None:
     out = await tools["configure_endpoint_service"]("coffre-a", "azure-prod", "embedding")
 
     assert "Service inconnu" in out
+
+
+@pytest.mark.asyncio
+async def test_set_fallback_resolves_slug_to_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    vault = _vault_row()
+    primary = _endpoint_out(slug="azure-prod")
+    mirror = _endpoint_out(slug="ollama-mirror")
+    conn = MagicMock()
+    conn.fetchrow = AsyncMock(return_value=vault)
+    monkeypatch.setattr(endpoints_svc, "list_endpoints", AsyncMock(return_value=[primary, mirror]))
+    update_mock = AsyncMock(return_value=primary)
+    monkeypatch.setattr(endpoints_svc, "update_endpoint", update_mock)
+    tools = _register(conn)
+
+    out = await tools["set_endpoint_fallback"](
+        "coffre-a", "azure-prod", "ollama-mirror", failure_threshold=5
+    )
+
+    req = update_mock.call_args.kwargs["req"]
+    assert req.fallback_endpoint_id == mirror.id
+    assert req.clear_fallback is False
+    assert req.failure_threshold == 5
+    payload = json.loads(out)
+    assert payload["fallback"] == "ollama-mirror"
+
+
+@pytest.mark.asyncio
+async def test_set_fallback_empty_string_clears(monkeypatch: pytest.MonkeyPatch) -> None:
+    vault = _vault_row()
+    primary = _endpoint_out(slug="azure-prod")
+    conn = MagicMock()
+    conn.fetchrow = AsyncMock(return_value=vault)
+    monkeypatch.setattr(endpoints_svc, "list_endpoints", AsyncMock(return_value=[primary]))
+    update_mock = AsyncMock(return_value=primary)
+    monkeypatch.setattr(endpoints_svc, "update_endpoint", update_mock)
+    tools = _register(conn)
+
+    out = await tools["set_endpoint_fallback"]("coffre-a", "azure-prod", "")
+
+    req = update_mock.call_args.kwargs["req"]
+    assert req.clear_fallback is True
+    assert req.fallback_endpoint_id is None
+    assert json.loads(out)["fallback"] is None
+
+
+@pytest.mark.asyncio
+async def test_set_fallback_unknown_slug(monkeypatch: pytest.MonkeyPatch) -> None:
+    vault = _vault_row()
+    conn = MagicMock()
+    conn.fetchrow = AsyncMock(return_value=vault)
+    monkeypatch.setattr(endpoints_svc, "list_endpoints", AsyncMock(return_value=[_endpoint_out()]))
+    tools = _register(conn)
+
+    out = await tools["set_endpoint_fallback"]("coffre-a", "azure-prod", "inexistant")
+
+    assert "introuvable" in out
+
+
+@pytest.mark.asyncio
+async def test_set_fallback_service_refusal_is_pedagogical(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from rag.services.endpoint_fallback import EndpointFallbackInvalidError
+
+    vault = _vault_row()
+    primary = _endpoint_out(slug="azure-prod")
+    mirror = _endpoint_out(slug="autre-modele")
+    conn = MagicMock()
+    conn.fetchrow = AsyncMock(return_value=vault)
+    monkeypatch.setattr(endpoints_svc, "list_endpoints", AsyncMock(return_value=[primary, mirror]))
+    monkeypatch.setattr(
+        endpoints_svc,
+        "update_endpoint",
+        AsyncMock(side_effect=EndpointFallbackInvalidError("vectorisation incompatible : x")),
+    )
+    tools = _register(conn)
+
+    out = await tools["set_endpoint_fallback"]("coffre-a", "azure-prod", "autre-modele")
+
+    assert out.startswith("Fallback refusé")
+    assert "vectorisation incompatible" in out
