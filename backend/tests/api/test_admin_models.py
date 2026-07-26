@@ -46,6 +46,8 @@ def test_get_models_includes_rerank_seed(
     assert ("fireworks", "accounts/fireworks/models/qwen3-reranker-8b") in rerank
     assert ("deepinfra", "Qwen/Qwen3-Reranker-8B") in rerank
     assert ("mixedbread", "mxbai-rerank-large-v2") in rerank
+    # Migration 088 : Cohere Rerank v4.0 via Azure Foundry.
+    assert ("azure-foundry", "Cohere-rerank-v4.0-fast") in rerank
 
 
 def test_get_models_includes_llm_enrichment_seed(
