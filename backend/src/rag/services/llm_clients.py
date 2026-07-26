@@ -73,6 +73,14 @@ async def call_llm(
         return await _call_openai(
             model=model, api_key=api_key, system=system_prompt, messages=messages
         )
+    if provider in _OPENAI_COMPATIBLE_URLS:
+        return await _call_openai_compatible(
+            model=model,
+            api_key=api_key,
+            base_url=base_url or _OPENAI_COMPATIBLE_URLS[provider],
+            system=system_prompt,
+            messages=messages,
+        )
     if provider == "azure-openai":
         return await _call_azure_openai(
             model=model, api_key=api_key, base_url=base_url, system=system_prompt, messages=messages
@@ -108,6 +116,35 @@ async def _call_claude(
         "usage": {
             "prompt_tokens": response.usage.input_tokens,
             "completion_tokens": response.usage.output_tokens,
+        },
+    }
+
+
+# Providers de chat OpenAI-compatibles : URL par défaut, surchargée par la
+# base_url de la config le cas échéant.
+_OPENAI_COMPATIBLE_URLS: dict[str, str] = {
+    "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "deepseek": "https://api.deepseek.com/v1",
+    "dashscope": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+}
+
+
+async def _call_openai_compatible(
+    *,
+    model: str,
+    api_key: str | None,
+    base_url: str,
+    system: str,
+    messages: list[dict[str, str]],
+) -> dict[str, Any]:
+    client = openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
+    full_messages = [{"role": "system", "content": system}, *messages]
+    response = await client.chat.completions.create(model=model, messages=full_messages)
+    return {
+        "answer": response.choices[0].message.content or "",
+        "usage": {
+            "prompt_tokens": response.usage.prompt_tokens,
+            "completion_tokens": response.usage.completion_tokens,
         },
     }
 

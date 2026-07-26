@@ -48,6 +48,19 @@ def test_get_models_includes_rerank_seed(
     assert ("mixedbread", "mxbai-rerank-large-v2") in rerank
 
 
+def test_get_models_includes_llm_enrichment_seed(
+    admin_client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    """La migration 084 seed les LLM d'enrichissement (batch coût/qualité)."""
+    entries = admin_client.get("/api/admin/models", headers=admin_headers).json()
+    llm = {(e["provider"], e["model"]) for e in entries if e["kind"] == "llm"}
+    assert ("openai", "gpt-4.1-nano") in llm
+    assert ("claude", "claude-haiku-4-5") in llm
+    assert ("gemini", "gemini-2.5-flash") in llm
+    assert ("deepseek", "deepseek-v4-flash") in llm
+    assert ("dashscope", "qwen3.7-max") in llm
+
+
 def test_get_models_includes_cloud_embedding_seed(
     admin_client: TestClient, admin_headers: dict[str, str]
 ) -> None:
