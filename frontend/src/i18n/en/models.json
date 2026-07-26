@@ -12,7 +12,9 @@
     "delete": "Delete",
     "system": "System",
     "kind_rerank": "Rerank",
-    "kind_llm": "LLM"
+    "kind_llm": "LLM",
+    "edit": "Edit",
+    "url_template": "URL template"
   },
   "time": {
     "now": "just now",
@@ -61,6 +63,12 @@
       "confirm": "Delete",
       "success": "Model deleted.",
       "error": "Failed to delete."
+    },
+    "edit": {
+      "title": "Edit model",
+      "submit": "Save",
+      "success": "Model updated",
+      "error": "Update failed"
     }
   },
   "filter": {

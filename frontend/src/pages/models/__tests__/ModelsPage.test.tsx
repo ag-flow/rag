@@ -58,6 +58,7 @@ vi.mock("@/hooks/useModels", () => ({
     isLoading: false,
   }),
   useCreateModel: () => ({ mutate: vi.fn(), isPending: false }),
+  useUpdateModel: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteModel: () => ({ mutate: vi.fn(), isPending: false }),
   usePricing: () => ({ data: undefined }),
 }));

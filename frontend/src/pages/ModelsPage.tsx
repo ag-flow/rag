@@ -12,6 +12,7 @@ import {
 import { useModels, usePricing } from "@/hooks/useModels";
 import type { ModelEntry, ModelKind, ModelPricingEntry, ProviderPricing } from "@/lib/models.types";
 import { AddModelDialog } from "@/pages/models/AddModelDialog";
+import { EditModelDialog } from "@/pages/models/EditModelDialog";
 import { DeleteModelAlert } from "@/pages/models/DeleteModelAlert";
 
 function useRelativeTime() {
@@ -81,6 +82,7 @@ export function ModelsPage() {
   const { data: pricingData } = usePricing();
   const [addOpen, setAddOpen] = useState(false);
   const [toDelete, setToDelete] = useState<{ provider: string; model: string } | null>(null);
+  const [toEdit, setToEdit] = useState<ModelEntry | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [kindFilter, setKindFilter] = useState<ModelKind | "all">("all");
 
@@ -244,6 +246,9 @@ export function ModelsPage() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onSelect={() => setToEdit(entry)}>
+                                    {t("row.edit")}
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onSelect={() =>
                                       setToDelete({ provider: entry.provider, model: entry.model })
@@ -256,6 +261,12 @@ export function ModelsPage() {
                               </DropdownMenu>
                             )}
                           </div>
+                          {entry.url_template && (
+                            <p className="mt-0.5 text-xs text-slate-400">
+                              {t("row.url_template")} :{" "}
+                              <span className="font-mono">{entry.url_template}</span>
+                            </p>
+                          )}
                           {description && (
                             <p className="mt-0.5 text-xs text-slate-400 pl-0">{description}</p>
                           )}
@@ -272,6 +283,7 @@ export function ModelsPage() {
 
       <AddModelDialog open={addOpen} onOpenChange={setAddOpen} />
       <DeleteModelAlert entry={toDelete} onClose={() => setToDelete(null)} />
+      <EditModelDialog entry={toEdit} onOpenChange={(o) => !o && setToEdit(null)} />
     </div>
   );
 }

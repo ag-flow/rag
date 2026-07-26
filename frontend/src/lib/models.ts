@@ -2,6 +2,7 @@ import { api } from "@/lib/api";
 import type {
   ModelCreateRequest,
   ModelEntry,
+  ModelUpdateRequest,
   PricingData,
   ProviderUrlTemplates,
   RerankPairing,
@@ -14,6 +15,11 @@ export const modelsApi = {
   create: (payload: ModelCreateRequest) => api.post<ModelEntry>(BASE, payload),
   delete: (provider: string, model: string) =>
     api.delete<void>(`${BASE}/${encodeURIComponent(provider)}/${encodeURIComponent(model)}`),
+  update: (provider: string, model: string, payload: ModelUpdateRequest) =>
+    api.patch<ModelEntry>(
+      `${BASE}/${encodeURIComponent(provider)}/${encodeURIComponent(model)}`,
+      payload,
+    ),
   pricing: () => api.get<PricingData>(`${BASE}/pricing`),
   rerankPairings: () => api.get<RerankPairing[]>(`${BASE}/rerank-pairings`),
   urlTemplates: () => api.get<ProviderUrlTemplates>("/api/admin/providers/url-templates"),

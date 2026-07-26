@@ -25,6 +25,13 @@ export type ModelCreateRequest = {
   url_template?: string | null;
 };
 
+/** Body PATCH — la clé (provider, model) est immuable. */
+export type ModelUpdateRequest = {
+  kind: ModelKind;
+  dimension: number | null;
+  url_template?: string | null;
+};
+
 // ─── Pricing YAML types ───────────────────────────────────────────────────────
 
 export interface ModelPricingEntry {

@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { modelsApi } from "@/lib/models";
-import type { ModelCreateRequest, ModelEntry, PricingData } from "@/lib/models.types";
+import type {
+  ModelCreateRequest,
+  ModelEntry,
+  ModelUpdateRequest,
+  PricingData,
+} from "@/lib/models.types";
 
 export function useModels() {
   return useQuery({
@@ -23,6 +28,20 @@ export function useDeleteModel() {
   const qc = useQueryClient();
   return useMutation<void, Error, { provider: string; model: string }>({
     mutationFn: ({ provider, model }) => modelsApi.delete(provider, model),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["models"] });
+    },
+  });
+}
+
+export function useUpdateModel() {
+  const qc = useQueryClient();
+  return useMutation<
+    ModelEntry,
+    Error,
+    { provider: string; model: string; payload: ModelUpdateRequest }
+  >({
+    mutationFn: ({ provider, model, payload }) => modelsApi.update(provider, model, payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["models"] });
     },
