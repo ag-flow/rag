@@ -193,6 +193,19 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
     );
   }
 
+  // Si le modèle du registre porte une URL de paramétrage SANS masque
+  // (aucun placeholder {…}, ex. https://api.jina.ai/v1), elle est une base
+  // directement utilisable : on préremplit le champ Base URL avec.
+  function fillBaseUrlFromModel(
+    providerName: string,
+    modelName: string,
+    setBase: (v: string) => void,
+  ) {
+    const entry = models.find((m) => m.provider === providerName && m.model === modelName);
+    const tpl = (entry?.url_template ?? "").trim();
+    if (tpl && !tpl.includes("{")) setBase(tpl);
+  }
+
   function handleProviderChange(next: string) {
     setProvider(next);
     const first = models.find((m) => m.provider === next)?.model ?? "";
@@ -378,7 +391,13 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                 </div>
                 <div>
                   <Label className="text-xs text-slate-600">{t("endpoints.model")}</Label>
-                  <Select value={model} onValueChange={setModel}>
+                  <Select
+                    value={model}
+                    onValueChange={(m) => {
+                      setModel(m);
+                      fillBaseUrlFromModel(provider, m, setBaseUrl);
+                    }}
+                  >
                     <SelectTrigger className="mt-1" aria-label={t("endpoints.model")}>
                       <SelectValue placeholder={t("endpoints.select_placeholder")} />
                     </SelectTrigger>
@@ -447,7 +466,10 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                       <Label className="text-xs text-slate-600">{t("endpoints.model")}</Label>
                       <Select
                         value={rerankModel}
-                        onValueChange={setRerankModel}
+                        onValueChange={(m) => {
+                          setRerankModel(m);
+                          fillBaseUrlFromModel(rerankProvider, m, setRerankBaseUrl);
+                        }}
                         disabled={rerankModelOptions.length === 0}
                       >
                         <SelectTrigger className="mt-1" aria-label={t("endpoints.model")}>
@@ -542,7 +564,10 @@ export function EndpointFormDialog({ vaultId, endpoint, open, onOpenChange }: Pr
                           dans la page Models. */}
                       <Select
                         value={llmModel}
-                        onValueChange={setLlmModel}
+                        onValueChange={(m) => {
+                          setLlmModel(m);
+                          fillBaseUrlFromModel(llmProvider, m, setLlmBaseUrl);
+                        }}
                         disabled={llmModelChoices.length === 0}
                       >
                         <SelectTrigger className="mt-1" aria-label={t("endpoints.llm_model")}>

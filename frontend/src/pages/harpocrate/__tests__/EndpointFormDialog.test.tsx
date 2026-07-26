@@ -16,6 +16,13 @@ vi.mock("@/hooks/useModels", () => ({
   useModels: () => ({
     data: [
       { provider: "ollama", model: "mxbai-embed-large", kind: "embedding", dimension: 1024 },
+      {
+        provider: "ollama",
+        model: "bge-m3",
+        kind: "embedding",
+        dimension: 1024,
+        url_template: "http://192.168.10.80:11434",
+      },
       { provider: "ollama", model: "qwen3:14b", kind: "llm", dimension: null },
     ],
   }),
@@ -111,5 +118,19 @@ describe("EndpointFormDialog — onglets + test par service", () => {
 
     // Le champ modèle est un Select alimenté par le registre (pas le serveur).
     expect(await screen.findByRole("combobox", { name: "Modèle LLM" })).toBeInTheDocument();
+  });
+
+  it("URL de paramétrage sans masque → préremplit la Base URL à la sélection du modèle", async () => {
+    renderWithProviders(
+      <EndpointFormDialog vaultId="v1" endpoint={null} open={true} onOpenChange={() => {}} />,
+    );
+
+    const modelSelect = screen.getByRole("combobox", { name: "Modèle" });
+    fireEvent.mouseDown(modelSelect);
+    fireEvent.click(modelSelect);
+    fireEvent.click(await screen.findByRole("option", { name: "bge-m3" }));
+
+    const baseUrlInputs = screen.getAllByPlaceholderText(/11434/);
+    expect(baseUrlInputs[0]).toHaveValue("http://192.168.10.80:11434");
   });
 });
