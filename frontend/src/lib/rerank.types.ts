@@ -8,7 +8,10 @@ export type RerankProvider =
   | "jina"
   | "dashscope"
   | "azure-foundry"
-  | "ollama";
+  | "ollama"
+  | "fireworks"
+  | "deepinfra"
+  | "mixedbread";
 
 export type RerankConfig = {
   workspace_id: string;
