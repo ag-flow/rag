@@ -88,9 +88,25 @@ function renderPage() {
   );
 }
 
+function expandAll() {
+  // Les entêtes de groupe sont les boutons contenant le compteur "(n)".
+  for (const btn of screen.getAllByRole("button")) {
+    if (/\(\d+\)/.test(btn.textContent ?? "")) fireEvent.click(btn);
+  }
+}
+
 describe("ModelsPage", () => {
+  it("au chargement, tous les blocs provider sont collapsés", () => {
+    renderPage();
+    // Les entêtes sont visibles mais aucun modèle n'est affiché.
+    expect(screen.getByText(/openai/)).toBeInTheDocument();
+    expect(screen.queryByText("text-embedding-3-small")).not.toBeInTheDocument();
+    expect(screen.queryByText("nomic-embed-text")).not.toBeInTheDocument();
+  });
+
   it("affiche les modèles groupés par provider, sections triées alphabétiquement", () => {
     renderPage();
+    expandAll();
     // Les deux providers présents :
     expect(screen.getByText(/openai/)).toBeInTheDocument();
     expect(screen.getByText(/ollama/)).toBeInTheDocument();
@@ -102,6 +118,7 @@ describe("ModelsPage", () => {
 
   it("badge Système sur les modèles du catalogue, suppression réservée aux modèles possédés", () => {
     renderPage();
+    expandAll();
     // 3 modèles système → 3 badges ; les modèles utilisateur n'en ont pas.
     expect(screen.getAllByText("Système")).toHaveLength(3);
     // Deux menus d'actions (les modèles utilisateur) : les système n'en ont pas.
@@ -110,6 +127,7 @@ describe("ModelsPage", () => {
 
   it("affiche le type sur les lignes rerank et llm (pas de dimension)", () => {
     renderPage();
+    expandAll();
     // "LLM" existe aussi comme bouton de filtre → on cible les spans de ligne.
     const rowLabels = [...document.querySelectorAll("li span.text-slate-500")].map(
       (el) => el.textContent,
@@ -121,6 +139,7 @@ describe("ModelsPage", () => {
   it("filtre par type : Reranking ne garde que les modèles kind=rerank", () => {
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: "Reranking" }));
+    expandAll();
     expect(screen.getByText("rerank-v3.5")).toBeInTheDocument();
     expect(screen.queryByText("text-embedding-3-small")).not.toBeInTheDocument();
     expect(screen.queryByText("llama3.1:8b")).not.toBeInTheDocument();
@@ -129,6 +148,7 @@ describe("ModelsPage", () => {
   it("filtre par type : LLM ne garde que les modèles kind=llm", () => {
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: "LLM" }));
+    expandAll();
     expect(screen.getByText("llama3.1:8b")).toBeInTheDocument();
     expect(screen.queryByText("rerank-v3.5")).not.toBeInTheDocument();
   });

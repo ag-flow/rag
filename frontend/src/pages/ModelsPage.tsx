@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, MoreHorizontal, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -98,17 +98,6 @@ export function ModelsPage() {
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [data, kindFilter]);
-
-  // Open all sections by default once data loads.
-  useEffect(() => {
-    if (grouped.length > 0) {
-      setExpanded((prev) => {
-        // Only initialize once (when expanded is empty)
-        if (prev.size > 0) return prev;
-        return new Set(grouped.map(([p]) => p));
-      });
-    }
-  }, [grouped]);
 
   const toggle = (provider: string) => {
     setExpanded((prev) => {
