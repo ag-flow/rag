@@ -4,8 +4,11 @@ import pytest
 
 from rag.rerank.providers.azure_foundry import AzureFoundryRerankProvider
 from rag.rerank.providers.cohere import CohereRerankProvider
+from rag.rerank.providers.deepinfra import DeepInfraRerankProvider
 from rag.rerank.providers.factory import make_rerank_provider
+from rag.rerank.providers.fireworks import FireworksRerankProvider
 from rag.rerank.providers.jina import JinaRerankProvider
+from rag.rerank.providers.mixedbread import MixedbreadRerankProvider
 from rag.rerank.providers.ollama import OllamaRerankProvider
 from rag.rerank.providers.voyage import VoyageRerankProvider
 
@@ -96,3 +99,20 @@ def test_factory_azure_foundry_missing_base_url() -> None:
         make_rerank_provider(
             provider="azure-foundry", model="m", api_key="k", base_url=None,
         )
+
+
+def test_factory_cloud_platforms() -> None:
+    cases = [
+        ("fireworks", FireworksRerankProvider),
+        ("deepinfra", DeepInfraRerankProvider),
+        ("mixedbread", MixedbreadRerankProvider),
+    ]
+    for provider, cls in cases:
+        p = make_rerank_provider(provider=provider, model="m", api_key="k", base_url=None)
+        assert isinstance(p, cls)
+
+
+def test_factory_cloud_platforms_require_api_key() -> None:
+    for provider in ("fireworks", "deepinfra", "mixedbread"):
+        with pytest.raises(ValueError, match="requires api_key"):
+            make_rerank_provider(provider=provider, model="m", api_key=None, base_url=None)

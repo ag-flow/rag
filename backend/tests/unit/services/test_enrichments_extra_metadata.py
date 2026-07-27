@@ -27,13 +27,21 @@ async def test_run_enrichments_passes_extra_metadata_to_index_file():
 
     conn = MagicMock()
     conn.fetchrow = AsyncMock(return_value=None)  # no existing enrichment
-    conn.fetch = AsyncMock(return_value=[trigger_row])
+    # 1er fetch = résolution du trigger par pattern, 2e = prompts du trigger.
+    conn.fetch = AsyncMock(
+        side_effect=[
+            [{"id": uuid4(), "pattern": "**/*.py", "strategy_id": None}],
+            [trigger_row],
+        ]
+    )
     conn.execute = AsyncMock()
 
     indexer = MagicMock()
     indexer.index_file = AsyncMock(return_value=1)
 
-    with patch("rag.services.enrichments.call_llm", AsyncMock(return_value={"answer": "fn_a, fn_b"})):
+    with patch(
+        "rag.services.enrichments.call_llm", AsyncMock(return_value={"answer": "fn_a, fn_b"})
+    ):
         await run_enrichments(
             conn=conn,
             workspace_id=ws_id,

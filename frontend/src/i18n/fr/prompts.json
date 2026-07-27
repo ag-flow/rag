@@ -26,5 +26,26 @@
   "save": "Créer",
   "cancel": "Annuler",
   "error_toast": "Erreur lors de la création.",
-  "error_duplicate": "Un prompt avec ce nom existe déjà."
+  "error_duplicate": "Un prompt avec ce nom existe déjà.",
+  "field_mode": "Mode",
+  "mode_document": "Document — métadonnée post-index",
+  "mode_chunk": "Chunk — contexte injecté à l'embedding",
+  "mode_region": "Région — description embeddée à sa place",
+  "mode_document_help": "Métadonnée ajoutée après indexation — ne modifie pas les vecteurs et n'apparaît PAS dans les stratégies de découpage.",
+  "mode_chunk_help": "Liable dans une stratégie de découpage : le contexte généré est préfixé au texte embeddé (modifie les vecteurs → réindexation).",
+  "mode_region_help": "Liable dans une stratégie avec parser de régions : la description générée est embeddée à la place du source de la région (modifie les vecteurs → réindexation).",
+  "field_region_type": "Type de région",
+  "field_region_qualifier": "Qualifier (optionnel)",
+  "mode_inline_hint": "Injecté dans le texte embeddé (placeholders {chunk} et {document}) : jamais actif par défaut, activez-le via un trigger. Le résultat est mis en cache par hash du chunk source.",
+  "edit_btn": "Modifier",
+  "system_immutable": "Prompt système — non modifiable",
+  "edit": {
+    "title": "Modifier le prompt",
+    "description_label": "Description",
+    "prompt_label": "Prompt",
+    "schema_label": "Schéma JSON attendu",
+    "schema_invalid": "JSON invalide.",
+    "save": "Enregistrer",
+    "saved": "Prompt enregistré."
+  }
 }

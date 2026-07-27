@@ -1,18 +1,30 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { usePrompts, useDeletePrompt } from "@/hooks/useEnrichments";
 import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/lib/api";
 import { AddPromptDialog } from "./workspace/AddPromptDialog";
+import { EditPromptDialog } from "./prompts/EditPromptDialog";
 import type { PromptTemplate } from "@/lib/enrichments.types";
 
 export function PromptsPage() {
@@ -21,6 +33,7 @@ export function PromptsPage() {
   const { data: prompts = [], isLoading } = usePrompts();
   const deleteMutation = useDeletePrompt();
   const [addOpen, setAddOpen] = useState(false);
+  const [toEdit, setToEdit] = useState<PromptTemplate | null>(null);
   const [toDelete, setToDelete] = useState<PromptTemplate | null>(null);
 
   async function handleDelete() {
@@ -78,11 +91,13 @@ export function PromptsPage() {
                     {p.metadata_key}
                   </TableCell>
                   <TableCell>
-                    <span className={`rounded px-2 py-0.5 text-xs font-medium ${
-                      p.result_type === "json"
-                        ? "bg-amber-100 text-amber-700"
-                        : "bg-slate-100 text-slate-700"
-                    }`}>
+                    <span
+                      className={`rounded px-2 py-0.5 text-xs font-medium ${
+                        p.result_type === "json"
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-slate-100 text-slate-700"
+                      }`}
+                    >
                       {p.result_type}
                     </span>
                   </TableCell>
@@ -90,14 +105,28 @@ export function PromptsPage() {
                     {p.description ?? "—"}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setToDelete(p)}
-                      className="text-rose-600 hover:text-rose-700"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setToEdit(p)}
+                        disabled={p.is_system}
+                        title={p.is_system ? t("system_immutable") : t("edit_btn")}
+                        aria-label={t("edit_btn")}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setToDelete(p)}
+                        disabled={p.is_system}
+                        title={p.is_system ? t("system_immutable") : t("delete_btn")}
+                        className="text-rose-600 hover:text-rose-700"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -107,8 +136,14 @@ export function PromptsPage() {
       )}
 
       <AddPromptDialog open={addOpen} onOpenChange={setAddOpen} />
+      <EditPromptDialog prompt={toEdit} onOpenChange={(o) => !o && setToEdit(null)} />
 
-      <AlertDialog open={!!toDelete} onOpenChange={(o) => { if (!o) setToDelete(null); }}>
+      <AlertDialog
+        open={!!toDelete}
+        onOpenChange={(o) => {
+          if (!o) setToDelete(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("delete_confirm_title")}</AlertDialogTitle>

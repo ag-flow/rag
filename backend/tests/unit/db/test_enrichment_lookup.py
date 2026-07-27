@@ -19,26 +19,33 @@ class TestGetEnrichment:
     @pytest.mark.asyncio
     async def test_returns_text_result(self):
         pool = MagicMock()
-        pool.fetchrow = AsyncMock(return_value={
-            "result": "liste de fonctions",
-            "result_type": "text",
-            "result_schema": None,
-        })
-        result = await get_enrichment(pool, workspace_id=uuid4(), path="a.py", key="public_functions")
+        pool.fetchrow = AsyncMock(
+            return_value={
+                "result": "liste de fonctions",
+                "result_type": "text",
+            }
+        )
+        result = await get_enrichment(
+            pool, workspace_id=uuid4(), path="a.py", key="public_functions"
+        )
         assert result is not None
         assert result["result"] == "liste de fonctions"
         assert result["result_type"] == "text"
-        assert result["result_schema"] is None
+        # result_schema n'est plus renvoyé (colonne inexistante sur le snapshot).
+        assert "result_schema" not in result
 
     @pytest.mark.asyncio
     async def test_returns_json_result(self):
         pool = MagicMock()
-        pool.fetchrow = AsyncMock(return_value={
-            "result": '["fn_a", "fn_b"]',
-            "result_type": "json",
-            "result_schema": '{"type": "array"}',
-        })
-        result = await get_enrichment(pool, workspace_id=uuid4(), path="a.py", key="public_functions")
+        pool.fetchrow = AsyncMock(
+            return_value={
+                "result": '["fn_a", "fn_b"]',
+                "result_type": "json",
+            }
+        )
+        result = await get_enrichment(
+            pool, workspace_id=uuid4(), path="a.py", key="public_functions"
+        )
         assert result is not None
         assert result["result_type"] == "json"
         assert result["result"] == '["fn_a", "fn_b"]'

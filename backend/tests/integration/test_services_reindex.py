@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import re
 from collections.abc import Iterator
 from pathlib import Path
@@ -12,7 +13,7 @@ import pytest
 from rag.api.errors import IndexerChangeRequiresReindex, WorkspaceNotFound
 from rag.db.migrations import run_migrations
 from rag.db.workspace_schema import derive_workspace_dsn
-from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
+from rag.schemas.admin import IndexerCreateSpec, IndexerSpec, WorkspaceCreateResolved
 from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.jobs import reindex_workspace
 from rag.services.workspaces import create_workspace
@@ -27,19 +28,20 @@ class _Resolver:
 
 
 def _make_harpo_service() -> MagicMock:
+    """Stub HarpocrateVaultsService : get_default (await par create_workspace)
+    doit être un AsyncMock."""
     service = MagicMock()
     vault = MagicMock(spec=VaultSummary)
     vault.id = uuid4()
+    vault.name = "rag"
     service.get_by_name = AsyncMock(return_value=vault)
-    service.write_secret = AsyncMock(return_value=None)
-    service.delete_secret = AsyncMock(return_value=None)
+    service.get_default = AsyncMock(return_value=vault)
     return service
 
 
 @pytest.fixture
 def cleanup_ws_dbs(pg_container: str) -> Iterator[None]:
     yield
-    import asyncio
 
     async def _cleanup() -> None:
         admin = await asyncpg.connect(pg_container.rsplit("/", 1)[0] + "/postgres")
@@ -51,17 +53,19 @@ def cleanup_ws_dbs(pg_container: str) -> Iterator[None]:
         finally:
             await admin.close()
 
-    asyncio.get_event_loop().run_until_complete(_cleanup())
+    asyncio.run(_cleanup())
 
 
 async def _create_with_doc(pg_container: str, session_pool: asyncpg.Pool, name: str) -> str:
     """Crée un workspace et insère 1 indexed_document pour simuler du contenu existant."""
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
     await create_workspace(
-        request=WorkspaceCreateRequest(
+        request=WorkspaceCreateResolved(
             name=name,
-            api_key_vault="rag",
-            indexer=IndexerSpec(provider="openai", model="text-embedding-3-small", api_key_ref="k"),
+            label=name,
+            indexer=IndexerCreateSpec(
+                provider="openai", model="text-embedding-3-small", api_key_ref="k"
+            ),
         ),
         config_pool=session_pool,
         admin_dsn=admin_dsn,
@@ -125,7 +129,10 @@ async def test_reindex_indexer_change_with_confirm_recreates_table_and_invalidat
 
     job = await reindex_workspace(
         name="ws_reindex_ok",
-        new_indexer=IndexerSpec(provider="voyage", model="voyage-3", api_key_ref="vk"),
+        new_indexer=IndexerSpec(
+            provider="voyage", model="voyage-3", api_key_ref="vk",
+            base_url="https://api.voyage.example",
+        ),
         confirm=True,
         config_pool=session_pool,
         admin_dsn=admin_dsn,
@@ -137,7 +144,7 @@ async def test_reindex_indexer_change_with_confirm_recreates_table_and_invalidat
 
     # indexer_configs mis à jour
     ic = await session_pool.fetchrow(
-        "SELECT provider, model, dimension, api_key_ref FROM indexer_configs ic "
+        "SELECT provider, model, dimension, api_key_ref, base_url FROM indexer_configs ic "
         "JOIN workspaces w ON w.id = ic.workspace_id WHERE w.name='ws_reindex_ok'"
     )
     assert ic is not None
@@ -145,6 +152,8 @@ async def test_reindex_indexer_change_with_confirm_recreates_table_and_invalidat
     assert ic["model"] == "voyage-3"
     assert ic["dimension"] == 1024
     assert ic["api_key_ref"] == "vk"
+    # base_url suit le changement d'indexeur (bug : il restait sur l'ancien).
+    assert ic["base_url"] == "https://api.voyage.example"
 
     # indexed_documents purgés
     count = await session_pool.fetchval(

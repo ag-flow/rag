@@ -1,107 +1,67 @@
 import { describe, it, expect } from "vitest";
-import { workspaceCreateSchema } from "@/lib/validators";
+import { vaultCreateSchema, vaultUpdateSchema } from "@/lib/validators";
 
-describe("workspaceCreateSchema", () => {
-  it("accepts valid openai workspace", () => {
-    const result = workspaceCreateSchema.safeParse({
-      name: "workspace1",
-      api_key_vault: "vault-main",
-      indexer: {
-        provider: "openai",
-        model: "text-embedding-3-small",
-        api_key: "sk-abc123",
-      },
-    });
+// workspaceCreateSchema a été retiré : la création de workspace passe par le
+// sélecteur d'endpoint (préréglage du coffre), plus par un formulaire zod.
+
+describe("vaultCreateSchema", () => {
+  const valid = {
+    name: "coffre-principal",
+    label: "Coffre principal",
+    base_url: "https://harpocrate.example",
+    api_key_id: "k-001",
+    api_key: "hrpv_1_supersecret",
+  };
+
+  it("accepts a valid vault", () => {
+    const result = vaultCreateSchema.safeParse(valid);
     expect(result.success).toBe(true);
   });
 
-  it("accepts valid ollama workspace without api_key", () => {
-    const result = workspaceCreateSchema.safeParse({
-      name: "ws_ollama",
-      api_key_vault: "vault-main",
-      indexer: {
-        provider: "ollama",
-        model: "nomic-embed-text",
-        base_url: "http://192.168.10.80:11434",
-      },
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it("rejects empty name", () => {
-    const result = workspaceCreateSchema.safeParse({
-      name: "",
-      api_key_vault: "vault-main",
-      indexer: { provider: "openai", model: "x", api_key: "sk-k" },
-    });
-    expect(result.success).toBe(false);
+  it("defaults probe_path and is_default", () => {
+    const result = vaultCreateSchema.parse(valid);
+    expect(result.probe_path).toBe("");
+    expect(result.is_default).toBe(true);
   });
 
   it("rejects uppercase name", () => {
-    const result = workspaceCreateSchema.safeParse({
-      name: "BadName",
-      api_key_vault: "vault-main",
-      indexer: { provider: "openai", model: "x", api_key: "sk-k" },
-    });
-    expect(result.success).toBe(false);
+    expect(vaultCreateSchema.safeParse({ ...valid, name: "Coffre" }).success).toBe(false);
   });
 
-  it("rejects name longer than 64 chars", () => {
-    const result = workspaceCreateSchema.safeParse({
-      name: "a".repeat(65),
-      api_key_vault: "vault-main",
-      indexer: { provider: "openai", model: "x", api_key: "sk-k" },
-    });
-    expect(result.success).toBe(false);
+  it("rejects non-http base_url", () => {
+    expect(
+      vaultCreateSchema.safeParse({ ...valid, base_url: "ftp://harpocrate" }).success,
+    ).toBe(false);
   });
 
-  it("rejects unknown provider", () => {
-    const result = workspaceCreateSchema.safeParse({
-      name: "ws",
-      api_key_vault: "vault-main",
-      indexer: { provider: "nope", model: "x", api_key: "sk-k" },
-    });
-    expect(result.success).toBe(false);
+  it("rejects short api_key", () => {
+    expect(vaultCreateSchema.safeParse({ ...valid, api_key: "court" }).success).toBe(false);
   });
 
-  it("rejects openai without api_key", () => {
-    const result = workspaceCreateSchema.safeParse({
-      name: "ws",
-      api_key_vault: "vault-main",
-      indexer: { provider: "openai", model: "x" },
-    });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(JSON.stringify(result.error.issues)).toContain("api_key");
-    }
+  it("rejects invalid probe_path characters", () => {
+    expect(
+      vaultCreateSchema.safeParse({ ...valid, probe_path: "santé?!" }).success,
+    ).toBe(false);
   });
+});
 
-  it("accepts ollama without api_key", () => {
-    const result = workspaceCreateSchema.safeParse({
-      name: "ws",
-      api_key_vault: "vault-main",
-      indexer: { provider: "ollama", model: "x" },
+describe("vaultUpdateSchema", () => {
+  it("accepts label + base_url + probe_path", () => {
+    const result = vaultUpdateSchema.safeParse({
+      label: "Nouveau libellé",
+      base_url: "https://harpocrate.example",
+      probe_path: "health",
     });
     expect(result.success).toBe(true);
   });
 
-  it("rejects missing api_key_vault", () => {
-    const result = workspaceCreateSchema.safeParse({
-      name: "ws",
-      indexer: { provider: "ollama", model: "x" },
-    });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(JSON.stringify(result.error.issues)).toContain("api_key_vault");
-    }
-  });
-
-  it("rejects empty api_key_vault", () => {
-    const result = workspaceCreateSchema.safeParse({
-      name: "ws",
-      api_key_vault: "",
-      indexer: { provider: "ollama", model: "x" },
-    });
-    expect(result.success).toBe(false);
+  it("rejects empty label", () => {
+    expect(
+      vaultUpdateSchema.safeParse({
+        label: "",
+        base_url: "https://harpocrate.example",
+        probe_path: "",
+      }).success,
+    ).toBe(false);
   });
 });

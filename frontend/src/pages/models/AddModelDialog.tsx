@@ -30,7 +30,9 @@ const schema = z
     providerSelect: z.enum(PROVIDERS),
     providerOther: z.string().optional(),
     model: z.string().min(1, "model_required"),
+    kind: z.enum(["embedding", "llm", "rerank"]),
     dimension: z.coerce.number().int().positive("dimension_positive"),
+    urlTemplate: z.string().optional(),
   })
   .refine(
     (v) => v.providerSelect !== "autre" || (v.providerOther && v.providerOther.trim().length > 0),
@@ -54,7 +56,9 @@ export function AddModelDialog({ open, onOpenChange }: Props) {
       providerSelect: "openai",
       providerOther: "",
       model: "",
+      kind: "embedding",
       dimension: 1,
+      urlTemplate: "",
     },
   });
 
@@ -63,12 +67,20 @@ export function AddModelDialog({ open, onOpenChange }: Props) {
   }, [open, form]);
 
   const providerSelect = form.watch("providerSelect");
+  const kind = form.watch("kind");
 
   const onSubmit = (v: FormValues) => {
     const provider =
       v.providerSelect === "autre" ? (v.providerOther ?? "").trim() : v.providerSelect;
     create.mutate(
-      { provider, model: v.model, dimension: v.dimension },
+      {
+        provider,
+        model: v.model,
+        kind: v.kind,
+        // Seul un modèle d'embedding a une dimension.
+        dimension: v.kind === "embedding" ? v.dimension : null,
+        url_template: (v.urlTemplate ?? "").trim() || null,
+      },
       {
         onSuccess: () => {
           toast({ title: t("dialog.add.success") });
@@ -135,15 +147,44 @@ export function AddModelDialog({ open, onOpenChange }: Props) {
             )}
           </div>
           <div>
+            <label className="text-xs font-medium text-slate-700">{t("dialog.add.kind")}</label>
+            <Select
+              value={kind}
+              onValueChange={(v) => form.setValue("kind", v as "embedding" | "llm" | "rerank")}
+            >
+              <SelectTrigger aria-label={t("dialog.add.kind")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="embedding">{t("dialog.add.kind_embedding")}</SelectItem>
+                <SelectItem value="rerank">{t("dialog.add.kind_rerank")}</SelectItem>
+                <SelectItem value="llm">{t("dialog.add.kind_llm")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {kind === "embedding" && (
+            <div>
+              <label className="text-xs font-medium text-slate-700">
+                {t("dialog.add.dimension")}
+              </label>
+              <Input type="number" {...form.register("dimension")} min={1} />
+              {form.formState.errors.dimension && (
+                <p className="text-xs text-red-600 mt-1">
+                  {t(`dialog.add.errors.${form.formState.errors.dimension.message}`)}
+                </p>
+              )}
+            </div>
+          )}
+          <div>
             <label className="text-xs font-medium text-slate-700">
-              {t("dialog.add.dimension")}
+              {t("dialog.add.url_template")}
             </label>
-            <Input type="number" {...form.register("dimension")} min={1} />
-            {form.formState.errors.dimension && (
-              <p className="text-xs text-red-600 mt-1">
-                {t(`dialog.add.errors.${form.formState.errors.dimension.message}`)}
-              </p>
-            )}
+            <Input
+              {...form.register("urlTemplate")}
+              className="font-mono"
+              placeholder="{url}/openai/deployments/mon-deploiement/embeddings?api-version=2024-02-01"
+            />
+            <p className="text-xs text-slate-400 mt-1">{t("dialog.add.url_template_hint")}</p>
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>

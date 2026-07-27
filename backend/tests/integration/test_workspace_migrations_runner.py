@@ -4,17 +4,18 @@ import asyncpg
 import pytest
 
 from rag.db.workspace_migrations import apply_pending
+from rag.db.workspace_migrations.runner import _list_versions
+
+# Dérivés du répertoire versions/ (source de vérité) pour que les tests ne
+# dérivent pas à chaque nouvelle migration workspace. L'import du helper privé
+# `_list_versions` est assumé (même choix que `_admin_dsn` dans conftest).
+_ALL_VERSIONS = _list_versions()
+_TOTAL = len(_ALL_VERSIONS)
+_LATEST = max(v for v, _ in _ALL_VERSIONS)
 
 
-@pytest.mark.asyncio
-async def test_apply_pending_applies_migration_001(
-    workspace_test_db: tuple[str, str],
-) -> None:
-    """On a workspace DB that has `embeddings` (legacy schema, no `metadata`),
-    apply_pending should add the `metadata` column and record version 1."""
-    _, dsn = workspace_test_db
-
-    # Seed legacy embeddings table (sans metadata)
+async def _seed_legacy_embeddings(dsn: str) -> None:
+    """Table embeddings 'legacy' (sans metadata) : point de départ des migrations."""
     conn = await asyncpg.connect(dsn)
     try:
         await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
@@ -29,21 +30,30 @@ async def test_apply_pending_applies_migration_001(
     finally:
         await conn.close()
 
-    applied = await apply_pending(dsn)
-    assert applied == 1
 
-    # Verify version + column
+@pytest.mark.asyncio
+async def test_apply_pending_applies_all_versions(
+    workspace_test_db: tuple[str, str],
+) -> None:
+    """Sur une base workspace 'legacy' (embeddings sans `metadata`), apply_pending
+    applique toutes les migrations workspace et enregistre la dernière version."""
+    _, dsn = workspace_test_db
+    await _seed_legacy_embeddings(dsn)
+
+    applied = await apply_pending(dsn)
+    assert applied == _TOTAL
+
     conn = await asyncpg.connect(dsn)
     try:
         version = await conn.fetchval("SELECT MAX(version) FROM workspace_schema_migrations")
-        assert version == 1
+        assert version == _LATEST
         cols = {
             r["column_name"]
             for r in await conn.fetch(
                 "SELECT column_name FROM information_schema.columns WHERE table_name = 'embeddings'"
             )
         }
-        assert "metadata" in cols
+        assert "metadata" in cols  # apport de la migration 001
     finally:
         await conn.close()
 
@@ -54,24 +64,11 @@ async def test_apply_pending_idempotent_on_second_run(
 ) -> None:
     """Re-running apply_pending after success returns 0."""
     _, dsn = workspace_test_db
-
-    conn = await asyncpg.connect(dsn)
-    try:
-        await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        await conn.execute(
-            "CREATE TABLE embeddings ("
-            "id SERIAL PRIMARY KEY, path TEXT NOT NULL, "
-            "chunk_index INT NOT NULL, content TEXT NOT NULL, "
-            "embedding vector(8) NOT NULL, "
-            "indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
-            "UNIQUE (path, chunk_index))"
-        )
-    finally:
-        await conn.close()
+    await _seed_legacy_embeddings(dsn)
 
     first = await apply_pending(dsn)
     second = await apply_pending(dsn)
-    assert first == 1
+    assert first == _TOTAL
     assert second == 0
 
 

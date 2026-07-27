@@ -1,6 +1,7 @@
 import { api } from "@/lib/api";
 import type {
   ChunkingConfig,
+  ChunkingEngine,
   ChunkingSpec,
   ChunkingChangeRequiresReindexBody,
 } from "@/lib/chunking.types";
@@ -13,8 +14,66 @@ export type UpsertChunkingResult =
   | { status: "updated"; config: ChunkingConfig }
   | { status: "reindex_triggered"; job: Job };
 
+export type SetDefaultStrategyResult =
+  | { status: "no_change" }
+  | { status: "updated"; default_strategy_id: string | null }
+  | { status: "reindex_triggered"; job: Job };
+
+export type SetEngineResult =
+  | { status: "no_change" }
+  | { status: "updated"; engine: ChunkingEngine }
+  | { status: "reindex_triggered"; job: Job };
+
 export const chunkingApi = {
   get: (name: string) => api.get<ChunkingConfig>(base(name)),
+
+  /**
+   * PUT /chunking-config/default-strategy?confirm= — binding PAR ID de la
+   * stratégie par défaut du workspace (spec chunking §5). Même protocole que
+   * `upsert` : 204 / 200 / 202, 409 propagé pour le dialog de réindexation.
+   */
+  setDefaultStrategy: async (
+    name: string,
+    strategyId: string | null,
+    confirm: boolean = false,
+  ): Promise<SetDefaultStrategyResult> => {
+    const url = `${base(name)}/default-strategy${confirm ? "?confirm=true" : ""}`;
+    const res = await api.putRaw(url, { strategy_id: strategyId });
+    if (res.status === 204) return { status: "no_change" };
+    if (res.status === 200) {
+      const body = (await res.json()) as { default_strategy_id: string | null };
+      return { status: "updated", default_strategy_id: body.default_strategy_id };
+    }
+    if (res.status === 202) {
+      const job = (await res.json()) as Job;
+      return { status: "reindex_triggered", job };
+    }
+    throw new Error(`Unexpected status ${res.status} from PUT default-strategy`);
+  },
+
+  /**
+   * PUT /chunking-config/engine?confirm= — bascule du moteur de chunking
+   * (`legacy` ↔ `structured`). Même protocole que `upsert` : 204 / 200 / 202,
+   * 409 propagé pour le dialog de réindexation.
+   */
+  setEngine: async (
+    name: string,
+    engine: ChunkingEngine,
+    confirm: boolean = false,
+  ): Promise<SetEngineResult> => {
+    const url = `${base(name)}/engine${confirm ? "?confirm=true" : ""}`;
+    const res = await api.putRaw(url, { engine });
+    if (res.status === 204) return { status: "no_change" };
+    if (res.status === 200) {
+      const body = (await res.json()) as { workspace_id: string; engine: ChunkingEngine };
+      return { status: "updated", engine: body.engine };
+    }
+    if (res.status === 202) {
+      const job = (await res.json()) as Job;
+      return { status: "reindex_triggered", job };
+    }
+    throw new Error(`Unexpected status ${res.status} from PUT engine`);
+  },
 
   /**
    * PUT /chunking-config?confirm={confirm}.

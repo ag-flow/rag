@@ -2,17 +2,32 @@
 import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { LayoutGrid, Database, FileCode, Send, Search, Settings, KeyRound } from "lucide-react";
+import {
+  LayoutGrid,
+  Database,
+  FileCode,
+  Scissors,
+  Send,
+  Search,
+  Settings,
+  KeyRound,
+  Workflow,
+  FileJson,
+  UserRound,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useVaultExpiries } from "@/hooks/useHarpocrateVaults";
+import { worstExpiryStatus } from "@/lib/vault-expiry";
 
 interface NavItemProps {
   to: string;
   icon: ReactNode;
   label: string;
   disabled?: boolean;
+  badge?: ReactNode;
 }
 
-function NavItem({ to, icon, label, disabled = false }: NavItemProps) {
+function NavItem({ to, icon, label, disabled = false, badge }: NavItemProps) {
   if (disabled) {
     return (
       <div
@@ -48,6 +63,7 @@ function NavItem({ to, icon, label, disabled = false }: NavItemProps) {
             {icon}
           </span>
           <span>{label}</span>
+          {badge}
         </>
       )}
     </NavLink>
@@ -56,6 +72,19 @@ function NavItem({ to, icon, label, disabled = false }: NavItemProps) {
 
 export function Sidebar() {
   const { t } = useTranslation("nav");
+  const { data: expiries } = useVaultExpiries();
+  const vaultAlert = worstExpiryStatus(expiries ?? []);
+  const vaultBadge =
+    vaultAlert === "expired" || vaultAlert === "expiring" ? (
+      <span
+        aria-label={t("alerts.vault_key_expiry")}
+        title={t("alerts.vault_key_expiry")}
+        className={
+          "ml-auto h-2 w-2 rounded-full " +
+          (vaultAlert === "expired" ? "bg-rose-500" : "bg-amber-400")
+        }
+      />
+    ) : undefined;
 
   return (
     <aside className="w-[220px] flex-shrink-0 border-r border-slate-200 bg-zinc-50 flex flex-col">
@@ -71,12 +100,17 @@ export function Sidebar() {
         <NavItem to="/workspaces" icon={<LayoutGrid />} label={t("items.workspaces")} />
         <NavItem to="/models" icon={<Database />} label={t("items.models")} />
         <NavItem to="/prompts" icon={<FileCode />} label={t("items.prompts")} />
+        <NavItem
+          to="/chunking-strategies"
+          icon={<Scissors />}
+          label={t("items.chunking_strategies")}
+        />
 
         <div className="px-5 pt-4 pb-1 text-xs font-bold uppercase tracking-wider text-slate-600">
           {t("sections.usage")}
         </div>
-        <NavItem to="/push" icon={<Send />} label={t("items.push")} disabled />
-        <NavItem to="/mcp" icon={<Search />} label={t("items.mcp")} disabled />
+        <NavItem to="/push" icon={<Send />} label={t("items.push")} />
+        <NavItem to="/mcp" icon={<Search />} label={t("items.mcp")} />
 
         <div className="px-5 pt-4 pb-1 text-xs font-bold uppercase tracking-wider text-slate-600">
           {t("sections.configuration")}
@@ -85,8 +119,25 @@ export function Sidebar() {
           to="/settings/harpocrate-vaults"
           icon={<Settings />}
           label={t("items.harpocrate_vaults")}
+          badge={vaultBadge}
         />
+        <NavItem to="/settings/profile" icon={<UserRound />} label={t("items.profile")} />
+        <NavItem to="/settings/api-keys" icon={<KeyRound />} label={t("items.api_keys")} />
         <NavItem to="/settings/oidc-config" icon={<KeyRound />} label={t("items.oidc_config")} />
+
+        <div className="px-5 pt-4 pb-1 text-xs font-bold uppercase tracking-wider text-slate-600">
+          {t("sections.integration")}
+        </div>
+        <NavItem
+          to="/integration/contracts"
+          icon={<FileJson />}
+          label={t("items.integration_contracts")}
+        />
+        <NavItem
+          to="/settings/events-producer"
+          icon={<Workflow />}
+          label={t("items.events_producer")}
+        />
       </nav>
     </aside>
   );

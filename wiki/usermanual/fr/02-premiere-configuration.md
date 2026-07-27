@@ -249,7 +249,7 @@ Voir [05 — Sources git](05-sources-git.md) pour le guide complet.
 - [ ] OIDC configuré (optionnel mais recommandé)
 - [ ] Premier workspace créé
 - [ ] Première source git ajoutée
-- [ ] Clé API workspace récupérée (pour Claude Code)
+- [ ] Clé API personnelle créée avec accès au workspace (Configuration → Clés API)
 
 ---
 

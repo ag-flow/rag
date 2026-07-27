@@ -7,15 +7,7 @@ def _setup_ws_with_doc(client: TestClient, headers: dict[str, str], name: str) -
     client.post(
         "/api/admin/workspaces",
         headers=headers,
-        json={
-            "name": name,
-            "api_key_vault": "rag",
-            "indexer": {
-                "provider": "openai",
-                "model": "text-embedding-3-small",
-                "api_key_ref": "openai_embedding_key",
-            },
-        },
+        json={"name": name, "label": name, "endpoint_id": client.default_endpoint_id},
     )
     import asyncio
     import os
@@ -34,7 +26,9 @@ def _setup_ws_with_doc(client: TestClient, headers: dict[str, str], name: str) -
         finally:
             await conn.close()
 
-    asyncio.get_event_loop().run_until_complete(_insert_doc())
+    # Python 3.12 : get_event_loop() hors boucle courante renvoie une boucle
+    # fermée par pytest-asyncio → RuntimeError. Boucle dédiée via asyncio.run.
+    asyncio.run(_insert_doc())
 
 
 def test_post_reindex_no_change_202_pending(
@@ -98,3 +92,33 @@ def test_get_jobs_lists_pending(
     jobs = r.json()
     assert len(jobs) >= 1
     assert jobs[0]["status"] == "pending"
+
+
+def test_get_job_status_single_returns_200(
+    admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
+) -> None:
+    """A1 : statut d'un job unique côté API admin (parité MCP/Bearer)."""
+    _setup_ws_with_doc(admin_client, admin_headers, "ws_re_e2e_single")
+    admin_client.post("/api/admin/workspaces/ws_re_e2e_single/reindex", headers=admin_headers)
+    jobs = admin_client.get(
+        "/api/admin/workspaces/ws_re_e2e_single/jobs", headers=admin_headers
+    ).json()
+    job_id = jobs[0]["id"]
+
+    r = admin_client.get(
+        f"/api/admin/workspaces/ws_re_e2e_single/jobs/{job_id}", headers=admin_headers
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["id"] == job_id
+
+
+def test_get_job_status_unknown_returns_404(
+    admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
+) -> None:
+    _setup_ws_with_doc(admin_client, admin_headers, "ws_re_e2e_404")
+    r = admin_client.get(
+        "/api/admin/workspaces/ws_re_e2e_404/jobs/00000000-0000-0000-0000-000000000000",
+        headers=admin_headers,
+    )
+    assert r.status_code == 404
+    assert r.json()["error"] == "job_not_found"

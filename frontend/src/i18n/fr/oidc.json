@@ -3,8 +3,17 @@
   "subtitle": "Authentification Single Sign-On (Keycloak, Auth0, …).",
   "fields": {
     "issuer": "Issuer URL",
-    "client_id": "Client ID",
-    "client_secret_ref": "Référence client_secret (Harpocrate)"
+    "client_id": "Client ID"
+  },
+  "client_secret": {
+    "title": "Client secret",
+    "help": "Saisi ici puis persisté côté serveur dans le fichier admin.env (jamais affiché en clair ensuite). Prise en compte immédiate, sans redémarrage.",
+    "set": "Défini",
+    "unset": "Non défini",
+    "placeholder": "Coller le client secret Keycloak",
+    "submit": "Enregistrer",
+    "saved": "Client secret enregistré.",
+    "error": "Échec de l'enregistrement du client secret."
   },
   "actions": {
     "cancel": "Annuler",
@@ -22,5 +31,42 @@
     "required": "Champ requis.",
     "too_long": "Maximum 255 caractères.",
     "alphanum_underscore_only": "Caractères autorisés : a-z, A-Z, 0-9, underscore."
+  },
+  "local_auth": {
+    "title": "Connexion locale (mot de passe)",
+    "help_enabled": "Activée : le formulaire username / mot de passe est proposé sur la page de connexion, en plus du SSO.",
+    "help_disabled": "Désactivée : seul le SSO est proposé ; toute tentative de connexion locale est refusée par le backend.",
+    "breakglass": "Anti-lockout : ce réglage est persisté dans admin.env. Si le SSO tombe en panne, remettez RAG_LOCAL_AUTH_DISABLED=false dans ce fichier sur le serveur pour réactiver la connexion locale.",
+    "error": "Échec de la modification de la connexion locale."
+  },
+  "procedure": {
+    "title": "Créer un Client ID (Keycloak)",
+    "intro": "Procédure détaillée pour créer le client OIDC à référencer ci-dessus. Les valeurs entre chevrons sont à adapter à votre déploiement.",
+    "steps": [
+      "Ouvrir la console d'administration Keycloak (https://<keycloak>/admin) et se connecter avec un compte administrateur du realm.",
+      "En haut à gauche, sélectionner le realm cible (ex. yoops) — c'est ce realm qui figurera dans l'Issuer URL.",
+      "Menu Clients → bouton « Create client ».",
+      "Étape « General settings » : Client type = OpenID Connect ; Client ID = un identifiant court (ex. rag). C'est exactement la valeur à reporter dans le champ « Client ID » ci-dessus. Cliquer sur Next.",
+      "Étape « Capability config » : activer « Client authentication » (ON → client confidentiel, un secret sera généré) ; activer « Standard flow » (Authorization Code Flow) ; laisser le reste par défaut. Cliquer sur Next.",
+      "Étape « Login settings » — Valid redirect URIs : <RAG_PUBLIC_URL>/auth/callback (ex. https://rag.example.com/auth/callback).",
+      "Valid post logout redirect URIs : <RAG_PUBLIC_URL>/ (la racine, avec le slash final).",
+      "Web origins : <RAG_PUBLIC_URL> (ou la valeur + pour dériver automatiquement des redirect URIs). Cliquer sur Save.",
+      "Onglet « Credentials » du client → copier le « Client secret ». Le coller dans le champ « Client secret » ci-dessus puis Enregistrer (prise en compte immédiate).",
+      "Onglet « Client scopes » → vérifier que les scopes openid, email et profile sont bien assignés (par défaut) : l'email de l'utilisateur doit remonter dans le token, car il détermine son identité (owner_id).",
+      "Onglet « Roles » du client → « Create role » : créer rag-admin (accès complet) et, si besoin de comptes en lecture seule, rag-viewer. Sans l'un de ces rôles, l'utilisateur est rejeté (403) après connexion.",
+      "Menu Users → sélectionner l'utilisateur → onglet « Role mapping » → « Assign role » → filtrer par client → assigner rag-admin (ou rag-viewer).",
+      "Menu Client scopes → roles → onglet « Mappers » → « client roles » → activer « Add to ID token » puis Save : rag lit les rôles dans l'ID token, où Keycloak ne les met PAS par défaut.",
+      "Reporter l'Issuer URL dans le champ ci-dessus : https://<keycloak>/realms/<realm> (ex. https://keycloak.example.com/realms/yoops), puis Enregistrer la configuration."
+    ],
+    "note": "Après enregistrement, tester via le bouton SSO de la page de connexion. En cas d'erreur redirect_uri, vérifier que la Valid redirect URI correspond exactement à <RAG_PUBLIC_URL>/auth/callback."
+  },
+  "public_url": {
+    "title": "URL publique de l'application",
+    "help": "Utilisée pour construire l'URL de retour OIDC (redirect_uri). Vide = dérivée automatiquement de l'adresse par laquelle le navigateur accède à l'application (recommandé). Prime sur le RAG_PUBLIC_URL du .env serveur.",
+    "placeholder": "https://rag.yoops.org (vide = automatique)",
+    "derived": "Automatique (adresse d'appel du client)",
+    "submit": "Enregistrer",
+    "saved": "URL publique enregistrée.",
+    "error": "Impossible d'enregistrer l'URL publique."
   }
 }

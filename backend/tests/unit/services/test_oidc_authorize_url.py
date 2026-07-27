@@ -29,12 +29,10 @@ def _make_service_with_config(issuer: str) -> OidcService:
         return_value={
             "issuer": issuer,
             "client_id": "rag-service",
-            "client_secret_ref": "kc_secret",
         }
     )
     svc = OidcService(
         config_pool=pool,
-        secret_resolver=None,
         public_url="https://rag.example.com",
         http_client=client,
     )
@@ -60,6 +58,18 @@ async def test_build_authorize_url_includes_required_params() -> None:
     # state et nonce sont des strings aléatoires non vides
     assert len(state) >= 16
     assert len(nonce) >= 16
+
+
+@pytest.mark.asyncio
+async def test_build_authorize_url_honors_redirect_uri_override() -> None:
+    # Le caller (route /auth/login) fournit le redirect_uri effectif :
+    # valeur admin.env, sinon dérivé de l'adresse d'appel — RAG_PUBLIC_URL
+    # du .env n'est plus qu'un dernier repli.
+    issuer = "https://kc.example.com/realms/test"
+    svc = _make_service_with_config(issuer)
+    url, _, _ = await svc.build_authorize_url(redirect_uri="https://rag.yoops.org/auth/callback")
+    params = parse_qs(urlparse(url).query)
+    assert params["redirect_uri"] == ["https://rag.yoops.org/auth/callback"]
 
 
 @pytest.mark.asyncio

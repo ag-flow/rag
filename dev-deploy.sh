@@ -8,7 +8,7 @@
 #   2. Crée .env depuis .env.example si absent (+ secrets aléatoires)
 #   3. Build les images locales (backend ; frontend skippé tant que M5 pas commencé)
 #   4. Down de la stack (avec -v si --reset)
-#   5. Pull images registry (postgres + caddy + pgweb) + up -d
+#   5. Pull images registry (postgres + caddy + pgweb + alloy) + up -d
 #   Final : attend que /health réponde et affiche /version (timeout 60s)
 #
 # Usage :
@@ -301,14 +301,14 @@ fi
 
 # ─── 5) Pull images registry restantes (postgres) puis up ──────────────────
 
-echo "[5/5] Pull images registry (postgres + caddy + pgweb)..."
+echo "[5/5] Pull images registry (postgres + caddy + pgweb + alloy)..."
 # On pull SEULEMENT les services tiers (services avec `image:` pur, sans `build:`).
 # Les services rag-backend et rag-frontend ont à la fois `image:` et `build:` :
 # `docker compose pull` SANS argument tente quand même de les pull depuis le
 # registry (qui n'existe pas — images custom buildées localement en étape [3/5])
 # et affiche des erreurs « pull access denied » qui polluent la sortie sans
 # bloquer le déploiement. On préfère lister explicitement les services tiers.
-docker compose -f "$COMPOSE_FILE" pull postgres caddy pgweb || true
+docker compose -f "$COMPOSE_FILE" pull postgres caddy pgweb alloy || true
 
 echo "      Démarrage de la stack..."
 # Expose le SHA git courant au compose (variable interpolée dans
@@ -324,6 +324,27 @@ docker compose -f "$COMPOSE_FILE" ps
 echo
 echo "Logs en direct :"
 echo "  docker compose -f ${COMPOSE_FILE} logs -f backend"
+echo
+
+# ─── Contrôle collecte logs (non bloquant) ──────────────────────────────────
+# Le collecteur Alloy pousse SILENCIEUSEMENT vers un LOKI_URL périmé (le sync
+# .env ne réécrit jamais une clé existante) : une adresse Loki obsolète a déjà
+# coûté une semaine de logs perdus sans le moindre signal. On teste ici la
+# joignabilité de l'endpoint /ready dérivé de LOKI_URL et on ALERTE si KO —
+# jamais d'échec du déploiement.
+LOKI_URL_VAL="$(read_env_var LOKI_URL)"
+if [ -n "$LOKI_URL_VAL" ]; then
+  LOKI_READY="${LOKI_URL_VAL%/loki/api/v1/push}/ready"
+  if curl -sf -m 5 "$LOKI_READY" >/dev/null 2>&1; then
+    echo "✓ Loki joignable ($LOKI_READY) — collecte des logs active."
+  else
+    echo "⚠  Loki INJOIGNABLE depuis ce host : $LOKI_READY" >&2
+    echo "   Les logs ne remonteront PAS. Vérifier LOKI_URL dans .env puis :" >&2
+    echo "     docker compose -f ${COMPOSE_FILE} up -d alloy" >&2
+  fi
+else
+  echo "ℹ  LOKI_URL non défini — collecteur Alloy inactif (pas de logs centralisés)."
+fi
 echo
 
 # ─── Affichage final : URL d'accès ──────────────────────────────────────────

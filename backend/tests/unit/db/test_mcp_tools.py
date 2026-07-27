@@ -74,13 +74,15 @@ class TestGetIndexStatus:
         from rag.db.mcp_tools import get_document_status
 
         pool = MagicMock()
-        pool.fetchrow = AsyncMock(return_value={
-            "path": "a.py",
-            "content_hash": "sha256:abc",
-            "indexed_at": "2026-01-01",
-            "indexer_used": "openai/m",
-            "title": None,
-        })
+        pool.fetchrow = AsyncMock(
+            return_value={
+                "path": "a.py",
+                "content_hash": "sha256:abc",
+                "indexed_at": "2026-01-01",
+                "indexer_used": "openai/m",
+                "title": None,
+            }
+        )
         result = await get_document_status(pool, workspace_id=uuid4(), path="a.py")
         assert result is not None
         assert result["path"] == "a.py"
@@ -101,9 +103,18 @@ class TestSearchFilesInWorkspace:
     async def test_exact_mode_returns_hits(self):
         from rag.db.mcp_tools import search_files_in_workspace
 
-        rows = [{"path": "a.py", "content": "RAG_MASTER_KEY env var", "chunk_index": 0, "metadata": None}]
+        rows = [
+            {
+                "path": "a.py",
+                "content": "RAG_MASTER_KEY env var",
+                "chunk_index": 0,
+                "metadata": None,
+            }
+        ]
         pool = self._make_ws_pool(rows)
-        hits = await search_files_in_workspace(pool, pattern="RAG_MASTER_KEY", mode="exact", top_k=10)
+        hits = await search_files_in_workspace(
+            pool, pattern="RAG_MASTER_KEY", mode="exact", top_k=10
+        )
         assert len(hits) == 1
         assert hits[0]["path"] == "a.py"
 
@@ -164,12 +175,24 @@ class TestReconstructDocument:
         from rag.db.mcp_tools import reconstruct_document
 
         rows = [
-            {"content": "# Section 1\nHello", "section_index": 0, "section_key": "s1", "metadata": None},
-            {"content": "# Section 2\nWorld", "section_index": 1, "section_key": "s2", "metadata": None},
+            {
+                "content": "# Section 1\nHello",
+                "section_index": 0,
+                "section_key": "s1",
+                "metadata": None,
+            },
+            {
+                "content": "# Section 2\nWorld",
+                "section_index": 1,
+                "section_key": "s2",
+                "metadata": None,
+            },
         ]
         ws_pool = self._make_ws_pool_sections(rows)
         config_pool = MagicMock()
-        result = await reconstruct_document(ws_pool, config_pool, workspace_id=uuid4(), path="doc.md")
+        result = await reconstruct_document(
+            ws_pool, config_pool, workspace_id=uuid4(), path="doc.md"
+        )
         assert result is not None
         assert "Section 1" in result["content"]
         assert "Section 2" in result["content"]
@@ -195,7 +218,9 @@ class TestReconstructDocument:
         ws_pool.acquire = MagicMock(return_value=conn)
 
         config_pool = MagicMock()
-        result = await reconstruct_document(ws_pool, config_pool, workspace_id=uuid4(), path="legacy.py")
+        result = await reconstruct_document(
+            ws_pool, config_pool, workspace_id=uuid4(), path="legacy.py"
+        )
         assert result is not None
         assert result["is_legacy"] is True
         assert "chunk 0 text" in result["content"]

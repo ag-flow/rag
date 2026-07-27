@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from rag.schemas.mcp import ChannelHit
+
 LlmProvider = Literal["claude", "openai", "azure-openai", "ollama"]
 
 
@@ -34,6 +36,8 @@ class LlmConfigOut(BaseModel):
     base_url: str | None
     api_key_ref: str | None
     enabled: bool
+    rpm_limit: int | None = None
+    tpm_limit: int | None = None
     created_at: datetime
 
 
@@ -76,3 +80,25 @@ class PlaygroundChatResponse(BaseModel):
     answer: str
     chunks: list[ChunkResult]
     usage: UsageInfo
+
+
+class PlaygroundSearchRequest(BaseModel):
+    """Recherche seule (sans LLM) — onglet Playground > Recherche (SR5.2)."""
+
+    query: str = Field(min_length=1)
+    top_k: int = Field(default=10, ge=1, le=50)
+    min_score: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class PlaygroundSearchResponse(BaseModel):
+    """Hits fusionnés + provenance par canal (D8) pour la vue debug."""
+
+    query: str
+    hybrid_enabled: bool
+    rrf_k: int
+    weight_vector: float
+    weight_lexical: float
+    lexical_engine: str
+    hits: list[ChunkResult]
+    vector_channel: list[ChannelHit]
+    lexical_channel: list[ChannelHit]

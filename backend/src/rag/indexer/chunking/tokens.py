@@ -39,7 +39,7 @@ class HeuristicTokenEstimator:
     (≈ 4.0 pour l'anglais/français en BPE OpenAI). Configurable par modèle via
     `model_dimensions.token_char_ratio`.
 
-    Un simple ``len / char_ratio`` sous-estime jusqu'à 4× le CJK, les emoji et
+    Un simple ``len / char_ratio`` sous-estime jusqu'à 4x le CJK, les emoji et
     les symboles denses (~1 char/token), laissant passer des blocs atomiques qui
     explosent la vraie limite d'input du provider (BUG-041). On sépare donc le
     comptage : caractères denses (Wide/Fullwidth) à 1 token chacun, le reste au

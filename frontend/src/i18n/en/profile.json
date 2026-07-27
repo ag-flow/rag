@@ -1,0 +1,20 @@
+{
+  "page_title": "My profile",
+  "page_subtitle": "Identity used to attach your objects (workspaces, strategies, keys) and attribute MCP calls made on your behalf.",
+  "username_label": "Username",
+  "email_label": "Email",
+  "email_help": "Identity pivot: matches your account at OIDC sign-in (email claim from the identity provider).",
+  "email_change_warning": "Changing your email changes the ownership key of your objects — existing workspaces and strategies will need to be migrated.",
+  "identity_label": "Identity GUID (OBO)",
+  "identity_help": "Set the SAME GUID here as in your portal profile: MCP calls routed through the portal will be attributed to you (OBO contract).",
+  "identity_placeholder": "e.g. 0f8fad5b-d9cb-469f-a165-70867728950e",
+  "identity_note": "Empty = calls through the portal stay attributed to the API key, not to you.",
+  "generate": "Generate",
+  "save": "Save",
+  "saved": "Profile saved.",
+  "load_error": "Failed to load profile.",
+  "error_identity_taken": "This GUID is already used by another user.",
+  "error_email_taken": "This email is already used by another user.",
+  "error_invalid_identity": "Invalid GUID format.",
+  "error_generic": "Save failed."
+}

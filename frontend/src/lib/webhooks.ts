@@ -7,8 +7,7 @@ import type {
   WebhookPatchPayload,
 } from "@/lib/webhooks.types";
 
-const base = (workspace: string) =>
-  `/api/admin/workspaces/${workspace}/webhooks`;
+const base = (workspace: string) => `/api/admin/workspaces/${workspace}/webhooks`;
 
 export async function listWebhooks(workspace: string): Promise<Webhook[]> {
   return api.get<Webhook[]>(base(workspace));
@@ -29,10 +28,7 @@ export async function patchWebhook(
   return api.patch<Webhook>(`${base(workspace)}/${webhookId}`, payload);
 }
 
-export async function deleteWebhook(
-  workspace: string,
-  webhookId: string,
-): Promise<void> {
+export async function deleteWebhook(workspace: string, webhookId: string): Promise<void> {
   return api.delete<void>(`${base(workspace)}/${webhookId}`);
 }
 
@@ -42,14 +38,11 @@ export async function listWebhookCalls(
 ): Promise<WebhookCall[]> {
   const params = new URLSearchParams();
   if (filter.webhook_id) params.set("webhook_id", filter.webhook_id);
-  if (filter.correlation_id)
-    params.set("correlation_id", filter.correlation_id);
+  if (filter.correlation_id) params.set("correlation_id", filter.correlation_id);
   if (filter.status) params.set("status", filter.status);
   if (filter.limit) params.set("limit", String(filter.limit));
   const query = params.toString();
-  return api.get<WebhookCall[]>(
-    `${base(workspace)}/calls${query ? `?${query}` : ""}`,
-  );
+  return api.get<WebhookCall[]>(`${base(workspace)}/calls${query ? `?${query}` : ""}`);
 }
 
 export async function purgeWebhookCalls(workspace: string): Promise<void> {

@@ -50,7 +50,7 @@
         reverse_proxy frontend:80
     }
     handle / {
-        redir /ui permanent
+        redir * /ui permanent
     }
     handle {
         respond "ag-flow.rag — see /ui or /api/*" 200

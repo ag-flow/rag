@@ -38,19 +38,6 @@ def _discovery_payload(issuer: str) -> dict:
     }
 
 
-class _FakeResolver:
-    async def resolve_with_retry(self, _ref: str) -> str:
-        return "resolved-client-secret"
-
-
-class _FakeClientProvider:
-    def __init__(self, default_vault_name: str | None = "rag") -> None:
-        self._name = default_vault_name
-
-    async def get_default_vault_name(self) -> str | None:
-        return self._name
-
-
 def _make_service(
     issuer: str,
     *,
@@ -73,12 +60,11 @@ def _make_service(
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     svc = OidcService(
         config_pool=None,
-        secret_resolver=_FakeResolver(),
-        client_provider=_FakeClientProvider(),
         public_url="https://rag.example.com",
+        client_secret_provider=lambda: "resolved-client-secret",
         http_client=client,
     )
-    cfg = OidcConfig(issuer=issuer, client_id="rag-service", client_secret_ref="kc_secret")
+    cfg = OidcConfig(issuer=issuer, client_id="rag-service")
     return svc, cfg
 
 

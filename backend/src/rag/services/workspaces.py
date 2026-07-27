@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Protocol
 
 import asyncpg
 import structlog
@@ -19,7 +19,14 @@ from rag.db.workspace_schema import (
     drop_workspace_database,
     provision_workspace_schema,
 )
-from rag.schemas.admin import WorkspaceCreateRequest, WorkspacePatchRequest
+from rag.schemas.admin import (
+    IndexerCreateSpec,
+    LlmCreateSpec,
+    RerankCreateSpec,
+    WorkspaceCreateResolved,
+    WorkspacePatchRequest,
+)
+from rag.schemas.vault_endpoints import EndpointOut
 from rag.secrets.refs import build_ref
 from rag.secrets.resolver import VaultLookupFailed
 from rag.services.harpocrate_vaults import HarpocrateVaultsService
@@ -59,14 +66,69 @@ async def _validate_ref_via_vault(
         raise VaultUnreachable() from e
 
 
+def resolved_from_endpoint(
+    *,
+    name: str,
+    label: str,
+    description: str,
+    owner_id: str | None,
+    endpoint: EndpointOut,
+) -> WorkspaceCreateResolved:
+    """Copie la config d'un endpoint (préréglage du coffre) en payload résolu.
+
+    Snapshot : les modifications ultérieures de l'endpoint n'affectent pas le
+    workspace créé. Partagé entre le POST /workspaces et l'outil MCP
+    create_workspace.
+    """
+    return WorkspaceCreateResolved(
+        name=name,
+        label=label,
+        description=description,
+        owner_id=owner_id,
+        indexer=IndexerCreateSpec(
+            provider=endpoint.indexer.provider,
+            model=endpoint.indexer.model,
+            api_key_ref=endpoint.indexer.api_key_ref,
+            base_url=endpoint.indexer.base_url,
+            rpm_limit=endpoint.indexer.rpm_limit,
+            tpm_limit=endpoint.indexer.tpm_limit,
+        ),
+        rerank=(
+            RerankCreateSpec(
+                provider=endpoint.rerank.provider,  # type: ignore[arg-type]
+                model=endpoint.rerank.model,
+                api_key_ref=endpoint.rerank.api_key_ref,
+                base_url=endpoint.rerank.base_url,
+                top_k_pre_rerank=endpoint.rerank.top_k_pre_rerank,
+                rpm_limit=endpoint.rerank.rpm_limit,
+                tpm_limit=endpoint.rerank.tpm_limit,
+            )
+            if endpoint.rerank is not None
+            else None
+        ),
+        llm=(
+            LlmCreateSpec(
+                provider=endpoint.llm.provider,
+                model=endpoint.llm.model,
+                api_key_ref=endpoint.llm.api_key_ref,
+                base_url=endpoint.llm.base_url,
+                rpm_limit=endpoint.llm.rpm_limit,
+                tpm_limit=endpoint.llm.tpm_limit,
+            )
+            if endpoint.llm is not None
+            else None
+        ),
+        endpoint_id=endpoint.id,
+    )
+
+
 async def create_workspace(
     *,
-    request: WorkspaceCreateRequest,
+    request: WorkspaceCreateResolved,
     config_pool: asyncpg.Pool,
     admin_dsn: str,
     resolver: _ResolverProtocol,
     harpocrate_vaults_service: HarpocrateVaultsService,
-    client_provider: Any,
 ) -> dict[str, str]:
     """Crée un workspace + sa base pgvector + sa table embeddings.
 
@@ -77,8 +139,9 @@ async def create_workspace(
       3. CREATE DATABASE rag_<name> (admin_dsn, hors transaction)
       4. CREATE EXTENSION + CREATE TABLE embeddings + INDEX ivfflat + migrations
          Sur échec : DELETE workspaces + DROP DATABASE
-      5. Crée la première clé API via workspace_apikeys.create_key
-      6. Retour { id, name, api_key, created_at } — api_key en clair UNIQUE
+      5. Retour { id, name, created_at } — les clés d'accès se créent
+         ensuite au niveau utilisateur (user_api_keys) avec un grant sur
+         ce workspace.
     """
     from rag.services.rerank_configs import upsert_rerank_config
 
@@ -88,8 +151,9 @@ async def create_workspace(
     )
 
     # 1b. Vérifier qu'un coffre Harpocrate par défaut existe AVANT tout DDL.
-    # Sans coffre, la création de la première API key échouerait après la création
-    # de la DB workspace (rollback impossible sur DDL Postgres) → workspace fantôme.
+    # Les secrets indexeur (api_key_ref) se résolvent via le coffre par défaut ;
+    # échouer après la création de la DB workspace laisserait un workspace fantôme
+    # (rollback impossible sur DDL Postgres).
     async with config_pool.acquire() as _vault_check_conn:
         _default_vault = await harpocrate_vaults_service.get_default(_vault_check_conn)
     if _default_vault is None:
@@ -108,22 +172,27 @@ async def create_workspace(
             ws_row = await conn.fetchrow(
                 """
                 INSERT INTO workspaces
-                    (name, rag_cnx, rag_base)
+                    (name, label, description, owner_id, rag_cnx, rag_base, endpoint_id)
                 VALUES
-                    ($1, $2, $3)
+                    ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING id, created_at
                 """,
                 request.name,
+                request.label,
+                request.description,
+                request.owner_id,
                 rag_cnx,
                 rag_base,
+                request.endpoint_id,
             )
             if ws_row is None:
                 raise RuntimeError("unexpected None from RETURNING")
             await conn.execute(
                 """
                 INSERT INTO indexer_configs
-                    (workspace_id, provider, model, api_key_ref, base_url, dimension)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                    (workspace_id, provider, model, api_key_ref, base_url, dimension,
+                     rpm_limit, tpm_limit)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 """,
                 ws_row["id"],
                 request.indexer.provider,
@@ -131,6 +200,8 @@ async def create_workspace(
                 indexer_api_key_ref,
                 request.indexer.base_url,
                 dimension,
+                request.indexer.rpm_limit,
+                request.indexer.tpm_limit,
             )
             await conn.execute(
                 """
@@ -140,6 +211,23 @@ async def create_workspace(
                 """,
                 ws_row["id"],
             )
+            # LLM d'exécution des prompts : copié de l'endpoint (3e service IA).
+            if request.llm is not None:
+                await conn.execute(
+                    """
+                    INSERT INTO workspace_llm_configs
+                        (workspace_id, provider, model, base_url, api_key_ref,
+                         rpm_limit, tpm_limit)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    """,
+                    ws_row["id"],
+                    request.llm.provider,
+                    request.llm.model,
+                    request.llm.base_url,
+                    request.llm.api_key_ref,
+                    request.llm.rpm_limit,
+                    request.llm.tpm_limit,
+                )
     except asyncpg.UniqueViolationError as e:
         raise WorkspaceAlreadyExists(request.name) from e
 
@@ -182,65 +270,81 @@ async def create_workspace(
             default_vault_name=vault.name,
         )
 
-    # 5. Crée la première clé API
-    from rag.schemas.workspace_apikeys import ApiKeyCreate
-    from rag.services.workspace_apikeys import create_key as _create_ws_key
-
-    async with config_pool.acquire() as conn:
-        first_key = await _create_ws_key(
-            conn,
-            workspace_name=request.name,
-            req=ApiKeyCreate(name="default"),
-            vault_svc=harpocrate_vaults_service,
-            client_provider=client_provider,
-        )
-
     log.info("workspace.created", name=request.name, dimension=dimension)
 
     return {
         "id": str(ws_row["id"]),
         "name": request.name,
-        "api_key": first_key.api_key,
+        "label": request.label,
+        "description": request.description,
         "created_at": ws_row["created_at"].isoformat(),
     }
 
 
-async def list_workspaces(config_pool: asyncpg.Pool) -> list[dict[str, object]]:
-    """Liste tous les workspaces avec leurs compteurs (0/null en M2)."""
+# Visibilité workspace : partagé (owner_id NULL) OU propriété du caller.
+# owner_id NULL en argument = accès sans restriction (chemins internes/legacy).
+_OWNER_VISIBLE = "(w.owner_id IS NULL OR $1::text IS NULL OR w.owner_id = $1)"
+
+
+async def resolve_owned_workspace_id(
+    conn: asyncpg.Connection, *, name: str, owner_id: str | None
+) -> object | None:
+    """Id d'un workspace VISIBLE par ce owner (partagé ou sien), sinon None.
+
+    Point d'application unique de l'accès workspace pour les endpoints admin :
+    un workspace d'autrui est introuvable (jamais accessible par son nom)."""
+    return await conn.fetchval(
+        f"SELECT w.id FROM workspaces w WHERE w.name = $2 AND {_OWNER_VISIBLE}",  # noqa: S608
+        owner_id,
+        name,
+    )
+
+
+async def list_workspaces(
+    config_pool: asyncpg.Pool, *, owner_id: str | None = None
+) -> list[dict[str, object]]:
+    """Liste les workspaces visibles par ce owner (partagés + les siens)."""
     rows = await fetch_all(
         config_pool,
-        """
+        f"""
         SELECT
-            w.id, w.name, w.created_at,
+            w.id, w.name, w.label, w.description, w.created_at, w.endpoint_id,
             ic.provider, ic.model, ic.api_key_ref, ic.base_url,
+            ic.rpm_limit, ic.tpm_limit,
             (SELECT COUNT(*) FROM workspace_sources WHERE workspace_id = w.id) AS sources_count,
             (SELECT COUNT(*) FROM indexed_documents WHERE workspace_id = w.id) AS documents_count,
             (SELECT MAX(indexed_at) FROM indexed_documents WHERE workspace_id = w.id)
                 AS last_indexed_at
         FROM workspaces w
         LEFT JOIN indexer_configs ic ON ic.workspace_id = w.id
+        WHERE {_OWNER_VISIBLE}
         ORDER BY w.created_at
-        """,
+        """,  # noqa: S608
+        owner_id,
     )
     return [_to_workspace_dict(r) for r in rows]
 
 
-async def get_workspace(config_pool: asyncpg.Pool, *, name: str) -> dict[str, object]:
-    """Détail d'un workspace. Lève WorkspaceNotFound si miss."""
+async def get_workspace(
+    config_pool: asyncpg.Pool, *, name: str, owner_id: str | None = None
+) -> dict[str, object]:
+    """Détail d'un workspace visible par ce owner. WorkspaceNotFound si miss/inaccessible."""
     row = await fetch_one(
         config_pool,
-        """
+        f"""
         SELECT
-            w.id, w.name, w.created_at,
+            w.id, w.name, w.label, w.description, w.created_at, w.endpoint_id,
             ic.provider, ic.model, ic.api_key_ref, ic.base_url,
+            ic.rpm_limit, ic.tpm_limit,
             (SELECT COUNT(*) FROM workspace_sources WHERE workspace_id = w.id) AS sources_count,
             (SELECT COUNT(*) FROM indexed_documents WHERE workspace_id = w.id) AS documents_count,
             (SELECT MAX(indexed_at) FROM indexed_documents WHERE workspace_id = w.id)
                 AS last_indexed_at
         FROM workspaces w
         LEFT JOIN indexer_configs ic ON ic.workspace_id = w.id
-        WHERE w.name = $1
-        """,
+        WHERE w.name = $2 AND {_OWNER_VISIBLE}
+        """,  # noqa: S608
+        owner_id,
         name,
     )
     if row is None:
@@ -256,23 +360,35 @@ async def patch_workspace(
     resolver: _ResolverProtocol,
     default_vault_name: str = "rag",
 ) -> None:
-    """Met à jour `indexer.api_key_ref` (seul champ patchable en M2).
+    """Met à jour les `api_key_ref` (indexeur et/ou rerank) — rotation par
+    re-pointage. Provider/modèle restent immuables.
 
-    Eager validation de la nouvelle ref via Harpocrate avant UPDATE.
+    Eager validation de chaque nouvelle ref via Harpocrate avant UPDATE.
     Lève WorkspaceNotFound si le workspace n'existe pas.
     """
-    new_ref = request.indexer.api_key_ref
-    await _validate_ref_via_vault(resolver, new_ref, default_vault_name)
+    if request.indexer is None and request.rerank is None:
+        return
+    if request.indexer is not None:
+        await _validate_ref_via_vault(resolver, request.indexer.api_key_ref, default_vault_name)
+    if request.rerank is not None:
+        await _validate_ref_via_vault(resolver, request.rerank.api_key_ref, default_vault_name)
 
     async with config_pool.acquire() as conn:
         row = await conn.fetchrow("SELECT id FROM workspaces WHERE name=$1", name)
         if row is None:
             raise WorkspaceNotFound(name)
-        await conn.execute(
-            "UPDATE indexer_configs SET api_key_ref=$1 WHERE workspace_id=$2",
-            new_ref,
-            row["id"],
-        )
+        if request.indexer is not None:
+            await conn.execute(
+                "UPDATE indexer_configs SET api_key_ref=$1 WHERE workspace_id=$2",
+                request.indexer.api_key_ref,
+                row["id"],
+            )
+        if request.rerank is not None:
+            await conn.execute(
+                "UPDATE rerank_configs SET api_key_ref=$1 WHERE workspace_id=$2",
+                request.rerank.api_key_ref,
+                row["id"],
+            )
         await conn.execute("UPDATE workspaces SET updated_at=now() WHERE id=$1", row["id"])
 
     log.info("workspace.patched", name=name, field="api_key_ref")
@@ -302,11 +418,16 @@ def _to_workspace_dict(row: asyncpg.Record) -> dict[str, object]:
     return {
         "id": str(row["id"]),
         "name": row["name"],
+        "endpoint_id": row["endpoint_id"],
+        "label": row["label"],
+        "description": row["description"],
         "indexer": {
             "provider": row["provider"],
             "model": row["model"],
             "api_key_ref": row["api_key_ref"],
             "base_url": row["base_url"],
+            "rpm_limit": row["rpm_limit"],
+            "tpm_limit": row["tpm_limit"],
         },
         "sources_count": int(row["sources_count"]),
         "documents_count": int(row["documents_count"]),

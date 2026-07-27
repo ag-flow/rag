@@ -52,11 +52,10 @@ def _make_service(issuer: str, client_id: str = "rag-service") -> tuple[OidcServ
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     svc = OidcService(
         config_pool=None,
-        secret_resolver=None,
         public_url="https://rag.example.com",
         http_client=client,
     )
-    cfg = OidcConfig(issuer=issuer, client_id=client_id, client_secret_ref="x")
+    cfg = OidcConfig(issuer=issuer, client_id=client_id)
     return svc, cfg
 
 

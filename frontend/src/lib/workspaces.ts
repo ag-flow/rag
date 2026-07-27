@@ -1,6 +1,5 @@
 import { api } from "@/lib/api";
 import type {
-  ApiKeyRotateResponse,
   DetectBranchesResponse,
   DocumentViewResponse,
   IndexKeysResponse,
@@ -31,8 +30,6 @@ export const workspacesApi = {
 
   delete: (name: string) => api.delete<void>(`${BASE}/${name}`),
 
-  revealApiKey: (name: string) => api.get<ApiKeyRotateResponse>(`${BASE}/${name}/apikey`),
-
   reindex: (name: string) => api.post<void>(`${BASE}/${name}/reindex?confirm=true`, {}),
 
   listSources: (name: string) => api.get<Source[]>(`${BASE}/${name}/sources`),
@@ -57,6 +54,15 @@ export const workspacesApi = {
 
   listJobs: (name: string) => api.get<Job[]>(`${BASE}/${name}/jobs`),
 
+  /** Recopie indexer/rerank/llm depuis l'endpoint d'ORIGINE du workspace. */
+  refreshEndpoint: (name: string, confirm = false) =>
+    api.post<{ indexer: string; rerank: string; llm: string }>(
+      `${BASE}/${name}/refresh-endpoint${confirm ? "?confirm=true" : ""}`,
+      {},
+    ),
+
+  getJob: (name: string, jobId: string) => api.get<Job>(`${BASE}/${name}/jobs/${jobId}`),
+
   listJobFiles: (name: string, jobId: string) =>
     api.get<JobFilesResponse>(`${BASE}/${name}/jobs/${jobId}/files`),
 
@@ -67,8 +73,7 @@ export const workspacesApi = {
     ssh_username?: string | null;
   }) => api.post<DetectBranchesResponse>("/api/admin/sources/detect-branches", payload),
 
-  listIndexKeys: (name: string) =>
-    api.get<IndexKeysResponse>(`${BASE}/${name}/index-keys`),
+  listIndexKeys: (name: string) => api.get<IndexKeysResponse>(`${BASE}/${name}/index-keys`),
 
   getIndexKeyDetail: (name: string, path: string) =>
     api.get<PathDetailResponse>(`${BASE}/${name}/index-keys/${encodeURIComponent(path)}`),

@@ -30,36 +30,23 @@ export const enrichmentsApi = {
     api.post<Trigger>(`/api/admin/workspaces/${workspaceName}/triggers`, payload),
 
   patchTrigger: (workspaceName: string, triggerId: string, payload: TriggerPatch) =>
-    api.patch<Trigger>(
-      `/api/admin/workspaces/${workspaceName}/triggers/${triggerId}`,
-      payload,
-    ),
+    api.patch<Trigger>(`/api/admin/workspaces/${workspaceName}/triggers/${triggerId}`, payload),
 
   deleteTrigger: (workspaceName: string, triggerId: string) =>
-    api.delete<void>(
-      `/api/admin/workspaces/${workspaceName}/triggers/${triggerId}`,
-    ),
+    api.delete<void>(`/api/admin/workspaces/${workspaceName}/triggers/${triggerId}`),
 
   listTriggerPrompts: (workspaceName: string, triggerId: string) =>
     api.get<TriggerPrompt[]>(
       `/api/admin/workspaces/${workspaceName}/triggers/${triggerId}/prompts`,
     ),
 
-  createTriggerPrompt: (
-    workspaceName: string,
-    triggerId: string,
-    payload: TriggerPromptCreate,
-  ) =>
+  createTriggerPrompt: (workspaceName: string, triggerId: string, payload: TriggerPromptCreate) =>
     api.post<TriggerPrompt>(
       `/api/admin/workspaces/${workspaceName}/triggers/${triggerId}/prompts`,
       payload,
     ),
 
-  deleteTriggerPrompt: (
-    workspaceName: string,
-    triggerId: string,
-    promptId: string,
-  ) =>
+  deleteTriggerPrompt: (workspaceName: string, triggerId: string, promptId: string) =>
     api.delete<void>(
       `/api/admin/workspaces/${workspaceName}/triggers/${triggerId}/prompts/${promptId}`,
     ),

@@ -19,15 +19,9 @@ Le service offre deux modes pour indexer un document à la demande :
 
 ## Authentification
 
-L'API workspace utilise la **clé API workspace** (pas la master key) :
+L'API workspace utilise une **clé API personnelle** disposant de la permission **WRITE** sur le workspace (pas la master key).
 
-```bash
-# Obtenir la clé API du workspace (via master key, une seule fois)
-export WORKSPACE_API_KEY=$(curl -sf \
-  -H "Authorization: Bearer $RAG_MASTER_KEY" \
-  "https://rag.votre-domaine.fr/api/admin/workspaces/mon-projet/apikey" \
-  | jq -r '.api_key')
-```
+Créez la clé dans l'IHM (**Configuration → Clés API**) en cochant le workspace avec WRITE, et copiez sa valeur **à la création** (elle n'est plus jamais affichée — seule son empreinte est stockée). Stockez-la dans votre gestionnaire de secrets / variables CI.
 
 Utilisez cette clé pour tous les appels workspace :
 ```bash

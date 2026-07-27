@@ -9,8 +9,14 @@ import structlog
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 
+from rag.admin_env import AdminEnvStore
 from rag.api.admin import build_admin_router
 from rag.api.admin.circuit_breaker import build_circuit_breaker_router
+from rag.api.admin_auth_config import build_admin_auth_config_router
+from rag.api.admin_load_gate import build_admin_load_gate_router
+from rag.api.admin_chunking_preview import build_chunking_preview_router
+from rag.api.admin_chunking_strategies import build_chunking_strategies_router
+from rag.api.admin_events_producer import build_events_producer_router
 from rag.api.admin_git_credentials import router as admin_git_credentials_router
 from rag.api.admin_git_credentials import router_global as admin_git_creds_global_router
 from rag.api.admin_harpocrate_vaults import router as admin_harpocrate_vaults_router
@@ -20,23 +26,36 @@ from rag.api.admin_provider_keys import router as admin_provider_keys_router
 from rag.api.admin_provider_keys import router_global as admin_provider_keys_global_router
 from rag.api.admin_ssh_keys import router as admin_ssh_keys_router
 from rag.api.admin_ssh_keys import router_global as admin_ssh_keys_global_router
+from rag.api.admin_vault_endpoints import router as admin_vault_endpoints_router
 from rag.api.admin_webhooks import build_webhooks_router
 from rag.api.auth import build_auth_router
 from rag.api.auth_methods import build_auth_methods_router
-from rag.api.setup import build_setup_router
+from rag.api.contracts import build_contracts_router
 from rag.api.enrichments import router_languages as enrichment_languages_router
 from rag.api.enrichments import router_prompts as enrichment_prompts_router
 from rag.api.enrichments import router_triggers as enrichment_triggers_router
 from rag.api.errors import register_error_handlers
 from rag.api.git_webhooks import build_git_webhooks_router
 from rag.api.health import build_health_router
+from rag.api.ingestion_journal import IngestionJournalMiddleware
+from rag.api.library_apikey import build_library_apikey_router
 from rag.api.mcp import build_mcp_router
-from rag.api.mcp_standard import RagMcpDispatcher, build_mcp_asgi
+from rag.api.mcp_standard import (
+    McpPathNormalizerMiddleware,
+    RagMcpDispatcher,
+    build_mcp_asgi,
+    mcp_session_lifespan,
+)
+from rag.api.me_api_keys import build_me_api_keys_router
+from rag.api.me_profile import build_me_profile_router
+from rag.api.openapi_security import install_openapi_security
 from rag.api.playground import router_admin as playground_admin_router
 from rag.api.playground import router_chat as playground_chat_router
+from rag.api.playground_search import router_search as playground_search_router
+from rag.api.setup import build_setup_router
 from rag.api.workspace import build_workspace_router
+from rag.api.workspace_query import build_workspace_query_router
 from rag.api.ws import router as ws_router
-from rag.auth.workspace_auth import ApiKeyCache
 from rag.config import Settings
 from rag.db.migrations import run_migrations
 from rag.db.pool import WorkspacePoolRegistry
@@ -125,6 +144,7 @@ def build_app(
             admin_dsn=str(settings.rag_postgres_admin_url),
         )
         sync_worker = None
+        events_worker = None
         try:
             await registry.start()
             app.state.pools = registry
@@ -170,11 +190,14 @@ def build_app(
             # à `app.state` indépendamment.
             app.state.resolver = resolver_factory(settings, app)
 
+            app.state.admin_env = AdminEnvStore(settings.rag_admin_env_file)
+            from rag.services.load_gate import LoadGate
+
+            app.state.load_gate = LoadGate(app.state.admin_env)
             app.state.oidc = OidcService(
                 config_pool=registry.config_pool,
-                secret_resolver=app.state.resolver,
-                client_provider=app.state.client_provider,
                 public_url=str(settings.rag_public_url).rstrip("/"),
+                client_secret_provider=app.state.admin_env.get_oidc_client_secret,
             )
             app.state.public_url = str(settings.rag_public_url).rstrip("/")
 
@@ -202,7 +225,6 @@ def build_app(
                 client_provider=app.state.client_provider,
             )
             app.state.indexer = indexer
-            app.state.apikey_cache = ApiKeyCache()
             app.state.job_log_bus = JobLogBus()
             _mcp_dispatcher.set_app_state(app.state)
 
@@ -221,30 +243,65 @@ def build_app(
                 default_sync_interval_seconds=settings.sync_default_interval_seconds,
                 job_log_bus=app.state.job_log_bus,
                 webhook_secret=webhook_secret,
+                load_gate=app.state.load_gate,
             )
             await sync_worker.start()
             app.state.sync_worker = sync_worker
+
+            # Worker du producteur d'events vers workflow (outbox → POST signé).
+            from rag.events.worker import WorkflowEventsWorker
+
+            events_worker = WorkflowEventsWorker(
+                config_pool=registry.config_pool,
+                resolver=app.state.resolver,
+            )
+            await events_worker.start()
+            app.state.events_worker = events_worker
         except BaseException:
             log.error("app.lifespan.startup_failed", exc_info=True)
+            if events_worker is not None:
+                await events_worker.stop()
             if sync_worker is not None:
                 await sync_worker.stop()
             await registry.close_all()
             raise
 
         log.info("app.lifespan.ready")
-        try:
-            yield
-        finally:
-            log.info("app.lifespan.shutdown")
-            if hasattr(app.state, "sync_worker"):
-                await app.state.sync_worker.stop()
-            await registry.close_all()
+        # Démarre le task group du serveur MCP streamable monté sur /mcp
+        # (non géré par FastAPI pour une sous-app montée).
+        async with mcp_session_lifespan():
+            try:
+                yield
+            finally:
+                log.info("app.lifespan.shutdown")
+                if hasattr(app.state, "events_worker"):
+                    await app.state.events_worker.stop()
+                if hasattr(app.state, "sync_worker"):
+                    await app.state.sync_worker.stop()
+                await registry.close_all()
 
     app = FastAPI(
         title="ag-flow.rag",
         version=version,
+        description=(
+            "Service d'infrastructure RAG — indexation de corpus git, recherche "
+            "hybride (vectorielle + lexicale) et outils MCP pour agents.\n\n"
+            "Contrats publics : index [/api/contracts](/api/contracts) — OpenAPI "
+            "(ce document) pour le REST, schéma des outils MCP sur "
+            "[/api/contracts/mcp-tools](/api/contracts/mcp-tools)."
+        ),
+        # `servers` : URL publique de base pour les consommateurs du contrat
+        # OpenAPI (sans elle, un importeur ne sait pas où appeler).
+        servers=[{"url": str(settings.rag_public_url).rstrip("/")}],
         lifespan=lifespan,
     )
+    # Le connecteur MCP est monté sur `/mcp` : une requête sur `/mcp` (sans slash)
+    # serait redirigée en 307 vers `/mcp/`, que les clients MCP streamable (anyio)
+    # ne suivent PAS sur le POST d'initialisation → « backend injoignable /
+    # TaskGroup ». Ce middleware ASGI pur réécrit `/mcp` → `/mcp/` AVANT le
+    # routage (pas de redirect HTTP, streaming préservé).
+    app.add_middleware(McpPathNormalizerMiddleware)
+    app.add_middleware(IngestionJournalMiddleware)
     app.add_middleware(
         SessionMiddleware,
         secret_key=settings.rag_session_secret.get_secret_value(),
@@ -252,9 +309,13 @@ def build_app(
         https_only=(settings.environment != "dev"),
     )
     app.include_router(build_health_router())
+    app.include_router(build_contracts_router())
     app.include_router(build_admin_router(), prefix="/api/admin")
     app.include_router(build_admin_oidc_router(), prefix="/api/admin")
+    app.include_router(build_admin_auth_config_router(), prefix="/api/admin")
+    app.include_router(build_admin_load_gate_router(), prefix="/api/admin")
     app.include_router(admin_harpocrate_vaults_router)
+    app.include_router(admin_vault_endpoints_router)
     app.include_router(admin_provider_keys_router)
     app.include_router(admin_provider_keys_global_router)
     app.include_router(admin_git_credentials_router)
@@ -264,20 +325,32 @@ def build_app(
     app.include_router(build_index_keys_router(), prefix="/api/admin")
     app.include_router(build_circuit_breaker_router(), prefix="/api/admin")
     app.include_router(build_webhooks_router(), prefix="/api/admin")
+    app.include_router(build_events_producer_router())
+    app.include_router(build_chunking_strategies_router())
+    app.include_router(build_chunking_preview_router())
     app.include_router(build_auth_router())
     app.include_router(build_auth_methods_router())
+    app.include_router(build_me_api_keys_router())
+    app.include_router(build_me_profile_router())
     app.include_router(build_setup_router())
-    app.include_router(build_workspace_router())
+    # Préfixe /api/v1 : ces endpoints Bearer doivent être sous un chemin routé par
+    # le reverse-proxy vers le backend (comme /api/v1/search). À la racine, Caddy
+    # ne les proxifie pas et sert une réponse par défaut.
+    app.include_router(build_workspace_router(), prefix="/api/v1")
+    app.include_router(build_workspace_query_router(), prefix="/api/v1")
+    app.include_router(build_library_apikey_router())
     app.include_router(build_mcp_router())
     app.mount("/mcp", _mcp_dispatcher)
     app.include_router(build_git_webhooks_router())
     app.include_router(ws_router)
     app.include_router(playground_admin_router)
     app.include_router(playground_chat_router)
+    app.include_router(playground_search_router)
     app.include_router(enrichment_languages_router)
     app.include_router(enrichment_prompts_router)
     app.include_router(enrichment_triggers_router)
     register_error_handlers(app)
+    install_openapi_security(app)
     return app
 
 

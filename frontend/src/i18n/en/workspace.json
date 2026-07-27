@@ -27,6 +27,7 @@
     "model": "Model",
     "rerank": "Rerank",
     "chunking": "Chunking",
+    "search": "Search",
     "playground": "Playground",
     "triggers": "Triggers",
     "apikeys": "Api",
@@ -54,12 +55,41 @@
     },
     "ids": {
       "title": "Identifiers (read-only)",
-      "name": "name",
-      "id": "id"
+      "label": "display name",
+      "name": "identifier",
+      "id": "id",
+      "description": "description",
+      "description_empty": "No description"
     },
     "save": {
       "success": "Reference saved.",
       "error": "Error saving."
+    },
+    "llm": {
+      "title": "LLM (prompt execution)",
+      "empty": "No LLM configured — recreate the workspace from an endpoint with LLM (Vaults → Endpoints).",
+      "disabled": "disabled"
+    },
+    "refresh": {
+      "help": "Copy the configuration (vectorization, rerank, LLM) back from the workspace's origin endpoint.",
+      "button": "Refresh from endpoint",
+      "no_link": "Workspace created before the endpoint link — recreate it to enable refresh.",
+      "done": "Configuration copied from the endpoint.",
+      "error": "Refresh from endpoint failed.",
+      "confirm": {
+        "title": "Embedding model change",
+        "intro": "The endpoint defines a different vectorization model: copying will trigger a full workspace reindex.",
+        "current": "Current model",
+        "requested": "Endpoint model",
+        "consequence": "All documents will be re-vectorized. The index is unavailable during the operation.",
+        "cancel": "Cancel",
+        "confirm": "Reindex"
+      }
+    },
+    "limits": {
+      "title": "Limits",
+      "rpm": "{{value}} req/min",
+      "tpm": "{{value}} tokens/min"
     }
   },
   "sources": {
@@ -150,7 +180,8 @@
       "more": "+ {{count}} more files",
       "no_files": "No file detail (job predates this feature).",
       "loading": "Loading…",
-      "error": "Failed to load files."
+      "error": "Failed to load files.",
+      "params": "Request parameters"
     }
   },
   "model": {
@@ -158,7 +189,7 @@
     "provider": "provider",
     "model": "model",
     "base_url": "base_url",
-    "api_key_ref": "api_key_ref",
+    "api_key_ref": "API key reference",
     "immutableNote": "The model is immutable. Changing provider or model would invalidate all vector dimensions and require a full reindex, not supported in this version."
   },
   "rerank": {
@@ -185,7 +216,7 @@
       "baseUrl": "Base URL (Ollama)",
       "baseUrlPlaceholder": "https://ollama.example.com",
       "baseUrlNotApplicable": "— not applicable —",
-      "apiKeyRef": "Harpocrate API key reference",
+      "apiKeyRef": "API key reference",
       "apiKeyRefPlaceholder": "cohere_rerank_key",
       "apiKeyRefNotApplicable": "— not applicable —",
       "topK": "top_k pre-rerank",
@@ -248,7 +279,10 @@
       "min_lt_max": "Must be less than max size",
       "overlap_lt_max": "Must be less than max size"
     },
-    "actions": { "save": "Save", "cancel": "Cancel" },
+    "actions": {
+      "save": "Save",
+      "cancel": "Cancel"
+    },
     "save": {
       "success": "Configuration saved",
       "noChange": "No changes",
@@ -262,7 +296,10 @@
         "labelCurrent": "Current configuration:",
         "labelNew": "New configuration:",
         "consequence": "This operation will delete all existing chunks and re-index the documents. This may take several minutes.",
-        "actions": { "cancel": "Cancel", "confirm": "Reindex now" }
+        "actions": {
+          "cancel": "Cancel",
+          "confirm": "Reindex now"
+        }
       }
     },
     "lastModified": "Last modified: {{when}}",
@@ -287,6 +324,64 @@
           "description": "Strips tags (<p>, <div>…) and decodes HTML entities (&amp; → &, &lt; → <…). Useful for web exports or scraped sources."
         }
       }
+    },
+    "defaultStrategy": {
+      "title": "Default strategy",
+      "description": "Catalog strategy bound by id: it handles files of the default category (prose and unknown extensions). Specialised categories (code, table, data) keep their routing.",
+      "label": "Catalog strategy",
+      "cascade": "— category cascade (no binding) —",
+      "save": "Apply",
+      "saved": "Default strategy updated.",
+      "error": "Update failed."
+    },
+    "engine": {
+      "badgeStructured": "Engine: structured",
+      "legacyBanner": "This workspace uses the historical engine (characters). The structured engine (strategies, tokens, regions) is the reference.",
+      "structuredInfo": {
+        "body": "Chunking parameters (tokens, cleaning, regions) are defined in the catalog strategies, on the Chunking strategies page. Per-extension assignments are configured in the Triggers tab.",
+        "link": "Open the strategies catalog"
+      },
+      "actions": {
+        "switchToStructured": "Switch to the structured engine",
+        "switchToLegacy": "Switch back to the legacy engine"
+      },
+      "switched": "Chunking engine updated",
+      "error": "Engine switch failed"
+    }
+  },
+  "search": {
+    "title": "Hybrid search",
+    "description": "Combines vector search (pgvector) with lexical search, merged via RRF (Reciprocal Rank Fusion).",
+    "empty": {
+      "title": "Pure vector search",
+      "description": "No hybrid configuration for this workspace: queries use pgvector vector similarity only.",
+      "activate": "Enable hybrid search"
+    },
+    "fields": {
+      "enabled": "Hybrid search enabled",
+      "engine": "Lexical engine",
+      "engines": {
+        "fts": "Native Postgres FTS",
+        "ftsHelp": "Weighted bilingual, sufficient for most corpora.",
+        "bm25": "BM25 via pg_search extension",
+        "bm25Help": "Global IDF, frequency saturation; useful on large heterogeneous corpora."
+      },
+      "weightVector": "Vector weight",
+      "weightLexical": "Lexical weight",
+      "rrfK": "rrf_k (advanced)",
+      "rrfKHelp": "RRF damping constant: each channel contributes weight / (k + rank). The larger k is, the more rank gaps are smoothed. Default: 60."
+    },
+    "actions": {
+      "save": "Save"
+    },
+    "save": {
+      "success": "Configuration saved.",
+      "error": "Save failed.",
+      "rebuild": "Lexical index rebuild started (job {{jobId}})."
+    },
+    "errors": {
+      "engineUnavailable": "The “{{engine}}” engine is not available on this Postgres instance.",
+      "engineUnavailableExplain": "Install the pg_search extension on the Postgres instance, or keep the native FTS engine which requires no extension."
     }
   },
   "dialog": {
@@ -390,7 +485,11 @@
       "embed_chunks_title": "Embedded chunks ({{count}})",
       "embed_chunk_label": "#{{index}}",
       "error": "Failed to load document view."
-    }
+    },
+    "meta_indexer": "Indexer",
+    "meta_hash": "Hash",
+    "meta_indexed_at": "Indexed at",
+    "meta_source": "View original"
   },
   "optional": "optional",
   "time": {

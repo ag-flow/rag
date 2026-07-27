@@ -4,6 +4,7 @@ export type AuthMethods = {
   oidc_configured: boolean;
   local_auth_enabled: boolean;
   needs_setup: boolean;
+  local_auth_disabled_by_config: boolean;
 };
 
 export function useAuthMethods() {

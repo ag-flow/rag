@@ -7,7 +7,6 @@ import {
   useWorkspaces,
   useCreateWorkspace,
   useDeleteWorkspace,
-  useRevealApiKey,
   useReindex,
 } from "@/hooks/useWorkspaces";
 
@@ -47,7 +46,7 @@ describe("useWorkspaces hooks", () => {
   });
 
   it("useCreateWorkspace POSTs and invalidates", async () => {
-    vi.spyOn(apiModule.api, "post").mockResolvedValue({ name: "ws_a", api_key: "key-xyz" });
+    vi.spyOn(apiModule.api, "post").mockResolvedValue({ name: "ws_a" });
 
     const { qc, wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
@@ -55,7 +54,9 @@ describe("useWorkspaces hooks", () => {
     const { result } = renderHook(() => useCreateWorkspace(), { wrapper });
     result.current.mutate({
       name: "ws_a",
-      indexer: { provider: "openai", model: "x", api_key_ref: null, base_url: null },
+      endpoint_id: "11111111-2222-3333-4444-555555555555",
+      label: "WS A",
+      description: "",
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -71,20 +72,6 @@ describe("useWorkspaces hooks", () => {
     result.current.mutate("ws_a");
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(deleteSpy).toHaveBeenCalledWith("/api/admin/workspaces/ws_a");
-  });
-
-  it("useRevealApiKey GETs and returns the key", async () => {
-    const getSpy = vi
-      .spyOn(apiModule.api, "get")
-      .mockResolvedValue({ api_key: "revealed-key" });
-
-    const { wrapper } = makeWrapper();
-    const { result } = renderHook(() => useRevealApiKey("ws_a"), { wrapper });
-
-    result.current.mutate();
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(getSpy).toHaveBeenCalledWith("/api/admin/workspaces/ws_a/apikey");
-    expect(result.current.data?.api_key).toBe("revealed-key");
   });
 
   it("useReindex POSTs with ?confirm=true", async () => {

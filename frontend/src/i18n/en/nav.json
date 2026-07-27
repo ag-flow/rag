@@ -2,7 +2,8 @@
   "sections": {
     "administration": "Administration",
     "usage": "Usage",
-    "configuration": "Configuration"
+    "configuration": "Configuration",
+    "integration": "Integration"
   },
   "items": {
     "workspaces": "Workspaces",
@@ -12,7 +13,15 @@
     "push": "Push activity",
     "mcp": "MCP search",
     "harpocrate_vaults": "Harpocrate vaults",
+    "api_keys": "API keys",
     "oidc_config": "OIDC config",
-    "prompts": "Prompts"
+    "prompts": "Prompts",
+    "chunking_strategies": "Chunking strategies",
+    "events_producer": "Workflow events",
+    "integration_contracts": "Contracts",
+    "profile": "My profile"
+  },
+  "alerts": {
+    "vault_key_expiry": "A vault key is expiring soon or has expired"
   }
 }

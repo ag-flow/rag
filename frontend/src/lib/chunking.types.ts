@@ -4,6 +4,11 @@
 
 export type ChunkingStrategy = "paragraph" | "markdown";
 
+// Moteur de chunking du workspace : `legacy` = pipeline historique piloté par
+// la config textuelle (caractères), `structured` = pipeline par stratégies du
+// catalogue (tokens, régions).
+export type ChunkingEngine = "legacy" | "structured";
+
 export type ChunkingConfig = {
   workspace_id: string;
   strategy: ChunkingStrategy;
@@ -11,6 +16,8 @@ export type ChunkingConfig = {
   min_chars: number;
   overlap_chars: number;
   extras: Record<string, unknown>;
+  default_strategy_id: string | null;
+  engine: ChunkingEngine;
   created_at: string;
   updated_at: string;
 };

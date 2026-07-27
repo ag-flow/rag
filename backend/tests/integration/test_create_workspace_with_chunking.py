@@ -10,20 +10,26 @@ from uuid import uuid4
 import asyncpg
 import pytest
 
+from rag.db.workspace_migrations.runner import _list_versions
 from rag.db.workspace_schema import derive_workspace_dsn, drop_workspace_database
-from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
+from rag.schemas.admin import IndexerCreateSpec, WorkspaceCreateResolved
 from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.chunking_configs import get_chunking_config
 from rag.services.workspaces import create_workspace
 
+# Dernière version workspace, dérivée du répertoire versions/ (source de vérité).
+_LATEST = max(v for v, _ in _list_versions())
+
 
 def _make_harpo_service() -> MagicMock:
+    """Stub HarpocrateVaultsService : get_default (await par create_workspace)
+    doit être un AsyncMock."""
     service = MagicMock()
     vault = MagicMock(spec=VaultSummary)
     vault.id = uuid4()
+    vault.name = "rag"
     service.get_by_name = AsyncMock(return_value=vault)
-    service.write_secret = AsyncMock(return_value=None)
-    service.delete_secret = AsyncMock(return_value=None)
+    service.get_default = AsyncMock(return_value=vault)
     return service
 
 
@@ -45,11 +51,11 @@ async def _cleanup_workspace(migrated: asyncpg.Pool, admin_dsn: str, name: str) 
         await conn.execute("DELETE FROM workspaces WHERE name = $1", name)
 
 
-def _make_request(name: str) -> WorkspaceCreateRequest:
-    return WorkspaceCreateRequest(
+def _make_request(name: str) -> WorkspaceCreateResolved:
+    return WorkspaceCreateResolved(
         name=name,
-        api_key_vault="rag",
-        indexer=IndexerSpec(
+        label=name,
+        indexer=IndexerCreateSpec(
             provider="ollama",
             model="mxbai-embed-large",
             api_key_ref=None,
@@ -89,7 +95,7 @@ async def test_create_workspace_applies_workspace_migrations(
     migrated: asyncpg.Pool,
     admin_dsn: str,
 ) -> None:
-    """La base workspace a la colonne `metadata` + workspace_schema_migrations à v1."""
+    """La base workspace a la colonne `metadata` + workspace_schema_migrations à jour."""
     name = "ws_create_meta"
     req = _make_request(name)
     try:
@@ -118,7 +124,7 @@ async def test_create_workspace_applies_workspace_migrations(
             }
             assert "metadata" in cols
             version = await conn.fetchval("SELECT MAX(version) FROM workspace_schema_migrations")
-            assert version == 1
+            assert version == _LATEST
         finally:
             await conn.close()
     finally:

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import random
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
 
@@ -49,8 +49,8 @@ def _parse_retry_after(value: str | None) -> float | None:
     if dt is None:
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return max(0.0, (dt - datetime.now(timezone.utc)).total_seconds())
+        dt = dt.replace(tzinfo=UTC)
+    return max(0.0, (dt - datetime.now(UTC)).total_seconds())
 
 
 class EmbeddingProviderAdapter:
@@ -68,12 +68,16 @@ class EmbeddingProviderAdapter:
         model: str,
         transport: httpx.AsyncBaseTransport | None = None,
         retry_sleep_seconds: float = _DEFAULT_RETRY_SLEEP_SECONDS,
+        url_override: str | None = None,
     ) -> None:
         self._service = service
         self._platform = platform
         self._model = model
         self._transport = transport
         self._retry_sleep = retry_sleep_seconds
+        # URL complète résolue depuis model_dimensions.url_template — prime
+        # sur la construction plateforme + service.
+        self._url_override = url_override
 
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
         self._platform.validate_auth()
@@ -93,7 +97,7 @@ class EmbeddingProviderAdapter:
         payload = self._platform.modify_payload(
             self._service.build_query_payload(text, self._model)
         )
-        url = self._platform.url(self._service.embeddings_path)
+        url = self._url_override or self._platform.url(self._service.embeddings_path)
         headers = self._platform.auth_headers()
         async with httpx.AsyncClient(
             transport=self._transport, timeout=_TIMEOUT_SECONDS
@@ -109,7 +113,7 @@ class EmbeddingProviderAdapter:
         payload = self._platform.modify_payload(
             self._service.build_document_payload(batch, self._model)
         )
-        url = self._platform.url(self._service.embeddings_path)
+        url = self._url_override or self._platform.url(self._service.embeddings_path)
         headers = self._platform.auth_headers()
         return await self._call(client, url, headers, payload)
 
@@ -121,7 +125,7 @@ class EmbeddingProviderAdapter:
         provider) sert de plancher ; le tout est plafonné à _MAX_RETRY_SLEEP.
         """
         base = self._retry_sleep * (2**attempt)
-        jittered = random.uniform(0.0, base)
+        jittered = random.uniform(0.0, base)  # noqa: S311 — jitter de retry, pas de crypto
         delay = max(jittered, retry_after or 0.0)
         return min(delay, _MAX_RETRY_SLEEP_SECONDS)
 
@@ -151,17 +155,23 @@ class EmbeddingProviderAdapter:
                 await asyncio.sleep(delay)
                 continue
 
+            # Contexte systématique des erreurs : le message du job doit dire
+            # QUEL service d'embedding est appelé (URL + modèle), pas juste un
+            # code HTTP muet.
+            ctx = f"service d'embedding {url} (modèle '{self._model}')"
             if response.status_code == 200:
                 return self._service.parse_response(response.json())
             if response.status_code == 402:
-                raise EmbeddingQuotaExhausted("Quota exhausted: HTTP 402")
+                raise EmbeddingQuotaExhausted(f"{ctx} : quota épuisé (HTTP 402)")
             if response.status_code in (401, 403):
-                raise EmbeddingAuthError(f"Auth error: HTTP {response.status_code}")
+                raise EmbeddingAuthError(
+                    f"{ctx} : authentification refusée (HTTP {response.status_code})"
+                )
             if response.status_code in (429, 503):
                 if is_last:
                     if response.status_code == 429:
-                        raise EmbeddingRateLimited("Rate limit (after retries)")
-                    raise EmbeddingProviderUnreachable("503 (after retries)")
+                        raise EmbeddingRateLimited(f"{ctx} : rate limit (après retries)")
+                    raise EmbeddingProviderUnreachable(f"{ctx} : HTTP 503 (après retries)")
                 retry_after = _parse_retry_after(response.headers.get("retry-after"))
                 delay = self._retry_delay(attempt, retry_after)
                 log.warning(
@@ -174,11 +184,15 @@ class EmbeddingProviderAdapter:
                 await asyncio.sleep(delay)
                 continue
             if 400 <= response.status_code < 500:
+                # Le corps porte la cause exploitable (ex. Ollama 404 :
+                # « model 'x' not found, try pulling it first »).
+                detail = response.text[:200].strip()
                 raise EmbeddingBadRequest(
-                    f"Bad request: HTTP {response.status_code}"
+                    f"{ctx} : HTTP {response.status_code}"
+                    + (f" — {detail}" if detail else "")
                 )
             raise EmbeddingProviderUnreachable(
-                f"Unexpected HTTP {response.status_code}"
+                f"{ctx} : HTTP {response.status_code} inattendu"
             )
 
         raise EmbeddingProviderUnreachable("Retry loop exited unexpectedly")

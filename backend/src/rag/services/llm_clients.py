@@ -73,13 +73,24 @@ async def call_llm(
         return await _call_openai(
             model=model, api_key=api_key, system=system_prompt, messages=messages
         )
+    if provider in _OPENAI_COMPATIBLE_URLS:
+        return await _call_openai_compatible(
+            model=model,
+            api_key=api_key,
+            base_url=base_url or _OPENAI_COMPATIBLE_URLS[provider],
+            system=system_prompt,
+            messages=messages,
+        )
     if provider == "azure-openai":
         return await _call_azure_openai(
             model=model, api_key=api_key, base_url=base_url, system=system_prompt, messages=messages
         )
-    if provider == "ollama":
+    if provider in ("ollama", "ollama-cloud"):
+        # ollama-cloud : même API que le daemon local, hébergée sur
+        # https://ollama.com avec authentification Bearer par clé API.
+        default_url = "https://ollama.com" if provider == "ollama-cloud" else "http://localhost:11434"
         return await _call_ollama(
-            model=model, base_url=base_url or "http://localhost:11434",
+            model=model, api_key=api_key, base_url=base_url or default_url,
             system=system_prompt, messages=messages,
         )
     if provider == "azure-foundry":
@@ -105,6 +116,35 @@ async def _call_claude(
         "usage": {
             "prompt_tokens": response.usage.input_tokens,
             "completion_tokens": response.usage.output_tokens,
+        },
+    }
+
+
+# Providers de chat OpenAI-compatibles : URL par défaut, surchargée par la
+# base_url de la config le cas échéant.
+_OPENAI_COMPATIBLE_URLS: dict[str, str] = {
+    "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "deepseek": "https://api.deepseek.com/v1",
+    "dashscope": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+}
+
+
+async def _call_openai_compatible(
+    *,
+    model: str,
+    api_key: str | None,
+    base_url: str,
+    system: str,
+    messages: list[dict[str, str]],
+) -> dict[str, Any]:
+    client = openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
+    full_messages = [{"role": "system", "content": system}, *messages]
+    response = await client.chat.completions.create(model=model, messages=full_messages)
+    return {
+        "answer": response.choices[0].message.content or "",
+        "usage": {
+            "prompt_tokens": response.usage.prompt_tokens,
+            "completion_tokens": response.usage.completion_tokens,
         },
     }
 
@@ -161,13 +201,20 @@ async def _call_azure_foundry(
 
 
 async def _call_ollama(
-    *, model: str, base_url: str, system: str, messages: list[dict[str, str]]
+    *,
+    model: str,
+    base_url: str,
+    system: str,
+    messages: list[dict[str, str]],
+    api_key: str | None = None,
 ) -> dict[str, Any]:
     full_messages = [{"role": "system", "content": system}, *messages]
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(
             f"{base_url.rstrip('/')}/api/chat",
             json={"model": model, "messages": full_messages, "stream": False},
+            headers=headers,
         )
         response.raise_for_status()
         data = response.json()
@@ -178,3 +225,68 @@ async def _call_ollama(
             "completion_tokens": data.get("eval_count", 0),
         },
     }
+
+
+# ─── Contextual retrieval « Prompt B » ────────────────────────────────────────
+# Prompt caching validé sur la doc Anthropic (2026-07) avant câblage (spec §2) :
+# `cache_control: ephemeral`, TTL 5 min (d'où le traitement en rafale des
+# chunks d'un même document), minimum cacheable 1024 tokens (2048 sur Haiku),
+# écriture du cache +25 %, lecture -90 %. Le marqueur n'est posé que si le
+# préfixe document atteint le seuil — en dessous, il coûterait sans servir.
+_CACHE_MIN_PREFIX_TOKENS = 2048
+_CACHE_CHAR_RATIO = 4  # heuristique len/4, cohérente avec HeuristicTokenEstimator
+CONTEXT_MAX_TOKENS = 120  # spec : contexte ≤ 100 tokens, marge de fin de phrase
+
+
+async def call_llm_with_cached_prefix(
+    *,
+    provider: str,
+    model: str,
+    api_key: str | None,
+    base_url: str | None,
+    cached_prefix: str,
+    prompt: str,
+    max_tokens: int = CONTEXT_MAX_TOKENS,
+) -> str:
+    """Un appel court avec un gros préfixe partagé (document complet).
+
+    Claude : préfixe marqué `cache_control` au-delà du seuil — les appels en
+    rafale sur le même document ne paient le document qu'une fois. Autres
+    providers : concaténation simple (OpenAI cache automatiquement les longs
+    préfixes identiques ; Ollama est local, pas de facturation).
+    """
+    use_anthropic_cache = (
+        provider == "claude"
+        and anthropic is not None
+        and len(cached_prefix) // _CACHE_CHAR_RATIO >= _CACHE_MIN_PREFIX_TOKENS
+    )
+    if use_anthropic_cache:
+        client = anthropic.AsyncAnthropic(api_key=api_key)
+        response = await client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": cached_prefix,
+                            "cache_control": {"type": "ephemeral"},
+                        },
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ],
+        )
+        return response.content[0].text
+
+    result = await call_llm(
+        provider=provider,
+        model=model,
+        api_key=api_key,
+        base_url=base_url,
+        system_prompt="",
+        messages=[{"role": "user", "content": f"{cached_prefix}\n\n{prompt}"}],
+    )
+    return str(result["answer"] or "")

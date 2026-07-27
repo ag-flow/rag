@@ -1,0 +1,47 @@
+// Collecteur Grafana Alloy — logs des conteneurs Docker de l'hôte → Loki.
+//
+// Piloté par deux variables d'environnement (fournies par le compose depuis .env) :
+//   LOKI_URL  — endpoint push Loki, ex. http://192.168.10.164:3100/loki/api/v1/push
+//   HOSTNAME  — label `host` identifiant la machine (ex. rag-dev)
+//
+// Remplace ce fichier par ta propre config si besoin — le compose le monte tel quel
+// dans /etc/alloy/config.alloy.
+
+logging {
+  level  = "warn"
+  format = "logfmt"
+}
+
+// Découverte des conteneurs Docker via la socket.
+discovery.docker "all" {
+  host = "unix:///var/run/docker.sock"
+}
+
+// Nom de conteneur propre en label `container` (Docker le préfixe d'un « / »).
+discovery.relabel "logs" {
+  targets = discovery.docker.all.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+}
+
+// Tail des logs des conteneurs découverts → pipeline d'écriture Loki.
+loki.source.docker "all" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.relabel.logs.output
+  relabel_rules = discovery.relabel.logs.rules
+  labels        = { job = "ragflow" }
+  forward_to    = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = sys.env("LOKI_URL")
+  }
+  external_labels = {
+    host = sys.env("HOSTNAME"),
+  }
+}

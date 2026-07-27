@@ -70,8 +70,8 @@ Deux informations sont nécessaires :
 └───────────────────────────────────────────────────────────────────┘
 ```
 
-4. Dans la section **Clés API** ci-dessous, créez ou copiez une clé API
-5. Remplacez `<votre-clé>` dans le JSON par la valeur de la clé
+4. Le token est une de **vos clés API personnelles** (menu **Configuration → Clés API**), avec la permission **READ** accordée à ce workspace
+5. Remplacez `<votre-clé>` dans le JSON par la valeur de la clé (affichée une seule fois à sa création)
 
 ### Via l'API
 
@@ -84,9 +84,9 @@ WORKSPACE_ID=$(curl -s -H "Authorization: Bearer $RAG_MASTER_KEY" \
 # Construire l'URL MCP
 echo "https://rag.votre-domaine.fr/mcp/$WORKSPACE_ID"
 
-# Obtenir une clé API (liste les clés existantes)
-curl -H "Authorization: Bearer $RAG_MASTER_KEY" \
-  https://rag.votre-domaine.fr/api/admin/workspaces/mon-projet/api-keys
+# Les clés se créent au niveau utilisateur (session requise) :
+# POST /api/me/api-keys {"name": "...", "workspaces": [{"workspace_id": "...", "can_read": true}]}
+# La valeur n'est retournée qu'à la création.
 ```
 
 ---
@@ -233,7 +233,7 @@ ag-flow.rag est open source. Si vous hébergez votre propre instance, adaptez l'
 
 ### Erreur d'authentification (401)
 
-- Vérifiez que la clé API n'a pas été révoquée (onglet **Api** du workspace)
+- Vérifiez que la clé n'a pas été révoquée et qu'elle a bien la permission **READ** sur ce workspace (page **Clés API**)
 - Assurez-vous que le header contient bien `Bearer ` (avec l'espace) avant la clé
 - Si la clé est en grace period (rotation en cours), elle fonctionne encore — vérifiez l'orthographe
 

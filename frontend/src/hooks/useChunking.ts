@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { chunkingApi, type UpsertChunkingResult } from "@/lib/chunking";
-import type { ChunkingConfig, ChunkingSpec } from "@/lib/chunking.types";
+import {
+  chunkingApi,
+  type SetDefaultStrategyResult,
+  type SetEngineResult,
+  type UpsertChunkingResult,
+} from "@/lib/chunking";
+import type { ChunkingConfig, ChunkingEngine, ChunkingSpec } from "@/lib/chunking.types";
 
 /**
  * Récupère la chunking_config du workspace. Config obligatoire : un workspace
@@ -31,6 +36,52 @@ export function useUpsertChunkingConfig(name: string) {
         void qc.invalidateQueries({
           queryKey: ["workspace", name, "chunking"],
         });
+      }
+      if (result.status === "reindex_triggered") {
+        void qc.invalidateQueries({ queryKey: ["workspace", name, "jobs"] });
+      }
+    },
+  });
+}
+
+type EngineVars = { engine: ChunkingEngine; confirm: boolean };
+
+/**
+ * Bascule du moteur de chunking (`legacy` ↔ `structured`). Même contrat 409
+ * que `useUpsertChunkingConfig` : le composant intercepte l'ApiError pour
+ * afficher le dialog de confirmation, qui rappelle la mutation confirm=true.
+ */
+export function useSetChunkingEngine(name: string) {
+  const qc = useQueryClient();
+  return useMutation<SetEngineResult, Error, EngineVars>({
+    mutationFn: ({ engine, confirm }) => chunkingApi.setEngine(name, engine, confirm),
+    onSuccess: (result) => {
+      if (result.status !== "no_change") {
+        void qc.invalidateQueries({ queryKey: ["workspace", name, "chunking"] });
+      }
+      if (result.status === "reindex_triggered") {
+        void qc.invalidateQueries({ queryKey: ["workspace", name, "jobs"] });
+      }
+    },
+  });
+}
+
+type DefaultStrategyVars = { strategyId: string | null; confirm: boolean };
+
+/**
+ * Binding par id de la stratégie par défaut du workspace. Même contrat 409
+ * que `useUpsertChunkingConfig` : le composant intercepte pour confirmer la
+ * réindexation. Invalide aussi le catalogue (compteur « utilisée par N »).
+ */
+export function useSetDefaultStrategy(name: string) {
+  const qc = useQueryClient();
+  return useMutation<SetDefaultStrategyResult, Error, DefaultStrategyVars>({
+    mutationFn: ({ strategyId, confirm }) =>
+      chunkingApi.setDefaultStrategy(name, strategyId, confirm),
+    onSuccess: (result) => {
+      if (result.status !== "no_change") {
+        void qc.invalidateQueries({ queryKey: ["workspace", name, "chunking"] });
+        void qc.invalidateQueries({ queryKey: ["chunking-strategies"] });
       }
       if (result.status === "reindex_triggered") {
         void qc.invalidateQueries({ queryKey: ["workspace", name, "jobs"] });

@@ -3,10 +3,27 @@ import { useTranslation } from "react-i18next";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { FileCode2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useAuthMethods } from "@/hooks/useAuthMethods";
+
+/** Contrats d'API publics (OpenAPI + outils MCP) — accessibles sans session. */
+function ApiContractsLink() {
+  const { t } = useTranslation("login");
+  return (
+    <a
+      href="/docs"
+      target="_blank"
+      rel="noreferrer"
+      className="absolute right-6 top-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
+    >
+      <FileCode2 className="h-4 w-4" />
+      {t("contracts_link")}
+    </a>
+  );
+}
 
 const loginSchema = z.object({
   username: z.string().min(1, "required"),
@@ -68,7 +85,8 @@ function SetupForm() {
   };
 
   return (
-    <div className="flex h-screen items-center justify-center bg-slate-50">
+    <div className="relative flex h-screen items-center justify-center bg-slate-50">
+      <ApiContractsLink />
       <div className="w-full max-w-md rounded-md border bg-white p-6 shadow-sm">
         <h1 className="text-xl font-semibold text-slate-900 mb-1">{t("setup.title")}</h1>
         <p className="text-sm text-slate-500 mb-5">{t("setup.subtitle")}</p>
@@ -181,27 +199,15 @@ export function LoginPage() {
   const showLocal = !!methods?.local_auth_enabled;
 
   return (
-    <div className="flex h-screen items-center justify-center bg-slate-50">
+    <div className="relative flex h-screen items-center justify-center bg-slate-50">
+      <ApiContractsLink />
       <div className="w-full max-w-md rounded-md border bg-white p-6 shadow-sm">
-        <h1 className="text-xl font-semibold text-slate-900 mb-4">{t("title")}</h1>
+        <div className="mb-5 text-center">
+          <h1 className="text-2xl font-bold text-slate-900">{t("app_name")}</h1>
+          <p className="mt-0.5 text-sm text-slate-500">{t("title")}</p>
+        </div>
 
-        {!showOidc && !showLocal && (
-          <p className="text-sm text-red-600">{t("errors.no_method")}</p>
-        )}
-
-        {showOidc && (
-          <Button type="button" onClick={handleSsoClick} className="w-full mb-4">
-            {t("oidc.button")}
-          </Button>
-        )}
-
-        {showOidc && showLocal && (
-          <div className="my-4 flex items-center gap-2 text-xs text-slate-400">
-            <div className="flex-1 border-t" />
-            <span>{t("info.separator_or")}</span>
-            <div className="flex-1 border-t" />
-          </div>
-        )}
+        {!showOidc && !showLocal && <p className="text-sm text-red-600">{t("errors.no_method")}</p>}
 
         {showLocal && (
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
@@ -232,6 +238,20 @@ export function LoginPage() {
               {t("local.submit")}
             </Button>
           </form>
+        )}
+
+        {showOidc && showLocal && (
+          <div className="my-4 flex items-center gap-2 text-xs text-slate-400">
+            <div className="flex-1 border-t" />
+            <span>{t("info.separator_or")}</span>
+            <div className="flex-1 border-t" />
+          </div>
+        )}
+
+        {showOidc && (
+          <Button type="button" onClick={handleSsoClick} className="w-full">
+            {t("oidc.button")}
+          </Button>
         )}
       </div>
     </div>

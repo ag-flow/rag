@@ -51,7 +51,7 @@ async def list_keys(vault_id: UUID, request: Request) -> list[GitCredentialOut]:
         vault = await svc.get_by_id(conn, vault_id)
         if vault is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
-        _check_vault_access(vault, owner_id, write=False)
+        _check_vault_access(vault, owner_id)
         return await list_git_credentials(conn, vault_id=str(vault_id))
 
 
@@ -68,7 +68,7 @@ async def create_key(
         vault = await svc.get_by_id(conn, vault_id)
         if vault is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
-        _check_vault_access(vault, owner_id, write=True)
+        _check_vault_access(vault, owner_id)
         vault_dict = {"id": str(vault.id), "name": vault.name, "base_url": vault.base_url}
         try:
             return await create_git_credential(conn, vault=vault_dict, vault_svc=svc, req=body)
@@ -90,7 +90,7 @@ async def update_key(
         vault = await svc.get_by_id(conn, vault_id)
         if vault is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
-        _check_vault_access(vault, owner_id, write=True)
+        _check_vault_access(vault, owner_id)
         vault_dict = {"id": str(vault.id), "name": vault.name, "base_url": vault.base_url}
         result = await update_git_credential(
             conn, key_id=str(key_id), vault=vault_dict, vault_svc=svc, req=body
@@ -113,7 +113,7 @@ async def delete_key(
         vault = await svc.get_by_id(conn, vault_id)
         if vault is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "vault not found")
-        _check_vault_access(vault, owner_id, write=True)
+        _check_vault_access(vault, owner_id)
         vault_dict = {"id": str(vault.id), "name": vault.name, "base_url": vault.base_url}
         try:
             deleted = await delete_git_credential(

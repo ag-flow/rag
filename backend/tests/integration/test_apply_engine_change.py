@@ -10,10 +10,13 @@ from tests.integration._workspace_seed import seed_workspace
 
 async def _seed_ws_with_config(conn: asyncpg.Connection, name: str) -> str:
     ws_id = await seed_workspace(conn, name=name)
+    # engine explicite 'legacy' : la migration 065 a changé le DÉFAUT à
+    # 'structured' — sans ce forçage, les tests de bascule legacy↔structured
+    # deviendraient des no_change.
     await conn.execute(
         "INSERT INTO chunking_configs "
-        "(workspace_id, strategy, max_chars, min_chars, overlap_chars) "
-        "VALUES ($1, 'paragraph', 2000, 200, 200)",
+        "(workspace_id, strategy, max_chars, min_chars, overlap_chars, engine) "
+        "VALUES ($1, 'paragraph', 2000, 200, 200, 'legacy')",
         ws_id,
     )
     return str(ws_id)

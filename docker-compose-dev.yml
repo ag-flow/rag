@@ -42,6 +42,9 @@ services:
       # `dev-deploy.sh --reset` (down -v) purge ce volume au passage.
       - rag_repos:/var/lib/rag/repos
       - ./embedding_providers_pricing.yml:/app/config/pricing.yml:ro
+      # Réglages d'auth pilotés par l'IHM (admin.env, inscriptible + relu à
+      # chaud). Le backend crée data/admin.env au premier enregistrement.
+      - ./data:/app/data
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
@@ -85,6 +88,29 @@ services:
     ports:
       - "8081:8081"
     networks: [rag]
+
+  # Collecteur de logs → Loki (LXC 116) : lit les logs de TOUS les conteneurs
+  # Docker de l'hôte (via la socket) et les pousse vers Loki. La config vit
+  # dans deploy/alloy-config.alloy (label job=ragflow, host=LOKI_HOSTNAME).
+  # Requiert LOKI_URL dans .env ; à défaut, Alloy redémarre en boucle sans
+  # impacter le reste du stack.
+  alloy:
+    image: grafana/alloy:latest
+    container_name: rag-alloy
+    restart: unless-stopped
+    # Alloy lit la socket Docker : en root pour éviter les soucis de
+    # permission (660 root:docker).
+    user: root
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+    environment:
+      LOKI_URL: "${LOKI_URL:-}"
+      HOSTNAME: "${LOKI_HOSTNAME:-rag-dev}"
+    volumes:
+      - ./deploy/alloy-config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
 volumes:
   postgres_data:

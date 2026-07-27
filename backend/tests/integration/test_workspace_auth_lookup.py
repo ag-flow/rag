@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from hashlib import sha256
-
 import asyncpg
 import pytest
 from fastapi import FastAPI, HTTPException, Request
 
-from rag.auth.workspace_auth import ApiKeyCache, require_workspace_apikey
-from tests.integration._workspace_seed import seed_workspace
+from rag.auth.workspace_auth import require_workspace_apikey
+from tests.integration._workspace_seed import seed_user_api_key, seed_workspace
 
 
 def _make_request(app: FastAPI, headers: dict[str, str]) -> Request:
@@ -19,116 +17,90 @@ def _make_request(app: FastAPI, headers: dict[str, str]) -> Request:
     return Request(scope)
 
 
-class _StubResolver:
-    """Retourne l'api_key en clair pour la ref passée (simple store clé→valeur)."""
-
-    def __init__(self, store: dict[str, str]) -> None:
-        self._store = store
-
-    async def resolve_with_retry(self, ref: str) -> str:
-        return self._store[ref]
-
-
-def _make_app(pool: asyncpg.Pool, api_key: str, ws_name: str) -> FastAPI:
-    """Construit une app FastAPI minimale câblée pour require_workspace_apikey."""
+def _make_app(pool: asyncpg.Pool) -> FastAPI:
     app = FastAPI()
 
     class _Pools:
         config_pool = pool
 
-    ref = f"${{vault://test:{ws_name}_apikey}}"
-    store = {ref: api_key}
-
     app.state.pools = _Pools()
-    app.state.apikey_cache = ApiKeyCache()
-    app.state.resolver = _StubResolver(store)
     return app
 
 
+async def _seed_ws(conn: asyncpg.Connection, name: str):
+    ws_id = await seed_workspace(conn, name=name)
+    await conn.execute(
+        "INSERT INTO indexer_configs (workspace_id, provider, model, dimension) "
+        "VALUES ($1, 'ollama', 'mxbai-embed-large', 1024)",
+        ws_id,
+    )
+    return ws_id
+
+
 @pytest.mark.asyncio
-async def test_valid_apikey_returns_auth_context(migrated: asyncpg.Pool) -> None:
+async def test_key_with_write_scope_returns_auth_context(migrated: asyncpg.Pool) -> None:
     api_key = "valid-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     async with migrated.acquire() as conn:
-        ws_id = await seed_workspace(conn, name="ws_auth", api_key=api_key)
-        # seed un indexer_config minimal (FK requise)
-        await conn.execute(
-            "INSERT INTO indexer_configs (workspace_id, provider, model, dimension) "
-            "VALUES ($1, 'ollama', 'mxbai-embed-large', 1024)",
-            ws_id,
-        )
+        ws_id = await _seed_ws(conn, "ws_auth")
+        await seed_user_api_key(conn, api_key=api_key, scope="read_write")
 
-    app = _make_app(migrated, api_key, "ws_auth")
-    req = _make_request(app, {"Authorization": f"Bearer {api_key}"})
+    req = _make_request(_make_app(migrated), {"Authorization": f"Bearer {api_key}"})
     ctx = await require_workspace_apikey("ws_auth", req)
+    assert ctx.workspace_id == ws_id
+
+
+@pytest.mark.asyncio
+async def test_admin_scope_also_grants_write(migrated: asyncpg.Pool) -> None:
+    """Le niveau admin inclut l'écriture (scope IN read_write, admin)."""
+    api_key = "admin-key-ffffffffffffffffffffffffffff"
+    async with migrated.acquire() as conn:
+        ws_id = await _seed_ws(conn, "ws_admin")
+        await seed_user_api_key(conn, api_key=api_key, scope="admin")
+
+    req = _make_request(_make_app(migrated), {"Authorization": f"Bearer {api_key}"})
+    ctx = await require_workspace_apikey("ws_admin", req)
     assert ctx.workspace_id == ws_id
 
 
 @pytest.mark.asyncio
 async def test_unknown_apikey_raises_401(migrated: asyncpg.Pool) -> None:
     async with migrated.acquire() as conn:
-        ws_id = await seed_workspace(conn, name="ws_a", api_key="real-key")
-        await conn.execute(
-            "INSERT INTO indexer_configs (workspace_id, provider, model, dimension) "
-            "VALUES ($1, 'ollama', 'mxbai-embed-large', 1024)",
-            ws_id,
-        )
+        await _seed_ws(conn, "ws_a")
+        await seed_user_api_key(conn, api_key="real-key", scope="read_write")
 
-    app = _make_app(migrated, "real-key", "ws_a")
-    req = _make_request(app, {"Authorization": "Bearer fake-key"})
+    req = _make_request(_make_app(migrated), {"Authorization": "Bearer fake-key"})
     with pytest.raises(HTTPException) as exc:
         await require_workspace_apikey("ws_a", req)
     assert exc.value.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_rotated_key_invalidates_old(migrated: asyncpg.Pool) -> None:
-    """Après rotation (fingerprint mis à jour en DB + cache invalidé),
-    l'ancienne clé est rejetée et la nouvelle est acceptée."""
-    old_key = "old-key-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-    new_key = "new-key-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-
+async def test_read_only_scope_rejected_for_write(migrated: asyncpg.Pool) -> None:
+    """Une clé scope='read' ne peut pas pousser d'indexation (écriture)."""
+    api_key = "read-only-key-cccccccccccccccccccccccc"
     async with migrated.acquire() as conn:
-        ws_id = await seed_workspace(conn, name="ws_rot", api_key=old_key)
-        await conn.execute(
-            "INSERT INTO indexer_configs (workspace_id, provider, model, dimension) "
-            "VALUES ($1, 'ollama', 'mxbai-embed-large', 1024)",
-            ws_id,
-        )
+        await _seed_ws(conn, "ws_ro")
+        await seed_user_api_key(conn, api_key=api_key, scope="read")
 
-    app = FastAPI()
-
-    class _Pools:
-        config_pool = migrated
-
-    ref = "${vault://test:ws_rot_apikey}"
-    store: dict[str, str] = {ref: old_key}
-
-    app.state.pools = _Pools()
-    app.state.apikey_cache = ApiKeyCache()
-    app.state.resolver = _StubResolver(store)
-
-    # Première auth avec old_key doit passer
-    req_old = _make_request(app, {"Authorization": f"Bearer {old_key}"})
-    ctx = await require_workspace_apikey("ws_rot", req_old)
-    assert ctx.workspace_id == ws_id
-
-    # Simule une rotation : mise à jour fingerprint en DB + ref inchangée
-    await migrated.execute(
-        "UPDATE workspaces SET api_key_fingerprint = $1 WHERE id = $2",
-        sha256(new_key.encode()).hexdigest(),
-        ws_id,
-    )
-    # Mise à jour du store resolver + invalidation cache
-    store[ref] = new_key
-    app.state.apikey_cache.invalidate(ref)
-
-    # Ancienne clé : fingerprint ne matche plus → 401
-    req_old2 = _make_request(app, {"Authorization": f"Bearer {old_key}"})
+    req = _make_request(_make_app(migrated), {"Authorization": f"Bearer {api_key}"})
     with pytest.raises(HTTPException) as exc:
-        await require_workspace_apikey("ws_rot", req_old2)
+        await require_workspace_apikey("ws_ro", req)
     assert exc.value.status_code == 401
 
-    # Nouvelle clé : fingerprint matche + resolver retourne new_key → OK
-    req_new = _make_request(app, {"Authorization": f"Bearer {new_key}"})
-    ctx2 = await require_workspace_apikey("ws_rot", req_new)
-    assert ctx2.workspace_id == ws_id
+
+@pytest.mark.asyncio
+async def test_revoked_key_rejected(migrated: asyncpg.Pool) -> None:
+    api_key = "revoked-key-eeeeeeeeeeeeeeeeeeeeeeeeee"
+    async with migrated.acquire() as conn:
+        await _seed_ws(conn, "ws_rev")
+        key_id = await seed_user_api_key(
+            conn, api_key=api_key, scope="read_write"
+        )
+        await conn.execute(
+            "UPDATE user_api_keys SET revoked_at = now() WHERE id = $1", key_id
+        )
+
+    req = _make_request(_make_app(migrated), {"Authorization": f"Bearer {api_key}"})
+    with pytest.raises(HTTPException) as exc:
+        await require_workspace_apikey("ws_rev", req)
+    assert exc.value.status_code == 401

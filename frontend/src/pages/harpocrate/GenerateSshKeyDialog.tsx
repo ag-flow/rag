@@ -57,8 +57,12 @@ export function GenerateSshKeyDialog({ vaultId, open, onOpenChange }: Props) {
   function handleClose(next: boolean) {
     onOpenChange(next);
     if (!next) {
-      setName(""); setKeyId(""); setKeyType("ed25519");
-      setKeyIdError(""); setGeneratedPublicKey(null); setCopied(false);
+      setName("");
+      setKeyId("");
+      setKeyType("ed25519");
+      setKeyIdError("");
+      setGeneratedPublicKey(null);
+      setCopied(false);
     }
   }
 
@@ -71,10 +75,7 @@ export function GenerateSshKeyDialog({ vaultId, open, onOpenChange }: Props) {
   }
 
   const canSubmit =
-    name.trim().length > 0 &&
-    keyId.length > 0 &&
-    KEY_ID_RE.test(keyId) &&
-    !mutation.isPending;
+    name.trim().length > 0 && keyId.length > 0 && KEY_ID_RE.test(keyId) && !mutation.isPending;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -141,7 +142,10 @@ export function GenerateSshKeyDialog({ vaultId, open, onOpenChange }: Props) {
               </Label>
               <Input
                 value={keyId}
-                onChange={(e) => { setKeyId(e.target.value); validateKeyId(e.target.value); }}
+                onChange={(e) => {
+                  setKeyId(e.target.value);
+                  validateKeyId(e.target.value);
+                }}
                 placeholder="deploy-prod"
                 className="mt-1 font-mono"
               />

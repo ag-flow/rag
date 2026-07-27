@@ -13,18 +13,20 @@ import pytest
 from rag.db.pool import WorkspacePoolRegistry
 from rag.db.workspace_schema import derive_workspace_dsn, drop_workspace_database
 from rag.indexer.real import RealIndexer
-from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
+from rag.schemas.admin import IndexerCreateSpec, WorkspaceCreateResolved
 from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.workspaces import create_workspace
 
 
 def _make_harpo_service() -> MagicMock:
+    """Stub HarpocrateVaultsService : get_default (await par create_workspace)
+    doit être un AsyncMock."""
     service = MagicMock()
     vault = MagicMock(spec=VaultSummary)
     vault.id = uuid4()
+    vault.name = "rag"
     service.get_by_name = AsyncMock(return_value=vault)
-    service.write_secret = AsyncMock(return_value=None)
-    service.delete_secret = AsyncMock(return_value=None)
+    service.get_default = AsyncMock(return_value=vault)
     return service
 
 
@@ -51,10 +53,10 @@ async def test_real_indexer_respects_chunking_config_max_chars(
 ) -> None:
     """RealIndexer lit chunking_config et applique max_chars pour produire plusieurs chunks."""
     name = "ws_realidx_chunk"
-    req = WorkspaceCreateRequest(
+    req = WorkspaceCreateResolved(
         name=name,
-        api_key_vault="rag",
-        indexer=IndexerSpec(
+        label=name,
+        indexer=IndexerCreateSpec(
             provider="ollama",
             model="mxbai-embed-large",
             api_key_ref=None,
@@ -77,9 +79,11 @@ async def test_real_indexer_respects_chunking_config_max_chars(
     registry: WorkspacePoolRegistry | None = None
     try:
         # Force chunking_config petite pour garantir splits multiples.
+        # engine='legacy' explicite : ce test exerce le pipeline par caractères
+        # (le défaut est passé à 'structured' en migration 065).
         await migrated.execute(
-            "UPDATE chunking_configs SET max_chars=500, min_chars=50, overlap_chars=50 "
-            "WHERE workspace_id = $1",
+            "UPDATE chunking_configs SET max_chars=500, min_chars=50, overlap_chars=50, "
+            "engine='legacy' WHERE workspace_id = $1",
             ws["id"],
         )
 
@@ -118,14 +122,14 @@ async def test_real_indexer_respects_chunking_config_max_chars(
 
         # 1500-char text → avec max_chars=500 doit produire >= 2 chunks.
         content = "Phrase courte. " * 100
-        nb = await indexer.index_file(
+        outcome = await indexer.index_file(
             workspace_id=ws["id"],
             path="t.md",
             content=content,
             content_hash="sha256:x",
             indexer_used="ollama/mxbai-embed-large",
         )
-        assert nb >= 2
+        assert outcome.chunks >= 2
 
         # metadata doit être vide pour chaque chunk (ParagraphChunker).
         conn = await asyncpg.connect(ws_dsn)
@@ -133,7 +137,7 @@ async def test_real_indexer_respects_chunking_config_max_chars(
             rows = await conn.fetch(
                 "SELECT chunk_index, metadata FROM embeddings WHERE path = 't.md'"
             )
-            assert len(rows) == nb
+            assert len(rows) == outcome.chunks
             for r in rows:
                 # asyncpg renvoie jsonb en str par défaut
                 assert r["metadata"] in ("{}", {})

@@ -91,6 +91,9 @@ def _make_stub_harpocrate_vaults_service(
     vault.base_url = "http://harpocrate-stub:8200"
     vault.name = "rag"
     service.get_by_name = AsyncMock(return_value=vault)
+    # create_workspace vérifie l'existence d'un coffre par défaut AVANT tout
+    # DDL (chantier endpoints, cac2b8e) — le stub doit répondre en async.
+    service.get_default = AsyncMock(return_value=vault)
 
     async def _write_secret(_conn, *, vault_name: str, path: str, value: str) -> None:
         secret_store[path] = value
@@ -102,6 +105,110 @@ def _make_stub_harpocrate_vaults_service(
     service.delete_secret = _delete_secret
     service.bind_client_provider = MagicMock(return_value=None)
     return service
+
+
+
+
+async def seed_endpoint(
+    dsn: str,
+    *,
+    slug: str,
+    provider: str,
+    model: str,
+    api_key_ref: str | None = "openai_embedding_key",
+    base_url: str | None = None,
+    rerank: dict | None = None,
+    llm: dict | None = None,
+    indexer_limits: tuple[int | None, int | None] = (None, None),
+) -> str:
+    """Seed un endpoint arbitraire (coffre 'rag' créé au besoin) → endpoint_id.
+
+    `rerank` : dict {provider, model, api_key_ref?, base_url?, top_k?, rpm?, tpm?}.
+    `llm`    : dict {provider, model, api_key_ref?, base_url?, rpm?, tpm?}.
+    `indexer_limits` : (rpm_limit, tpm_limit) du service de vectorisation.
+    Sert aux tests qui exercent une sémantique précise (provider inconnu,
+    ollama+base_url, rerank à la création…).
+    """
+    conn = await asyncpg.connect(dsn)
+    try:
+        vault_id = await conn.fetchval(
+            """
+            INSERT INTO harpocrate_vaults
+                (id, name, label, base_url, api_key_id, api_key_encrypted, is_default)
+            VALUES (gen_random_uuid(), 'rag', 'rag', 'http://harpocrate.test', 'k-test',
+                    pgp_sym_encrypt('tok-test', 'passphrase-of-at-least-32-characters-long'),
+                    true)
+            ON CONFLICT (name) DO UPDATE SET label = EXCLUDED.label
+            RETURNING id
+            """
+        )
+        rr = rerank or {}
+        lm = llm or {}
+        endpoint_id = await conn.fetchval(
+            """
+            INSERT INTO vault_endpoints
+                (vault_id, label, slug, indexer_provider, indexer_model,
+                 indexer_api_key_ref, indexer_base_url,
+                 rerank_provider, rerank_model, rerank_api_key_ref,
+                 rerank_base_url, rerank_top_k,
+                 llm_provider, llm_model, llm_api_key_ref, llm_base_url,
+                 indexer_rpm_limit, indexer_tpm_limit,
+                 rerank_rpm_limit, rerank_tpm_limit,
+                 llm_rpm_limit, llm_tpm_limit)
+            VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+                    $16, $17, $18, $19, $20, $21)
+            ON CONFLICT (vault_id, slug) DO UPDATE SET
+                indexer_provider = EXCLUDED.indexer_provider,
+                indexer_model = EXCLUDED.indexer_model,
+                indexer_api_key_ref = EXCLUDED.indexer_api_key_ref,
+                indexer_base_url = EXCLUDED.indexer_base_url,
+                rerank_provider = EXCLUDED.rerank_provider,
+                rerank_model = EXCLUDED.rerank_model,
+                rerank_api_key_ref = EXCLUDED.rerank_api_key_ref,
+                rerank_base_url = EXCLUDED.rerank_base_url,
+                rerank_top_k = EXCLUDED.rerank_top_k,
+                llm_provider = EXCLUDED.llm_provider,
+                llm_model = EXCLUDED.llm_model,
+                llm_api_key_ref = EXCLUDED.llm_api_key_ref,
+                llm_base_url = EXCLUDED.llm_base_url,
+                indexer_rpm_limit = EXCLUDED.indexer_rpm_limit,
+                indexer_tpm_limit = EXCLUDED.indexer_tpm_limit,
+                rerank_rpm_limit = EXCLUDED.rerank_rpm_limit,
+                rerank_tpm_limit = EXCLUDED.rerank_tpm_limit,
+                llm_rpm_limit = EXCLUDED.llm_rpm_limit,
+                llm_tpm_limit = EXCLUDED.llm_tpm_limit
+            RETURNING id
+            """,
+            vault_id, slug, provider, model, api_key_ref, base_url,
+            rr.get("provider"), rr.get("model"), rr.get("api_key_ref"),
+            rr.get("base_url"), rr.get("top_k"),
+            lm.get("provider"), lm.get("model"), lm.get("api_key_ref"),
+            lm.get("base_url"),
+            indexer_limits[0], indexer_limits[1],
+            rr.get("rpm"), rr.get("tpm"),
+            lm.get("rpm"), lm.get("tpm"),
+        )
+        return str(endpoint_id)
+    finally:
+        await conn.close()
+
+
+def seed_endpoint_sync(dsn: str, **kwargs) -> str:
+    """Wrapper synchrone de seed_endpoint pour les tests API (TestClient sync)."""
+    import asyncio
+
+    return asyncio.run(seed_endpoint(dsn, **kwargs))
+
+
+async def _seed_default_endpoint(dsn: str) -> str:
+    """Seed un coffre + un endpoint de vectorisation, retourne l'endpoint_id.
+
+    La création de workspace exige désormais un endpoint (préréglage du
+    coffre) : chaque TestClient expose `default_endpoint_id` pour les helpers.
+    """
+    return await seed_endpoint(
+        dsn, slug="test-openai", provider="openai", model="text-embedding-3-small"
+    )
 
 
 @pytest_asyncio.fixture
@@ -148,6 +255,8 @@ async def admin_client(
         migrations_dir=_MIGRATIONS_DIR,
     )
     with TestClient(app) as client:
+        # Migrations appliquées par le lifespan → on peut seeder l'endpoint.
+        client.default_endpoint_id = await _seed_default_endpoint(pg_container)  # type: ignore[attr-defined]
         yield client
 
 
@@ -158,17 +267,30 @@ def admin_headers() -> dict[str, str]:
 
 @pytest.fixture
 def cleanup_ws_dbs_api(pg_container: str) -> Iterator[None]:
+    """Droppe les bases workspace créées par LE test (celles de sa config DB).
+
+    Précis et sûr sur un Postgres partagé : on lit `workspaces.rag_base` dans
+    la config DB jetable du test — jamais de pattern global qui raterait des
+    noms (fuite → collision au run suivant) ou toucherait d'autres bases.
+    """
     yield
     import asyncio
 
     async def _cleanup() -> None:
+        config = await asyncpg.connect(pg_container)
+        try:
+            bases = [r["rag_base"] for r in await config.fetch("SELECT rag_base FROM workspaces")]
+        finally:
+            await config.close()
+        if not bases:
+            return
         admin = await asyncpg.connect(pg_container.rsplit("/", 1)[0] + "/postgres")
         try:
-            for r in await admin.fetch(
-                "SELECT datname FROM pg_database WHERE datname LIKE 'rag_ws_%'"
-            ):
-                await admin.execute(f'DROP DATABASE IF EXISTS "{r["datname"]}" WITH (FORCE)')
+            for base in bases:
+                await admin.execute(f'DROP DATABASE IF EXISTS "{base}" WITH (FORCE)')
         finally:
             await admin.close()
 
-    asyncio.get_event_loop().run_until_complete(_cleanup())
+    # Python 3.12 : get_event_loop() hors boucle courante renvoie une boucle
+    # fermée par pytest-asyncio → RuntimeError en teardown. Boucle dédiée.
+    asyncio.run(_cleanup())

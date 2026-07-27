@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
 from rag.services.source_webhooks import (
     WebhookAlreadyEnabledError,
     WebhookNotEnabledError,

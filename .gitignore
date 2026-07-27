@@ -150,6 +150,12 @@ activemq-data/
 # Environments
 .env
 .envrc
+
+# Fichier de réglages d'auth pilotés par l'IHM (client secret OIDC, toggle
+# connexion locale) — contient des secrets, jamais versionné. Template public :
+# `admin.env.example`. Le runtime le crée dans le volume monté (data/).
+admin.env
+data/admin.env
 .venv
 env/
 venv/

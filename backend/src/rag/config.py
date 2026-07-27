@@ -54,6 +54,14 @@ class Settings(BaseSettings):
 
     rag_local_session_ttl_seconds: int = Field(default=28800, ge=60)
 
+    rag_admin_env_file: Path = Field(
+        default=Path("/app/data/admin.env"),
+        description="Fichier .env dédié aux réglages d'auth pilotés par l'IHM "
+        "(RAG_OIDC_CLIENT_SECRET, RAG_LOCAL_AUTH_DISABLED). Inscriptible par le "
+        "backend, relu à chaud, éditable à la main pour le break-glass. Distinct "
+        "du .env principal qui, lui, porte les secrets critiques.",
+    )
+
     rag_session_secret: SecretStr = SecretStr("")
 
     rag_webhook_secret: SecretStr | None = Field(

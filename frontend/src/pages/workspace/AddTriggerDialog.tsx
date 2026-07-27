@@ -1,7 +1,11 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,22 +15,22 @@ import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-const COMMON_EXTENSIONS: { ext: string; label: string }[] = [
-  { ext: ".cs",   label: "C#" },
-  { ext: ".py",   label: "Python" },
-  { ext: ".ts",   label: "TypeScript" },
-  { ext: ".tsx",  label: "TSX" },
-  { ext: ".js",   label: "JavaScript" },
-  { ext: ".jsx",  label: "JSX" },
-  { ext: ".java", label: "Java" },
-  { ext: ".go",   label: "Go" },
-  { ext: ".rs",   label: "Rust" },
-  { ext: ".md",   label: "Markdown" },
-  { ext: ".json", label: "JSON" },
-  { ext: ".yaml", label: "YAML" },
-  { ext: ".yml",  label: "YAML" },
-  { ext: ".sql",  label: "SQL" },
-  { ext: ".sh",   label: "Shell" },
+// Raccourcis : un clic préremplit le champ avec le pattern « toute
+// profondeur » de l'extension ; le pattern reste librement éditable.
+const COMMON_PATTERNS: { pattern: string; label: string }[] = [
+  { pattern: "**/*.cs", label: "C#" },
+  { pattern: "**/*.py", label: "Python" },
+  { pattern: "**/*.ts", label: "TypeScript" },
+  { pattern: "**/*.tsx", label: "TSX" },
+  { pattern: "**/*.js", label: "JavaScript" },
+  { pattern: "**/*.java", label: "Java" },
+  { pattern: "**/*.go", label: "Go" },
+  { pattern: "**/*.rs", label: "Rust" },
+  { pattern: "**/*.md", label: "Markdown" },
+  { pattern: "**/*.json", label: "JSON" },
+  { pattern: "**/*.yaml", label: "YAML" },
+  { pattern: "**/*.sql", label: "SQL" },
+  { pattern: "**/*.sh", label: "Shell" },
 ];
 
 interface Props {
@@ -39,26 +43,22 @@ export function AddTriggerDialog({ workspaceName, open, onOpenChange }: Props) {
   const { t } = useTranslation("triggers");
   const { toast } = useToast();
   const mutation = useCreateTrigger(workspaceName);
-  const [extension, setExtension] = useState("");
-  const [custom, setCustom] = useState("");
+  const [pattern, setPattern] = useState("");
 
   function handleClose(next: boolean) {
     onOpenChange(next);
-    if (!next) { setExtension(""); setCustom(""); }
+    if (!next) setPattern("");
   }
 
-  // La valeur finale : badge cliqué OU champ custom
-  const finalExt = extension || custom.trim();
+  const finalPattern = pattern.trim();
   const canSubmit =
-    finalExt.startsWith(".") &&
-    finalExt.length >= 2 &&
-    !mutation.isPending;
+    finalPattern.length > 0 && !finalPattern.startsWith("/") && !mutation.isPending;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
     try {
-      await mutation.mutateAsync({ extension: finalExt.toLowerCase() });
+      await mutation.mutateAsync({ pattern: finalPattern });
       handleClose(false);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
@@ -78,22 +78,22 @@ export function AddTriggerDialog({ workspaceName, open, onOpenChange }: Props) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label className="text-xs uppercase tracking-wider text-slate-600 mb-2 block">
-              {t("field_extension")}
+              {t("field_pattern_presets")}
             </Label>
             <div className="flex flex-wrap gap-1.5">
-              {COMMON_EXTENSIONS.map(({ ext, label }) => (
+              {COMMON_PATTERNS.map(({ pattern: preset, label }) => (
                 <button
-                  key={ext}
+                  key={preset}
                   type="button"
-                  onClick={() => { setExtension(ext); setCustom(""); }}
+                  onClick={() => setPattern(preset)}
                   className={cn(
                     "rounded border px-2.5 py-1 text-xs font-mono transition-colors",
-                    extension === ext
+                    pattern === preset
                       ? "border-sky-500 bg-sky-50 text-sky-700 font-semibold"
                       : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
                   )}
                 >
-                  {ext}
+                  {preset}
                   <span className="ml-1 text-slate-400 font-sans">{label}</span>
                 </button>
               ))}
@@ -102,21 +102,16 @@ export function AddTriggerDialog({ workspaceName, open, onOpenChange }: Props) {
 
           <div>
             <Label className="text-xs uppercase tracking-wider text-slate-600">
-              {t("field_extension_other")}
+              {t("field_pattern")}
             </Label>
             <Input
-              value={custom}
-              onChange={(e) => { setCustom(e.target.value); setExtension(""); }}
-              placeholder={t("field_extension_placeholder")}
+              value={pattern}
+              onChange={(e) => setPattern(e.target.value)}
+              placeholder={t("field_pattern_placeholder")}
               className="mt-1 font-mono"
             />
+            <p className="mt-1 text-xs text-slate-400">{t("field_pattern_help")}</p>
           </div>
-
-          {finalExt && (
-            <p className="text-xs text-slate-500">
-              {t("field_extension_selected")} <span className="font-mono font-semibold text-slate-700">{finalExt}</span>
-            </p>
-          )}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => handleClose(false)}>

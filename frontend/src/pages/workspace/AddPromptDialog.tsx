@@ -1,25 +1,37 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { useCreatePrompt, useLanguages } from "@/hooks/useEnrichments";
 import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/lib/api";
 
+type PromptMode = "document" | "chunk" | "region";
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Mode présélectionné — ex. "chunk" quand le dialog est ouvert depuis une stratégie. */
+  initialMode?: PromptMode;
 }
 
-export function AddPromptDialog({ open, onOpenChange }: Props) {
+export function AddPromptDialog({ open, onOpenChange, initialMode = "document" }: Props) {
   const { t } = useTranslation("prompts");
   const { toast } = useToast();
   const mutation = useCreatePrompt();
@@ -31,13 +43,35 @@ export function AddPromptDialog({ open, onOpenChange }: Props) {
   const [resultType, setResultType] = useState<"text" | "json">("text");
   const [prompt, setPrompt] = useState("");
   const [description, setDescription] = useState("");
+  const [mode, setMode] = useState<PromptMode>(initialMode);
+  const [regionType, setRegionType] = useState("code_fence");
+  const [regionQualifier, setRegionQualifier] = useState("");
 
   function handleClose(next: boolean) {
     onOpenChange(next);
     if (!next) {
-      setName(""); setLanguage(""); setMetadataKey("");
-      setResultType("text"); setPrompt(""); setDescription("");
+      setName("");
+      setLanguage("");
+      setMetadataKey("");
+      setResultType("text");
+      setPrompt("");
+      setDescription("");
+      setMode(initialMode);
+      setRegionType("code_fence");
+      setRegionQualifier("");
     }
+  }
+
+  // Axes contextual retrieval (spec « Prompt B ») : le mode dérive le couple
+  // (target, timing) — seules les combinaisons supportées sont proposables.
+  function buildAxes(): { target: string; timing: "post_index_metadata" | "embedding_inline" } {
+    if (mode === "document") return { target: "document", timing: "post_index_metadata" };
+    if (mode === "chunk") return { target: "chunk", timing: "embedding_inline" };
+    const qualifier = regionQualifier.trim();
+    return {
+      target: qualifier ? `region:${regionType}:${qualifier}` : `region:${regionType}`,
+      timing: "embedding_inline",
+    };
   }
 
   const canSubmit =
@@ -58,6 +92,7 @@ export function AddPromptDialog({ open, onOpenChange }: Props) {
         result_type: resultType,
         prompt: prompt.trim(),
         description: description.trim() || null,
+        ...buildAxes(),
       });
       handleClose(false);
     } catch (err) {
@@ -138,6 +173,64 @@ export function AddPromptDialog({ open, onOpenChange }: Props) {
               </div>
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-slate-600">
+                {t("field_mode")}
+              </Label>
+              <Select value={mode} onValueChange={(v) => setMode(v as typeof mode)}>
+                <SelectTrigger className="mt-1" aria-label={t("field_mode")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="document">{t("mode_document")}</SelectItem>
+                  <SelectItem value="chunk">{t("mode_chunk")}</SelectItem>
+                  <SelectItem value="region">{t("mode_region")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {mode === "region" && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs uppercase tracking-wider text-slate-600">
+                    {t("field_region_type")}
+                  </Label>
+                  <Select value={regionType} onValueChange={setRegionType}>
+                    <SelectTrigger className="mt-1" aria-label={t("field_region_type")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["prose", "code_fence", "table", "frontmatter", "html_block"].map(
+                        (rt) => (
+                          <SelectItem key={rt} value={rt}>
+                            {rt}
+                          </SelectItem>
+                        ),
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs uppercase tracking-wider text-slate-600">
+                    {t("field_region_qualifier")}
+                  </Label>
+                  <Input
+                    value={regionQualifier}
+                    onChange={(e) => setRegionQualifier(e.target.value)}
+                    placeholder="mermaid"
+                    className="mt-1 font-mono"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          {/* Éligibilité aux stratégies : seul le timing embedding_inline
+              (chunk/région) est liable dans une stratégie de découpage. */}
+          <p className="text-xs text-slate-500">{t(`mode_${mode}_help`)}</p>
+          {mode !== "document" && (
+            <p className="text-xs text-slate-500">{t("mode_inline_hint")}</p>
+          )}
 
           <div>
             <Label className="text-xs uppercase tracking-wider text-slate-600">

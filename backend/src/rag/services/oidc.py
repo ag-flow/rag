@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import secrets
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Protocol, cast
+from typing import Any, cast
 from urllib.parse import urlencode
 
 import asyncpg
@@ -16,33 +17,27 @@ from joserfc.jwk import KeySet
 from joserfc.jwt import JWTClaimsRegistry
 
 from rag.api.errors import (
+    OidcClientSecretMissing,
     OidcInvalidCode,
     OidcInvalidToken,
     OidcKeycloakUnreachable,
     OidcNotConfigured,
     OidcSessionExpired,
-    VaultUnreachable,
 )
-from rag.secrets.refs import build_ref
 
 log = structlog.get_logger(__name__)
 
 
-class _ResolverProtocol(Protocol):
-    async def resolve_with_retry(self, ref: str) -> str: ...
-
-
-class _ClientProviderProtocol(Protocol):
-    async def get_default_vault_name(self) -> str | None: ...
-
-
 @dataclass(frozen=True)
 class OidcConfig:
-    """Config OIDC stockée en `oidc_config` (1 row max)."""
+    """Config OIDC stockée en `oidc_config` (1 row max).
+
+    Le client secret n'est PAS en base : il est lu depuis le .env
+    (`RAG_OIDC_CLIENT_SECRET`) et injecté au service au démarrage.
+    """
 
     issuer: str
     client_id: str
-    client_secret_ref: str  # clé logique Harpocrate
 
 
 @dataclass(frozen=True)
@@ -79,18 +74,17 @@ class OidcService:
         self,
         *,
         config_pool: asyncpg.Pool,
-        secret_resolver: _ResolverProtocol,
         public_url: str,
-        client_provider: _ClientProviderProtocol | None = None,
+        client_secret_provider: Callable[[], str | None] | None = None,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
-        """`client_provider` est requis pour `exchange_code`/`refresh`
-        (résolution du `client_secret` via le coffre par défaut). Les tests
-        qui ne touchent que le discovery/JWKS/roles peuvent l'omettre.
+        """`client_secret_provider` renvoie le client secret courant (lu à chaud
+        depuis le fichier admin.env via `AdminEnvStore`) ; requis pour
+        `exchange_code`/`refresh`. Les tests qui ne touchent que le
+        discovery/JWKS/roles peuvent l'omettre.
         """
         self._config_pool = config_pool
-        self._secret_resolver = secret_resolver
-        self._client_provider = client_provider
+        self._client_secret_provider = client_secret_provider
         self._public_url = public_url.rstrip("/")
         self._http_client = http_client  # injection pour tests
         self._discovery_cache: dict[str, _DiscoveryDoc] = {}
@@ -100,14 +94,13 @@ class OidcService:
 
     async def get_config(self) -> OidcConfig | None:
         row = await self._config_pool.fetchrow(
-            "SELECT issuer, client_id, client_secret_ref FROM oidc_config LIMIT 1"
+            "SELECT issuer, client_id FROM oidc_config LIMIT 1"
         )
         if row is None:
             return None
         return OidcConfig(
             issuer=row["issuer"],
             client_id=row["client_id"],
-            client_secret_ref=row["client_secret_ref"],
         )
 
     async def upsert_config(
@@ -115,7 +108,6 @@ class OidcService:
         *,
         issuer: str,
         client_id: str,
-        client_secret_ref: str,
     ) -> OidcConfig:
         """Remplace toute config existante. Pattern : 1 row max en table.
 
@@ -126,18 +118,16 @@ class OidcService:
             await conn.execute("DELETE FROM oidc_config")
             await conn.execute(
                 """
-                INSERT INTO oidc_config (issuer, client_id, client_secret_ref)
-                VALUES ($1, $2, $3)
+                INSERT INTO oidc_config (issuer, client_id)
+                VALUES ($1, $2)
                 """,
                 issuer,
                 client_id,
-                client_secret_ref,
             )
         log.info("oidc.config.upserted", issuer=issuer, client_id=client_id)
         return OidcConfig(
             issuer=issuer,
             client_id=client_id,
-            client_secret_ref=client_secret_ref,
         )
 
     # --- Discovery + JWKS cache ---
@@ -262,11 +252,16 @@ class OidcService:
 
     # --- Authorize + Logout URL ---
 
-    async def build_authorize_url(self) -> tuple[str, str, str]:
+    async def build_authorize_url(self, *, redirect_uri: str | None = None) -> tuple[str, str, str]:
         """Construit l'URL d'authorize Keycloak avec state + nonce aléatoires.
 
         Returns (url, state, nonce). Le caller stocke (state, nonce) dans
         un cookie éphémère (Starlette session) pour validation au callback.
+
+        `redirect_uri` : URI de callback effective (admin.env sinon dérivée de
+        l'adresse d'appel — le caller la stocke dans la session pour la
+        REPASSER telle quelle à `exchange_code`, l'échange exigeant la même
+        valeur). Omise : repli sur RAG_PUBLIC_URL.
 
         Raise OidcNotConfigured si aucune config OIDC en DB.
         """
@@ -279,7 +274,7 @@ class OidcService:
         nonce = secrets.token_urlsafe(32)
         params = {
             "client_id": cfg.client_id,
-            "redirect_uri": f"{self._public_url}/auth/callback",
+            "redirect_uri": redirect_uri or f"{self._public_url}/auth/callback",
             "response_type": "code",
             "scope": "openid email profile",
             "state": state,
@@ -296,10 +291,13 @@ class OidcService:
         code: str,
         expected_nonce: str,
         config: OidcConfig,
+        redirect_uri: str | None = None,
     ) -> _TokenPair:
         """POST token_endpoint avec grant_type=authorization_code.
 
         Vérifie la signature + claims du id_token et contrôle le nonce.
+        `redirect_uri` DOIT être celle envoyée à l'authorize (le caller la
+        relit depuis la session) ; omise : repli sur RAG_PUBLIC_URL.
 
         Raise OidcInvalidCode si Keycloak rejette le code.
         Raise OidcInvalidToken si nonce ne match pas.
@@ -309,7 +307,7 @@ class OidcService:
             data={
                 "grant_type": "authorization_code",
                 "code": code,
-                "redirect_uri": f"{self._public_url}/auth/callback",
+                "redirect_uri": redirect_uri or f"{self._public_url}/auth/callback",
             },
             expected_nonce=expected_nonce,
         )
@@ -345,19 +343,15 @@ class OidcService:
     ) -> _TokenPair:
         """Factorise l'appel POST au token_endpoint.
 
-        Résout le client_secret via Harpocrate à chaque appel (actions peu
-        fréquentes, pas de cache pour éviter de tenir un secret en mémoire).
+        Le client_secret est lu à chaud depuis le fichier admin.env
+        (`RAG_OIDC_CLIENT_SECRET`) via le provider injecté — plus de résolution
+        Harpocrate.
         """
         discovery = await self._discover(config)
-        if self._client_provider is None:
-            raise RuntimeError("OidcService.exchange_code/refresh requires a client_provider")
-        default_vault_name = await self._client_provider.get_default_vault_name()
-        if default_vault_name is None:
-            log.warning("oidc.token_request.no_default_vault")
-            raise VaultUnreachable()
-        client_secret = await self._secret_resolver.resolve_with_retry(
-            build_ref(default_vault_name, config.client_secret_ref)
-        )
+        client_secret = self._client_secret_provider() if self._client_secret_provider else None
+        if not client_secret:
+            log.warning("oidc.token_request.no_client_secret")
+            raise OidcClientSecretMissing()
         payload = {
             **data,
             "client_id": config.client_id,
@@ -398,11 +392,21 @@ class OidcService:
             expires_at=now + int(body.get("expires_in", 300)),
         )
 
-    async def build_logout_url(self, *, id_token: str, config: OidcConfig) -> str:
-        """Construit l'URL de logout Keycloak avec id_token_hint."""
+    async def build_logout_url(
+        self,
+        *,
+        id_token: str,
+        config: OidcConfig,
+        post_logout_redirect_uri: str | None = None,
+    ) -> str:
+        """Construit l'URL de logout Keycloak avec id_token_hint.
+
+        `post_logout_redirect_uri` : fourni par le caller (dérivé de l'adresse
+        d'appel — fiable même si RAG_PUBLIC_URL est erroné) ; repli sur l'URL
+        publique de config."""
         discovery = await self._discover(config)
         params = {
             "id_token_hint": id_token,
-            "post_logout_redirect_uri": f"{self._public_url}/",
+            "post_logout_redirect_uri": post_logout_redirect_uri or f"{self._public_url}/",
         }
         return f"{discovery.end_session_endpoint}?{urlencode(params)}"

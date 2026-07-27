@@ -6,6 +6,7 @@ import asyncpg
 import pytest
 
 from rag.db.migrations import run_migrations
+from tests.integration._workspace_seed import seed_workspace
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
@@ -17,10 +18,7 @@ async def test_migration_019_webhooks_tables_exist(
     await run_migrations(session_pool, MIGRATIONS_DIR)
 
     async with session_pool.acquire() as conn:
-        ws_id = await conn.fetchval(
-            "INSERT INTO workspaces (name, api_key_ref, api_key_fingerprint, rag_cnx, rag_base) "
-            "VALUES ('mig019', 'ref', 'fp', 'c', 'b') RETURNING id"
-        )
+        ws_id = await seed_workspace(conn, name="mig019")
         wh_id = await conn.fetchval(
             "INSERT INTO workspace_webhooks (workspace_id, name, url) "
             "VALUES ($1, 'hook', 'https://example.com/hook') RETURNING id",
@@ -37,7 +35,5 @@ async def test_migration_019_webhooks_tables_exist(
 
         # CASCADE sur workspace suppression
         await conn.execute("DELETE FROM workspaces WHERE id=$1", ws_id)
-        wh = await conn.fetchval(
-            "SELECT id FROM workspace_webhooks WHERE id=$1", wh_id
-        )
+        wh = await conn.fetchval("SELECT id FROM workspace_webhooks WHERE id=$1", wh_id)
         assert wh is None

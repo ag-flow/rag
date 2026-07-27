@@ -1,0 +1,158 @@
+{
+  "title": "Stratégies de chunking",
+  "subtitle": "Bibliothèque de profils de découpage : stratégies système en socle, vos stratégies par-dessus.",
+  "add_btn": "Nouvelle stratégie",
+  "empty": "Aucune stratégie.",
+  "table": {
+    "label": "Label",
+    "slug": "Slug",
+    "algo": "Algo",
+    "parser": "Parser",
+    "usage": "Utilisation",
+    "updated": "Modifiée"
+  },
+  "badges": {
+    "system": "Système",
+    "used_by_routes": "{{count}} route(s)",
+    "used_by_categories": "{{count}} catégorie(s)",
+    "unused": "Non utilisée",
+    "used_by_triggers": "{{count}} trigger(s)",
+    "used_by_workspaces": "{{count}} workspace(s)"
+  },
+  "actions": {
+    "edit": "Modifier",
+    "routes": "Routes de régions",
+    "duplicate": "Dupliquer",
+    "delete": "Supprimer"
+  },
+  "form": {
+    "create_title": "Nouvelle stratégie",
+    "edit_title": "Modifier la stratégie",
+    "label": "Label",
+    "label_placeholder": "ex. Docs internes (mermaid à part)",
+    "slug": "Slug",
+    "slug_hint": "Dérivé du label côté serveur, jamais saisi.",
+    "algo": "Algorithme",
+    "algo_locked": "L'algorithme est figé après création.",
+    "parser": "Parser de régions",
+    "parser_none": "Aucun (pas de passe régions)",
+    "parser_hint": "Active le routage intra-document (prose/markdown uniquement).",
+    "params_title": "Paramètres",
+    "params": {
+      "child_target_tokens": "Taille cible des chunks (tokens)",
+      "floor_tokens": "Plancher (tokens)",
+      "overlap_tokens": "Chevauchement (tokens)",
+      "breadcrumb_depth": "Profondeur du breadcrumb (-1 = complet)",
+      "max_rows_per_chunk": "Lignes max par chunk (table)",
+      "heading_levels": "Niveaux de titres (ex. 1,2)"
+    },
+    "cleaning_title": "Nettoyage",
+    "cleaning": {
+      "clean_content": "Nettoyage général du contenu",
+      "strip_separators": "Retirer les séparateurs",
+      "strip_boilerplate": "Retirer le boilerplate",
+      "strip_html": "Retirer le HTML"
+    },
+    "linked_warning": "Cette stratégie est utilisée ({{usage}}) : la modifier change le comportement d'indexation partagé en direct.",
+    "save": "Enregistrer",
+    "create": "Créer",
+    "cancel": "Annuler",
+    "params_help": {
+      "child_target_tokens": "Taille visée d'un chunk embeddé, en tokens. Plus grand = plus de contexte par chunk, mais recherche moins précise. Toujours plafonné par la limite du modèle d'embedding (marge de sécurité de 20 %). Défaut : 384.",
+      "floor_tokens": "Taille minimale d'un chunk : les fragments plus petits sont fusionnés avec leurs voisins pour éviter les chunks-miettes sans valeur sémantique (un titre isolé, une ligne). Défaut : 64 — 128 recommandé pour le code.",
+      "overlap_tokens": "Recouvrement entre chunks consécutifs : la fin d'un chunk est répétée au début du suivant pour ne pas couper une idée à la frontière. Inutile quand les frontières sont naturelles : 0 recommandé pour code et data. Défaut : 64.",
+      "breadcrumb_depth": "Profondeur du fil de titres (breadcrumb) injecté en tête du texte embeddé, ex. « Guide › Installation ». Il ancre le chunk dans son document et améliore nettement le retrieval. -1 = chemin complet (recommandé).",
+      "max_rows_per_chunk": "Nombre maximum de lignes de données par chunk ; l'en-tête du tableau est répété sur chaque chunk pour que chacun reste interprétable seul. Défaut : 50 — à réduire si les lignes sont larges.",
+      "heading_levels": "Niveaux de titres Markdown qui délimitent les sections parentes : « 1,2 » = H1 et H2 ouvrent une section (H3+ restent dans le contenu). Ajouter 3 affine le découpage des gros documents. Défaut : 1,2."
+    },
+    "params_help_aria": "Aide : {{param}}",
+    "prompts_title": "Prompts (contexte à l'embedding)",
+    "prompts_warning": "embedding_inline modifie les vecteurs — une réindexation est requise pour prendre effet sur l'existant.",
+    "prompts_add": "Lier un template",
+    "prompts_enabled": "Actif",
+    "prompts_remove": "Retirer",
+    "prompts_none": "Aucun template liable dans votre bibliothèque : seuls les prompts en mode chunk ou région (contexte à l'embedding) apparaissent ici.",
+    "prompts_create": "Créer un prompt (chunk/région)"
+  },
+  "routes": {
+    "title": "Routes de régions — {{label}}",
+    "subtitle": "Dirige chaque région (type, qualifier) vers son traitement. Résolution : exact > wildcard > inline.",
+    "no_parser": "Cette stratégie n'a pas de parser de régions : activez-en un pour router.",
+    "empty": "Aucune route — toutes les régions sont traitées inline.",
+    "region_type": "Type de région",
+    "qualifier": "Qualifier",
+    "qualifier_hint": "* = toutes ; ex. mermaid, python…",
+    "target": "Stratégie cible",
+    "target_inline": "Inline (aucune)",
+    "atomic": "Atomique",
+    "policy": "Débordement",
+    "policies": {
+      "keep_whole": "keep_whole — erreur si trop grand",
+      "split_fallback": "split_fallback — renonce à l'atomicité",
+      "parent_only": "parent_only — restituée, jamais embeddée"
+    },
+    "add": "Ajouter une route",
+    "remove": "Retirer",
+    "save": "Enregistrer les routes",
+    "duplicate_key": "Deux routes portent le même couple (type, qualifier)."
+  },
+  "duplicate": {
+    "title": "Dupliquer « {{label}} »",
+    "hint": "Copie les paramètres et les routes dans votre bibliothèque.",
+    "label": "Label de la copie",
+    "submit": "Dupliquer"
+  },
+  "delete": {
+    "title": "Supprimer « {{label}} » ?",
+    "description": "La suppression est refusée si la stratégie est référencée par des routes.",
+    "confirm": "Supprimer",
+    "cancel": "Annuler"
+  },
+  "errors": {
+    "conflict": "Slug déjà utilisé dans votre bibliothèque.",
+    "in_use": "Stratégie référencée — suppression refusée.",
+    "system_immutable": "Stratégie système : lecture seule.",
+    "invalid": "Configuration invalide.",
+    "generic": "Une erreur est survenue."
+  },
+  "toasts": {
+    "created": "Stratégie créée.",
+    "updated": "Stratégie mise à jour.",
+    "deleted": "Stratégie supprimée.",
+    "duplicated": "Stratégie dupliquée.",
+    "routes_saved": "Routes enregistrées."
+  },
+  "algo_info": {
+    "best_for_label": "Idéal pour :",
+    "prose": {
+      "title": "Prose — hiérarchique small-to-big",
+      "description": "Le document est découpé selon ses titres en sections parentes, puis en chunks enfants bornés en tokens (cible, plancher, chevauchement). Le fil de titres (breadcrumb) est injecté dans le texte embeddé : chaque chunk garde son ancrage dans le document. À la recherche, le chunk matche mais c'est la section parente qui est restituée au LLM.",
+      "best_for": "documentation, wikis, README, articles — tout texte structuré par des titres.",
+      "tip": "Cible 384 tokens, titres H1-H2. Ajoutez un parser de régions pour router fences et tables."
+    },
+    "markdown": {
+      "title": "Markdown — alias de prose",
+      "description": "Même moteur que « prose » (sections par titres, small-to-big, breadcrumb). L'alias existe pour nommer clairement les stratégies du catalogue dédiées aux documents Markdown. Les blocs de code (```) ne sont jamais coupés.",
+      "best_for": "corpus exclusivement Markdown, quand le nom de la stratégie doit le dire.",
+      "tip": "Comportement identique à prose — choisissez l'un ou l'autre, pas les deux."
+    },
+    "table": {
+      "title": "Table — groupes de lignes",
+      "description": "Découpe les données tabulaires (CSV/TSV, tables pipe) par paquets de lignes, en répétant l'en-tête sur chaque chunk : chaque morceau reste interprétable seul, avec ses noms de colonnes.",
+      "best_for": "exports CSV/TSV, tables de référence, données tabulaires volumineuses.",
+      "tip": "Ajustez « lignes max par chunk » (50 par défaut) selon la largeur des lignes."
+    },
+    "code": {
+      "title": "Code — symboles tree-sitter",
+      "description": "Analyse syntaxique réelle (tree-sitter) : découpe aux frontières naturelles du code — fonctions, classes, méthodes — avec un breadcrumb de portée (module › classe › méthode) injecté à l'embedding. Repli gracieux vers prose si le langage n'est pas supporté.",
+      "best_for": "code source (Python, TS, Go, Java, C#…), scripts SQL et shell.",
+      "tip": "Chevauchement 0 (les frontières de symboles suffisent), plancher 128 tokens pour filtrer les micro-stubs."
+    },
+    "data": {
+      "title": "Data — clés de premier niveau",
+      "description": "Structure les formats de données (JSON, YAML, TOML) via tree-sitter et découpe par clés de premier niveau : un chunk = une entrée cohérente de la structure, jamais un objet coupé en deux. Repli prose si le format n'est pas supporté.",
+      "best_for": "fichiers de configuration, exports JSON/YAML, manifestes.",
+      "tip": "Chevauchement 0 recommandé — les clés sont des unités autonomes."
+    }
+  }
+}

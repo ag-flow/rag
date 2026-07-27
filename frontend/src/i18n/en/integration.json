@@ -1,0 +1,25 @@
+{
+  "page_title": "Integration — contracts",
+  "page_subtitle": "Normalized documents exposed by the service, to wire into third-party tools.",
+  "copy": "Copy",
+  "view": "View",
+  "events": {
+    "title": "Events → ag.flow workflow (OpenAPI 3.1)",
+    "description": "Contract of the events emitted by ragflow. Copy this URL and import it on the inbound source in workflow (business validation + rules editor)."
+  },
+  "rest": {
+    "title": "Full REST API (OpenAPI)",
+    "description": "Full OpenAPI schema of the admin and public API."
+  },
+  "mcp": {
+    "title": "MCP tools",
+    "description": "Schema of the tools exposed by the MCP server (before connecting a client)."
+  },
+  "rest_apikey": {
+    "title": "API-key API (OpenAPI)",
+    "description": "Subset of the contract: only the endpoints authenticated by a user API key (search, push/delete index)."
+  },
+  "endpoints_label": "Endpoints (method and URL)",
+  "swagger": "Swagger",
+  "mcp_tools_label": "Explore the tools"
+}

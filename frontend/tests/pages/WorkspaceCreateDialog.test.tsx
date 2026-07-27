@@ -1,161 +1,158 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 import i18n from "@/lib/i18n";
-import { CreateWorkspaceDialog as WorkspaceCreateDialog } from "@/pages/workspace/CreateWorkspaceDialog";
-import * as apiModule from "@/lib/api";
+import { CreateWorkspaceDialog } from "@/pages/workspace/CreateWorkspaceDialog";
+import type { VaultWithEndpoints } from "@/hooks/useVaultEndpoints";
 
-// Mock useVaults : fournit un coffre disponible pour que le Select s'affiche
-// et que le bouton Créer ne soit pas désactivé.
-vi.mock("@/hooks/useHarpocrateVaults", () => ({
-  useVaults: () => ({
-    data: [
+const createMutateAsync = vi.fn();
+
+vi.mock("@/hooks/useWorkspaces", () => ({
+  useCreateWorkspace: () => ({ mutateAsync: createMutateAsync, isPending: false }),
+}));
+
+vi.mock("@/hooks/useVaultEndpoints", () => ({
+  useAllVaultEndpoints: vi.fn(),
+}));
+
+vi.mock("@/hooks/useToast", () => ({
+  useToast: () => ({ toast: vi.fn() }),
+}));
+
+import { useAllVaultEndpoints } from "@/hooks/useVaultEndpoints";
+
+const GROUPED: VaultWithEndpoints[] = [
+  {
+    vault: {
+      id: "v-1",
+      name: "rag",
+      label: "Coffre RAG",
+      base_url: "https://vault.example",
+      api_key_id: "k-001",
+      probe_path: null,
+      is_default: true,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    },
+    endpoints: [
       {
-        id: "vault-1",
-        name: "vault-main",
-        label: "Coffre principal",
-        base_url: "http://localhost:8200",
-        api_key_id: "key-id",
-        probe_path: null,
-        is_default: true,
+        id: "ep-1",
+        vault_id: "v-1",
+        label: "Docs OpenAI",
+        slug: "docs-openai",
+        indexer: {
+          provider: "openai",
+          model: "text-embedding-3-small",
+          api_key_ref: "ref",
+          base_url: null,
+        },
+        rerank: null,
+        llm: null,
+        fallback_endpoint_id: null,
+        failure_threshold: 3,
+        cooldown_seconds: 60,
         created_at: "2026-01-01T00:00:00Z",
         updated_at: "2026-01-01T00:00:00Z",
       },
     ],
-    isLoading: false,
-  }),
-}));
+  },
+];
 
-function Wrapper({ children }: { children: ReactNode }) {
-  const qc = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
-  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+function mockEndpoints(data: VaultWithEndpoints[]): void {
+  vi.mocked(useAllVaultEndpoints).mockReturnValue({
+    data,
+    isLoading: false,
+  } as unknown as ReturnType<typeof useAllVaultEndpoints>);
 }
 
-describe("WorkspaceCreateDialog", () => {
+function Wrapper({ children }: { children: ReactNode }) {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return (
+    <MemoryRouter>
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    </MemoryRouter>
+  );
+}
+
+describe("CreateWorkspaceDialog (endpoint-based)", () => {
   beforeEach(async () => {
-    vi.restoreAllMocks();
-    // Restaure le mock useVaults après restoreAllMocks
-    vi.mock("@/hooks/useHarpocrateVaults", () => ({
-      useVaults: () => ({
-        data: [
-          {
-            id: "vault-1",
-            name: "vault-main",
-            label: "Coffre principal",
-            base_url: "http://localhost:8200",
-            api_key_id: "key-id",
-            probe_path: null,
-            is_default: true,
-            created_at: "2026-01-01T00:00:00Z",
-            updated_at: "2026-01-01T00:00:00Z",
-          },
-        ],
-        isLoading: false,
-      }),
-    }));
+    vi.clearAllMocks();
     await i18n.changeLanguage("fr");
   });
 
-  it("renders form fields when open", () => {
+  it("affiche label + sélecteur d'endpoint (unique pré-sélectionné)", () => {
+    mockEndpoints(GROUPED);
     render(
       <Wrapper>
-        <WorkspaceCreateDialog open={true} onOpenChange={() => {}} />
+        <CreateWorkspaceDialog open onOpenChange={() => {}} />
       </Wrapper>,
     );
-
-    // Name input — FormLabel htmlFor wired via FormItem id
-    expect(screen.getByPlaceholderText("workspace1")).toBeInTheDocument();
-    // Provider, model and vault selects rendered as combobox buttons
-    const comboboxes = screen.getAllByRole("combobox");
-    expect(comboboxes.length).toBeGreaterThanOrEqual(3);
-    // api_key (password field) present by default (provider = openai)
-    expect(screen.getByPlaceholderText("sk-…")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Mon projet")).toBeInTheDocument();
+    // endpoint unique → pré-sélectionné et visible dans le trigger
+    expect(screen.getByText(/Docs OpenAI — openai\/text-embedding-3-small/)).toBeInTheDocument();
   });
 
-  it("shows base_url field only for ollama provider, not api_key", () => {
+  it("dérive le slug depuis le label saisi", () => {
+    mockEndpoints(GROUPED);
     render(
       <Wrapper>
-        <WorkspaceCreateDialog open={true} onOpenChange={() => {}} />
+        <CreateWorkspaceDialog open onOpenChange={() => {}} />
       </Wrapper>,
     );
-
-    // Initially openai → api_key visible, base_url not
-    expect(screen.getByPlaceholderText("sk-…")).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("http://192.168.10.80:11434")).not.toBeInTheDocument();
-
-    // Simulate provider change to ollama via the hidden select input
-    // Radix Select renders a native <select> in the DOM for form compatibility
-    // Le premier native select est le coffre vault, le second est le provider
-    const nativeSelects = document.querySelectorAll("select");
-    // Le select provider est le second (après le vault select)
-    const providerSelect = nativeSelects[1];
-    expect(providerSelect).toBeDefined();
-    fireEvent.change(providerSelect!, { target: { value: "ollama" } });
-
-    // After switching to ollama → base_url visible, api_key gone
-    expect(screen.getByPlaceholderText("http://192.168.10.80:11434")).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("sk-…")).not.toBeInTheDocument();
-  });
-
-  it("submits valid form and calls api.post", async () => {
-    const postSpy = vi
-      .spyOn(apiModule.api, "post")
-      .mockResolvedValue({ name: "test_ws", api_key: "key" });
-    const user = userEvent.setup();
-    const onOpenChange = vi.fn();
-
-    render(
-      <Wrapper>
-        <WorkspaceCreateDialog open={true} onOpenChange={onOpenChange} />
-      </Wrapper>,
-    );
-
-    await user.type(screen.getByPlaceholderText("workspace1"), "test_ws");
-    await user.type(screen.getByPlaceholderText("sk-…"), "sk-test-key");
-
-    // Sélectionner le coffre via le native select (Radix Select)
-    const nativeSelects = document.querySelectorAll("select");
-    const vaultSelect = nativeSelects[0];
-    fireEvent.change(vaultSelect!, { target: { value: "vault-main" } });
-
-    await user.click(screen.getByRole("button", { name: /créer/i }));
-
-    await waitFor(() => {
-      expect(postSpy).toHaveBeenCalledWith(
-        "/api/admin/workspaces",
-        expect.objectContaining({
-          name: "test_ws",
-          api_key_vault: "vault-main",
-          indexer: expect.objectContaining({
-            provider: "openai",
-            api_key: "sk-test-key",
-          }),
-        }),
-      );
+    fireEvent.change(screen.getByPlaceholderText("Mon projet"), {
+      target: { value: "Mon Super Projet !" },
     });
+    // Le slug dérivé est affiché en lecture seule.
+    expect(screen.getByText("mon-super-projet")).toBeInTheDocument();
   });
 
-  it("validates name format (lowercase only)", async () => {
-    const user = userEvent.setup();
+  it("soumet {name: slug, endpoint_id, label, description}", async () => {
+    mockEndpoints(GROUPED);
+    createMutateAsync.mockResolvedValue({ name: "mon-ws", label: "Mon WS" });
     render(
       <Wrapper>
-        <WorkspaceCreateDialog open={true} onOpenChange={() => {}} />
+        <CreateWorkspaceDialog open onOpenChange={() => {}} />
       </Wrapper>,
     );
-
-    // Sélectionner un coffre pour ne pas bloquer la soumission sur ce champ
-    const nativeSelects = document.querySelectorAll("select");
-    const vaultSelect = nativeSelects[0];
-    fireEvent.change(vaultSelect!, { target: { value: "vault-main" } });
-
-    await user.type(screen.getByPlaceholderText("workspace1"), "BadName");
-    await user.type(screen.getByPlaceholderText("sk-…"), "sk-key");
-    await user.click(screen.getByRole("button", { name: /créer/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/name_invalid_format/i)).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText("Mon projet"), {
+      target: { value: "Mon WS" },
     });
+    fireEvent.change(screen.getByPlaceholderText(/optionnel/i), {
+      target: { value: "Un corpus de test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Créer$/i }));
+    await waitFor(() =>
+      expect(createMutateAsync).toHaveBeenCalledWith({
+        name: "mon-ws",
+        endpoint_id: "ep-1",
+        label: "Mon WS",
+        description: "Un corpus de test",
+      }),
+    );
+  });
+
+  it("sans endpoint : bouton Créer bloqué + lien vers les coffres", () => {
+    mockEndpoints([]);
+    render(
+      <Wrapper>
+        <CreateWorkspaceDialog open onOpenChange={() => {}} />
+      </Wrapper>,
+    );
+    expect(screen.getByText(/Aucun endpoint défini/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Créer$/i })).toBeDisabled();
+  });
+
+  it("label vide : bouton Créer bloqué", () => {
+    mockEndpoints(GROUPED);
+    render(
+      <Wrapper>
+        <CreateWorkspaceDialog open onOpenChange={() => {}} />
+      </Wrapper>,
+    );
+    expect(screen.getByRole("button", { name: /^Créer$/i })).toBeDisabled();
   });
 });

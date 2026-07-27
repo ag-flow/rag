@@ -23,6 +23,9 @@ vi.mock("@/hooks/useWorkspaces", () => ({
 const baseJob: Job = {
   id: "j1",
   triggered_by: "schedule",
+  source: "git",
+  path: null,
+  params: null,
   status: "done",
   files_changed: 3,
   files_skipped: 10,
@@ -66,7 +69,11 @@ describe("JobDetailPanel", () => {
   });
 
   it("affiche le message d'erreur du job en erreur", () => {
-    mockFiles.value = { data: { files: [], total: 0, limit: 1000 }, isLoading: false, isError: false };
+    mockFiles.value = {
+      data: { files: [], total: 0, limit: 1000 },
+      isLoading: false,
+      isError: false,
+    };
     const errored: Job = { ...baseJob, status: "error", error_message: "boom" };
     renderWithProviders(<JobDetailPanel name="wrk1" job={errored} />);
     expect(screen.getByText("boom")).toBeInTheDocument();
@@ -84,4 +91,20 @@ describe("JobDetailPanel", () => {
     expect(matches.length).toBeGreaterThan(0);
     expect(matches.some((el) => /500 fichiers/i.test(el.textContent ?? ""))).toBe(true);
   });
+});
+
+it("affiche les paramètres de la demande quand le job en porte", () => {
+  mockFiles.value = { data: undefined, isLoading: false, isError: false };
+  renderWithProviders(
+    <JobDetailPanel
+      name="ws"
+      job={{
+        ...baseJob,
+        params: { force: true, source_url: "https://docs.example/a", content_bytes: 42 },
+      }}
+    />,
+  );
+  expect(screen.getByText("Paramètres de la demande")).toBeInTheDocument();
+  expect(screen.getByText("source_url")).toBeInTheDocument();
+  expect(screen.getByText("https://docs.example/a")).toBeInTheDocument();
 });

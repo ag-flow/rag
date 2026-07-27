@@ -6,14 +6,16 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
 class OidcConfigCreate(BaseModel):
-    """Body de `POST /admin/oidc`. Le `client_secret_ref` est juste la clé
-    logique Harpocrate — jamais le secret en clair."""
+    """Body de `POST /admin/oidc`.
+
+    Le client secret n'est pas ici : il se configure dans le .env
+    (`RAG_OIDC_CLIENT_SECRET`), jamais stocké en base.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     issuer: HttpUrl
     client_id: str = Field(..., min_length=1, max_length=255)
-    client_secret_ref: str = Field(..., min_length=1, max_length=255)
 
 
 class OidcConfigRead(BaseModel):
@@ -21,7 +23,6 @@ class OidcConfigRead(BaseModel):
 
     issuer: str
     client_id: str
-    client_secret_ref: str
 
 
 class MeResponse(BaseModel):

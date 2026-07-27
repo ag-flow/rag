@@ -21,8 +21,12 @@ export function WorkspaceHeader({ workspace, onReindex, onDelete }: Props) {
   return (
     <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-white sticky top-0 z-10">
       <div>
-        <h2 className="text-xl font-semibold text-slate-900">{workspace.name}</h2>
+        <h2 className="text-xl font-semibold text-slate-900">
+          {workspace.label || workspace.name}
+        </h2>
         <p className="text-xs text-slate-500">
+          <code className="font-mono">{workspace.name}</code>
+          {" · "}
           {t("header.created", {
             when: formatRelativeTime(workspace.created_at, t),
           })}

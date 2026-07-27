@@ -3,12 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIndexKeyDetail, useIndexKeys, usePatchStrategy } from "@/hooks/useIndexKeys";
 import type { PathStrategyEntry } from "@/lib/workspaces.types";
 import { DocumentChunkViewer } from "./DocumentChunkViewer";
@@ -114,9 +109,7 @@ function PathRow({ entry, workspaceName, isOpen, onToggle }: PathRowProps) {
           <code className="font-mono text-xs truncate">{entry.path}</code>
           <span
             className={`rounded px-1.5 py-0.5 text-xs font-medium shrink-0 ${
-              isAppend
-                ? "bg-blue-100 text-blue-700"
-                : "bg-slate-100 text-slate-500"
+              isAppend ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500"
             }`}
           >
             {isAppend ? t("index.strategy_append") : t("index.strategy_replace")}
@@ -132,12 +125,14 @@ function PathRow({ entry, workspaceName, isOpen, onToggle }: PathRowProps) {
               versions: entry.version_count,
             })}
           </span>
+          {entry.indexer_used && (
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono text-slate-500 shrink-0">
+              {entry.indexer_used}
+            </span>
+          )}
         </div>
 
-        <div
-          className="flex items-center gap-2 shrink-0"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
           {isFromFile ? (
             <TooltipProvider>
               <Tooltip>
@@ -163,6 +158,43 @@ function PathRow({ entry, workspaceName, isOpen, onToggle }: PathRowProps) {
 
       {isOpen && (
         <div className="border-t border-slate-100 bg-slate-50 px-3 py-2 space-y-2">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-slate-500">
+            {entry.indexer_used && (
+              <>
+                <dt className="font-medium">{t("index.meta_indexer")}</dt>
+                <dd className="font-mono">{entry.indexer_used}</dd>
+              </>
+            )}
+            {entry.content_hash && (
+              <>
+                <dt className="font-medium">{t("index.meta_hash")}</dt>
+                <dd className="font-mono truncate" title={entry.content_hash}>
+                  {entry.content_hash}
+                </dd>
+              </>
+            )}
+            {entry.indexed_at && (
+              <>
+                <dt className="font-medium">{t("index.meta_indexed_at")}</dt>
+                <dd>{new Date(entry.indexed_at).toLocaleString()}</dd>
+              </>
+            )}
+            {entry.source_url && (
+              <>
+                <dt className="font-medium">{t("index.meta_source")}</dt>
+                <dd className="truncate">
+                  <a
+                    href={entry.source_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sky-700 underline hover:text-sky-900"
+                  >
+                    {t("index.meta_source")}
+                  </a>
+                </dd>
+              </>
+            )}
+          </dl>
           <div className="flex gap-1">
             <button
               type="button"

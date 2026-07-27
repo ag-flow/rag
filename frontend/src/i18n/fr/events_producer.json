@@ -1,0 +1,35 @@
+{
+  "title": "Events workflow",
+  "subtitle": "Relais des events rag vers ag.flow workflow.",
+  "intro": "Porte A : chaque event est émis vers workflow dans une enveloppe signée HMAC, via une outbox robuste (retries, déduplication). L'event rag.workspace.created.v1 est émis à la création d'un workspace.",
+  "fields": {
+    "enabled": "Relais activé",
+    "enabled_help": "Active l'émission des events vers workflow. Sans liste blanche cochée, aucun event n'est relayé même activé.",
+    "workflow_base_url": "URL d'ingestion workflow",
+    "source_id": "Source ID",
+    "source_id_help": "GUID attribué par workflow à cette source rag.",
+    "secret_ref": "Référence du secret HMAC",
+    "secret_ref_help": "Référence de secret de coffre, ex. ${vault://rag:workflow-hmac}.",
+    "source_uri": "Source URI"
+  },
+  "events": {
+    "title": "Liste blanche des events",
+    "help": "Liste blanche : vide = aucun event relayé même si le relais est activé.",
+    "empty": "Aucun event émissible déclaré par rag."
+  },
+  "actions": {
+    "save": "Enregistrer",
+    "test": "Tester la connexion"
+  },
+  "save": {
+    "success": "Configuration enregistrée.",
+    "error": "Échec de l'enregistrement.",
+    "unknown_events": "Events inconnus (hors liste émissible) : {{events}}"
+  },
+  "test": {
+    "not_configured": "Configure d'abord l'URL, la source et le secret.",
+    "ok": "Connexion réussie (HTTP {{status}}).",
+    "failed": "Échec (HTTP {{status}}) : {{detail}}",
+    "error": "Échec du test de connexion."
+  }
+}

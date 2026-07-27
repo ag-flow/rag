@@ -7,15 +7,7 @@ def _setup_ws(client: TestClient, headers: dict[str, str], name: str) -> None:
     client.post(
         "/api/admin/workspaces",
         headers=headers,
-        json={
-            "name": name,
-            "api_key_vault": "rag",
-            "indexer": {
-                "provider": "openai",
-                "model": "text-embedding-3-small",
-                "api_key_ref": "openai_embedding_key",
-            },
-        },
+        json={"name": name, "label": name, "endpoint_id": client.default_endpoint_id},
     )
 
 
@@ -27,6 +19,7 @@ def test_post_source_201(
         "/api/admin/workspaces/ws_src_e2e_a/sources",
         headers=admin_headers,
         json={
+            "name": "src-a",
             "type": "git",
             "config": {
                 "url": "https://github.com/x/y",
@@ -35,7 +28,7 @@ def test_post_source_201(
             },
         },
     )
-    assert r.status_code == 201
+    assert r.status_code == 201, r.text
     body = r.json()
     assert body["type"] == "git"
     assert body["config"]["url"] == "https://github.com/x/y"
@@ -47,7 +40,7 @@ def test_post_source_404_workspace_not_found(
     r = admin_client.post(
         "/api/admin/workspaces/absent/sources",
         headers=admin_headers,
-        json={"type": "git", "config": {"url": "https://x/y"}},
+        json={"name": "src-absent", "type": "git", "config": {"url": "https://x/y"}},
     )
     assert r.status_code == 404
 
@@ -59,7 +52,11 @@ def test_post_source_422_non_git(
     r = admin_client.post(
         "/api/admin/workspaces/ws_src_e2e_b/sources",
         headers=admin_headers,
-        json={"type": "confluence", "config": {"url": "https://wiki.example.com"}},
+        json={
+            "name": "src-b",
+            "type": "confluence",
+            "config": {"url": "https://wiki.example.com"},
+        },
     )
     assert r.status_code == 422
 
@@ -72,6 +69,7 @@ def test_delete_source_204(
         "/api/admin/workspaces/ws_src_e2e_c/sources",
         headers=admin_headers,
         json={
+            "name": "src-c",
             "type": "git",
             "config": {"url": "https://x/y", "auth_ref": "github_token"},
         },

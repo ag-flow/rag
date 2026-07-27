@@ -1,182 +1,33 @@
 import { useEffect, useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslation } from "react-i18next";
-import { z } from "zod";
+import { Link } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useCreateWorkspace } from "@/hooks/useWorkspaces";
-import { useModels } from "@/hooks/useModels";
-import { useProviderKeysByProvider } from "@/hooks/useHarpocrateVaults";
+import { useAllVaultEndpoints } from "@/hooks/useVaultEndpoints";
 import { useToast } from "@/hooks/useToast";
-import { workspaceCreateSchema } from "@/lib/validators";
-import {
-  RERANK_PROVIDERS,
-  MODELS_BY_PROVIDER as RERANK_MODELS_BY_PROVIDER,
-} from "@/pages/workspace/WorkspaceRerankTab.schema";
+import { slugifyLabel } from "@/lib/slugify";
 
-type FormData = z.infer<typeof workspaceCreateSchema>;
-
-const BASE_URL_PROVIDERS = ["ollama", "azure-openai", "azure-foundry"];
-const NO_KEY_PROVIDERS = ["ollama"];
-
-interface ProviderModelBlockProps {
-  prefix: "indexer" | "rerank";
-  label: string;
-  form: ReturnType<typeof useForm<FormData>>;
-  models: { provider: string; model: string }[];
-}
-
-function ProviderModelBlock({ prefix, label, form, models }: ProviderModelBlockProps) {
-  const { t } = useTranslation("workspaces");
-  const provider = useWatch({ control: form.control, name: `${prefix}.provider` as const });
-  const providers = [...new Set(models.map((m) => m.provider))].sort();
-  const filteredModels = models.filter((m) => m.provider === provider).map((m) => m.model);
-  const needsUrl = BASE_URL_PROVIDERS.includes(provider ?? "");
-  const needsKey = !NO_KEY_PROVIDERS.includes(provider ?? "");
-  const { data: keys = [] } = useProviderKeysByProvider(needsKey && provider ? provider : null);
-
-  return (
-    <div className="space-y-3 rounded-md border bg-slate-50 p-4">
-      <div className="text-xs font-bold uppercase tracking-wide text-slate-600">{label}</div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <FormField
-          control={form.control}
-          name={`${prefix}.provider` as const}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("form.provider")}</FormLabel>
-              <Select
-                onValueChange={(v) => {
-                  field.onChange(v);
-                  const firstModel = models.find((m) => m.provider === v)?.model ?? "";
-                  form.setValue(`${prefix}.model` as const, firstModel);
-                  form.setValue(`${prefix}.api_key_ref` as const, null);
-                }}
-                value={field.value ?? ""}
-              >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("form.provider")} />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {providers.map((p) => (
-                    <SelectItem key={p} value={p}>{p}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name={`${prefix}.model` as const}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("form.model")}</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {filteredModels.map((m) => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
-
-      {needsUrl && (
-        <FormField
-          control={form.control}
-          name={`${prefix}.base_url` as const}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>
-                {t("form.base_url")}{" "}
-                <span className="font-normal text-slate-400">{t("form.base_url_optional")}</span>
-              </FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="http://192.168.10.80:11434"
-                  {...field}
-                  value={field.value ?? ""}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      )}
-
-      {needsKey && (
-        <FormField
-          control={form.control}
-          name={`${prefix}.api_key_ref` as const}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("form.api_key_ref")}</FormLabel>
-              {keys.length === 0 ? (
-                <p className="text-xs text-amber-600 mt-1">{t("form.api_key_ref_none")}</p>
-              ) : (
-                <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder={t("form.api_key_ref_placeholder")} />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {keys.map((k) => (
-                      <SelectItem key={k.id} value={k.harpo_path}>
-                        <span className="font-medium">{k.label}</span>
-                        <span className="ml-2 text-xs text-slate-400">
-                          {k.vault_label} · {k.key_id}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      )}
-    </div>
-  );
-}
+const NAME_RE = /^[a-z][a-z0-9_-]{0,62}$/;
 
 interface Props {
   open: boolean;
@@ -184,91 +35,50 @@ interface Props {
   onCreated?: (ws: { name: string }) => void;
 }
 
+/** Création de workspace : nom + choix d'un endpoint (préréglage du coffre).
+ *
+ * La vectorisation ne se configure plus champ par champ ici — elle vit dans
+ * l'onglet Endpoints du coffre, et sa config est copiée à la création
+ * (snapshot).
+ */
 export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) {
   const { t } = useTranslation("workspaces");
   const { toast } = useToast();
   const createMutation = useCreateWorkspace();
-  const { data: models = [] } = useModels();
-  const [showRerank, setShowRerank] = useState(false);
+  const { data: grouped = [], isLoading } = useAllVaultEndpoints();
 
-  const defaultProvider = [...new Set(models.map((m) => m.provider))].sort()[0] ?? "openai";
-  const defaultModel = models.find((m) => m.provider === defaultProvider)?.model ?? "";
+  const [label, setLabel] = useState("");
+  const [description, setDescription] = useState("");
+  const [endpointId, setEndpointId] = useState<string>("");
 
-  // Modèles pour le bloc reranking — différents des modèles d'embedding
-  const rerankModels = RERANK_PROVIDERS.flatMap((provider) =>
-    RERANK_MODELS_BY_PROVIDER[provider].map((model) => ({ provider, model }))
-  );
-  const defaultRerankProvider = RERANK_PROVIDERS[0] ?? "cohere";
-  const defaultRerankModel = RERANK_MODELS_BY_PROVIDER[defaultRerankProvider]?.[0] ?? "";
-
-  const form = useForm<FormData>({
-    resolver: zodResolver(workspaceCreateSchema),
-    defaultValues: {
-      name: "",
-      indexer: { provider: defaultProvider, model: defaultModel, api_key_ref: null, base_url: null },
-      rerank: null,
-    },
-  });
-
-  // ── Reset à l'ouverture ──────────────────────────────────────────────────
-  // Le dialog est monté (fermé) avant que useModels() ait fini de charger,
-  // donc les defaultValues du useForm capturent des défauts vides/génériques
-  // qui ne sont jamais resynchronisés. On recalcule et on réinitialise le
-  // formulaire à chaque ouverture avec les modèles effectivement disponibles.
   useEffect(() => {
     if (!open) return;
-    setShowRerank(false);
-    form.reset({
-      name: "",
-      indexer: {
-        provider: defaultProvider,
-        model: defaultModel,
-        api_key_ref: null,
-        base_url: null,
-      },
-      rerank: null,
-    });
-  }, [open, defaultProvider, defaultModel, form]);
+    setLabel("");
+    setDescription("");
+    // Pré-sélectionne l'unique endpoint s'il n'y en a qu'un.
+    const all = grouped.flatMap((g) => g.endpoints);
+    setEndpointId(all.length === 1 && all[0] ? all[0].id : "");
+  }, [open, grouped]);
 
-  function handleToggleRerank() {
-    if (showRerank) {
-      form.setValue("rerank", null);
-    } else {
-      form.setValue("rerank", {
-        provider: defaultRerankProvider,
-        model: defaultRerankModel,
-        api_key_ref: null,
-        base_url: null,
-        top_k_pre_rerank: 50,
-      });
-    }
-    setShowRerank(!showRerank);
-  }
+  const slug = slugifyLabel(label);
+  const hasEndpoints = grouped.some((g) => g.endpoints.length > 0);
+  const slugValid = NAME_RE.test(slug);
+  const labelValid = label.trim() !== "";
+  const canSubmit =
+    labelValid && slugValid && endpointId !== "" && !createMutation.isPending;
 
-  async function onSubmit(values: FormData) {
+  const selected = grouped.flatMap((g) => g.endpoints).find((ep) => ep.id === endpointId);
+
+  async function handleSubmit() {
     try {
       const resp = await createMutation.mutateAsync({
-        name: values.name,
-        indexer: {
-          provider: values.indexer.provider,
-          model: values.indexer.model,
-          api_key_ref: values.indexer.api_key_ref ?? null,
-          base_url: values.indexer.base_url ?? null,
-        },
-        rerank: values.rerank
-          ? {
-              provider: values.rerank.provider,
-              model: values.rerank.model,
-              api_key_ref: values.rerank.api_key_ref ?? null,
-              base_url: values.rerank.base_url ?? null,
-              top_k_pre_rerank: values.rerank.top_k_pre_rerank,
-            }
-          : undefined,
+        name: slug,
+        endpoint_id: endpointId,
+        label: label.trim(),
+        description: description.trim(),
       });
-      toast({ title: t("toasts.created", { name: resp.name }) });
+      toast({ title: t("toasts.created", { name: resp.label }) });
       onOpenChange(false);
-      form.reset();
-      setShowRerank(false);
       onCreated?.({ name: resp.name });
     } catch {
       toast({ title: t("common:errors.generic"), variant: "destructive" });
@@ -277,91 +87,104 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[540px] max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>{t("create")}</DialogTitle>
+          <DialogDescription>{t("form.endpoint_intro")}</DialogDescription>
         </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("form.name")}</FormLabel>
-                  <FormControl>
-                    <Input placeholder="workspace1" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+        <div className="space-y-4">
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-slate-600">
+              {t("form.label")}
+            </Label>
+            <Input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder={t("form.label_placeholder")}
+              className="mt-1"
+              autoFocus
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              {t("form.slug_preview")}{" "}
+              {slug ? (
+                <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">
+                  {slug}
+                </code>
+              ) : (
+                <span className="italic text-slate-400">{t("form.slug_empty")}</span>
               )}
-            />
+            </p>
+            {label.trim() !== "" && !slugValid && (
+              <p className="mt-1 text-xs text-amber-600">{t("form.slug_invalid")}</p>
+            )}
+          </div>
 
-            <ProviderModelBlock
-              prefix="indexer"
-              label={t("form.indexer_section")}
-              form={form}
-              models={models}
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-slate-600">
+              {t("form.description")}
+            </Label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder={t("form.description_placeholder")}
+              className="mt-1"
+              rows={3}
             />
+          </div>
 
-            {showRerank && (
-              <>
-                <ProviderModelBlock
-                  prefix="rerank"
-                  label={t("form.rerank_section")}
-                  form={form}
-                  models={rerankModels}
-                />
-                <FormField
-                  control={form.control}
-                  name="rerank.top_k_pre_rerank"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("form.top_k")}</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={500}
-                          {...field}
-                          value={field.value ?? 50}
-                          onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
-                          className="w-32"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleToggleRerank}
-                  className="text-slate-500 text-xs"
-                >
-                  {t("form.rerank_remove")}
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-slate-600">
+              {t("form.endpoint")}
+            </Label>
+            {isLoading ? (
+              <p className="mt-1 text-sm text-slate-500">…</p>
+            ) : !hasEndpoints ? (
+              <div className="mt-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                <p className="text-sm text-amber-900">{t("form.endpoint_none")}</p>
+                <Button asChild variant="outline" size="sm" className="mt-2">
+                  <Link to="/settings/harpocrate-vaults">{t("form.endpoint_none_link")}</Link>
                 </Button>
-              </>
+              </div>
+            ) : (
+              <Select value={endpointId} onValueChange={setEndpointId}>
+                <SelectTrigger className="mt-1" aria-label={t("form.endpoint")}>
+                  <SelectValue placeholder={t("form.endpoint_placeholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {grouped.map((g) => (
+                    <SelectGroup key={g.vault.id}>
+                      <SelectLabel>{g.vault.label}</SelectLabel>
+                      {g.endpoints.map((ep) => (
+                        <SelectItem key={ep.id} value={ep.id}>
+                          {ep.label} — {ep.indexer.provider}/{ep.indexer.model}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
-
-            {!showRerank && (
-              <Button type="button" variant="outline" size="sm" onClick={handleToggleRerank}>
-                + {t("form.rerank_section")}
-              </Button>
+            {selected && (
+              <p className="mt-1 text-xs text-slate-500">
+                {selected.rerank
+                  ? t("form.endpoint_with_rerank", {
+                      rerank: `${selected.rerank.provider}/${selected.rerank.model}`,
+                    })
+                  : t("form.endpoint_no_rerank")}
+              </p>
             )}
+          </div>
+        </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                {t("common:buttons.cancel")}
-              </Button>
-              <Button type="submit" disabled={createMutation.isPending}>
-                {t("common:buttons.create")}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            {t("form.cancel")}
+          </Button>
+          <Button type="button" onClick={() => void handleSubmit()} disabled={!canSubmit}>
+            {t("form.submit")}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

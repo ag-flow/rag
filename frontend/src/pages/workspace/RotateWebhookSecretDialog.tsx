@@ -81,17 +81,9 @@ export function RotateWebhookSecretDialog({
               </Label>
               <p className="text-xs text-amber-600 mt-1">{t("secret_warning")}</p>
               <div className="flex items-center gap-2 mt-1">
-                <Input
-                  value={newSecret}
-                  readOnly
-                  className="font-mono text-xs bg-slate-50"
-                />
+                <Input value={newSecret} readOnly className="font-mono text-xs bg-slate-50" />
                 <Button size="sm" onClick={handleCopy} className="shrink-0">
-                  {copied ? (
-                    <Check className="h-4 w-4" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
             </div>

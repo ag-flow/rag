@@ -19,12 +19,10 @@ def build_admin_oidc_router() -> APIRouter:
         cfg = await request.app.state.oidc.upsert_config(
             issuer=str(payload.issuer),
             client_id=payload.client_id,
-            client_secret_ref=payload.client_secret_ref,
         )
         return OidcConfigRead(
             issuer=cfg.issuer,
             client_id=cfg.client_id,
-            client_secret_ref=cfg.client_secret_ref,
         )
 
     @router.get("/oidc")
@@ -35,7 +33,6 @@ def build_admin_oidc_router() -> APIRouter:
         return OidcConfigRead(
             issuer=cfg.issuer,
             client_id=cfg.client_id,
-            client_secret_ref=cfg.client_secret_ref,
         )
 
     return router

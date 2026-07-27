@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-# Tests unitaires pour require_workspace_apikey (T6 -- cache + Harpocrate).
+# Tests unitaires pour require_workspace_apikey — clés utilisateur hash-only.
+# L'écriture (indexation push) exige un niveau scope IN ('read_write','admin'),
+# appliqué à tous les workspaces ; la requête SQL porte ce filtre, le mock
+# vérifie le contrat d'appel.
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -8,33 +11,19 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from rag.auth.workspace_auth import (
-    ApiKeyCache,
-    AuthContext,
-    require_workspace_apikey,
-)
+from rag.auth.workspace_auth import AuthContext, require_workspace_apikey
 
 
-def _fake_request(headers: dict[str, str], pool, cache: ApiKeyCache, resolver=None):
-    if resolver is None:
-        resolver = MagicMock()
+def _fake_request(headers: dict[str, str], pool):
     return SimpleNamespace(
         headers=headers,
-        app=SimpleNamespace(
-            state=SimpleNamespace(
-                apikey_cache=cache,
-                pools=SimpleNamespace(config_pool=pool),
-                resolver=resolver,
-            )
-        ),
+        app=SimpleNamespace(state=SimpleNamespace(pools=SimpleNamespace(config_pool=pool))),
     )
 
 
 @pytest.mark.asyncio
 async def test_missing_authorization_header_raises_401() -> None:
-    cache = ApiKeyCache()
-    pool = MagicMock()
-    req = _fake_request({}, pool, cache)
+    req = _fake_request({}, MagicMock())
     with pytest.raises(HTTPException) as exc:
         await require_workspace_apikey("ws", req)  # type: ignore[arg-type]
     assert exc.value.status_code == 401
@@ -43,9 +32,7 @@ async def test_missing_authorization_header_raises_401() -> None:
 
 @pytest.mark.asyncio
 async def test_wrong_scheme_raises_401() -> None:
-    cache = ApiKeyCache()
-    pool = MagicMock()
-    req = _fake_request({"Authorization": "Basic abc"}, pool, cache)
+    req = _fake_request({"Authorization": "Basic abc"}, MagicMock())
     with pytest.raises(HTTPException) as exc:
         await require_workspace_apikey("ws", req)  # type: ignore[arg-type]
     assert exc.value.status_code == 401
@@ -53,35 +40,11 @@ async def test_wrong_scheme_raises_401() -> None:
 
 
 @pytest.mark.asyncio
-async def test_workspace_not_found_raises_401() -> None:
-    """Workspace inconnu (fetchrow None) -> 401 uniforme."""
-    cache = ApiKeyCache()
+async def test_no_matching_key_raises_401_uniform() -> None:
+    """Workspace inconnu, clé invalide OU scope insuffisant → 401 uniforme."""
     pool = MagicMock()
     pool.fetchrow = AsyncMock(return_value=None)
-    req = _fake_request({"Authorization": "Bearer some-key"}, pool, cache)
-    with pytest.raises(HTTPException) as exc:
-        await require_workspace_apikey("ghost", req)  # type: ignore[arg-type]
-    assert exc.value.status_code == 401
-    assert exc.value.detail == "invalid_workspace_apikey"
-
-
-@pytest.mark.asyncio
-async def test_invalid_key_raises_401() -> None:
-    """compare_digest echoue (resolver retourne cle differente) -> 401."""
-    ref = "${vault://rag:wsapi_ws}"
-    cache = ApiKeyCache()
-    ws_id = uuid4()
-    pool = MagicMock()
-    pool.fetchrow = AsyncMock(
-        return_value={
-            "id": ws_id,
-            "api_key_ref": ref,
-            "indexer_used": "openai/text-embedding-3-small",
-        }
-    )
-    resolver = MagicMock()
-    resolver.resolve_with_retry = AsyncMock(return_value="the-real-stored-key")
-    req = _fake_request({"Authorization": "Bearer bad-key"}, pool, cache, resolver)
+    req = _fake_request({"Authorization": "Bearer some-key"}, pool)
     with pytest.raises(HTTPException) as exc:
         await require_workspace_apikey("ws", req)  # type: ignore[arg-type]
     assert exc.value.status_code == 401
@@ -89,82 +52,40 @@ async def test_invalid_key_raises_401() -> None:
 
 
 @pytest.mark.asyncio
-async def test_stale_cache_invalidated_and_reresolved_on_mismatch() -> None:
-    """BUG-026 : cache périmé (rotation Harpocrate hors-bande) -> invalidation
-    + re-résolution une fois, la nouvelle clé claire est acceptée sans 401
-    permanent."""
-    ref = "${vault://rag:wsapi_ws}"
-    cache = ApiKeyCache()
-    cache.put(ref, "old-stale-value")  # entrée périmée déjà en cache
+async def test_valid_key_with_write_scope_returns_context() -> None:
     ws_id = uuid4()
-    new_key = "new-key-from-harpocrate"
     pool = MagicMock()
+    owner = "c" * 64
     pool.fetchrow = AsyncMock(
         return_value={
             "id": ws_id,
-            "api_key_ref": ref,
             "indexer_used": "openai/text-embedding-3-small",
+            "owner_id": owner,
         }
     )
-    resolver = MagicMock()
-    resolver.resolve_with_retry = AsyncMock(return_value=new_key)
-    req = _fake_request({"Authorization": f"Bearer {new_key}"}, pool, cache, resolver)
+    req = _fake_request({"Authorization": "Bearer good-key"}, pool)
 
     ctx = await require_workspace_apikey("ws", req)  # type: ignore[arg-type]
 
     assert isinstance(ctx, AuthContext)
     assert ctx.workspace_id == ws_id
-    resolver.resolve_with_retry.assert_awaited_once_with(ref)
-    # Le cache reflète désormais la valeur fraîche, plus l'ancienne valeur périmée.
-    assert cache.get(ref) == new_key
+    assert ctx.indexer_used == "openai/text-embedding-3-small"
+    # Le propriétaire de la clé délimite la bibliothèque de stratégies (F4).
+    assert ctx.owner_id == owner
+    # Le contrat SQL exige un niveau d'écriture sur les clés utilisateur.
+    sql = pool.fetchrow.await_args.args[0]
+    assert "user_api_keys" in sql
+    assert "scope" in sql
+    assert "owner_id" in sql
 
 
 @pytest.mark.asyncio
-async def test_valid_key_returns_auth_context() -> None:
-    """Cle valide -> AuthContext retourne avec workspace_id et indexer_used."""
-    ref = "${vault://rag:wsapi_ws}"
-    cache = ApiKeyCache()
-    ws_id = uuid4()
-    good_key = "good-key"
+async def test_write_lookup_never_touches_harpocrate() -> None:
+    """Hash-only : un seul fetchrow, aucune résolution de secret."""
     pool = MagicMock()
     pool.fetchrow = AsyncMock(
-        return_value={
-            "id": ws_id,
-            "api_key_ref": ref,
-            "indexer_used": "voyage/voyage-3-lite",
-        }
+        return_value={"id": uuid4(), "indexer_used": "voyage/voyage-3", "owner_id": "d" * 64}
     )
-    resolver = MagicMock()
-    resolver.resolve_with_retry = AsyncMock(return_value=good_key)
-    req = _fake_request({"Authorization": f"Bearer {good_key}"}, pool, cache, resolver)
-    ctx = await require_workspace_apikey("ws", req)  # type: ignore[arg-type]
-    assert isinstance(ctx, AuthContext)
-    assert ctx.workspace_id == ws_id
-    assert ctx.indexer_used == "voyage/voyage-3-lite"
-
-
-@pytest.mark.asyncio
-async def test_harpocrate_unreachable_raises_503() -> None:
-    """Si Harpocrate est inaccessible sur cache miss -> 503 harpocrate_unreachable.
-
-    Le resolver ne lève jamais VaultUnreachable (erreur API, pas erreur du
-    resolver) : il lève VaultLookupFailed ou une erreur de connexion brute
-    (BUG-021)."""
-    from rag.api.errors import HarpocrateUnreachableForApikey
-    from rag.secrets.resolver import VaultLookupFailed
-
-    ref = "${vault://rag:wsapi_ws}"
-    cache = ApiKeyCache()
-    pool = MagicMock()
-    pool.fetchrow = AsyncMock(
-        return_value={
-            "id": uuid4(),
-            "api_key_ref": ref,
-            "indexer_used": "ollama/mxbai",
-        }
-    )
-    resolver = MagicMock()
-    resolver.resolve_with_retry = AsyncMock(side_effect=VaultLookupFailed("down"))
-    req = _fake_request({"Authorization": "Bearer some-key"}, pool, cache, resolver)
-    with pytest.raises(HarpocrateUnreachableForApikey):
-        await require_workspace_apikey("ws", req)  # type: ignore[arg-type]
+    req = _fake_request({"Authorization": "Bearer k"}, pool)
+    await require_workspace_apikey("ws", req)  # type: ignore[arg-type]
+    assert pool.fetchrow.await_count == 1

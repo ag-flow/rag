@@ -22,14 +22,14 @@ async def test_noop_index_file_inserts_indexed_documents_row(
         ws_id = await seed_workspace(conn, name="ws_noop_a", rag_cnx="c", rag_base="b")
 
     indexer = NoOpIndexer(session_pool)
-    chunks = await indexer.index_file(
+    outcome = await indexer.index_file(
         workspace_id=ws_id,
         path="docs/README.md",
         content="hello",
         content_hash="sha256:abc",
         indexer_used="openai/text-embedding-3-small",
     )
-    assert chunks == 1
+    assert outcome.chunks == 1
 
     row = await session_pool.fetchrow(
         "SELECT content_hash, indexer_used FROM indexed_documents "

@@ -20,12 +20,14 @@ import type {
   VaultSummary,
   VaultTestConnectionResult,
   VaultUpdateRequest,
+  VaultKeyExpiry,
   WalletInfoResponse,
 } from "@/lib/harpocrate-vaults.types";
 
 const BASE = "/api/admin/harpocrate-vaults";
 
 export const harpocrateVaultsApi = {
+  listExpiries: () => api.get<VaultKeyExpiry[]>(`${BASE}/expiries`),
   list: () => api.get<VaultSummary[]>(BASE),
 
   get: (id: string) => api.get<VaultSummary>(`${BASE}/${id}`),
@@ -99,8 +101,7 @@ export const harpocrateVaultsApi = {
   deleteGitCredential: (vaultId: string, keyId: string) =>
     api.delete<void>(`${BASE}/${vaultId}/git-credentials/${keyId}`),
 
-  listSshKeys: (vaultId: string) =>
-    api.get<SshKey[]>(`${BASE}/${vaultId}/ssh-keys`),
+  listSshKeys: (vaultId: string) => api.get<SshKey[]>(`${BASE}/${vaultId}/ssh-keys`),
 
   importSshKey: (vaultId: string, payload: SshKeyImport) =>
     api.post<SshKey>(`${BASE}/${vaultId}/ssh-keys/import`, payload),
@@ -121,6 +122,5 @@ export const harpocrateVaultsApi = {
       `/api/admin/git-credentials/by-host?host=${encodeURIComponent(host)}`,
     ),
 
-  listSshKeysAll: () =>
-    api.get<SshKeyWithVault[]>(`/api/admin/ssh-keys/all`),
+  listSshKeysAll: () => api.get<SshKeyWithVault[]>(`/api/admin/ssh-keys/all`),
 };

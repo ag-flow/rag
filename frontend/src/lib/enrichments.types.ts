@@ -7,6 +7,11 @@ export type PromptTemplate = {
   result_type: "text" | "json";
   result_schema: object | null;
   prompt: string;
+  target: string;
+  timing: "post_index_metadata" | "embedding_inline";
+  prompt_version: number;
+  /** true = prompt système (partagé, immuable) ; false = prompt de l'utilisateur. */
+  is_system: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -19,6 +24,8 @@ export type PromptTemplateCreate = {
   result_type: "text" | "json";
   result_schema?: object | null;
   prompt: string;
+  target?: string;
+  timing?: "post_index_metadata" | "embedding_inline";
 };
 
 export type PromptTemplatePatch = {
@@ -29,18 +36,22 @@ export type PromptTemplatePatch = {
 
 export type Trigger = {
   id: string;
-  extension: string;
+  /** Pattern glob sur le chemin complet (ex. backlog/**\/*.md). */
+  pattern: string;
   enabled: boolean;
+  strategy_id: string | null;
   created_at: string;
 };
 
 export type TriggerCreate = {
-  extension: string;
+  pattern: string;
   enabled?: boolean;
+  strategy_id?: string | null;
 };
 
 export type TriggerPatch = {
-  enabled: boolean;
+  enabled?: boolean;
+  strategy_id?: string | null;
 };
 
 export type TriggerPrompt = {

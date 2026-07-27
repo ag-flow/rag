@@ -184,3 +184,30 @@ CREATE INDEX ON embeddings (path);
 ## 7. Definition of done (rappel)
 
 Audit ✅ → **ADR validé (ce document)** → impl derrière flag → tests verts (breadcrumb, merge/split bornes, routage code/table, idempotence hash) → diff de chunks ancien/nouveau pour inspection humaine avant bascule.
+
+---
+
+## 8. Amendement 2026-07-17 — Deux modes d'invocation (spec chunking §5, F4)
+
+Le pipeline de chunking est invocable selon deux modes au contrat distinct :
+
+**Mode job (autonome, sans utilisateur)** — sync git, webhooks entrants,
+scheduler, tâches internes. La résolution ne consomme QUE des liens par id ou
+des défauts de portée système/workspace : `push_job_payloads.strategy_id`
+(résolu en amont), routes de régions (`target_strategy_id`), cascade
+`extension → catégorie → stratégie → défaut prose` sur les stratégies
+système/workspace (`load_strategy` filtre `owner_id IS NULL`). Aucun module du
+chemin job (`rag/indexer/*`, `rag/sync/*`, `services/chunking_routing.py`)
+n'importe de contexte d'authentification — garanti par test d'architecture
+(`tests/unit/test_job_mode_purity.py`). Un id lié qui ne résout plus (stratégie
+supprimée entre l'acceptation et l'exécution) lève `StrategyBindingLostError` :
+le job échoue explicitement, jamais de repli silencieux.
+
+**Mode service (API/MCP, caller authentifié)** — push externe type docflow.
+`PushRequest.strategy` est optionnel : renseigné, le slug est résolu **à
+l'acceptation du push** dans la bibliothèque du caller (`owner_id` de la clé
+API) puis dans les stratégies système (`resolve_caller_strategy`) ; introuvable
+→ 422 explicite. Seul l'**id résolu** est écrit dans le payload du job (règle
+d'or : possession par user, binding par id). Slug absent → routage par
+extension, cascade inchangée. Priorité conforme au §2 : override explicite >
+extension > défaut.

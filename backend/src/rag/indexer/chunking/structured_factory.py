@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 from typing import Any
+from uuid import UUID
 
 import structlog
 
@@ -11,6 +13,9 @@ from rag.indexer.chunking.code_parser import UnsupportedLanguageError
 from rag.indexer.chunking.data_chunker import DataChunker
 from rag.indexer.chunking.markdown_deep import MarkdownDeepChunker
 from rag.indexer.chunking.normalizer import TokenBounds
+from rag.indexer.chunking.region_registry import get_region_parser
+from rag.indexer.chunking.region_routes import RegionRoute
+from rag.indexer.chunking.routing_chunker import RoutingChunker
 from rag.indexer.chunking.structured import StructuredChunkerProtocol
 from rag.indexer.chunking.table import TableChunker
 from rag.indexer.chunking.tokens import TokenEstimator
@@ -54,6 +59,28 @@ _DEFAULT_HEADING_LEVELS = (1, 2)
 _DEFAULT_MAX_ROWS = 50
 
 
+def validate_strategy_spec(
+    *,
+    algo: str,
+    params: Mapping[str, Any],
+    parser_slug: str | None = None,
+) -> None:
+    """Valide (algo, params, parser) sans construire de chunker.
+
+    Même règles que `make_structured_chunker` — utilisée par le CRUD admin
+    pour refuser une stratégie invalide à l'écriture plutôt qu'à l'indexation.
+    Lève `ValueError` sur algo inconnu, param non autorisé pour l'algo, ou
+    parser posé sur un algo non prose.
+    """
+    if algo not in _ALLOWED:
+        raise ValueError(f"unknown chunking algo: {algo!r}")
+    if parser_slug is not None and algo not in ("prose", "markdown"):
+        raise ValueError(f"parser_slug requires a prose algo, got {algo!r}")
+    unknown = set(params) - _ALLOWED[algo]
+    if unknown:
+        raise ValueError(f"unknown params for algo {algo!r}: {sorted(unknown)}")
+
+
 def make_structured_chunker(
     *,
     algo: str,
@@ -62,6 +89,10 @@ def make_structured_chunker(
     provider_max_input_tokens: int,
     safety_factor: float = 0.8,
     language: str | None = None,
+    parser_slug: str | None = None,
+    region_routes: Sequence[RegionRoute] = (),
+    route_targets: Mapping[UUID, StructuredChunkerProtocol] | None = None,
+    reserved_tokens: int = 0,
 ) -> StructuredChunkerProtocol:
     """Construit un chunker structure-aware depuis (algo + params nommés).
 
@@ -77,15 +108,13 @@ def make_structured_chunker(
     Toutes à ``False`` par défaut — aucun changement de comportement pour les
     stratégies existantes. Le wrapper est posé si au moins une option est activée.
     """
-    if algo not in _ALLOWED:
-        raise ValueError(f"unknown chunking algo: {algo!r}")
-    unknown = set(params) - _ALLOWED[algo]
-    if unknown:
-        raise ValueError(f"unknown params for algo {algo!r}: {sorted(unknown)}")
+    validate_strategy_spec(algo=algo, params=params, parser_slug=parser_slug)
     if provider_max_input_tokens <= 0:
         raise ValueError("provider_max_input_tokens must be > 0")
     if not 0 < safety_factor <= 1:
         raise ValueError("safety_factor must be in (0, 1]")
+    if reserved_tokens < 0:
+        raise ValueError("reserved_tokens must be >= 0")
 
     opts = CleaningOptions(
         clean_content=bool(params.get("clean_content", False)),
@@ -94,7 +123,10 @@ def make_structured_chunker(
         strip_html=bool(params.get("strip_html", False)),
     )
 
-    hard = max(1, math.floor(safety_factor * provider_max_input_tokens))
+    # `reserved_tokens` : budget retranché du plafond dur — le contexte inline
+    # (contextual retrieval) injecté APRÈS découpage doit tenir dans la limite
+    # provider, donc le normaliseur borne les chunks en le déduisant (S6.1).
+    hard = max(1, math.floor(safety_factor * provider_max_input_tokens) - reserved_tokens)
     target = max(1, min(int(params.get("child_target_tokens", _DEFAULT_TARGET)), hard))
 
     if algo == "table":
@@ -120,6 +152,20 @@ def make_structured_chunker(
         # fallback gracieux : langage non supporté → prose (borné en tokens)
 
     heading_levels = tuple(params.get("heading_levels", _DEFAULT_HEADING_LEVELS))
+    if parser_slug is not None:
+        routing_chunker = _make_routing_chunker(
+            parser_slug=parser_slug,
+            region_routes=region_routes,
+            route_targets=route_targets or {},
+            estimator=estimator,
+            bounds=bounds,
+            depth=depth,
+            heading_levels=heading_levels,
+        )
+        if opts.any_enabled:
+            return CleaningChunkerWrapper(routing_chunker, opts)
+        return routing_chunker
+
     prose_chunker: StructuredChunkerProtocol = MarkdownDeepChunker(
         estimator=estimator,
         bounds=bounds,
@@ -127,6 +173,35 @@ def make_structured_chunker(
         heading_levels=heading_levels,
     )
     return CleaningChunkerWrapper(prose_chunker, opts) if opts.any_enabled else prose_chunker
+
+
+def _make_routing_chunker(
+    *,
+    parser_slug: str,
+    region_routes: Sequence[RegionRoute],
+    route_targets: Mapping[UUID, StructuredChunkerProtocol],
+    estimator: TokenEstimator,
+    bounds: TokenBounds,
+    depth: int,
+    heading_levels: tuple[int, ...],
+) -> RoutingChunker:
+    """Construit le composite de routage ; fail-fast sur config incohérente."""
+    parser = get_region_parser(parser_slug)
+    wanted = {r.target_strategy_id for r in region_routes if r.target_strategy_id is not None}
+    missing = wanted - set(route_targets)
+    if missing:
+        raise ValueError(
+            f"missing chunkers for route target strategies: {sorted(str(m) for m in missing)}"
+        )
+    return RoutingChunker(
+        parser=parser,
+        routes=region_routes,
+        targets=route_targets,
+        estimator=estimator,
+        bounds=bounds,
+        breadcrumb_depth=depth,
+        heading_levels=heading_levels,
+    )
 
 
 def _try_treesitter_chunker(

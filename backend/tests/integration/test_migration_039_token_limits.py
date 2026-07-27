@@ -52,8 +52,12 @@ async def test_conservative_default_and_known_lower_limits(session_pool: asyncpg
 @pytest.mark.asyncio
 async def test_max_input_tokens_check_rejects_non_positive(session_pool: asyncpg.Pool) -> None:
     await run_migrations(session_pool, MIGRATIONS_DIR)
-    async with session_pool.acquire() as conn, pytest.raises(asyncpg.CheckViolationError):
-        await conn.execute(
-            "INSERT INTO model_dimensions (provider, model, dimension, service, max_input_tokens) "
-            "VALUES ('x', 'y', 10, 'x', 0)"
-        )
+    # pytest 8 : raises() ne se combine plus dans le même `async with` que
+    # l'acquisition — on l'imbrique explicitement.
+    async with session_pool.acquire() as conn:
+        with pytest.raises(asyncpg.CheckViolationError):
+            await conn.execute(
+                "INSERT INTO model_dimensions "
+                "(provider, model, dimension, service, max_input_tokens) "
+                "VALUES ('x', 'y', 10, 'x', 0)"
+            )

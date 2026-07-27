@@ -45,6 +45,9 @@ async def e2e_client(
         migrations_dir=_MIGRATIONS_DIR,
     )
     with TestClient(app) as client:
+        from tests.api.conftest import _seed_default_endpoint
+
+        client.default_endpoint_id = await _seed_default_endpoint(pg_container)  # type: ignore[attr-defined]
         yield client, tmp_path
 
 
@@ -74,12 +77,8 @@ def test_full_pipeline_create_workspace_source_reindex_done(
         headers=_bearer(),
         json={
             "name": "ws_e2e_sync",
-            "api_key_vault": "rag",
-            "indexer": {
-                "provider": "openai",
-                "model": "text-embedding-3-small",
-                "api_key_ref": "openai_embedding_key",
-            },
+            "label": "ws_e2e_sync",
+            "endpoint_id": client.default_endpoint_id,
         },
     )
     assert r.status_code == 201

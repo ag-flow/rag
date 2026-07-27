@@ -1,20 +1,18 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from rag.sync.git_ops import clone, pull
+from rag.sync.git_ops import clone
 
 
 @pytest.mark.asyncio
 async def test_clone_ssh_passes_git_ssh_command(tmp_path: Path) -> None:
     captured_env: dict = {}
 
-    async def fake_run(args, *, cwd=None, error_cls=RuntimeError,
-                       error_prefix="", extra_env=None):
+    async def fake_run(args, *, cwd=None, error_cls=RuntimeError, error_prefix="", extra_env=None):
         if extra_env:
             captured_env.update(extra_env)
         return ("", "")
@@ -27,7 +25,9 @@ async def test_clone_ssh_passes_git_ssh_command(tmp_path: Path) -> None:
             branch="main",
             token=None,
             dest=dest,
-            ssh_key="-----BEGIN OPENSSH PRIVATE KEY-----\nfake\n-----END OPENSSH PRIVATE KEY-----\n",
+            ssh_key=(
+                "-----BEGIN OPENSSH PRIVATE KEY-----\nfake\n-----END OPENSSH PRIVATE KEY-----\n"
+            ),
             ssh_username="git",
         )
 
@@ -40,8 +40,9 @@ async def test_clone_ssh_passes_git_ssh_command(tmp_path: Path) -> None:
 async def test_clone_ssh_temp_file_cleaned_up(tmp_path: Path) -> None:
     created_paths: list[str] = []
 
-    async def tracking_run(args, *, cwd=None, error_cls=RuntimeError,
-                           error_prefix="", extra_env=None):
+    async def tracking_run(
+        args, *, cwd=None, error_cls=RuntimeError, error_prefix="", extra_env=None
+    ):
         if extra_env and "GIT_SSH_COMMAND" in extra_env:
             cmd = extra_env["GIT_SSH_COMMAND"]
             for part in cmd.split():
@@ -62,15 +63,14 @@ async def test_clone_ssh_temp_file_cleaned_up(tmp_path: Path) -> None:
         )
 
     assert len(created_paths) == 1
-    assert not os.path.exists(created_paths[0])
+    assert not Path(created_paths[0]).exists()  # noqa: ASYNC240 — assertion de test, pas d'IO chaud
 
 
 @pytest.mark.asyncio
 async def test_clone_without_ssh_uses_token_url(tmp_path: Path) -> None:
     captured_args: list = []
 
-    async def fake_run(args, *, cwd=None, error_cls=RuntimeError,
-                       error_prefix="", extra_env=None):
+    async def fake_run(args, *, cwd=None, error_cls=RuntimeError, error_prefix="", extra_env=None):
         captured_args.extend(args)
         return ("", "")
 

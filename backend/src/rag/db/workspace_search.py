@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 import asyncpg
 import structlog
@@ -67,11 +67,15 @@ def rrf_fuse(
     vector_hits: list[_ChildHit],
     lexical_hits: list[_ChildHit],
     k: int = 60,
+    *,
+    w_vector: float = 0.5,
+    w_lexical: float = 0.5,
 ) -> list[_FusedHit]:
-    """Reciprocal Rank Fusion de deux listes de hits enfants.
+    """Reciprocal Rank Fusion PONDÉRÉ de deux listes de hits enfants (D6).
 
     Identité = (path, chunk_hash) si chunk_hash non-null, sinon (path, chunk_index) legacy.
-    score_rrf = Σ 1/(k + rang) pour chaque bras où le chunk figure.
+    score_rrf = Σ wᵢ/(k + rangᵢ) — fusion par RANGS, jamais par scores bruts
+    (incomparables entre canaux). Poids par défaut 50/50.
     """
     v_rank: dict[tuple, tuple[int, float]] = {
         h.identity: (i + 1, h.score) for i, h in enumerate(vector_hits)
@@ -92,9 +96,9 @@ def rrf_fuse(
         lr_ls = l_rank.get(identity)
         rrf = 0.0
         if vr_vs is not None:
-            rrf += 1.0 / (k + vr_vs[0])
+            rrf += w_vector / (k + vr_vs[0])
         if lr_ls is not None:
-            rrf += 1.0 / (k + lr_ls[0])
+            rrf += w_lexical / (k + lr_ls[0])
         results.append(
             _FusedHit(
                 identity=identity,
@@ -270,31 +274,38 @@ async def lexical_search(
     *,
     query: str,
     top_k_fetch: int,
-    fts_config: str = "simple",
 ) -> list[_ChildHit]:
-    """Recherche FTS via content_tsv (websearch_to_tsquery, sans stemming).
+    """Recherche FTS bilingue sur `content_tsv` (D4, SR2.2).
 
+    Symétrie requête/index ABSOLUE : la requête subit le même double
+    traitement que la colonne générée (workspace migration 005) —
+    `simple`+unaccent (match exact, poids A) || `french` (racines, poids B).
+    ts_rank (poids par défaut A=1.0 > B=0.4) fait dominer le match exact.
     Pas de filtre min_score : la correspondance est déjà filtrée par `@@`.
     Pas de dédup section : fait par hybrid_search après RRF.
     """
     async with workspace_pool.acquire() as conn:
         rows = await conn.fetch(
             """
+            WITH q AS (
+                SELECT websearch_to_tsquery('simple', immutable_unaccent($1))
+                       || websearch_to_tsquery('french', immutable_unaccent($1)) AS tsq
+            )
             SELECT e.path AS path,
                    e.chunk_index AS chunk_index,
                    e.chunk_hash AS chunk_hash,
                    e.section_id AS section_id,
                    COALESCE(s.content, e.content) AS content,
-                   ts_rank(e.content_tsv, websearch_to_tsquery($2, $1)) AS lexical_score,
+                   ts_rank(e.content_tsv, q.tsq) AS lexical_score,
                    e.metadata AS metadata
             FROM embeddings e
+            CROSS JOIN q
             LEFT JOIN sections s ON s.id = e.section_id
-            WHERE e.content_tsv @@ websearch_to_tsquery($2, $1)
+            WHERE e.content_tsv @@ q.tsq
             ORDER BY lexical_score DESC
-            LIMIT $3
+            LIMIT $2
             """,
             query,
-            fts_config,
             top_k_fetch,
         )
     return [
@@ -311,6 +322,38 @@ async def lexical_search(
     ]
 
 
+class _LexicalSearcher(Protocol):
+    async def search(
+        self, workspace_pool: asyncpg.Pool, *, query: str, top_k_fetch: int
+    ) -> list[_ChildHit]: ...
+
+
+@dataclass(frozen=True)
+class ChannelEntry:
+    """Entrée d'une liste par canal (flag debug, D8)."""
+
+    path: str
+    chunk_index: int
+    rank: int
+    score: float
+
+
+@dataclass(frozen=True)
+class HybridResult:
+    """Hits fusionnés + listes brutes par canal (matière du debug D8)."""
+
+    hits: list[SearchHit]
+    vector_channel: list[ChannelEntry]
+    lexical_channel: list[ChannelEntry]
+
+
+def _channel(children: list[_ChildHit]) -> list[ChannelEntry]:
+    return [
+        ChannelEntry(path=h.path, chunk_index=h.chunk_index, rank=i + 1, score=h.score)
+        for i, h in enumerate(children)
+    ]
+
+
 async def hybrid_search(
     workspace_pool: asyncpg.Pool,
     *,
@@ -320,17 +363,21 @@ async def hybrid_search(
     min_score: float,
     workspace_name: str,
     indexer_used: str,
+    lexical_engine: _LexicalSearcher,
     rrf_k: int = 60,
-    fts_config: str = "simple",
-    debug: bool = False,
+    w_vector: float = 0.5,
+    w_lexical: float = 0.5,
     scope: str = "both",
     enrichment_keys: list[str] | None = None,
-) -> list[SearchHit]:
-    """Recherche hybride : vectorielle + lexicale, fusionnées par RRF.
+) -> HybridResult:
+    """Recherche hybride : vectorielle + lexicale (moteur injecté, D5),
+    fusionnées par RRF pondéré (D6). Les deux canaux s'exécutent en
+    PARALLÈLE (D8).
 
     min_score filtre le bras vectoriel uniquement.
     Dédup small-to-big (section_id) après fusion RRF.
-    debug=True : chaque SearchHit porte une DebugTrace.
+    Provenance TOUJOURS exposée (DebugTrace par hit, D8) ; les listes par
+    canal sont retournées dans HybridResult pour le flag debug de l'API.
     """
     top_k_fetch = top_k * 4
 
@@ -341,15 +388,16 @@ async def hybrid_search(
             top_k_fetch=top_k_fetch,
             min_score=min_score,
         ),
-        lexical_search(
+        lexical_engine.search(
             workspace_pool,
             query=query,
             top_k_fetch=top_k_fetch,
-            fts_config=fts_config,
         ),
     )
 
-    fused = rrf_fuse(vector_children, lexical_children, k=rrf_k)
+    fused = rrf_fuse(
+        vector_children, lexical_children, k=rrf_k, w_vector=w_vector, w_lexical=w_lexical
+    )
     fused = _apply_enrichment_filter_fused(fused, scope=scope, enrichment_keys=enrichment_keys)
 
     hits: list[SearchHit] = []
@@ -360,18 +408,17 @@ async def hybrid_search(
                 continue
             seen_sections.add(fh.section_id)
 
-        dbg = None
-        if debug:
-            from rag.schemas.mcp import DebugTrace
+        from rag.schemas.mcp import DebugTrace
 
-            dbg = DebugTrace(
-                vector_rank=fh.vector_rank,
-                vector_score=fh.vector_score,
-                lexical_rank=fh.lexical_rank,
-                lexical_score=fh.lexical_score,
-                rrf_score=fh.rrf_score,
-                final_rank=rank,
-            )
+        # Provenance TOUJOURS exposée (D8) — rangs par canal + score fusionné.
+        dbg = DebugTrace(
+            vector_rank=fh.vector_rank,
+            vector_score=fh.vector_score,
+            lexical_rank=fh.lexical_rank,
+            lexical_score=fh.lexical_score,
+            rrf_score=fh.rrf_score,
+            final_rank=rank,
+        )
 
         ek, sp = _enrich_hit_fields(fh.metadata)
         hits.append(
@@ -391,4 +438,8 @@ async def hybrid_search(
         if len(hits) >= top_k:
             break
 
-    return hits
+    return HybridResult(
+        hits=hits,
+        vector_channel=_channel(vector_children),
+        lexical_channel=_channel(lexical_children),
+    )

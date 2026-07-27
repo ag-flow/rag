@@ -11,6 +11,7 @@ import pytest_asyncio
 
 from rag.db.migrations import run_migrations
 from rag.db.pool import WorkspacePoolRegistry
+from rag.db.workspace_migrations import apply_pending
 from rag.indexer.providers.protocol import (
     EmbeddingAuthError,
     EmbeddingProvider,
@@ -90,6 +91,10 @@ async def real_indexer_setup(
     finally:
         await ws_setup.close()
 
+    # Migrations workspace (sections, chunk_hash, FTS…) : delete_file s'appuie
+    # sur la table `sections` depuis le pipeline structuré.
+    await apply_pending(ws_dsn)
+
     # Crée le workspace en config DB
     async with session_pool.acquire() as conn:
         ws_id = await seed_workspace(
@@ -159,7 +164,7 @@ async def test_real_indexer_index_file_inserts_chunks_and_indexed_documents(
         provider_factory=_factory_with_stub(stub),
     )
 
-    chunks_count = await indexer.index_file(
+    outcome = await indexer.index_file(
         workspace_id=setup["workspace_id"],
         path="docs/a.md",
         content="Hello world.\n\nSecond paragraph.",
@@ -167,7 +172,7 @@ async def test_real_indexer_index_file_inserts_chunks_and_indexed_documents(
         indexer_used="openai/text-embedding-3-small",
     )
 
-    assert chunks_count >= 1
+    assert outcome.chunks >= 1
     assert len(stub.calls) == 1  # 1 batch d'embeddings
 
     # Vérifie indexed_documents
@@ -187,7 +192,7 @@ async def test_real_indexer_index_file_inserts_chunks_and_indexed_documents(
     chunks_in_db = await ws_pool.fetch(
         "SELECT chunk_index FROM embeddings WHERE path='docs/a.md' ORDER BY chunk_index"
     )
-    assert len(chunks_in_db) == chunks_count
+    assert len(chunks_in_db) == outcome.chunks
 
 
 @pytest.mark.asyncio
@@ -241,21 +246,30 @@ async def test_real_indexer_index_file_empty_content_returns_zero(
         client_provider=_StubClientProvider(),  # type: ignore[arg-type]
         provider_factory=_factory_with_stub(stub),
     )
-    n = await indexer.index_file(
+    outcome_empty = await indexer.index_file(
         workspace_id=setup["workspace_id"],
         path="empty.md",
         content="",
         content_hash="h0",
         indexer_used="openai/text-embedding-3-small",
     )
-    assert n == 0
+    assert outcome_empty.chunks == 0
     assert stub.calls == []  # pas d'appel provider
 
-    # indexed_documents : pas de ligne (rien à indexer)
+    # indexed_documents : le document est tout de même enregistré (dédup par
+    # hash — un fichier vide inchangé ne sera pas retraité au prochain sync)
     row = await session_pool.fetchrow(
-        "SELECT 1 FROM indexed_documents WHERE path='empty.md'",
+        "SELECT content_hash FROM indexed_documents WHERE path='empty.md'",
     )
-    assert row is None
+    assert row is not None
+    assert row["content_hash"] == "h0"
+
+    # embeddings : aucun chunk pour ce path
+    ws_pool = await setup["registry"].get_workspace_pool(
+        setup["workspace_name"],
+        setup["ws_dsn"],
+    )
+    assert await ws_pool.fetch("SELECT 1 FROM embeddings WHERE path='empty.md'") == []
 
 
 @pytest.mark.asyncio

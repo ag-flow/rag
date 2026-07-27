@@ -5,18 +5,20 @@ import json as _json
 import httpx
 import pytest
 
-from rag.rerank.providers.dashscope import DashScopeRerankProvider, _URL_INTERNATIONAL
 from rag.rerank.protocol import (
     RerankAuthError,
     RerankProviderUnreachable,
     RerankRateLimited,
 )
+from rag.rerank.providers.dashscope import _URL_INTERNATIONAL, DashScopeRerankProvider
 
 
 def _ok_transport(indices: list[int]) -> httpx.MockTransport:
     payload = {
         "output": {
-            "results": [{"index": i, "relevance_score": 1.0 - 0.1 * pos} for pos, i in enumerate(indices)]
+            "results": [
+                {"index": i, "relevance_score": 1.0 - 0.1 * pos} for pos, i in enumerate(indices)
+            ]
         }
     }
 
@@ -111,7 +113,9 @@ async def test_rerank_uses_custom_base_url() -> None:
         return httpx.Response(200, json={"output": {"results": [{"index": 0}]}})
 
     provider = DashScopeRerankProvider(
-        model="gte-rerank-v2", api_key="k", base_url=custom,
+        model="gte-rerank-v2",
+        api_key="k",
+        base_url=custom,
         transport=httpx.MockTransport(handler),
     )
     await provider.rerank(query="q", documents=["a"], top_k=1)

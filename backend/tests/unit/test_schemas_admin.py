@@ -19,26 +19,48 @@ def test_workspace_create_valid_minimal() -> None:
     req = WorkspaceCreateRequest.model_validate(
         {
             "name": "workspace1",
-            "indexer": {
-                "provider": "openai",
-                "model": "text-embedding-3-small",
-                "api_key_ref": "openai/embed-key",
-            },
+            "label": "Workspace 1",
+            "endpoint_id": "11111111-2222-3333-4444-555555555555",
         }
     )
     assert req.name == "workspace1"
-    assert req.indexer.provider == "openai"
-    assert req.indexer.api_key_ref == "openai/embed-key"
+    assert req.label == "Workspace 1"
+    assert req.description == ""
+    assert str(req.endpoint_id) == "11111111-2222-3333-4444-555555555555"
 
 
-def test_workspace_create_valid_ollama_no_api_key() -> None:
+def test_workspace_create_carries_label_and_description() -> None:
     req = WorkspaceCreateRequest.model_validate(
         {
+            "name": "workspace1",
+            "label": "Mon workspace",
+            "description": "Corpus de la doc interne",
+            "endpoint_id": "11111111-2222-3333-4444-555555555555",
+        }
+    )
+    assert req.label == "Mon workspace"
+    assert req.description == "Corpus de la doc interne"
+
+
+def test_workspace_create_rejects_empty_label() -> None:
+    with pytest.raises(ValidationError, match="label"):
+        WorkspaceCreateRequest.model_validate(
+            {
+                "name": "workspace1",
+                "label": "",
+                "endpoint_id": "11111111-2222-3333-4444-555555555555",
+            }
+        )
+
+
+def test_workspace_create_resolved_ollama_no_api_key() -> None:
+    from rag.schemas.admin import WorkspaceCreateResolved
+
+    req = WorkspaceCreateResolved.model_validate(
+        {
             "name": "myws",
-            "indexer": {
-                "provider": "ollama",
-                "model": "nomic-embed-text",
-            },
+            "label": "My WS",
+            "indexer": {"provider": "ollama", "model": "nomic-embed-text"},
         }
     )
     assert req.indexer.api_key_ref is None
@@ -49,10 +71,8 @@ def test_workspace_create_name_regex_rejects_uppercase() -> None:
         WorkspaceCreateRequest.model_validate(
             {
                 "name": "Harpocrate",
-                "indexer": {
-                    "provider": "openai",
-                    "model": "text-embedding-3-small",
-                },
+                "label": "Harpocrate",
+                "endpoint_id": "11111111-2222-3333-4444-555555555555",
             }
         )
 
@@ -62,10 +82,8 @@ def test_workspace_create_name_regex_rejects_leading_digit() -> None:
         WorkspaceCreateRequest.model_validate(
             {
                 "name": "1abc",
-                "indexer": {
-                    "provider": "openai",
-                    "model": "text-embedding-3-small",
-                },
+                "label": "1abc",
+                "endpoint_id": "11111111-2222-3333-4444-555555555555",
             }
         )
 
@@ -76,10 +94,8 @@ def test_workspace_create_name_max_length_63() -> None:
         WorkspaceCreateRequest.model_validate(
             {
                 "name": long,
-                "indexer": {
-                    "provider": "openai",
-                    "model": "text-embedding-3-small",
-                },
+                "label": "long",
+                "endpoint_id": "11111111-2222-3333-4444-555555555555",
             }
         )
 
@@ -89,11 +105,8 @@ def test_workspace_create_name_accepts_exactly_63_chars() -> None:
     req = WorkspaceCreateRequest.model_validate(
         {
             "name": name_63,
-            "indexer": {
-                "provider": "openai",
-                "model": "text-embedding-3-small",
-                "api_key_ref": "openai/embed-key",
-            },
+            "label": "long name",
+            "endpoint_id": "11111111-2222-3333-4444-555555555555",
         }
     )
     assert req.name == name_63
@@ -104,11 +117,8 @@ def test_workspace_create_name_accepts_dash_and_underscore() -> None:
     req = WorkspaceCreateRequest.model_validate(
         {
             "name": "ag-flow_docker",
-            "indexer": {
-                "provider": "openai",
-                "model": "text-embedding-3-small",
-                "api_key_ref": "openai/embed-key",
-            },
+            "label": "ag-flow docker",
+            "endpoint_id": "11111111-2222-3333-4444-555555555555",
         }
     )
     assert req.name == "ag-flow_docker"
@@ -119,10 +129,8 @@ def test_workspace_create_rejects_extra_fields() -> None:
         WorkspaceCreateRequest.model_validate(
             {
                 "name": "ws",
-                "indexer": {
-                    "provider": "openai",
-                    "model": "text-embedding-3-small",
-                },
+                "label": "ws",
+                "endpoint_id": "11111111-2222-3333-4444-555555555555",
                 "rag": {"cnx": "postgresql://x@y/z", "base": "z"},
             }
         )
@@ -231,3 +239,23 @@ def test_source_create_rejects_non_git_type() -> None:
 def test_model_entry_dimension_must_be_positive() -> None:
     with pytest.raises(ValidationError):
         ModelEntry.model_validate({"provider": "p", "model": "m", "dimension": 0})
+
+
+def test_model_entry_embedding_requires_dimension() -> None:
+    with pytest.raises(ValidationError):
+        ModelEntry.model_validate({"provider": "p", "model": "m", "kind": "embedding"})
+
+
+def test_model_entry_llm_and_rerank_reject_dimension() -> None:
+    for kind in ("llm", "rerank"):
+        with pytest.raises(ValidationError):
+            ModelEntry.model_validate(
+                {"provider": "p", "model": "m", "kind": kind, "dimension": 1024}
+            )
+
+
+def test_model_entry_llm_and_rerank_valid_without_dimension() -> None:
+    for kind in ("llm", "rerank"):
+        entry = ModelEntry.model_validate({"provider": "p", "model": "m", "kind": kind})
+        assert entry.kind == kind
+        assert entry.dimension is None

@@ -1,0 +1,14 @@
+{
+  "page_title": "MCP search",
+  "description": "Query a workspace semantic search, as exposed to agents.",
+  "workspace_label": "Workspace",
+  "workspace_placeholder": "Pick a workspace…",
+  "query_placeholder": "Search query…",
+  "top_k_label": "Top K",
+  "run": "Search",
+  "running": "Searching…",
+  "error": "Search failed.",
+  "hybrid_disabled": "Hybrid search is not enabled on this workspace — the lexical channel is empty.",
+  "mcp_note": "This page uses the same search as MCP agents.",
+  "mcp_contract_link": "MCP tools contract"
+}

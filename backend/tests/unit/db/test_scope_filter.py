@@ -1,21 +1,28 @@
 from __future__ import annotations
 
-import pytest
-
-from rag.db.workspace_search import _ChildHit, _apply_enrichment_filter
+from rag.db.workspace_search import _apply_enrichment_filter, _ChildHit
 
 
 def _raw(path: str, idx: int = 0) -> _ChildHit:
     return _ChildHit(
-        path=path, chunk_index=idx, chunk_hash=None, section_id=None,
-        content="x", score=0.8, metadata=None,
+        path=path,
+        chunk_index=idx,
+        chunk_hash=None,
+        section_id=None,
+        content="x",
+        score=0.8,
+        metadata=None,
     )
 
 
 def _enriched(path: str, key: str = "docs", idx: int = 0) -> _ChildHit:
     return _ChildHit(
-        path=path, chunk_index=idx, chunk_hash=None, section_id=None,
-        content="y", score=0.9,
+        path=path,
+        chunk_index=idx,
+        chunk_hash=None,
+        section_id=None,
+        content="y",
+        score=0.9,
         metadata={"enrichment_key": key, "source_path": path.split("::")[0]},
     )
 
@@ -45,8 +52,12 @@ class TestApplyEnrichmentFilter:
         ]
         result = _apply_enrichment_filter(hits, scope="both", enrichment_keys=["documentation"])
         assert any(h.path == "a.py" for h in result)
-        assert any(h.metadata and h.metadata.get("enrichment_key") == "documentation" for h in result)
-        assert not any(h.metadata and h.metadata.get("enrichment_key") == "public_functions" for h in result)
+        assert any(
+            h.metadata and h.metadata.get("enrichment_key") == "documentation" for h in result
+        )
+        assert not any(
+            h.metadata and h.metadata.get("enrichment_key") == "public_functions" for h in result
+        )
 
     def test_enrichment_keys_none_passes_all_enrichments(self):
         hits = [_raw("a.py"), _enriched("a.py::docs"), _enriched("a.py::funcs", "public_functions")]

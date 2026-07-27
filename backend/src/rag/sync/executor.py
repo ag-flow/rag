@@ -137,7 +137,7 @@ _BACKOFF_LIMIT_SECONDS = 4 * 3600  # 4 heures
 
 def _backoff_delay(retry_count: int) -> int:
     """30s * 2^retry_count : 30s, 60s, 120s, 240s ... jusqu'a ~4h."""
-    return _BACKOFF_BASE_SECONDS * (2 ** retry_count)
+    return _BACKOFF_BASE_SECONDS * (2**retry_count)
 
 
 def _should_retry(retry_count: int) -> bool:
@@ -223,9 +223,7 @@ async def _reschedule_job(
     retry_count: int,
     delay_seconds: int,
 ) -> None:
-    retry_after = datetime.datetime.now(datetime.UTC) + datetime.timedelta(
-        seconds=delay_seconds
-    )
+    retry_after = datetime.datetime.now(datetime.UTC) + datetime.timedelta(seconds=delay_seconds)
     await config_pool.execute(
         """
         UPDATE index_jobs
@@ -260,7 +258,8 @@ async def _execute_push_job(
 
     try:
         row = await config_pool.fetchrow(
-            "SELECT path, content, title, strategy_override FROM push_job_payloads WHERE job_id=$1",
+            "SELECT path, content, title, strategy_id, force, source_url "
+            "FROM push_job_payloads WHERE job_id=$1",
             job.job_id,
         )
         if row is None:
@@ -268,7 +267,9 @@ async def _execute_push_job(
 
         path, content = row["path"], row["content"]
         title = row["title"]
-        strategy_override = row["strategy_override"]
+        strategy_id = row["strategy_id"]
+        force = bool(row["force"])
+        source_url = row["source_url"]
         content_hash = "sha256:" + sha256(content.encode("utf-8")).hexdigest()
 
         existing = await config_pool.fetchrow(
@@ -281,8 +282,11 @@ async def _execute_push_job(
         # On ne skip que si le contenu ET l'indexeur (provider/modèle) sont
         # inchangés : un changement d'indexeur invalide les vecteurs stockés
         # (espaces vectoriels incompatibles), il faut ré-indexer (BUG-032).
+        # `force` (ré-évaluation explicite) court-circuite le dedup : on
+        # re-chunke/re-embed même à contenu identique (stratégie/modèle changé).
         if (
-            existing is not None
+            not force
+            and existing is not None
             and existing["content_hash"] == content_hash
             and existing["indexer_used"] == job.indexer_used
         ):
@@ -302,19 +306,38 @@ async def _execute_push_job(
             final_status = "skipped"
             files_skipped = 1
         else:
-            await indexer.index_file(
+            outcome = await indexer.index_file(
                 workspace_id=job.workspace_id,
                 path=path,
                 content=content,
                 content_hash=content_hash,
                 indexer_used=job.indexer_used,
                 title=title,
-                strategy_override=strategy_override,
+                strategy_id=strategy_id,
+                source_url=source_url,
+                # Document poussé = pas de source git re-clonable : on conserve
+                # le contenu brut pour que la réindexation soit rejouable.
+                store_source=True,
+            )
+            # Observabilité : fige sur le job la stratégie EFFECTIVEMENT
+            # appliquée (cascade slug > trigger > défaut workspace) et le nombre
+            # de chunks produits — comparables à la demande (params.strategy).
+            await config_pool.execute(
+                """
+                UPDATE index_jobs
+                SET params = COALESCE(params, '{}'::jsonb) || jsonb_build_object(
+                    'executed_strategy', $2::text, 'chunks_created', $3::int)
+                WHERE id = $1
+                """,
+                job.job_id,
+                outcome.strategy,
+                outcome.chunks,
             )
 
             # Enrichissements LLM post-indexation
             try:
                 from rag.services.enrichments import run_enrichments
+
                 async with config_pool.acquire() as _enrich_conn:
                     _enrichments = await run_enrichments(
                         conn=_enrich_conn,
@@ -374,9 +397,7 @@ async def _execute_push_job(
                 error=error_message,
             )
         else:
-            await _mark_job_error(
-                config_pool, job_id=job.job_id, error_message=error_message
-            )
+            await _mark_job_error(config_pool, job_id=job.job_id, error_message=error_message)
             final_status = "error"
             if family in ("blocking", "transient"):
                 # transient ici = retries épuisés → même traitement que blocking
@@ -419,6 +440,54 @@ async def _execute_push_job(
         resolver=resolver,
         enrichments=enrichment_results,
     )
+
+
+async def _execute_rebuild_lexical_job(
+    *,
+    job: JobToProcess,
+    config_pool: asyncpg.Pool,
+) -> None:
+    """Reconstruit l'index lexical du workspace après bascule de moteur (D5).
+
+    Lit le moteur cible dans hybrid_configs et applique `ensure_index` sur la
+    base workspace — jamais de ré-embedding. Erreur → job en error avec
+    message explicite (l'ancien index reste utilisable).
+    """
+    from rag.db.lexical_engines import get_lexical_engine
+
+    jid = str(job.job_id)
+    try:
+        row = await config_pool.fetchrow(
+            "SELECT w.name, w.rag_cnx, hc.lexical_engine "
+            "FROM workspaces w JOIN hybrid_configs hc ON hc.workspace_id = w.id "
+            "WHERE w.id = $1",
+            job.workspace_id,
+        )
+        if row is None:
+            raise RuntimeError(f"hybrid_configs introuvable pour le job {jid}")
+        engine = get_lexical_engine(row["lexical_engine"])
+        # Connexion directe one-shot : le DDL de reconstruction n'a pas besoin
+        # d'un pool du registre (réservé au chemin de recherche).
+        conn = await asyncpg.connect(row["rag_cnx"])
+        try:
+            await engine.ensure_index(conn)
+        finally:
+            await conn.close()
+        await config_pool.execute(
+            "UPDATE index_jobs SET status='done', finished_at=now(), files_changed=0, "
+            "duration_ms=CASE WHEN started_at IS NOT NULL THEN "
+            "EXTRACT(MILLISECONDS FROM (now() - started_at))::int ELSE 0 END "
+            "WHERE id=$1",
+            job.job_id,
+        )
+        log.info("sync.rebuild_lexical.done", job_id=jid, engine=engine.slug)
+    except Exception as exc:
+        await config_pool.execute(
+            "UPDATE index_jobs SET status='error', error_message=$2, finished_at=now() WHERE id=$1",
+            job.job_id,
+            _format_error(exc),
+        )
+        log.error("sync.rebuild_lexical.failed", job_id=jid, error=str(exc))
 
 
 async def _execute_delete_job(
@@ -512,9 +581,7 @@ async def _execute_delete_job(
                 error=error_message,
             )
         else:
-            await _mark_job_error(
-                config_pool, job_id=job.job_id, error_message=error_message
-            )
+            await _mark_job_error(config_pool, job_id=job.job_id, error_message=error_message)
             final_status = "error"
             if family in ("blocking", "transient"):
                 await open_circuit(
@@ -582,7 +649,7 @@ async def execute_next_pending_job(
         return False
 
     try:
-        if job.triggered_by == "push":
+        if job.triggered_by in ("push", "reindex_document"):
             await _execute_push_job(
                 job=job,
                 config_pool=config_pool,
@@ -591,6 +658,8 @@ async def execute_next_pending_job(
                 resolver=resolver,
                 client_provider=client_provider,
             )
+        elif job.triggered_by == "rebuild_lexical_index":
+            await _execute_rebuild_lexical_job(job=job, config_pool=config_pool)
         elif job.triggered_by == "delete":
             await _execute_delete_job(
                 job=job,
@@ -598,6 +667,16 @@ async def execute_next_pending_job(
                 indexer=indexer,
                 webhook_secret=webhook_secret,
                 resolver=resolver,
+            )
+        elif job.source_id is None:
+            # Jobs 'manual'/'reindex_*' créés sans source : orchestration de
+            # réindexation — fan-out en un job git par source + re-chunk local
+            # des documents poussés depuis `source_documents`.
+            await _execute_reindex_job(
+                job=job,
+                config_pool=config_pool,
+                indexer=indexer,
+                job_log_bus=job_log_bus,
             )
         else:
             default_vault_name = await client_provider.get_default_vault_name()
@@ -656,6 +735,131 @@ async def execute_next_pending_job(
                 job_log_bus.publish(jid, "error", f"Erreur : {msg}")
                 job_log_bus.complete(jid, status="error")
     return True
+
+
+async def _execute_reindex_job(
+    *,
+    job: JobToProcess,
+    config_pool: asyncpg.Pool,
+    indexer: IndexerProtocol,
+    job_log_bus: JobLogBus | None = None,
+) -> None:
+    """Orchestre une réindexation de workspace (job `manual`/`reindex_*`, sans
+    source_id).
+
+    Deux volets, selon l'origine des documents :
+    - sources git : **fan-out** — un job pending par source (même
+      triggered_by) ; le pipeline git existant re-liste tout (last_commit ==
+      HEAD → liste exhaustive) et la dédup purgée à l'enqueue force le
+      re-chunk de chaque fichier ;
+    - documents poussés : **re-chunk local** depuis `source_documents` (le
+      contenu brut est conservé au push — migration workspace 006), avec le
+      même skip dédup que le push : un retry après échec partiel ne refait pas
+      les fichiers déjà réindexés.
+
+    Les erreurs provider-level remontent au handler générique du worker
+    (retry/backoff + circuit breaker) ; les erreurs permanentes par fichier
+    sont isolées comme dans le pipeline git (BUG-033).
+    """
+    jid = str(job.job_id)
+
+    def _log_bus(level: str, msg: str) -> None:
+        if job_log_bus is not None:
+            job_log_bus.publish(jid, level, msg)
+
+    # 1. Fan-out git — même garde anti-doublon que le scheduler.
+    sources = await config_pool.fetch(
+        """
+        SELECT s.id FROM workspace_sources s
+        WHERE s.workspace_id = $1
+          AND NOT EXISTS (
+              SELECT 1 FROM index_jobs j
+              WHERE j.source_id = s.id AND j.status IN ('pending', 'running')
+          )
+        """,
+        job.workspace_id,
+    )
+    for src in sources:
+        await config_pool.execute(
+            "INSERT INTO index_jobs (workspace_id, source_id, triggered_by, status) "
+            "VALUES ($1, $2, $3, 'pending')",
+            job.workspace_id,
+            src["id"],
+            job.triggered_by,
+        )
+    if sources:
+        _log_bus("info", f"Fan-out : {len(sources)} job(s) de source git enfilé(s).")
+
+    # 2. Re-chunk local des documents poussés.
+    stored = await indexer.stored_sources(workspace_id=job.workspace_id)
+    files_changed = 0
+    files_skipped = 0
+    failed_files: list[tuple[str, str]] = []
+    for doc in stored:
+        existing = await config_pool.fetchrow(
+            "SELECT content_hash, indexer_used FROM indexed_documents "
+            "WHERE workspace_id=$1 AND path=$2",
+            job.workspace_id,
+            doc.path,
+        )
+        if (
+            existing is not None
+            and existing["content_hash"] == doc.content_hash
+            and existing["indexer_used"] == job.indexer_used
+        ):
+            files_skipped += 1
+            continue
+        try:
+            await indexer.index_file(
+                workspace_id=job.workspace_id,
+                path=doc.path,
+                content=doc.content,
+                content_hash=doc.content_hash,
+                indexer_used=job.indexer_used,
+                title=doc.title,
+                source_url=doc.source_url,
+            )
+        except Exception as exc:
+            if classify_indexer_error(exc) != "permanent":
+                raise
+            err = _truncate(str(exc), 200)
+            failed_files.append((doc.path, err))
+            log.warning("sync.reindex.file_failed", job_id=jid, path=doc.path, error=err)
+            _log_bus("warning", f"Échec fichier {doc.path} : {err} — ignoré, on continue.")
+            continue
+        files_changed += 1
+
+    await config_pool.execute(
+        """
+        UPDATE index_jobs
+        SET status='done', finished_at=now(), files_changed=$2, files_skipped=$3,
+            params = COALESCE(params, '{}'::jsonb) || jsonb_build_object(
+                'fanout_sources', $4::int, 'failed_files', $5::jsonb),
+            duration_ms=CASE WHEN started_at IS NOT NULL THEN
+                EXTRACT(MILLISECONDS FROM (now() - started_at))::int ELSE 0 END
+        WHERE id=$1
+        """,
+        job.job_id,
+        files_changed,
+        files_skipped,
+        len(sources),
+        json.dumps([{"path": p, "error": e} for p, e in failed_files]),
+    )
+    log.info(
+        "sync.reindex.done",
+        job_id=jid,
+        workspace=job.workspace_name,
+        fanout_sources=len(sources),
+        files_changed=files_changed,
+        files_skipped=files_skipped,
+        failed=len(failed_files),
+    )
+    _log_bus(
+        "info",
+        f"Réindexation locale : {files_changed} re-chunké(s), {files_skipped} inchangé(s).",
+    )
+    if job_log_bus is not None:
+        job_log_bus.complete(jid, status="done")
 
 
 async def _execute_git_job(
@@ -736,13 +940,13 @@ async def _execute_git_job(
             dest.rmdir()
         _log("info", f"git clone {url}…")
         await clone(
-                    url=url,
-                    branch=branch,
-                    token=token,
-                    dest=dest,
-                    ssh_key=ssh_key,
-                    ssh_username=ssh_username,
-                )
+            url=url,
+            branch=branch,
+            token=token,
+            dest=dest,
+            ssh_key=ssh_key,
+            ssh_username=ssh_username,
+        )
         was_fresh_clone = True
 
     current = await head_commit(dest)
@@ -850,6 +1054,7 @@ async def _execute_git_job(
         # Enrichissements LLM post-indexation
         try:
             from rag.services.enrichments import run_enrichments
+
             async with config_pool.acquire() as _enrich_conn:
                 _enrichments = await run_enrichments(
                     conn=_enrich_conn,

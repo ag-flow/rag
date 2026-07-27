@@ -21,8 +21,11 @@ async def test_oidc_config_columns(session_pool: asyncpg.Pool) -> None:
                 "WHERE table_name = 'oidc_config'"
             )
         }
-    expected = {"id", "issuer", "client_id", "client_secret_ref", "created_at", "updated_at"}
+    expected = {"id", "issuer", "client_id", "created_at", "updated_at"}
     assert expected.issubset(cols)
+    # Migration 048 : le secret OIDC vit dans le .env (RAG_OIDC_CLIENT_SECRET),
+    # plus de référence Harpocrate en base.
+    assert "client_secret_ref" not in cols
 
 
 @pytest.mark.asyncio

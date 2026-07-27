@@ -5,6 +5,8 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.api.conftest import seed_endpoint_sync
+
 pytestmark = pytest.mark.smoke
 
 
@@ -32,23 +34,33 @@ def test_mcp_e2e_ollama_search_returns_relevant_doc(
         headers=admin_headers,
         json={
             "name": "ws_mcp_smoke",
-            "api_key_vault": "rag",
-            "indexer": {
-                "provider": "ollama",
-                "model": "mxbai-embed-large",
-                "base_url": ollama_url,
-            },
+            "label": "ws_mcp_smoke",
+            "endpoint_id": seed_endpoint_sync(
+                os.environ["DATABASE_URL"],
+                slug="ep-ws_mcp_smoke",
+                provider="ollama",
+                model="mxbai-embed-large",
+                api_key_ref=None,
+                base_url=ollama_url,
+            ),
         },
     )
     assert r.status_code == 201, r.text
-    api_key = r.json()["api_key"]
+    kr = admin_client.post(
+        "/api/me/api-keys",
+        headers=admin_headers,
+        json={"name": "key-smoke", "scope": "read_write"},
+    )
+    assert kr.status_code == 201, kr.text
+    api_key = kr.json()["api_key"]
     push_headers = {"Authorization": f"Bearer {api_key}"}
 
     # 2. Push 2 documents distincts.
     r1 = admin_client.post(
-        "/workspaces/ws_mcp_smoke/index",
+        "/api/v1/index",
         headers=push_headers,
         json={
+            "workspace": "ws_mcp_smoke",
             "path": "topic/docker.md",
             "content": "Docker provides containerization through Linux namespaces and cgroups.",
         },
@@ -56,9 +68,10 @@ def test_mcp_e2e_ollama_search_returns_relevant_doc(
     assert r1.status_code == 200, r1.text
 
     r2 = admin_client.post(
-        "/workspaces/ws_mcp_smoke/index",
+        "/api/v1/index",
         headers=push_headers,
         json={
+            "workspace": "ws_mcp_smoke",
             "path": "topic/cooking.md",
             "content": "To make a perfect omelette, beat the eggs with cream and salt.",
         },
@@ -67,7 +80,7 @@ def test_mcp_e2e_ollama_search_returns_relevant_doc(
 
     # 3. Query proche du sujet Docker.
     r3 = admin_client.post(
-        "/mcp",
+        "/api/v1/search",
         json={
             "workspace": "ws_mcp_smoke",
             "api_key": api_key,

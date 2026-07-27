@@ -23,14 +23,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-export function ReplaceGitKeyDialog({
-  vaultId,
-  keyId,
-  keyLabel,
-  host,
-  open,
-  onOpenChange,
-}: Props) {
+export function ReplaceGitKeyDialog({ vaultId, keyId, keyLabel, host, open, onOpenChange }: Props) {
   const { t } = useTranslation("harpocrate");
   const { toast } = useToast();
   const mutation = useUpdateGitCredential(vaultId);

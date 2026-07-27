@@ -9,21 +9,11 @@ from fastapi.testclient import TestClient
 from rag.services.circuit_breaker import open_circuit
 
 
-def _create_workspace(
-    client: TestClient, headers: dict[str, str], name: str
-) -> None:
+def _create_workspace(client: TestClient, headers: dict[str, str], name: str) -> None:
     r = client.post(
         "/api/admin/workspaces",
         headers=headers,
-        json={
-            "name": name,
-            "api_key_vault": "rag",
-            "indexer": {
-                "provider": "openai",
-                "model": "text-embedding-3-small",
-                "api_key_ref": "openai_embedding_key",
-            },
-        },
+        json={"name": name, "label": name, "endpoint_id": client.default_endpoint_id},
     )
     assert r.status_code == 201, r.text
 
@@ -31,9 +21,7 @@ def _create_workspace(
 async def _seed_open_circuit(ws_name: str, error_msg: str = "test error") -> None:
     conn = await asyncpg.connect(os.environ["DATABASE_URL"])
     try:
-        ws_id = await conn.fetchval(
-            "SELECT id FROM workspaces WHERE name=$1", ws_name
-        )
+        ws_id = await conn.fetchval("SELECT id FROM workspaces WHERE name=$1", ws_name)
         assert ws_id is not None, f"workspace {ws_name!r} not found"
         pool_mock = _PoolMock(conn)
         await open_circuit(
@@ -61,6 +49,7 @@ class _PoolMock:
 # ---------------------------------------------------------------------------
 # GET /api/admin/workspaces/{name}/circuit-breaker
 # ---------------------------------------------------------------------------
+
 
 def test_get_circuit_breaker_401_no_auth(admin_client: TestClient) -> None:
     r = admin_client.get("/api/admin/workspaces/ws/circuit-breaker")
@@ -98,9 +87,8 @@ def test_get_circuit_breaker_200_open(
     cleanup_ws_dbs_api: None,
 ) -> None:
     _create_workspace(admin_client, admin_headers, "ws_cb_api_get_open")
-    asyncio.get_event_loop().run_until_complete(
-        _seed_open_circuit("ws_cb_api_get_open", "quota exhausted")
-    )
+    # Boucle dédiée (get_event_loop → boucle fermée par pytest-asyncio en 3.12)
+    asyncio.run(_seed_open_circuit("ws_cb_api_get_open", "quota exhausted"))
 
     r = admin_client.get(
         "/api/admin/workspaces/ws_cb_api_get_open/circuit-breaker",
@@ -119,6 +107,7 @@ def test_get_circuit_breaker_200_open(
 # ---------------------------------------------------------------------------
 # POST /api/admin/workspaces/{name}/circuit-breaker/close
 # ---------------------------------------------------------------------------
+
 
 def test_close_circuit_breaker_401_no_auth(admin_client: TestClient) -> None:
     r = admin_client.post("/api/admin/workspaces/ws/circuit-breaker/close")
@@ -156,9 +145,7 @@ def test_close_circuit_breaker_204(
     cleanup_ws_dbs_api: None,
 ) -> None:
     _create_workspace(admin_client, admin_headers, "ws_cb_api_close_ok")
-    asyncio.get_event_loop().run_until_complete(
-        _seed_open_circuit("ws_cb_api_close_ok")
-    )
+    asyncio.run(_seed_open_circuit("ws_cb_api_close_ok"))
 
     r = admin_client.post(
         "/api/admin/workspaces/ws_cb_api_close_ok/circuit-breaker/close",
@@ -181,9 +168,7 @@ def test_close_circuit_breaker_idempotent_returns_404(
 ) -> None:
     """Deuxieme fermeture retourne 404 (pas idempotent)."""
     _create_workspace(admin_client, admin_headers, "ws_cb_api_close_idem")
-    asyncio.get_event_loop().run_until_complete(
-        _seed_open_circuit("ws_cb_api_close_idem")
-    )
+    asyncio.run(_seed_open_circuit("ws_cb_api_close_idem"))
 
     r1 = admin_client.post(
         "/api/admin/workspaces/ws_cb_api_close_idem/circuit-breaker/close",

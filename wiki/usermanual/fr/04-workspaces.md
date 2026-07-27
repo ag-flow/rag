@@ -221,46 +221,22 @@ Gestion des clés API du workspace et configuration MCP. Voir [06 — Service MC
 
 ---
 
-## Gestion des clés API workspace
+## Clés d'accès au workspace
 
-### Principe multi-clés
+Les clés d'accès sont **personnelles** : elles se gèrent dans **Configuration → Clés API** (pas dans le workspace). Chaque clé peut recevoir un accès à un ou plusieurs workspaces, avec deux permissions distinctes par workspace :
 
-Chaque workspace peut avoir plusieurs clés API nommées. Cela permet de :
-- Donner des clés distinctes à différents agents/services
-- Révoquer une clé compromise sans perturber les autres
-- Faire une rotation planifiée sans interruption
-
-### Créer une clé API
-
-1. Onglet **Api** du workspace
-2. Cliquez **Ajouter une clé**
-3. Donnez un nom descriptif (ex : `agent-agflow`, `ci-cd`, `claude-code`)
-4. La clé est affichée **une seule fois** — copiez-la immédiatement
-
-### Statuts des clés
-
-| Statut | Description |
+| Permission | Autorise |
 |---|---|
-| 🟢 **Active** | Clé valide, utilisable |
-| 🟡 **Grace period** | Clé en cours de rotation (72h de grâce, puis expirée) |
-| 🔴 **Révoquée** | Clé révoquée immédiatement |
-| ⚪ **Expirée** | Clé expirée (rotation ancienne) |
+| **READ** | La recherche sémantique via MCP (`/mcp/{workspace_id}`) |
+| **WRITE** | L'indexation push (`POST /workspaces/{name}/index`) et la suppression |
 
-### Rotation d'une clé
+Fonctionnement :
+- La valeur d'une clé n'est affichée **qu'à sa création** (seule l'empreinte SHA-256 est stockée — aucune valeur en base, aucun lien Harpocrate).
+- **Rotation** : nouvelle clé générée avec les mêmes accès, l'ancienne reste valide 72 h (grâce).
+- **Révocation** : immédiate et irréversible, sur tous les workspaces de la clé.
+- La création d'un workspace **ne génère plus de clé** : créez ou complétez une clé dans la page Clés API en lui accordant ce workspace.
 
-La rotation crée une nouvelle clé et place l'ancienne en **grace period de 72 heures**. Pendant ce délai, les deux clés fonctionnent, vous laissant le temps de mettre à jour vos clients.
-
-1. Cliquez l'icône de rotation (🔄) sur la clé
-2. Confirmez la rotation
-3. **Copiez la nouvelle clé** — elle n'est affichée qu'une fois
-4. Mettez à jour vos configurations Claude Code / agents dans les 72h
-
-### Révoquer une clé
-
-La révocation est immédiate et irréversible. Utilisez-la en cas de compromission.
-
-1. Cliquez l'icône de révocation (✕) sur la clé
-2. Confirmez la révocation dans la boîte de dialogue
+L'onglet **Api** du workspace affiche l'URL MCP et la config Claude Code, avec un lien vers la gestion des clés.
 
 ---
 

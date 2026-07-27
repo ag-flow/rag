@@ -94,16 +94,18 @@ def _seed_oidc_config(client: TestClient, admin_headers: dict[str, str]) -> None
         json={
             "issuer": _ISSUER,
             "client_id": _CLIENT_ID,
-            "client_secret_ref": "kc_test_secret",
         },
     )
     assert r.status_code == 201, r.text
 
 
 def _stub_secret_resolver(client: TestClient) -> None:
-    """Le stub resolver de conftest accepte déjà certaines refs ;
-    on ajoute kc_test_secret."""
-    client.app.state.resolver.known.add("kc_test_secret")  # type: ignore[attr-defined]
+    """Injecte le client secret OIDC.
+
+    Le secret n'est plus résolu via Harpocrate mais lu depuis admin.env
+    (RAG_OIDC_CLIENT_SECRET) via un provider injecté au service — on
+    substitue le provider, même pattern que _http_client plus haut."""
+    client.app.state.oidc._client_secret_provider = lambda: "kc_test_secret"  # type: ignore[attr-defined]
 
 
 def test_auth_login_redirects_to_keycloak_with_state_and_nonce(
@@ -199,6 +201,35 @@ def test_logout_clears_session_and_redirects_keycloak_logout(
     # /me ne doit plus marcher
     me_r = admin_client.get("/me")
     assert me_r.status_code == 401
+
+
+def test_logout_redirect_uses_public_host_behind_proxy(
+    admin_client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    """Le post_logout_redirect_uri est dérivé de l'ADRESSE D'APPEL (X-Forwarded-Host),
+    pas de RAG_PUBLIC_URL — sinon un env mal posé renvoyait sur localhost."""
+    _seed_oidc_config(admin_client, admin_headers)
+    _install_keycloak_mock(admin_client)
+    _stub_secret_resolver(admin_client)
+
+    login_r = admin_client.get("/auth/login", follow_redirects=False)
+    params = parse_qs(urlparse(login_r.headers["location"]).query)
+    admin_client.app.state._kc_mock_state["last_nonce"] = params["nonce"][0]  # type: ignore[attr-defined]
+    admin_client.get(
+        f"/auth/callback?code=x&state={params['state'][0]}", follow_redirects=False
+    )
+
+    out_r = admin_client.post(
+        "/auth/logout",
+        follow_redirects=False,
+        headers={"x-forwarded-host": "rag.yoops.org", "x-forwarded-proto": "http"},
+    )
+    assert out_r.status_code == 302
+    redirect = parse_qs(urlparse(out_r.headers["location"]).query)[
+        "post_logout_redirect_uri"
+    ][0]
+    # https forcé derrière le proxy public, host de l'appel.
+    assert redirect == "https://rag.yoops.org/"
 
 
 def test_refresh_returns_ok_with_new_tokens(

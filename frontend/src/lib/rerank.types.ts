@@ -8,7 +8,10 @@ export type RerankProvider =
   | "jina"
   | "dashscope"
   | "azure-foundry"
-  | "ollama";
+  | "ollama"
+  | "fireworks"
+  | "deepinfra"
+  | "mixedbread";
 
 export type RerankConfig = {
   workspace_id: string;
@@ -17,6 +20,8 @@ export type RerankConfig = {
   api_key_ref: string | null;
   base_url: string | null;
   top_k_pre_rerank: number;
+  rpm_limit?: number | null;
+  tpm_limit?: number | null;
   created_at: string;
   updated_at: string;
 };

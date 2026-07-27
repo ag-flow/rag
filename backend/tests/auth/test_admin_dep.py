@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import Depends, FastAPI, Request
@@ -9,8 +10,6 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from rag.api.errors import register_error_handlers
 from rag.auth.bearer import _LOCAL_SESSION_KEY, require_master_key_or_authenticated_admin
-from unittest.mock import AsyncMock, MagicMock
-
 from rag.services.local_auth import LocalAuthService
 
 

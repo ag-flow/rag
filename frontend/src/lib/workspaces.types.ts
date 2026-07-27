@@ -6,11 +6,18 @@ export type IndexerSpec = {
   model: string;
   api_key_ref: string | null;
   base_url: string | null;
+  /** Limites de débit copiées de l'endpoint — null = règle désactivée. */
+  rpm_limit?: number | null;
+  tpm_limit?: number | null;
 };
 
 export type Workspace = {
   id: string;
   name: string;
+  /** Endpoint d'origine — null = créé avant le lien (refresh indisponible). */
+  endpoint_id: string | null;
+  label: string;
+  description: string;
   indexer: IndexerSpec;
   sources_count: number;
   documents_count: number;
@@ -28,24 +35,22 @@ export type RerankSpec = {
 
 export type WorkspaceCreate = {
   name: string;
-  indexer: {
-    provider: string;
-    model: string;
-    api_key_ref: string | null;
-    base_url: string | null;
-  };
-  rerank?: RerankSpec | undefined;
+  endpoint_id: string;
+  label: string;
+  description: string;
 };
 
 export type WorkspaceCreateResponse = {
   id: string;
   name: string;
-  api_key: string;
+  label: string;
+  description: string;
   created_at: string;
 };
 
 export type WorkspacePatchRequest = {
-  indexer: { api_key_ref: string };
+  indexer?: { api_key_ref: string };
+  rerank?: { api_key_ref: string };
 };
 
 export type SourceConfig = {
@@ -94,6 +99,8 @@ export type SourceUpdateRequest = {
   config: SourceConfigInput;
 };
 
+export type JobSource = "rest_api" | "webhook" | "git" | "admin";
+
 export type Job = {
   id: string;
   triggered_by:
@@ -102,8 +109,16 @@ export type Job = {
     | "push"
     | "schedule"
     | "reindex_indexer_change"
-    | "reindex_chunking_change";
-  status: "pending" | "running" | "done" | "error";
+    | "reindex_chunking_change"
+    | "reindex_document"
+    | "delete"
+    | "rebuild_lexical_index";
+  source: JobSource;
+  path: string | null;
+  /** Instantané des paramètres de la demande (push/reindex) ; null pour git/admin. */
+  params: Record<string, unknown> | null;
+  // 'rejected' = demande d'ingestion refusée (aucun job) — cf. journal des rejets.
+  status: "pending" | "running" | "done" | "error" | "rejected";
   files_changed: number;
   files_skipped: number;
   error_message: string | null;
@@ -123,10 +138,6 @@ export type JobFilesResponse = {
   limit: number;
 };
 
-export type ApiKeyRotateResponse = {
-  api_key: string;
-};
-
 export type DetectBranchesResponse = {
   branches: string[];
   default: string | null;
@@ -142,6 +153,10 @@ export type PathStrategyEntry = {
   chunk_count: number;
   version_count: number;
   last_indexed_at: string | null;
+  content_hash: string | null;
+  indexer_used: string | null;
+  indexed_at: string | null;
+  source_url: string | null;
 };
 
 export type IndexKeysResponse = {

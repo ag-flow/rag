@@ -97,11 +97,12 @@ def _seed_and_login(
         json={
             "issuer": _ISSUER,
             "client_id": _CLIENT_ID,
-            "client_secret_ref": "kc_test_secret",
         },
     )
     assert r.status_code == 201, r.text
-    client.app.state.resolver.known.add("kc_test_secret")  # type: ignore[attr-defined]
+    # Le client secret OIDC est lu depuis admin.env via un provider injecté
+    # au service (plus de résolution Harpocrate) — on substitue le provider.
+    client.app.state.oidc._client_secret_provider = lambda: "kc_test_secret"  # type: ignore[attr-defined]
 
     _install_keycloak_mock(client, roles=roles)
 
@@ -129,15 +130,7 @@ def test_post_workspaces_with_master_key_still_works(
     r = admin_client.post(
         "/api/admin/workspaces",
         headers=admin_headers,
-        json={
-            "name": "ws_mk",
-            "api_key_vault": "rag",
-            "indexer": {
-                "provider": "openai",
-                "model": "text-embedding-3-small",
-                "api_key_ref": "openai_embedding_key",
-            },
-        },
+        json={"name": "ws_mk", "label": "ws_mk", "endpoint_id": admin_client.default_endpoint_id},
     )
     assert r.status_code == 201
 
@@ -154,12 +147,8 @@ def test_post_workspaces_with_oidc_admin_role_succeeds(
         "/api/admin/workspaces",
         json={
             "name": "ws_oidc",
-            "api_key_vault": "rag",
-            "indexer": {
-                "provider": "openai",
-                "model": "text-embedding-3-small",
-                "api_key_ref": "openai_embedding_key",
-            },
+            "label": "ws_oidc",
+            "endpoint_id": admin_client.default_endpoint_id,
         },
     )
     assert r.status_code == 201, r.text
@@ -177,12 +166,8 @@ def test_post_workspaces_with_oidc_viewer_role_returns_403(
         "/api/admin/workspaces",
         json={
             "name": "ws_viewer",
-            "api_key_vault": "rag",
-            "indexer": {
-                "provider": "openai",
-                "model": "text-embedding-3-small",
-                "api_key_ref": "openai_embedding_key",
-            },
+            "label": "ws_viewer",
+            "endpoint_id": admin_client.default_endpoint_id,
         },
     )
     assert r.status_code == 403
@@ -196,7 +181,7 @@ def test_post_workspaces_without_auth_returns_401(
     """Sans Bearer ni cookie → 401."""
     r = admin_client.post(
         "/api/admin/workspaces",
-        json={"name": "x", "api_key_vault": "rag", "indexer": {"provider": "x", "model": "x"}},
+        json={"name": "x", "label": "x", "endpoint_id": "00000000-0000-0000-0000-000000000001"},
     )
     assert r.status_code == 401
 
@@ -215,7 +200,6 @@ def test_admin_oidc_endpoint_accepts_oidc_admin_role(
         json={
             "issuer": "https://kc.other.com/realms/r",
             "client_id": "other",
-            "client_secret_ref": "other_ref",
         },
     )
     assert r.status_code in (200, 201), r.text
@@ -234,7 +218,6 @@ def test_post_oidc_with_oidc_viewer_role_returns_403(
         json={
             "issuer": "https://kc.example.com/realms/test",
             "client_id": "rag",
-            "client_secret_ref": "kc_rag_secret",
         },
     )
     assert r.status_code == 403

@@ -10,7 +10,6 @@ import pytest
 from fastapi import HTTPException
 
 from rag.api.errors import WorkspaceNotFound
-from rag.auth.workspace_auth import ApiKeyCache
 from rag.schemas.mcp import SearchHit
 from rag.services.mcp import McpWorkspaceRef, search
 
@@ -145,16 +144,13 @@ async def test_search_single_workspace_returns_hits(monkeypatch) -> None:
     from rag.services import mcp
 
     monkeypatch.setattr(mcp, "vector_search", fake_vector_search)
-
-    cache = ApiKeyCache()
-    hits = await search(
+    hits, _channels = await search(
         refs=[McpWorkspaceRef(name="ws_a", api_key=api_key)],
         query="hello",
         top_k=5,
         min_score=0.7,
         config_pool=pool,
         pool_registry=registry,
-        apikey_cache=cache,
         secret_resolver=resolver,
         default_vault_name="rag",
         provider_factory=lambda **_kw: provider,  # type: ignore[arg-type]
@@ -178,8 +174,6 @@ async def test_search_skips_vault_when_api_key_ref_is_none(monkeypatch) -> None:
     from rag.services import mcp
 
     monkeypatch.setattr(mcp, "vector_search", AsyncMock(return_value=[]))
-
-    cache = ApiKeyCache()
     resolver = _FakeResolver(value=api_key)
     await search(
         refs=[McpWorkspaceRef(name="ws_ollama", api_key=api_key)],
@@ -188,15 +182,14 @@ async def test_search_skips_vault_when_api_key_ref_is_none(monkeypatch) -> None:
         min_score=0.7,
         config_pool=pool,
         pool_registry=registry,
-        apikey_cache=cache,
         secret_resolver=resolver,
         default_vault_name="rag",
         provider_factory=lambda **_kw: provider,  # type: ignore[arg-type]
     )
-    # api_key_ref None dans ctx → pas de résolution Harpocrate pour l'indexeur,
-    # mais il y en a une pour l'auth workspace (api_key_ref non None dans auth_row).
-    # Le resolver est appelé 1 fois pour l'auth.
-    assert resolver.calls == 1
+    # api_key_ref None dans ctx → pas de résolution Harpocrate pour l'indexeur.
+    # L'auth (clés utilisateur hash-only) ne résout plus rien non plus :
+    # aucun appel resolver.
+    assert resolver.calls == 0
 
 
 @pytest.mark.asyncio
@@ -252,11 +245,9 @@ async def test_search_multi_workspace_concat_in_order(monkeypatch) -> None:
     from rag.services import mcp
 
     monkeypatch.setattr(mcp, "vector_search", _vector_search)
-
-    cache = ApiKeyCache()
     # Resolver retourne la bonne api_key par workspace ref
     resolver = _MapResolver({"ws_a_apikey": "k1", "ws_b_apikey": "k2"})
-    hits = await search(
+    hits, _channels = await search(
         refs=[
             McpWorkspaceRef(name="ws_a", api_key="k1"),
             McpWorkspaceRef(name="ws_b", api_key="k2"),
@@ -266,7 +257,6 @@ async def test_search_multi_workspace_concat_in_order(monkeypatch) -> None:
         min_score=0.7,
         config_pool=pool,
         pool_registry=registry,
-        apikey_cache=cache,
         secret_resolver=resolver,  # type: ignore[arg-type]
         default_vault_name="rag",
         provider_factory=lambda **_kw: provider_stub,  # type: ignore[arg-type]
@@ -277,7 +267,6 @@ async def test_search_multi_workspace_concat_in_order(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_search_fail_fast_on_workspace_not_found() -> None:
-    cache = ApiKeyCache()
     pool = MagicMock()
     # fingerprint lookup → None, puis fetchval (exists) → None (workspace absent)
     pool.fetchrow = AsyncMock(return_value=None)
@@ -292,7 +281,6 @@ async def test_search_fail_fast_on_workspace_not_found() -> None:
             min_score=0.7,
             config_pool=pool,
             pool_registry=registry,
-            apikey_cache=cache,
             secret_resolver=_FakeResolver(),
             default_vault_name="rag",
         )
@@ -301,7 +289,6 @@ async def test_search_fail_fast_on_workspace_not_found() -> None:
 @pytest.mark.asyncio
 async def test_search_fail_fast_on_bad_apikey() -> None:
     """Fingerprint ne matche pas (fetchrow None) + workspace existe → 401."""
-    cache = ApiKeyCache()
     pool = MagicMock()
     # fetchrow → None (fingerprint lookup miss)
     pool.fetchrow = AsyncMock(return_value=None)
@@ -317,7 +304,6 @@ async def test_search_fail_fast_on_bad_apikey() -> None:
             min_score=0.7,
             config_pool=pool,
             pool_registry=registry,
-            apikey_cache=cache,
             secret_resolver=_FakeResolver(),
             default_vault_name="rag",
         )

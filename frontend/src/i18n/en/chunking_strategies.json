@@ -1,0 +1,158 @@
+{
+  "title": "Chunking strategies",
+  "subtitle": "Library of chunking profiles: system strategies as a base, yours on top.",
+  "add_btn": "New strategy",
+  "empty": "No strategies.",
+  "table": {
+    "label": "Label",
+    "slug": "Slug",
+    "algo": "Algo",
+    "parser": "Parser",
+    "usage": "Usage",
+    "updated": "Updated"
+  },
+  "badges": {
+    "system": "System",
+    "used_by_routes": "{{count}} route(s)",
+    "used_by_categories": "{{count}} category(ies)",
+    "unused": "Unused",
+    "used_by_triggers": "{{count}} trigger(s)",
+    "used_by_workspaces": "{{count}} workspace(s)"
+  },
+  "actions": {
+    "edit": "Edit",
+    "routes": "Region routes",
+    "duplicate": "Duplicate",
+    "delete": "Delete"
+  },
+  "form": {
+    "create_title": "New strategy",
+    "edit_title": "Edit strategy",
+    "label": "Label",
+    "label_placeholder": "e.g. Internal docs (mermaid apart)",
+    "slug": "Slug",
+    "slug_hint": "Derived from the label server-side, never typed.",
+    "algo": "Algorithm",
+    "algo_locked": "The algorithm is frozen after creation.",
+    "parser": "Region parser",
+    "parser_none": "None (no region pass)",
+    "parser_hint": "Enables intra-document routing (prose/markdown only).",
+    "params_title": "Parameters",
+    "params": {
+      "child_target_tokens": "Target chunk size (tokens)",
+      "floor_tokens": "Floor (tokens)",
+      "overlap_tokens": "Overlap (tokens)",
+      "breadcrumb_depth": "Breadcrumb depth (-1 = full)",
+      "max_rows_per_chunk": "Max rows per chunk (table)",
+      "heading_levels": "Heading levels (e.g. 1,2)"
+    },
+    "cleaning_title": "Cleaning",
+    "cleaning": {
+      "clean_content": "General content cleaning",
+      "strip_separators": "Strip separators",
+      "strip_boilerplate": "Strip boilerplate",
+      "strip_html": "Strip HTML"
+    },
+    "linked_warning": "This strategy is in use ({{usage}}): editing it changes the shared indexing behaviour immediately.",
+    "save": "Save",
+    "create": "Create",
+    "cancel": "Cancel",
+    "params_help": {
+      "child_target_tokens": "Target size of an embedded chunk, in tokens. Larger = more context per chunk but less precise search. Always capped by the embedding model limit (20% safety margin). Default: 384.",
+      "floor_tokens": "Minimum chunk size: smaller fragments are merged with their neighbours to avoid crumb-chunks with no semantic value (a lone heading, a single line). Default: 64 — 128 recommended for code.",
+      "overlap_tokens": "Overlap between consecutive chunks: the end of a chunk is repeated at the start of the next so an idea is never cut at the boundary. Pointless when boundaries are natural: 0 recommended for code and data. Default: 64.",
+      "breadcrumb_depth": "Depth of the heading trail (breadcrumb) injected at the top of the embedded text, e.g. “Guide › Install”. It anchors the chunk in its document and clearly improves retrieval. -1 = full path (recommended).",
+      "max_rows_per_chunk": "Maximum number of data rows per chunk; the table header is repeated on every chunk so each stays interpretable on its own. Default: 50 — lower it for wide rows.",
+      "heading_levels": "Markdown heading levels that delimit parent sections: “1,2” = H1 and H2 open a section (H3+ stay in the content). Adding 3 refines the split of large documents. Default: 1,2."
+    },
+    "params_help_aria": "Help: {{param}}",
+    "prompts_title": "Prompts (embedding-time context)",
+    "prompts_warning": "embedding_inline changes the vectors — a reindex is required to take effect on existing documents.",
+    "prompts_add": "Bind a template",
+    "prompts_enabled": "Enabled",
+    "prompts_remove": "Remove",
+    "prompts_none": "No bindable template in your library: only prompts in chunk or region mode (embedding-time context) appear here.",
+    "prompts_create": "Create a prompt (chunk/region)"
+  },
+  "routes": {
+    "title": "Region routes — {{label}}",
+    "subtitle": "Routes each region (type, qualifier) to its processing. Resolution: exact > wildcard > inline.",
+    "no_parser": "This strategy has no region parser: enable one to route.",
+    "empty": "No routes — all regions are processed inline.",
+    "region_type": "Region type",
+    "qualifier": "Qualifier",
+    "qualifier_hint": "* = all; e.g. mermaid, python…",
+    "target": "Target strategy",
+    "target_inline": "Inline (none)",
+    "atomic": "Atomic",
+    "policy": "Overflow",
+    "policies": {
+      "keep_whole": "keep_whole — error if too large",
+      "split_fallback": "split_fallback — gives up atomicity",
+      "parent_only": "parent_only — restored, never embedded"
+    },
+    "add": "Add a route",
+    "remove": "Remove",
+    "save": "Save routes",
+    "duplicate_key": "Two routes share the same (type, qualifier) pair."
+  },
+  "duplicate": {
+    "title": "Duplicate “{{label}}”",
+    "hint": "Copies parameters and routes into your library.",
+    "label": "Copy label",
+    "submit": "Duplicate"
+  },
+  "delete": {
+    "title": "Delete “{{label}}”?",
+    "description": "Deletion is refused if the strategy is referenced by routes.",
+    "confirm": "Delete",
+    "cancel": "Cancel"
+  },
+  "errors": {
+    "conflict": "Slug already used in your library.",
+    "in_use": "Strategy referenced — deletion refused.",
+    "system_immutable": "System strategy: read-only.",
+    "invalid": "Invalid configuration.",
+    "generic": "An error occurred."
+  },
+  "toasts": {
+    "created": "Strategy created.",
+    "updated": "Strategy updated.",
+    "deleted": "Strategy deleted.",
+    "duplicated": "Strategy duplicated.",
+    "routes_saved": "Routes saved."
+  },
+  "algo_info": {
+    "best_for_label": "Best for:",
+    "prose": {
+      "title": "Prose — hierarchical small-to-big",
+      "description": "The document is split by its headings into parent sections, then into child chunks bounded in tokens (target, floor, overlap). The heading trail (breadcrumb) is injected into the embedded text so every chunk keeps its anchor. At query time the chunk matches, but the parent section is returned to the LLM.",
+      "best_for": "documentation, wikis, READMEs, articles — any text structured by headings.",
+      "tip": "Target 384 tokens, H1-H2 headings. Add a region parser to route fences and tables."
+    },
+    "markdown": {
+      "title": "Markdown — alias of prose",
+      "description": "Same engine as “prose” (heading sections, small-to-big, breadcrumb). The alias exists to name catalog strategies dedicated to Markdown corpora clearly. Code fences (```) are never split.",
+      "best_for": "Markdown-only corpora, when the strategy name should say so.",
+      "tip": "Identical behaviour to prose — pick one or the other, not both."
+    },
+    "table": {
+      "title": "Table — row groups",
+      "description": "Splits tabular data (CSV/TSV, pipe tables) into row batches, repeating the header on every chunk: each piece stays interpretable on its own, with its column names.",
+      "best_for": "CSV/TSV exports, reference tables, large tabular data.",
+      "tip": "Tune “max rows per chunk” (default 50) to your row width."
+    },
+    "code": {
+      "title": "Code — tree-sitter symbols",
+      "description": "Real syntax analysis (tree-sitter): splits at the code's natural boundaries — functions, classes, methods — with a scope breadcrumb (module › class › method) injected at embedding. Graceful fallback to prose when the language is unsupported.",
+      "best_for": "source code (Python, TS, Go, Java, C#…), SQL and shell scripts.",
+      "tip": "Overlap 0 (symbol boundaries are enough), floor 128 tokens to filter micro-stubs."
+    },
+    "data": {
+      "title": "Data — top-level keys",
+      "description": "Parses data formats (JSON, YAML, TOML) with tree-sitter and splits by top-level keys: one chunk = one coherent entry of the structure, never an object cut in half. Prose fallback when the format is unsupported.",
+      "best_for": "configuration files, JSON/YAML exports, manifests.",
+      "tip": "Overlap 0 recommended — keys are self-contained units."
+    }
+  }
+}

@@ -7,16 +7,18 @@ from rag.services.mcp import normalize_refs, search
 
 
 def build_mcp_router() -> APIRouter:
-    """Router de l'endpoint MCP search.
+    """Router de l'API REST de recherche (`POST /api/v1/search`).
 
-    Pas d'auth FastAPI dependency : la validation api_key est dans le body
-    (cf. spec officielle 04-api-mcp.md). `services.mcp._authenticate` valide
-    chaque workspace listé.
+    À NE PAS confondre avec le serveur MCP protocolaire monté sur `/mcp` : ceci
+    est une API JSON maison (recherche multi-workspaces en un appel, auth par
+    api_key dans le body — cf. spec 04-api-mcp.md). Elle a migré de `/mcp` vers
+    `/api/v1/search` pour libérer `/mcp` au profit du connecteur MCP.
+    `services.mcp._authenticate` valide chaque workspace listé.
     """
-    router = APIRouter(tags=["mcp"])
+    router = APIRouter(tags=["search"])
 
-    @router.post("/mcp", response_model=McpResponse)
-    async def post_mcp(payload: McpRequest, request: Request) -> McpResponse:
+    @router.post("/api/v1/search", response_model=McpResponse, tags=["apikey"])
+    async def post_search(payload: McpRequest, request: Request) -> McpResponse:
         refs = normalize_refs(payload)
         provider = request.app.state.client_provider
         default_vault = await provider.get_default_vault_name()
@@ -25,17 +27,20 @@ def build_mcp_router() -> APIRouter:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail={"error": "no_default_vault_configured"},
             )
-        hits = await search(
+        hits, channels = await search(
             refs=refs,
             query=payload.query,
             top_k=payload.top_k,
             min_score=payload.min_score,
             config_pool=request.app.state.pools.config_pool,
             pool_registry=request.app.state.pools,
-            apikey_cache=request.app.state.apikey_cache,
             secret_resolver=request.app.state.resolver,
             default_vault_name=default_vault,
         )
-        return McpResponse(query=payload.query, results=hits)
+        return McpResponse(
+            query=payload.query,
+            results=hits,
+            channels=channels if payload.debug else None,
+        )
 
     return router

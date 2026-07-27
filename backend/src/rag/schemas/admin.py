@@ -22,6 +22,9 @@ class IndexerSpec(BaseModel):
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
     base_url: str | None = None
+    # Limites de débit copiées de l'endpoint (NULL = règle désactivée).
+    rpm_limit: int | None = None
+    tpm_limit: int | None = None
 
 
 class IndexerCreateSpec(BaseModel):
@@ -37,6 +40,9 @@ class IndexerCreateSpec(BaseModel):
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
     base_url: str | None = None
+    # Limites de débit copiées de l'endpoint (NULL = règle désactivée).
+    rpm_limit: int | None = Field(default=None, ge=1)
+    tpm_limit: int | None = Field(default=None, ge=1)
 
 
 class RerankCreateSpec(BaseModel):
@@ -45,7 +51,15 @@ class RerankCreateSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
     provider: Literal[
-        "cohere", "voyage", "ollama", "jina", "dashscope", "azure-foundry"
+        "cohere",
+        "voyage",
+        "ollama",
+        "jina",
+        "dashscope",
+        "azure-foundry",
+        "fireworks",
+        "deepinfra",
+        "mixedbread",
     ]
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
@@ -60,16 +74,56 @@ class RerankCreateSpec(BaseModel):
         ),
     )
     top_k_pre_rerank: int = Field(default=50, gt=0, le=500)
+    # Limites de débit (NULL = règle désactivée), copiées de l'endpoint.
+    rpm_limit: int | None = Field(default=None, ge=1)
+    tpm_limit: int | None = Field(default=None, ge=1)
 
 
 class WorkspaceCreateRequest(BaseModel):
-    """Payload POST /workspaces."""
+    """Payload POST /workspaces.
+
+    La vectorisation ne se configure plus champ par champ : on choisit un
+    endpoint (préréglage du coffre, cf. vault_endpoints). Sa config est
+    copiée dans indexer_configs / rerank_configs (snapshot à la création).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(pattern=_NAME_REGEX, max_length=63)
+    label: str = Field(min_length=1, max_length=128)
+    description: str = Field(default="", max_length=2000)
+    endpoint_id: UUID
+
+
+class LlmCreateSpec(BaseModel):
+    """Config LLM à la création d'un workspace (copie de l'endpoint)."""
+
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    api_key_ref: str | None = None
+    base_url: str | None = None
+    # Limites de débit copiées de l'endpoint (NULL = règle désactivée).
+    rpm_limit: int | None = Field(default=None, ge=1)
+    tpm_limit: int | None = Field(default=None, ge=1)
+
+
+class WorkspaceCreateResolved(BaseModel):
+    """Forme interne après résolution de l'endpoint (consommée par le service)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(pattern=_NAME_REGEX, max_length=63)
+    label: str = Field(min_length=1, max_length=128)
+    description: str = Field(default="", max_length=2000)
+    owner_id: str | None = None  # créateur (sha256 email) ; None = partagé
     indexer: IndexerCreateSpec
     rerank: RerankCreateSpec | None = None
+    # LLM d'exécution des prompts, copié dans workspace_llm_configs (endpoint 3 services).
+    llm: LlmCreateSpec | None = None
+    # Endpoint d'origine (lien pour « Rafraîchir depuis l'endpoint »).
+    endpoint_id: UUID | None = None
 
 
 class IndexerPatchSpec(BaseModel):
@@ -80,12 +134,25 @@ class IndexerPatchSpec(BaseModel):
     api_key_ref: str = Field(min_length=1)
 
 
-class WorkspacePatchRequest(BaseModel):
-    """Payload PATCH /workspaces/{name}. Seul `indexer.api_key_ref` est modifiable."""
+class RerankPatchSpec(BaseModel):
+    """Sous-payload PATCH : seul api_key_ref du rerank est modifiable."""
 
     model_config = ConfigDict(extra="forbid")
 
-    indexer: IndexerPatchSpec
+    api_key_ref: str = Field(min_length=1)
+
+
+class WorkspacePatchRequest(BaseModel):
+    """Payload PATCH /workspaces/{name}.
+
+    Seules les références de clé API sont modifiables (rotation par
+    re-pointage) — provider/modèle restent immuables (dimensions).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    indexer: IndexerPatchSpec | None = None
+    rerank: RerankPatchSpec | None = None
 
 
 class WorkspaceResponse(BaseModel):
@@ -93,6 +160,10 @@ class WorkspaceResponse(BaseModel):
 
     id: UUID
     name: str
+    # Endpoint d'origine (None = workspace d'avant le lien, refresh indisponible).
+    endpoint_id: UUID | None = None
+    label: str
+    description: str
     indexer: IndexerSpec
     sources_count: int
     documents_count: int
@@ -101,18 +172,14 @@ class WorkspaceResponse(BaseModel):
 
 
 class WorkspaceCreateResponse(BaseModel):
-    """Réponse 201 POST /workspaces — `api_key` en clair, exposée UNE FOIS."""
+    """Réponse 201 POST /workspaces. Les clés d'accès se créent au niveau
+    utilisateur (user_api_keys), plus à la création du workspace."""
 
     id: UUID
     name: str
-    api_key: str
+    label: str
+    description: str
     created_at: str
-
-
-class ApiKeyRotateResponse(BaseModel):
-    """Réponse POST /workspaces/{name}/rotate-apikey."""
-
-    api_key: str
 
 
 class SourceCreateRequest(BaseModel):
@@ -195,6 +262,13 @@ class WebhookEnableResponse(BaseModel):
 class JobResponse(BaseModel):
     id: UUID
     triggered_by: str
+    # Origine du job : rest_api | webhook | git | admin (dérivée côté service).
+    source: str
+    # Document concerné pour les jobs mono-doc (push/reindex/delete) ; None sinon.
+    path: str | None = None
+    # Instantané des paramètres de la demande (push/reindex : title, strategy,
+    # force, source_url, content_bytes, correlation_id) ; None pour git/admin.
+    params: dict[str, Any] | None = None
     status: str
     files_changed: int
     files_skipped: int
@@ -202,6 +276,15 @@ class JobResponse(BaseModel):
     started_at: str | None
     finished_at: str | None
     duration_ms: int | None
+
+
+class GlobalJobResponse(JobResponse):
+    """Job de la liste globale cross-workspace (GET /api/admin/jobs).
+
+    `workspace_name` est None pour un REJET d'ingestion dont le workspace n'a
+    pas pu être lu (requête anonyme sans corps, JSON illisible)."""
+
+    workspace_name: str | None
 
 
 class JobFileEntry(BaseModel):
@@ -216,14 +299,73 @@ class JobFilesResponse(BaseModel):
 
 
 class ModelEntry(BaseModel):
-    """Une entrée du registre model_dimensions."""
+    """Une entrée du registre des modèles (embedding, llm OU rerank).
+
+    kind='embedding' : dimension requise (vectorisation).
+    kind='llm'       : pas de dimension (exécution des prompts).
+    kind='rerank'    : pas de dimension (reclassement des résultats)."""
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
     provider: str = Field(min_length=1)
     model: str = Field(min_length=1)
-    dimension: int = Field(gt=0)
+    kind: Literal["embedding", "llm", "rerank"] = "embedding"
+    # validate_default : le validateur doit voir None même si dimension est
+    # omise, pour exiger la dimension d'un modèle d'embedding.
+    dimension: int | None = Field(default=None, gt=0, validate_default=True)
     created_at: str | None = None
+
+    @field_validator("dimension")
+    @classmethod
+    def _dimension_by_kind(cls, v: int | None, info: ValidationInfo) -> int | None:
+        if info.data.get("kind", "embedding") == "embedding" and v is None:
+            raise ValueError("dimension requise pour un modèle d'embedding")
+        if info.data.get("kind") in ("llm", "rerank") and v is not None:
+            raise ValueError("un modèle llm ou rerank n'a pas de dimension")
+        return v
+    # Template d'URL d'appel optionnel ({url}/{base_url}, {model}) — prime sur
+    # le masque du provider (services/provider_urls.py). Cas Azure : nom de
+    # déploiement différent du nom de modèle.
+    url_template: str | None = None
+    # Sortie uniquement : owner_id NULL en base = catalogue système, immuable.
+    is_system: bool = False
+
+
+class ModelUpdate(BaseModel):
+    """Body PATCH /models/{provider}/{model} — la clé (provider, model) est
+    immuable ; on édite la nature et le template d'URL. Mêmes règles de
+    cohérence kind/dimension que ModelEntry."""
+
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+    kind: Literal["embedding", "llm", "rerank"] = "embedding"
+    dimension: int | None = Field(default=None, gt=0, validate_default=True)
+    url_template: str | None = None
+
+    @field_validator("dimension")
+    @classmethod
+    def _dimension_by_kind(cls, v: int | None, info: ValidationInfo) -> int | None:
+        if info.data.get("kind", "embedding") == "embedding" and v is None:
+            raise ValueError("dimension requise pour un modèle d'embedding")
+        if info.data.get("kind") in ("llm", "rerank") and v is not None:
+            raise ValueError("un modèle llm ou rerank n'a pas de dimension")
+        return v
+
+
+class RerankPairing(BaseModel):
+    """Préconisation de pairing embedder → reranker (motifs LIKE, '%' joker).
+
+    L'IHM matche l'embedder sélectionné contre (embed_provider_like,
+    embed_model_like) et affiche « préco » sur les rerankers qui matchent
+    (rerank_provider_like, rerank_model_like)."""
+
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+    embed_provider_like: str
+    embed_model_like: str
+    rerank_provider_like: str
+    rerank_model_like: str
+    note: str
 
 
 class RerankSpec(BaseModel):
@@ -232,7 +374,15 @@ class RerankSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
     provider: Literal[
-        "cohere", "voyage", "ollama", "jina", "dashscope", "azure-foundry"
+        "cohere",
+        "voyage",
+        "ollama",
+        "jina",
+        "dashscope",
+        "azure-foundry",
+        "fireworks",
+        "deepinfra",
+        "mixedbread",
     ]
     model: str = Field(min_length=1)
     api_key_ref: str | None = None
@@ -247,6 +397,9 @@ class RerankSpec(BaseModel):
         ),
     )
     top_k_pre_rerank: int = Field(default=50, gt=0, le=500)
+    # Limites de débit (NULL = règle désactivée), copiées de l'endpoint.
+    rpm_limit: int | None = Field(default=None, ge=1)
+    tpm_limit: int | None = Field(default=None, ge=1)
 
 
 class RerankConfigResponse(BaseModel):
@@ -258,21 +411,30 @@ class RerankConfigResponse(BaseModel):
     api_key_ref: str | None
     base_url: str | None
     top_k_pre_rerank: int
+    rpm_limit: int | None = None
+    tpm_limit: int | None = None
     created_at: str
     updated_at: str
 
 
 class HybridConfigSpec(BaseModel):
+    """Config de recherche du workspace (D5/D6) — onglet Recherche."""
+
     enabled: bool = True
     rrf_k: int = Field(default=60, gt=0)
-    fts_config: str = Field(default="simple", min_length=1, max_length=63)
+    weight_lexical: float = Field(default=0.5, ge=0.0, le=1.0)
+    weight_vector: float = Field(default=0.5, ge=0.0, le=1.0)
+    lexical_engine: Literal["fts", "bm25"] = "fts"
 
 
 class HybridConfigResponse(BaseModel):
     workspace_id: str
     enabled: bool
     rrf_k: int
-    fts_config: str
+    weight_lexical: float
+    weight_vector: float
+    lexical_engine: str
+    rebuild_job_id: str | None = None  # posé quand la bascule de moteur enqueue un job
     created_at: str
     updated_at: str
 
@@ -350,8 +512,7 @@ class ChunkingConfigSpec(BaseModel):
             unknown = set(v.keys()) - _CLEANING_KEYS
             if unknown:
                 raise ValueError(
-                    "paragraph strategy only accepts cleaning options, "
-                    f"got unknown keys: {unknown}"
+                    f"paragraph strategy only accepts cleaning options, got unknown keys: {unknown}"
                 )
             return _validate_cleaning_extras(v)
         if strategy == "markdown":
@@ -383,5 +544,27 @@ class ChunkingConfigResponse(BaseModel):
     min_chars: int
     overlap_chars: int
     extras: dict[str, Any]
+    default_strategy_id: UUID | None = None
+    # Pipeline actif : 'structured' (stratégies par id, défaut depuis 065)
+    # ou 'legacy' (chars). Conditionne l'affichage de l'onglet Chunking.
+    engine: str = "structured"
     created_at: str
     updated_at: str
+
+
+class DefaultStrategySpec(BaseModel):
+    """Payload PUT /workspaces/{name}/chunking-config/default-strategy.
+
+    `strategy_id` NULL retire le binding (retour à la cascade textuelle).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    strategy_id: UUID | None
+
+
+class DefaultStrategyResponse(BaseModel):
+    """Réponse bascule du défaut sans réindexation (0 doc indexé)."""
+
+    workspace_id: UUID
+    default_strategy_id: UUID | None

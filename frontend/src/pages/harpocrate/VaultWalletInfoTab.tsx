@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { EXPIRY_THRESHOLD_DAYS } from "@/lib/vault-expiry";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -137,7 +138,7 @@ function ExpiresCell({ expiresAt }: { expiresAt: string | null }) {
     );
   }
 
-  if (diffDays < 30) {
+  if (diffDays < EXPIRY_THRESHOLD_DAYS) {
     return (
       <div className="flex items-center gap-2">
         <span className="text-slate-900">{formattedDate}</span>

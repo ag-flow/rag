@@ -7,42 +7,44 @@ from rag.schemas.workspace import PushRequest
 
 
 def test_push_request_accepts_valid_payload() -> None:
-    r = PushRequest(path="docs/foo.md", content="# Hello\n")
+    r = PushRequest(workspace="ws", path="docs/foo.md", content="# Hello\n")
+    assert r.workspace == "ws"
     assert r.path == "docs/foo.md"
     assert r.content == "# Hello\n"
     assert r.strategy is None  # override optionnel
+    assert r.force is False
+
+
+def test_push_request_requires_workspace() -> None:
+    with pytest.raises(ValidationError):
+        PushRequest(path="ok.md", content="x")  # type: ignore[call-arg]
 
 
 def test_push_request_accepts_strategy_override() -> None:
-    r = PushRequest(path="data.csv", content="a,b\n1,2", strategy="table")
+    r = PushRequest(workspace="ws", path="data.csv", content="a,b\n1,2", strategy="table")
     assert r.strategy == "table"
-
-
-def test_push_request_rejects_empty_strategy() -> None:
-    with pytest.raises(ValidationError):
-        PushRequest(path="ok.md", content="x", strategy="")
 
 
 def test_push_request_rejects_empty_path() -> None:
     with pytest.raises(ValidationError):
-        PushRequest(path="", content="x")
+        PushRequest(workspace="ws", path="", content="x")
 
 
 def test_push_request_rejects_empty_content() -> None:
     with pytest.raises(ValidationError):
-        PushRequest(path="ok.md", content="")
+        PushRequest(workspace="ws", path="ok.md", content="")
 
 
 def test_push_request_accepts_content_at_exactly_5mb() -> None:
     content = "a" * (5 * 1024 * 1024)
-    r = PushRequest(path="big.md", content=content)
+    r = PushRequest(workspace="ws", path="big.md", content=content)
     assert len(r.content) == 5 * 1024 * 1024
 
 
 def test_push_request_rejects_content_above_5mb() -> None:
     content = "a" * (5 * 1024 * 1024 + 1)
     with pytest.raises(ValidationError) as exc:
-        PushRequest(path="too_big.md", content=content)
+        PushRequest(workspace="ws", path="too_big.md", content=content)
     assert "content_too_large" in str(exc.value)
 
 
@@ -50,9 +52,18 @@ def test_push_request_counts_utf8_bytes_not_chars_for_size() -> None:
     # 'é' = 2 bytes UTF-8. 2_750_000 caractères = 5_500_000 bytes > 5 MB.
     content = "é" * (2_750_000)
     with pytest.raises(ValidationError):
-        PushRequest(path="utf.md", content=content)
+        PushRequest(workspace="ws", path="utf.md", content=content)
 
 
 def test_push_request_rejects_path_above_1024_chars() -> None:
     with pytest.raises(ValidationError):
-        PushRequest(path="a" * 1025, content="x")
+        PushRequest(workspace="ws", path="a" * 1025, content="x")
+
+
+def test_push_request_empty_strings_mean_absent() -> None:
+    """Les templates d'appel (docflow) envoient les optionnels en chaîne vide :
+    "" ≡ non renseigné — une strategy vide déclenche la cascade par défaut."""
+    r = PushRequest(workspace="ws", path="a.md", content="x", strategy="", title="", source_url="")
+    assert r.strategy is None
+    assert r.title is None
+    assert r.source_url is None

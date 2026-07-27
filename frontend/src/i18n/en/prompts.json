@@ -26,5 +26,26 @@
   "save": "Create",
   "cancel": "Cancel",
   "error_toast": "Creation error.",
-  "error_duplicate": "A prompt with this name already exists."
+  "error_duplicate": "A prompt with this name already exists.",
+  "field_mode": "Mode",
+  "mode_document": "Document — post-index metadata",
+  "mode_chunk": "Chunk — context injected at embedding",
+  "mode_region": "Region — description embedded in its place",
+  "mode_document_help": "Metadata added after indexing — does not change the vectors and does NOT appear in chunking strategies.",
+  "mode_chunk_help": "Bindable in a chunking strategy: the generated context is prefixed to the embedded text (changes the vectors → reindex).",
+  "mode_region_help": "Bindable in a strategy with a region parser: the generated description is embedded in place of the region source (changes the vectors → reindex).",
+  "field_region_type": "Region type",
+  "field_region_qualifier": "Qualifier (optional)",
+  "mode_inline_hint": "Injected into the embedded text ({chunk} and {document} placeholders): never active by default, enable via a trigger. Results are cached by source-chunk hash.",
+  "edit_btn": "Edit",
+  "system_immutable": "System prompt — not editable",
+  "edit": {
+    "title": "Edit prompt",
+    "description_label": "Description",
+    "prompt_label": "Prompt",
+    "schema_label": "Expected JSON schema",
+    "schema_invalid": "Invalid JSON.",
+    "save": "Save",
+    "saved": "Prompt saved."
+  }
 }

@@ -135,17 +135,9 @@ export function VaultSshTab({ vaultId }: Props) {
         </div>
       )}
 
-      <ImportSshKeyDialog
-        vaultId={vaultId}
-        open={importOpen}
-        onOpenChange={setImportOpen}
-      />
+      <ImportSshKeyDialog vaultId={vaultId} open={importOpen} onOpenChange={setImportOpen} />
 
-      <GenerateSshKeyDialog
-        vaultId={vaultId}
-        open={generateOpen}
-        onOpenChange={setGenerateOpen}
-      />
+      <GenerateSshKeyDialog vaultId={vaultId} open={generateOpen} onOpenChange={setGenerateOpen} />
 
       <AlertDialog
         open={!!toDelete}
@@ -160,10 +152,7 @@ export function VaultSshTab({ vaultId }: Props) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("ssh.cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-rose-600 hover:bg-rose-700"
-            >
+            <AlertDialogAction onClick={handleDelete} className="bg-rose-600 hover:bg-rose-700">
               {t("ssh.delete_btn")}
             </AlertDialogAction>
           </AlertDialogFooter>

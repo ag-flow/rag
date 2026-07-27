@@ -22,12 +22,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-export function EnableWebhookDialog({
-  workspaceName,
-  sourceName,
-  open,
-  onOpenChange,
-}: Props) {
+export function EnableWebhookDialog({ workspaceName, sourceName, open, onOpenChange }: Props) {
   const { t } = useTranslation("git_webhooks");
   const { toast } = useToast();
   const mutation = useEnableWebhook(workspaceName);
@@ -95,11 +90,7 @@ export function EnableWebhookDialog({
                   onClick={() => copy(result.webhook_url, setCopiedUrl)}
                   className="shrink-0"
                 >
-                  {copiedUrl ? (
-                    <Check className="h-4 w-4" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
+                  {copiedUrl ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
             </div>
@@ -109,21 +100,13 @@ export function EnableWebhookDialog({
               </Label>
               <p className="text-xs text-amber-600 mt-1">{t("secret_warning")}</p>
               <div className="flex items-center gap-2 mt-1">
-                <Input
-                  value={result.secret}
-                  readOnly
-                  className="font-mono text-xs bg-slate-50"
-                />
+                <Input value={result.secret} readOnly className="font-mono text-xs bg-slate-50" />
                 <Button
                   size="sm"
                   onClick={() => copy(result.secret, setCopiedSecret)}
                   className="shrink-0"
                 >
-                  {copiedSecret ? (
-                    <Check className="h-4 w-4" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
+                  {copiedSecret ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
             </div>

@@ -1,29 +1,32 @@
 from __future__ import annotations
 
 import asyncio
-from uuid import UUID
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel as _PydanticBase
 
-from rag.api.errors import HarpocrateUnreachableForApikey
+from rag.api.workspace_access import require_owned_workspace_id
 from rag.auth.admin_auth import require_admin
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.schemas.admin import (
-    ApiKeyRotateResponse,
     ChunkingConfigResponse,
     ChunkingConfigSpec,
+    DefaultStrategyResponse,
+    DefaultStrategySpec,
     EngineResponse,
     EngineSpec,
+    GlobalJobResponse,
     HybridConfigResponse,
     HybridConfigSpec,
     JobFilesResponse,
     JobResponse,
     ModelEntry,
+    ModelUpdate,
     ReindexRequest,
     RerankConfigResponse,
+    RerankPairing,
     RerankSpec,
     SourceCreateRequest,
     SourceResponse,
@@ -35,13 +38,6 @@ from rag.schemas.admin import (
     WorkspacePatchRequest,
     WorkspaceResponse,
 )
-from rag.schemas.workspace_apikeys import (
-    ApiKeyCreate,
-    ApiKeyCreated,
-    ApiKeyOut,
-    ApiKeyRotated,
-)
-from rag.secrets.refs import parse_ref
 from rag.secrets.resolver import VaultLookupFailed
 from rag.services.workspaces import (
     create_workspace,
@@ -106,74 +102,73 @@ def build_admin_router() -> APIRouter:
         payload: WorkspaceCreateRequest,
         request: Request,
     ) -> WorkspaceCreateResponse:
+        # Résout l'endpoint choisi (préréglage du coffre) et copie sa config —
+        # snapshot : les modifications ultérieures de l'endpoint n'affectent
+        # pas ce workspace.
+        from rag.services.vault_endpoints import get_endpoint
+        from rag.services.workspaces import resolved_from_endpoint
+
+        pool = _config_pool(request)
+        async with pool.acquire() as conn:
+            endpoint = await get_endpoint(conn, endpoint_id=payload.endpoint_id)
+        if endpoint is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="endpoint_not_found")
+        from rag.auth.owner import get_current_owner_id
+
+        resolved = resolved_from_endpoint(
+            name=payload.name,
+            label=payload.label,
+            description=payload.description,
+            owner_id=get_current_owner_id(request),
+            endpoint=endpoint,
+        )
         resp = await create_workspace(
-            request=payload,
-            config_pool=_config_pool(request),
+            request=resolved,
+            config_pool=pool,
             admin_dsn=_admin_dsn(request),
             resolver=_resolver(request),  # type: ignore[arg-type]
             harpocrate_vaults_service=request.app.state.harpocrate_vaults_service,
-            client_provider=request.app.state.client_provider,
+        )
+
+        # Émet l'event workflow APRÈS le succès (fire-and-forget, ne lève jamais).
+        from datetime import UTC, datetime
+
+        from rag.events.emit import emit_workflow_event
+        from rag.events.registry import workspace_created
+
+        await emit_workflow_event(
+            pool,
+            workspace_created(
+                name=resolved.name,
+                label=resolved.label,
+                slug=resolved.name,
+                owner_id=resolved.owner_id,
+                occurred_at=datetime.now(UTC),
+            ),
         )
         return WorkspaceCreateResponse.model_validate(resp)
 
     @router.get("/workspaces")
     async def get_workspaces(request: Request) -> list[WorkspaceResponse]:
-        rows = await list_workspaces(_config_pool(request))
+        from rag.auth.owner import get_current_owner_id
+
+        rows = await list_workspaces(_config_pool(request), owner_id=get_current_owner_id(request))
         return [WorkspaceResponse(**r) for r in rows]  # type: ignore[arg-type]
 
     @router.get("/workspaces/{name}")
     async def get_workspace_detail(name: str, request: Request) -> WorkspaceResponse:
-        row = await get_workspace(_config_pool(request), name=name)
-        return WorkspaceResponse(**row)  # type: ignore[arg-type]
+        from rag.auth.owner import get_current_owner_id
 
-    @router.get("/workspaces/{name}/apikey")
-    async def get_apikey_endpoint(name: str, request: Request) -> ApiKeyRotateResponse:
-        """Retourne l'api_key active du workspace. Idempotent.
-
-        Conforme spec 08 : sert à `init-rag.sh` côté ag.flow.docker pour
-        provisionner `.rag-client.json` au démarrage container.
-
-        Résolution via cache process-lifetime → Harpocrate sur miss.
-        Priorité à la clé non tournée la plus récente (non révoquée) ; à
-        défaut, la clé tournée la plus récente encore en fenêtre de grâce
-        (72h). Évite de renvoyer une clé sur le point d'expirer alors qu'une
-        clé active existe déjà (BUG-025).
-        """
-        pool = _config_pool(request)
-        row = await pool.fetchrow(
-            """
-            SELECT k.api_key_ref
-            FROM workspace_api_keys k
-            JOIN workspaces w ON w.id = k.workspace_id
-            WHERE w.name = $1
-              AND k.revoked_at IS NULL
-              AND k.api_key_ref <> 'pending'
-              AND (k.rotated_at IS NULL OR k.rotated_at > now() - interval '72 hours')
-            ORDER BY (k.rotated_at IS NOT NULL), k.created_at DESC
-            LIMIT 1
-            """,
-            name,
+        row = await get_workspace(
+            _config_pool(request), name=name, owner_id=get_current_owner_id(request)
         )
-        if row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="workspace_not_found",
-            )
-        cache = request.app.state.apikey_cache
-        api_key_ref: str = row["api_key_ref"]
-        cached = cache.get(api_key_ref)
-        if cached is None:
-            try:
-                cached = await request.app.state.resolver.resolve_with_retry(api_key_ref)
-            except (VaultLookupFailed, ConnectionError, TimeoutError) as e:
-                raise HarpocrateUnreachableForApikey() from e
-            cache.put(api_key_ref, cached)
-        return ApiKeyRotateResponse(api_key=cached)
+        return WorkspaceResponse(**row)  # type: ignore[arg-type]
 
     @router.patch("/workspaces/{name}")
     async def patch_workspace_endpoint(
         name: str, payload: WorkspacePatchRequest, request: Request
     ) -> WorkspaceResponse:
+        await require_owned_workspace_id(request, name, _config_pool(request))
         default_vault = await _resolve_default_vault_or_503(request)
         await patch_workspace(
             name=name,
@@ -187,36 +182,13 @@ def build_admin_router() -> APIRouter:
 
     @router.delete("/workspaces/{name}", status_code=status.HTTP_204_NO_CONTENT)
     async def delete_workspace_endpoint(name: str, request: Request) -> Response:
-        pool = _config_pool(request)
-        # Lire les api_key_ref actives AVANT suppression pour rollback Harpocrate.
-        key_rows = await pool.fetch(
-            """
-            SELECT k.api_key_ref
-            FROM workspace_api_keys k
-            JOIN workspaces w ON w.id = k.workspace_id
-            WHERE w.name = $1
-            """,
-            name,
-        )
+        await require_owned_workspace_id(request, name, _config_pool(request))
+        # Les clés API restent (elles ne référencent plus de workspace : accès global).
         await delete_workspace(
             name=name,
-            config_pool=pool,
+            config_pool=_config_pool(request),
             admin_dsn=_admin_dsn(request),
         )
-        # Suppression best-effort des secrets Harpocrate (idempotent si absents).
-        for key_row in key_rows:
-            try:
-                vault_name, path = parse_ref(key_row["api_key_ref"])
-                async with pool.acquire() as conn:
-                    await request.app.state.harpocrate_vaults_service.delete_secret(
-                        conn, vault_name=vault_name, path=path
-                    )
-            except Exception:
-                import structlog as _structlog
-                _structlog.get_logger(__name__).warning(
-                    "workspace.delete.harpocrate_cleanup_failed",
-                    workspace=name,
-                )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     # ─── Sources ─────────────────────────────────────────────────────────────
@@ -225,6 +197,7 @@ def build_admin_router() -> APIRouter:
     async def list_sources_endpoint(name: str, request: Request) -> list[SourceResponse]:
         from rag.services.sources import list_sources
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         rows = await list_sources(config_pool=_config_pool(request), workspace_name=name)
         return [SourceResponse(**r) for r in rows]
 
@@ -235,6 +208,7 @@ def build_admin_router() -> APIRouter:
         from rag.auth.owner import get_current_owner_id
         from rag.services.sources import add_source  # import retardé : évite cycle au boot
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         row = await add_source(
             workspace_name=name,
             request=payload,
@@ -251,6 +225,7 @@ def build_admin_router() -> APIRouter:
     ) -> SourceResponse:
         from rag.services.sources import update_source
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         row = await update_source(
             workspace_name=name,
             source_id=source_id,
@@ -268,6 +243,7 @@ def build_admin_router() -> APIRouter:
     async def delete_source_endpoint(name: str, source_id: str, request: Request) -> Response:
         from rag.services.sources import delete_source
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         await delete_source(
             workspace_name=name,
             source_id=source_id,
@@ -281,6 +257,7 @@ def build_admin_router() -> APIRouter:
     ) -> SourceTestResult:
         from rag.services.sources import test_source_connection
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         result = await test_source_connection(
             workspace_name=name,
             source_id=source_id,
@@ -319,6 +296,7 @@ def build_admin_router() -> APIRouter:
         # l'api_key_id, puis client_provider.get_client(api_key_id).
         async def _resolve_secret(ref: str) -> str | None:
             from rag.secrets.refs import parse_ref as _parse_ref
+
             _vault_name, _secret_path = _parse_ref(ref)
             _pool = _config_pool(request)
             _svc = request.app.state.harpocrate_vaults_service
@@ -359,6 +337,7 @@ def build_admin_router() -> APIRouter:
     async def post_source_sync(name: str, source_id: str, request: Request) -> JobResponse:
         from rag.services.jobs import create_source_pending_job
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         row = await create_source_pending_job(
             workspace_name=name,
             source_id=source_id,
@@ -377,6 +356,7 @@ def build_admin_router() -> APIRouter:
     ) -> JobResponse:
         from rag.services.jobs import reindex_workspace
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         new_indexer = payload.indexer if payload is not None else None
         default_vault = await _resolve_default_vault_or_503(request)
         row = await reindex_workspace(
@@ -390,17 +370,101 @@ def build_admin_router() -> APIRouter:
         )
         return JobResponse(**row)
 
+    @router.post("/workspaces/{name}/refresh-endpoint", status_code=status.HTTP_200_OK)
+    async def refresh_from_endpoint(
+        name: str,
+        request: Request,
+        confirm: bool = False,
+    ) -> dict:
+        """Recopie la config (indexer/rerank/llm) depuis l'ENDPOINT D'ORIGINE du
+        workspace — pas de changement d'endpoint possible.
+
+        - clé/base_url seuls modifiés → UPDATE direct (vecteurs valides) ;
+        - provider/modèle d'embedding modifiés → flow reindex (re-vectorisation,
+          409 sans confirm) ;
+        - rerank et llm : remplacés par la config de l'endpoint (retirés si
+          l'endpoint ne les définit plus).
+
+        Logique dans `services/endpoint_refresh.py` (partagée avec l'outil MCP
+        reset_workspace_from_endpoint).
+        """
+        from rag.services.endpoint_refresh import (
+            DefaultVaultMissingError,
+            EndpointGoneError,
+            NoEndpointLinkedError,
+            refresh_workspace_from_endpoint,
+        )
+
+        pool = _config_pool(request)
+        ws_id = await require_owned_workspace_id(request, name, pool)
+        default_vault = await request.app.state.client_provider.get_default_vault_name()
+        try:
+            return await refresh_workspace_from_endpoint(
+                workspace_id=ws_id,
+                workspace_name=name,
+                confirm=confirm,
+                config_pool=pool,
+                admin_dsn=_admin_dsn(request),
+                resolver=_resolver(request),  # type: ignore[arg-type]
+                default_vault_name=default_vault,
+            )
+        except NoEndpointLinkedError as exc:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                {"error": "no_endpoint_linked",
+                 "hint": "workspace créé avant le lien endpoint — le recréer"},
+            ) from exc
+        except EndpointGoneError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "endpoint_deleted") from exc
+        except DefaultVaultMissingError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": "no_default_vault_configured"},
+            ) from exc
+
+    @router.get("/jobs")
+    async def get_all_jobs(
+        request: Request,
+        limit: int = Query(default=50, ge=1, le=200),
+        workspace: str | None = Query(default=None),
+        status_filter: str | None = Query(default=None, alias="status"),
+        source: str | None = Query(
+            default=None, pattern="^(rest_api|webhook|git|admin)$"
+        ),
+    ) -> list[GlobalJobResponse]:
+        from rag.services.jobs import list_jobs_global
+
+        rows = await list_jobs_global(
+            _config_pool(request),
+            limit=limit,
+            workspace=workspace,
+            status=status_filter,
+            source=source,
+        )
+        return [GlobalJobResponse(**r) for r in rows]
+
     @router.get("/workspaces/{name}/jobs")
     async def get_jobs(name: str, request: Request) -> list[JobResponse]:
         from rag.services.jobs import list_jobs
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         rows = await list_jobs(_config_pool(request), workspace_name=name)
         return [JobResponse(**r) for r in rows]
+
+    @router.get("/workspaces/{name}/jobs/{job_id}")
+    async def get_job_status(name: str, job_id: str, request: Request) -> JobResponse:
+        """Statut d'un job unique (parité avec MCP get_index_job et Bearer)."""
+        from rag.services.jobs import get_job
+
+        await require_owned_workspace_id(request, name, _config_pool(request))
+        row = await get_job(_config_pool(request), workspace_name=name, job_id=job_id)
+        return JobResponse(**row)
 
     @router.get("/workspaces/{name}/jobs/{job_id}/files")
     async def get_job_files(name: str, job_id: str, request: Request) -> JobFilesResponse:
         from rag.services.jobs import list_job_files
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         result = await list_job_files(
             config_pool=_config_pool(request),
             workspace_name=name,
@@ -417,14 +481,29 @@ def build_admin_router() -> APIRouter:
         settings = request.app.state.settings
         return load_pricing(settings.pricing_file)
 
+    @router.get("/providers/url-templates")
+    async def get_provider_url_templates() -> dict:
+        """Masques d'URL d'appel par provider et capacité (référentiel statique)."""
+        from rag.services.provider_urls import PROVIDER_URL_TEMPLATES
+
+        return PROVIDER_URL_TEMPLATES
+
+    @router.get("/models/rerank-pairings")
+    async def get_rerank_pairings(request: Request) -> list[RerankPairing]:
+        from rag.services.models import list_rerank_pairings
+
+        return await list_rerank_pairings(_config_pool(request))
+
     @router.get("/models")
     async def get_models(request: Request) -> list[ModelEntry]:
+        from rag.auth.owner import get_current_owner_id
         from rag.services.models import list_models
 
-        return await list_models(_config_pool(request))
+        return await list_models(_config_pool(request), owner_id=get_current_owner_id(request))
 
     @router.post("/models", status_code=status.HTTP_201_CREATED)
     async def post_model(payload: ModelEntry, request: Request) -> ModelEntry:
+        from rag.auth.owner import get_current_owner_id
         from rag.services.models import add_model
 
         try:
@@ -433,6 +512,9 @@ def build_admin_router() -> APIRouter:
                 provider=payload.provider,
                 model=payload.model,
                 dimension=payload.dimension,
+                owner_id=get_current_owner_id(request),
+                kind=payload.kind,
+                url_template=payload.url_template,
             )
         except asyncpg.UniqueViolationError as e:
             from fastapi import HTTPException
@@ -447,14 +529,46 @@ def build_admin_router() -> APIRouter:
             ) from e
         return payload
 
+    @router.patch("/models/{provider}/{model:path}")
+    async def patch_model(
+        provider: str, model: str, payload: ModelUpdate, request: Request
+    ) -> ModelEntry:
+        from rag.auth.owner import get_current_owner_id
+        from rag.services.models import update_model
+
+        found = await update_model(
+            _config_pool(request),
+            provider=provider,
+            model=model,
+            owner_id=get_current_owner_id(request),
+            kind=payload.kind,
+            dimension=payload.dimension,
+            url_template=(payload.url_template or "").strip() or None,
+        )
+        if not found:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "model not found")
+        return ModelEntry(
+            provider=provider,
+            model=model,
+            kind=payload.kind,
+            dimension=payload.dimension,
+            url_template=payload.url_template,
+        )
+
     @router.delete(
         "/models/{provider}/{model:path}",
         status_code=status.HTTP_204_NO_CONTENT,
     )
     async def delete_model_endpoint(provider: str, model: str, request: Request) -> Response:
+        from rag.auth.owner import get_current_owner_id
         from rag.services.models import delete_model
 
-        await delete_model(_config_pool(request), provider=provider, model=model)
+        await delete_model(
+            _config_pool(request),
+            provider=provider,
+            model=model,
+            owner_id=get_current_owner_id(request),
+        )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     # ─── Rerank configs ─────────────────────────────────────────────────────
@@ -466,18 +580,10 @@ def build_admin_router() -> APIRouter:
         404 `workspace_not_found` si le workspace n'existe pas.
         404 `rerank_not_configured` si le workspace existe mais sans rerank.
         """
-        ws_row = await _config_pool(request).fetchrow(
-            "SELECT id FROM workspaces WHERE name = $1",
-            name,
-        )
-        if ws_row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="workspace_not_found",
-            )
+        ws_id = await require_owned_workspace_id(request, name, _config_pool(request))
         from rag.services.rerank_configs import get_rerank_config
 
-        cfg = await get_rerank_config(ws_row["id"], _config_pool(request))
+        cfg = await get_rerank_config(ws_id, _config_pool(request))
         if cfg is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -503,21 +609,13 @@ def build_admin_router() -> APIRouter:
         404 `workspace_not_found` si le workspace n'existe pas.
         422 `invalid_api_key_ref` si api_key_ref ne résout pas dans le vault.
         """
-        ws_row = await _config_pool(request).fetchrow(
-            "SELECT id FROM workspaces WHERE name = $1",
-            name,
-        )
-        if ws_row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="workspace_not_found",
-            )
+        ws_id = await require_owned_workspace_id(request, name, _config_pool(request))
         from rag.services.rerank_configs import upsert_rerank_config
 
         default_vault = await _resolve_default_vault_or_503(request)
         try:
             cfg = await upsert_rerank_config(
-                workspace_id=ws_row["id"],
+                workspace_id=ws_id,
                 spec=payload,
                 config_pool=_config_pool(request),
                 resolver=_resolver(request),  # type: ignore[arg-type]
@@ -549,20 +647,11 @@ def build_admin_router() -> APIRouter:
         404 `workspace_not_found` si le workspace n'existe pas ; sinon 204
         même si aucune config rerank n'était présente.
         """
-        ws_row = await _config_pool(request).fetchrow(
-            "SELECT id FROM workspaces WHERE name = $1",
-            name,
-        )
-        if ws_row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="workspace_not_found",
-            )
+        ws_id = await require_owned_workspace_id(request, name, _config_pool(request))
         from rag.services.rerank_configs import delete_rerank_config
 
-        await delete_rerank_config(ws_row["id"], _config_pool(request))
+        await delete_rerank_config(ws_id, _config_pool(request))
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-
 
     # ─── Hybrid search config ───────────────────────────────────────────────
 
@@ -573,13 +662,12 @@ def build_admin_router() -> APIRouter:
         _: None = Depends(require_admin),
     ) -> HybridConfigResponse:
         pool: asyncpg.Pool = request.app.state.pools.config_pool
-        ws = await pool.fetchrow("SELECT id FROM workspaces WHERE name = $1", name)
-        if ws is None:
-            raise HTTPException(status_code=404, detail="workspace not found")
+        ws_id = await require_owned_workspace_id(request, name, pool)
         row = await pool.fetchrow(
-            "SELECT workspace_id, enabled, rrf_k, fts_config, created_at, updated_at "
+            "SELECT workspace_id, enabled, rrf_k, weight_lexical, weight_vector, "
+            "lexical_engine, created_at, updated_at "
             "FROM hybrid_configs WHERE workspace_id = $1",
-            ws["id"],
+            ws_id,
         )
         if row is None:
             raise HTTPException(status_code=404, detail="hybrid config not found")
@@ -587,7 +675,9 @@ def build_admin_router() -> APIRouter:
             workspace_id=str(row["workspace_id"]),
             enabled=row["enabled"],
             rrf_k=row["rrf_k"],
-            fts_config=row["fts_config"],
+            weight_lexical=float(row["weight_lexical"]),
+            weight_vector=float(row["weight_vector"]),
+            lexical_engine=row["lexical_engine"],
             created_at=str(row["created_at"]),
             updated_at=str(row["updated_at"]),
         )
@@ -600,34 +690,75 @@ def build_admin_router() -> APIRouter:
         _: None = Depends(require_admin),
     ) -> HybridConfigResponse:
         pool: asyncpg.Pool = request.app.state.pools.config_pool
-        ws = await pool.fetchrow("SELECT id FROM workspaces WHERE name = $1", name)
-        if ws is None:
-            raise HTTPException(status_code=404, detail="workspace not found")
+        ws_id = await require_owned_workspace_id(request, name, pool)
+        # Bascule de moteur (D5) : vérifier la DISPONIBILITÉ avant d'écrire,
+        # et reconstruire l'index lexical par un job — jamais de ré-embedding.
+        previous = await pool.fetchval(
+            "SELECT lexical_engine FROM hybrid_configs WHERE workspace_id = $1", ws_id
+        )
+        engine_changed = previous is not None and previous != spec.lexical_engine
+        first_config = previous is None and spec.lexical_engine != "fts"
+        rebuild_job_id: str | None = None
+        if engine_changed or first_config:
+            from rag.db.lexical_engines import get_lexical_engine
+
+            ws_row = await pool.fetchrow("SELECT rag_cnx FROM workspaces WHERE id = $1", ws_id)
+            engine = get_lexical_engine(spec.lexical_engine)
+            registry = request.app.state.pools
+            ws_pool = await registry.get_workspace_pool(name, ws_row["rag_cnx"])
+            async with ws_pool.acquire() as ws_conn:
+                if not await engine.is_available(ws_conn):
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail={
+                            "error": "lexical_engine_unavailable",
+                            "engine": spec.lexical_engine,
+                            "hint": "extension pg_search absente de cette instance "
+                            "Postgres — voir l'aide de l'onglet Recherche",
+                        },
+                    )
+            rebuild_job_id = str(
+                await pool.fetchval(
+                    "INSERT INTO index_jobs (workspace_id, triggered_by, status) "
+                    "VALUES ($1, 'rebuild_lexical_index', 'pending') RETURNING id",
+                    ws_id,
+                )
+            )
+
         await pool.execute(
             """
-            INSERT INTO hybrid_configs (workspace_id, enabled, rrf_k, fts_config)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO hybrid_configs
+                (workspace_id, enabled, rrf_k, weight_lexical, weight_vector, lexical_engine)
+            VALUES ($1, $2, $3, $4, $5, $6)
             ON CONFLICT (workspace_id) DO UPDATE
             SET enabled = EXCLUDED.enabled,
                 rrf_k = EXCLUDED.rrf_k,
-                fts_config = EXCLUDED.fts_config,
+                weight_lexical = EXCLUDED.weight_lexical,
+                weight_vector = EXCLUDED.weight_vector,
+                lexical_engine = EXCLUDED.lexical_engine,
                 updated_at = now()
             """,
-            ws["id"],
+            ws_id,
             spec.enabled,
             spec.rrf_k,
-            spec.fts_config,
+            spec.weight_lexical,
+            spec.weight_vector,
+            spec.lexical_engine,
         )
         row = await pool.fetchrow(
-            "SELECT workspace_id, enabled, rrf_k, fts_config, created_at, updated_at "
+            "SELECT workspace_id, enabled, rrf_k, weight_lexical, weight_vector, "
+            "lexical_engine, created_at, updated_at "
             "FROM hybrid_configs WHERE workspace_id = $1",
-            ws["id"],
+            ws_id,
         )
         return HybridConfigResponse(
             workspace_id=str(row["workspace_id"]),
             enabled=row["enabled"],
             rrf_k=row["rrf_k"],
-            fts_config=row["fts_config"],
+            weight_lexical=float(row["weight_lexical"]),
+            weight_vector=float(row["weight_vector"]),
+            lexical_engine=row["lexical_engine"],
+            rebuild_job_id=rebuild_job_id,
             created_at=str(row["created_at"]),
             updated_at=str(row["updated_at"]),
         )
@@ -644,13 +775,8 @@ def build_admin_router() -> APIRouter:
         from rag.services.chunking_configs import get_chunking_config
 
         config_pool = _config_pool(request)
-        ws_row = await config_pool.fetchrow("SELECT id FROM workspaces WHERE name = $1", name)
-        if ws_row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="workspace_not_found",
-            )
-        cfg = await get_chunking_config(ws_row["id"], config_pool)
+        ws_id = await require_owned_workspace_id(request, name, config_pool)
+        cfg = await get_chunking_config(ws_id, config_pool)
         return ChunkingConfigResponse(
             workspace_id=cfg["workspace_id"],
             strategy=cfg["strategy"],
@@ -658,6 +784,8 @@ def build_admin_router() -> APIRouter:
             min_chars=cfg["min_chars"],
             overlap_chars=cfg["overlap_chars"],
             extras=cfg["extras"],
+            default_strategy_id=cfg["default_strategy_id"],
+            engine=cfg["engine"],
             created_at=cfg["created_at"].isoformat(),
             updated_at=cfg["updated_at"].isoformat(),
         )
@@ -683,12 +811,7 @@ def build_admin_router() -> APIRouter:
         from rag.services.jobs import apply_chunking_change
 
         config_pool = _config_pool(request)
-        ws_row = await config_pool.fetchrow("SELECT id FROM workspaces WHERE name = $1", name)
-        if ws_row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="workspace_not_found",
-            )
+        await require_owned_workspace_id(request, name, config_pool)
 
         result = await apply_chunking_change(
             name=name, payload=payload, confirm=confirm, config_pool=config_pool
@@ -708,6 +831,7 @@ def build_admin_router() -> APIRouter:
                     min_chars=body["min_chars"],
                     overlap_chars=body["overlap_chars"],
                     extras=body["extras"],
+                    engine=body["engine"],
                     created_at=body["created_at"].isoformat(),
                     updated_at=body["updated_at"].isoformat(),
                 ).model_dump(mode="json"),
@@ -738,6 +862,7 @@ def build_admin_router() -> APIRouter:
         from rag.services.jobs import apply_engine_change
 
         config_pool = _config_pool(request)
+        await require_owned_workspace_id(request, name, config_pool)
         result = await apply_engine_change(
             name=name, engine=payload.engine, confirm=confirm, config_pool=config_pool
         )
@@ -751,6 +876,56 @@ def build_admin_router() -> APIRouter:
                 status_code=status.HTTP_200_OK,
                 content=EngineResponse(
                     workspace_id=body["workspace_id"], engine=body["engine"]
+                ).model_dump(mode="json"),
+            )
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content=JobResponse(**body).model_dump(mode="json"),
+        )
+
+    @router.put("/workspaces/{name}/chunking-config/default-strategy")
+    async def put_default_strategy_endpoint(
+        name: str,
+        payload: DefaultStrategySpec,
+        request: Request,
+        confirm: bool = False,
+    ) -> Response:
+        """Change la stratégie par défaut LIÉE PAR ID du workspace (spec §5).
+
+        Même protocole que la bascule moteur : 204 (identique), 200 +
+        DefaultStrategyResponse (0 doc), 409 ``chunking_change_requires_reindex``
+        (docs > 0 sans confirm), 202 + JobResponse (confirm), 404 workspace,
+        422 stratégie invisible pour le caller.
+        """
+        from rag.auth.owner import get_current_owner_id
+        from rag.services.jobs import UnknownDefaultStrategyError, apply_default_strategy_change
+
+        config_pool = _config_pool(request)
+        await require_owned_workspace_id(request, name, config_pool)
+        owner_id = get_current_owner_id(request)
+        try:
+            result = await apply_default_strategy_change(
+                name=name,
+                strategy_id=payload.strategy_id,
+                owner_id=owner_id,
+                confirm=confirm,
+                config_pool=config_pool,
+            )
+        except UnknownDefaultStrategyError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+            ) from exc
+
+        if result == "no_change":
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+        tag, body = result
+        if tag == "updated":
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content=DefaultStrategyResponse(
+                    workspace_id=body["workspace_id"],
+                    default_strategy_id=body["default_strategy_id"],
                 ).model_dump(mode="json"),
             )
         return JSONResponse(
@@ -772,6 +947,7 @@ def build_admin_router() -> APIRouter:
             enable_webhook,
         )
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         try:
             async with _config_pool(request).acquire() as conn:
                 secret = await enable_webhook(
@@ -797,14 +973,13 @@ def build_admin_router() -> APIRouter:
         "/workspaces/{name}/sources/{source_name}/webhook/disable",
         status_code=status.HTTP_204_NO_CONTENT,
     )
-    async def disable_source_webhook(
-        name: str, source_name: str, request: Request
-    ) -> Response:
+    async def disable_source_webhook(name: str, source_name: str, request: Request) -> Response:
         from rag.services.source_webhooks import (
             WebhookNotEnabledError,
             disable_webhook,
         )
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         try:
             async with _config_pool(request).acquire() as conn:
                 await disable_webhook(
@@ -824,14 +999,13 @@ def build_admin_router() -> APIRouter:
         "/workspaces/{name}/sources/{source_name}/webhook/rotate-secret",
         response_model=dict,
     )
-    async def rotate_source_webhook_secret(
-        name: str, source_name: str, request: Request
-    ) -> dict:
+    async def rotate_source_webhook_secret(name: str, source_name: str, request: Request) -> dict:
         from rag.services.source_webhooks import (
             WebhookNotEnabledError,
             rotate_webhook_secret,
         )
 
+        await require_owned_workspace_id(request, name, _config_pool(request))
         try:
             async with _config_pool(request).acquire() as conn:
                 new_secret = await rotate_webhook_secret(
@@ -846,69 +1020,5 @@ def build_admin_router() -> APIRouter:
         except ValueError as exc:
             raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
         return {"secret": new_secret}
-
-    # ─── Workspace API keys (multi-clés) ────────────────────────────────────
-
-    @router.get("/workspaces/{name}/api-keys", response_model=list[ApiKeyOut])
-    async def list_api_keys(name: str, request: Request) -> list[ApiKeyOut]:
-        from rag.services.workspace_apikeys import list_keys
-
-        async with _config_pool(request).acquire() as conn:
-            return await list_keys(conn, workspace_name=name)
-
-    @router.post("/workspaces/{name}/api-keys", response_model=ApiKeyCreated, status_code=201)
-    async def create_api_key(
-        name: str, body: ApiKeyCreate, request: Request
-    ) -> ApiKeyCreated:
-        from rag.services.workspace_apikeys import create_key
-
-        pool = _config_pool(request)
-        async with pool.acquire() as conn:
-            try:
-                return await create_key(
-                    conn,
-                    workspace_name=name,
-                    req=body,
-                    vault_svc=request.app.state.harpocrate_vaults_service,
-                    client_provider=request.app.state.client_provider,
-                )
-            except ValueError as exc:
-                raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-
-    @router.post(
-        "/workspaces/{name}/api-keys/{key_id}/rotate", response_model=ApiKeyRotated
-    )
-    async def rotate_api_key(
-        name: str, key_id: UUID, request: Request
-    ) -> ApiKeyRotated:
-        from rag.services.workspace_apikeys import rotate_key
-
-        pool = _config_pool(request)
-        async with pool.acquire() as conn:
-            result = await rotate_key(
-                conn,
-                workspace_name=name,
-                key_id=str(key_id),
-                vault_svc=request.app.state.harpocrate_vaults_service,
-                client_provider=request.app.state.client_provider,
-            )
-        if result is None:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "api key not found")
-        return result
-
-    @router.delete("/workspaces/{name}/api-keys/{key_id}", status_code=204)
-    async def revoke_api_key(
-        name: str, key_id: UUID, request: Request
-    ) -> Response:
-        from rag.services.workspace_apikeys import revoke_key
-
-        async with _config_pool(request).acquire() as conn:
-            revoked = await revoke_key(conn, workspace_name=name, key_id=str(key_id))
-        if not revoked:
-            raise HTTPException(
-                status.HTTP_404_NOT_FOUND,
-                "api key not found or already revoked",
-            )
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return router

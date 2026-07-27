@@ -9,7 +9,12 @@
   },
   "row": {
     "dim": "dim {{dimension}}",
-    "delete": "Supprimer"
+    "delete": "Supprimer",
+    "system": "Système",
+    "kind_rerank": "Rerank",
+    "kind_llm": "LLM",
+    "edit": "Éditer",
+    "url_template": "Template d'URL"
   },
   "time": {
     "now": "à l'instant",
@@ -44,7 +49,13 @@
         "model_required": "Le nom du modèle est requis.",
         "dimension_positive": "La dimension doit être un entier positif.",
         "provider_other_required": "Indiquez le nom du provider personnalisé."
-      }
+      },
+      "kind": "Type",
+      "kind_embedding": "Embedding (vectorisation)",
+      "kind_llm": "LLM (prompts)",
+      "kind_rerank": "Reranking (reclassement)",
+      "url_template": "Template d'URL (optionnel)",
+      "url_template_hint": "URL d'appel complète — {url} et {model} disponibles. Prime sur le masque du provider (cas Azure : nom de déploiement différent du modèle)."
     },
     "delete": {
       "title": "Supprimer le modèle",
@@ -52,6 +63,22 @@
       "confirm": "Supprimer",
       "success": "Modèle supprimé.",
       "error": "Échec de la suppression."
+    },
+    "edit": {
+      "title": "Éditer le modèle",
+      "submit": "Enregistrer",
+      "success": "Modèle mis à jour",
+      "error": "Échec de la mise à jour"
     }
+  },
+  "filter": {
+    "all": "Tous",
+    "embedding": "Embedding",
+    "rerank": "Reranking",
+    "llm": "LLM"
+  },
+  "provider_labels": {
+    "ollama": "ollama local",
+    "ollama-cloud": "ollama cloud"
   }
 }

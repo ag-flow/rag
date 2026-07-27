@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request, Response, status
 from fastapi.responses import RedirectResponse
 
 from rag.api.errors import (
+    LocalAuthDisabled,
     LocalAuthInvalidCredentials,
     LocalSessionExpired,
     OidcNotConfigured,
@@ -16,6 +17,7 @@ from rag.api.errors import (
     OidcStateMissing,
     SetupRequired,
 )
+from rag.api.public_base import public_base_from_request
 from rag.auth.bearer import _LOCAL_SESSION_KEY
 from rag.auth.oidc_dependency import require_oidc_role
 from rag.schemas.local_auth import LocalLoginRequest, LocalLoginResponse
@@ -47,12 +49,21 @@ def build_auth_router() -> APIRouter:
         if cfg is None:
             raise OidcNotConfigured()
 
-        url, state, nonce = await oidc.build_authorize_url()
-        # Stocke (state, nonce, next) dans session signée (cookie HttpOnly).
+        # redirect_uri effectif : URL publique fixée depuis l'IHM (admin.env),
+        # sinon dérivée de l'ADRESSE D'APPEL — fiable même si le
+        # RAG_PUBLIC_URL du .env est périmé (bug redirect_uri=localhost).
+        public_base = request.app.state.admin_env.get_public_url() or public_base_from_request(
+            request
+        )
+        redirect_uri = f"{public_base}/auth/callback"
+        url, state, nonce = await oidc.build_authorize_url(redirect_uri=redirect_uri)
+        # Stocke (state, nonce, next, redirect_uri) dans session signée : le
+        # callback DOIT repasser exactement la même redirect_uri à l'échange.
         request.session[_STATE_KEY] = {
             "state": state,
             "nonce": nonce,
             "next": _safe_next(next),
+            "redirect_uri": redirect_uri,
         }
         return RedirectResponse(url=url, status_code=302)
 
@@ -77,6 +88,7 @@ def build_auth_router() -> APIRouter:
             code=code,
             expected_nonce=state_payload["nonce"],
             config=cfg,
+            redirect_uri=state_payload.get("redirect_uri"),
         )
         # Set session cookie (signée par SessionMiddleware).
         request.session[_SESSION_KEY] = {
@@ -119,23 +131,39 @@ def build_auth_router() -> APIRouter:
 
     @router.post("/auth/logout")
     async def logout(request: Request) -> Response:
+        """Logout unifié : purge la session OIDC ET la session locale.
+
+        Le bouton de l'IHM poste toujours ici, quel que soit le mode de
+        connexion — deviner le mode côté client (ex. `sub == "admin"`) laissait
+        les sessions locales à username différent connectées (bug 2026-07-27).
+        Session locale seule : pas de détour Keycloak, retour direct à l'app
+        (l'AuthGuard renvoie au login)."""
         oidc = request.app.state.oidc
         cfg = await oidc.get_config()
         session = request.session.get(_SESSION_KEY)
         id_token = session.get("id_token") if session else None
 
-        # Clear session locally
+        # Clear session locally (OIDC + locale)
         request.session.pop(_SESSION_KEY, None)
         request.session.pop(_STATE_KEY, None)
+        request.session.pop(_LOCAL_SESSION_KEY, None)
 
+        # Base dérivée de l'ADRESSE D'APPEL (X-Forwarded-Host) : fiable même si
+        # RAG_PUBLIC_URL est erroné (sinon le logout renvoyait sur localhost).
+        public_base = public_base_from_request(request)
         if cfg is not None and id_token:
-            logout_url = await oidc.build_logout_url(id_token=id_token, config=cfg)
+            logout_url = await oidc.build_logout_url(
+                id_token=id_token, config=cfg, post_logout_redirect_uri=f"{public_base}/"
+            )
         else:
-            logout_url = f"{request.app.state.public_url}/"
+            logout_url = f"{public_base}/"
         return RedirectResponse(url=logout_url, status_code=302)
 
     @router.post("/auth/local/login", response_model=LocalLoginResponse)
     async def local_login(payload: LocalLoginRequest, request: Request) -> LocalLoginResponse:
+        if request.app.state.admin_env.is_local_auth_disabled():
+            log.warning("auth.local.login.disabled", username=payload.username)
+            raise LocalAuthDisabled()
         local_auth = request.app.state.local_auth
         if await local_auth.user_count() == 0:
             raise SetupRequired()
@@ -143,7 +171,9 @@ def build_auth_router() -> APIRouter:
         if email is None:
             log.warning("auth.local.login.failure", username=payload.username)
             raise LocalAuthInvalidCredentials()
-        request.session[_LOCAL_SESSION_KEY] = local_auth.build_session_payload(payload.username, email)
+        request.session[_LOCAL_SESSION_KEY] = local_auth.build_session_payload(
+            payload.username, email
+        )
         log.info("auth.local.login.success", username=payload.username)
         return LocalLoginResponse()
 

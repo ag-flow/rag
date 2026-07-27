@@ -6,7 +6,12 @@ import asyncpg
 import pytest
 
 from rag.db.workspace_migrations import apply_pending_for_all_workspaces
+from rag.db.workspace_migrations.runner import _list_versions
 from rag.db.workspace_schema import derive_workspace_dsn
+
+# Dernière version workspace attendue, dérivée du répertoire versions/ pour ne
+# pas re-casser le test à chaque nouvelle migration workspace.
+_LATEST = max(v for v, _ in _list_versions())
 
 
 @pytest.mark.asyncio
@@ -18,7 +23,8 @@ async def test_boot_scan_applies_pending_workspace_migrations(
 
     Setup : 2 workspaces seedés avec bases 'legacy' (sans `metadata`).
     Action : apply_pending_for_all_workspaces.
-    Vérification : les 2 bases ont `metadata` column + workspace_schema_migrations à v=1.
+    Vérification : les 2 bases ont la colonne `metadata` (migration 001) et
+    workspace_schema_migrations à la dernière version connue.
     """
     from tests.integration._workspace_seed import seed_workspace
 
@@ -68,7 +74,7 @@ async def test_boot_scan_applies_pending_workspace_migrations(
                 version = await conn.fetchval(
                     "SELECT MAX(version) FROM workspace_schema_migrations"
                 )
-                assert version == 1, f"{name}: expected version=1, got {version}"
+                assert version == _LATEST, f"{name}: expected version={_LATEST}, got {version}"
                 cols = {
                     r["column_name"]
                     for r in await conn.fetch(

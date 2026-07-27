@@ -9,10 +9,17 @@ import type { ChunkingConfig } from "@/lib/chunking.types";
 import { ApiError } from "@/lib/api";
 
 const upsertMutate = vi.fn();
+const engineMutate = vi.fn();
 
 vi.mock("@/hooks/useChunking", () => ({
   useChunkingConfig: vi.fn(),
   useUpsertChunkingConfig: () => ({ mutate: upsertMutate, isPending: false }),
+  useSetDefaultStrategy: () => ({ mutate: vi.fn(), isPending: false }),
+  useSetChunkingEngine: () => ({ mutate: engineMutate, isPending: false }),
+}));
+
+vi.mock("@/hooks/useChunkingStrategies", () => ({
+  useChunkingStrategies: () => ({ data: [], isLoading: false }),
 }));
 
 const toastMock = vi.fn();
@@ -25,6 +32,9 @@ import { useChunkingConfig } from "@/hooks/useChunking";
 const mockWorkspace: Workspace = {
   id: "ws-1",
   name: "my-workspace",
+  endpoint_id: null,
+  label: "My workspace",
+  description: "",
   indexer: {
     provider: "openai",
     model: "text-embedding-3-small",
@@ -44,6 +54,8 @@ const mockConfig: ChunkingConfig = {
   min_chars: 200,
   overlap_chars: 200,
   extras: {},
+  default_strategy_id: null,
+  engine: "legacy",
   created_at: "2026-05-19T10:00:00Z",
   updated_at: "2026-05-19T10:00:00Z",
 };
@@ -58,6 +70,7 @@ function mockState(data: ChunkingConfig | undefined, isLoading = false) {
 describe("WorkspaceChunkingTab", () => {
   beforeEach(() => {
     upsertMutate.mockReset();
+    engineMutate.mockReset();
     toastMock.mockReset();
   });
 
@@ -198,7 +211,7 @@ describe("WorkspaceChunkingTab", () => {
     const user = userEvent.setup();
     mockState(mockConfig);
     renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
-    await user.click(screen.getByRole("combobox"));
+    await user.click(screen.getByRole("combobox", { name: "Stratégie" }));
     expect(screen.getByRole("option", { name: /Paragraphes \(par défaut\)/i })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /^Markdown$/i })).toBeInTheDocument();
   });
@@ -207,7 +220,7 @@ describe("WorkspaceChunkingTab", () => {
     const user = userEvent.setup();
     mockState(mockConfig);
     renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
-    await user.click(screen.getByRole("combobox"));
+    await user.click(screen.getByRole("combobox", { name: "Stratégie" }));
     await user.click(screen.getByRole("option", { name: /^Markdown$/i }));
     expect(screen.getByText(/Respecte la structure d'un document Markdown/i)).toBeInTheDocument();
   });
@@ -216,7 +229,7 @@ describe("WorkspaceChunkingTab", () => {
     const user = userEvent.setup();
     mockState(mockConfig); // strategy: 'paragraph', extras: {}
     renderWithProviders(<WorkspaceChunkingTab workspace={mockWorkspace} enabled={true} />);
-    await user.click(screen.getByRole("combobox"));
+    await user.click(screen.getByRole("combobox", { name: "Stratégie" }));
     await user.click(screen.getByRole("option", { name: /^Markdown$/i }));
     await user.click(screen.getByRole("button", { name: /^Enregistrer$/i }));
 

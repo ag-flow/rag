@@ -15,18 +15,20 @@ import pytest
 from rag.db.pool import WorkspacePoolRegistry
 from rag.db.workspace_schema import derive_workspace_dsn, drop_workspace_database
 from rag.indexer.real import RealIndexer
-from rag.schemas.admin import IndexerSpec, WorkspaceCreateRequest
+from rag.schemas.admin import IndexerCreateSpec, WorkspaceCreateResolved
 from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.services.workspaces import create_workspace
 
 
 def _make_harpo_service() -> MagicMock:
+    """Stub HarpocrateVaultsService : get_default (await par create_workspace)
+    doit être un AsyncMock."""
     service = MagicMock()
     vault = MagicMock(spec=VaultSummary)
     vault.id = uuid4()
+    vault.name = "rag"
     service.get_by_name = AsyncMock(return_value=vault)
-    service.write_secret = AsyncMock(return_value=None)
-    service.delete_secret = AsyncMock(return_value=None)
+    service.get_default = AsyncMock(return_value=vault)
     return service
 
 
@@ -84,10 +86,10 @@ async def test_real_indexer_markdown_strategy_produces_section_metadata(
     pg_container: str,
 ) -> None:
     """End-to-end : workspace configuré en markdown → chunks ont la metadata."""
-    req = WorkspaceCreateRequest(
+    req = WorkspaceCreateResolved(
         name="ws_md_e2e",
-        api_key_vault="rag",
-        indexer=IndexerSpec(
+        label="ws_md_e2e",
+        indexer=IndexerCreateSpec(
             provider="ollama",
             model="mxbai-embed-large",
             api_key_ref=None,
@@ -109,9 +111,11 @@ async def test_real_indexer_markdown_strategy_produces_section_metadata(
 
     registry: WorkspacePoolRegistry | None = None
     try:
-        # Reconfigure le workspace en markdown.
+        # Reconfigure le workspace en markdown (pipeline legacy — le défaut est
+        # passé à 'structured' en migration 065).
         await migrated.execute(
-            "UPDATE chunking_configs SET strategy=$1, extras=$2::jsonb WHERE workspace_id = $3",
+            "UPDATE chunking_configs SET strategy=$1, extras=$2::jsonb, engine='legacy' "
+            "WHERE workspace_id = $3",
             "markdown",
             json.dumps({"heading_levels": [1, 2]}),
             ws["id"],
@@ -150,7 +154,7 @@ async def test_real_indexer_markdown_strategy_produces_section_metadata(
             provider_factory=lambda **_kw: _StubProvider(),
         )
 
-        nb = await indexer.index_file(
+        outcome = await indexer.index_file(
             workspace_id=ws["id"],
             path="README.md",
             content=README_DEMO,
@@ -158,7 +162,7 @@ async def test_real_indexer_markdown_strategy_produces_section_metadata(
             indexer_used="ollama/mxbai-embed-large",
         )
         # Au moins 4 sections : préambule + Installation + Usage + Reference.
-        assert nb >= 4
+        assert outcome.chunks >= 4
 
         # Vérifier la metadata stockée.
         conn = await asyncpg.connect(ws_dsn)

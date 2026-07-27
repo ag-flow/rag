@@ -1,7 +1,7 @@
 {
   "title": "Sign in",
   "oidc": {
-    "button": "→ Sign in with Keycloak"
+    "button": "→ Sign in with OIDC"
   },
   "local": {
     "fields": {
@@ -32,6 +32,8 @@
   },
   "info": {
     "oidc_not_configured": "OIDC is not configured yet. Sign in with the local admin account to set it up.",
-    "separator_or": "or local admin login"
-  }
+    "separator_or": "or"
+  },
+  "contracts_link": "API contracts",
+  "app_name": "Ragflow"
 }

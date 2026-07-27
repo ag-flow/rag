@@ -137,16 +137,12 @@ export function WorkspaceSourcesTab({ name, enabled }: Props) {
                           {tWh("menu_requires_name")}
                         </DropdownMenuItem>
                       ) : !source.webhook_enabled ? (
-                        <DropdownMenuItem
-                          onSelect={() => setWebhookEnableTarget(source.name)}
-                        >
+                        <DropdownMenuItem onSelect={() => setWebhookEnableTarget(source.name)}>
                           {tWh("menu_enable")}
                         </DropdownMenuItem>
                       ) : (
                         <>
-                          <DropdownMenuItem
-                            onSelect={() => setWebhookRotateTarget(source.name)}
-                          >
+                          <DropdownMenuItem onSelect={() => setWebhookRotateTarget(source.name)}>
                             {tWh("menu_rotate")}
                           </DropdownMenuItem>
                           <DropdownMenuItem

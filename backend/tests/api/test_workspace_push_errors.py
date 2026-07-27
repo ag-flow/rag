@@ -3,22 +3,25 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 
+def _make_user_key(client, admin_headers: dict[str, str], ws_id: str, name: str) -> str:
+    """Crée une clé utilisateur de niveau écriture (accès global)."""
+    kr = client.post(
+        "/api/me/api-keys",
+        headers=admin_headers,
+        json={"name": f"key-{name}", "scope": "read_write"},
+    )
+    assert kr.status_code == 201, kr.text
+    return kr.json()["api_key"]
+
+
 def _make_ws(client: TestClient, admin_headers: dict[str, str], name: str) -> str:
     r = client.post(
         "/api/admin/workspaces",
         headers=admin_headers,
-        json={
-            "name": name,
-            "api_key_vault": "rag",
-            "indexer": {
-                "provider": "openai",
-                "model": "text-embedding-3-small",
-                "api_key_ref": "openai_embedding_key",
-            },
-        },
+        json={"name": name, "label": name, "endpoint_id": client.default_endpoint_id},
     )
     assert r.status_code == 201
-    return r.json()["api_key"]
+    return _make_user_key(client, admin_headers, r.json()["id"], name)
 
 
 def test_push_returns_422_for_path_traversal(
@@ -28,9 +31,9 @@ def test_push_returns_422_for_path_traversal(
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_e_a")
     r = admin_client.post(
-        "/workspaces/ws_e_a/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"path": "foo/../bar", "content": "y"},
+        json={"workspace": "ws_e_a", "path": "foo/../bar", "content": "y"},
     )
     assert r.status_code == 422
     body = r.json()
@@ -45,9 +48,9 @@ def test_push_returns_422_for_absolute_path(
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_e_b")
     r = admin_client.post(
-        "/workspaces/ws_e_b/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"path": "/etc/passwd", "content": "y"},
+        json={"workspace": "ws_e_b", "path": "/etc/passwd", "content": "y"},
     )
     assert r.status_code == 422
     assert r.json()["error"] == "invalid_path"
@@ -60,9 +63,9 @@ def test_push_returns_422_for_missing_body_field(
 ) -> None:
     api_key = _make_ws(admin_client, admin_headers, "ws_e_c")
     r = admin_client.post(
-        "/workspaces/ws_e_c/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"path": "x.md"},  # content manquant
+        json={"workspace": "ws_e_c", "path": "x.md"},  # content manquant
     )
     assert r.status_code == 422
 
@@ -77,9 +80,9 @@ def test_push_returns_413_for_content_above_5mb(
     # custom remap en 413 avec payload ContentTooLarge.
     big = "a" * (5 * 1024 * 1024 + 1)
     r = admin_client.post(
-        "/workspaces/ws_e_d/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"path": "big.md", "content": big},
+        json={"workspace": "ws_e_d", "path": "big.md", "content": big},
     )
     assert r.status_code == 413
     body = r.json()
@@ -96,9 +99,9 @@ def test_push_returns_422_for_other_validation_errors_unchanged(
     les autres erreurs de validation (champ manquant, mauvais type, etc.)."""
     api_key = _make_ws(admin_client, admin_headers, "ws_e_e")
     r = admin_client.post(
-        "/workspaces/ws_e_e/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"path": 123, "content": "x"},  # path: int au lieu de str
+        json={"workspace": "ws_e_e", "path": 123, "content": "x"},  # path: int au lieu de str
     )
     assert r.status_code == 422
     body = r.json()

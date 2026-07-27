@@ -18,6 +18,8 @@ const statusVariant: Record<Job["status"], "default" | "secondary" | "destructiv
   pending: "secondary",
   running: "secondary",
   error: "destructive",
+  // Les rejets d'ingestion n'apparaissent qu'en vue globale ; complétude du type.
+  rejected: "destructive",
 };
 
 function formatDuration(ms: number | null): string {
@@ -66,7 +68,11 @@ export function WorkspaceJobsTab({ name, enabled }: Props) {
                 onClick={() => toggle(job.id)}
                 className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-slate-50"
               >
-                {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                {isOpen ? (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5" />
+                )}
                 <Badge variant={statusVariant[job.status]} className="font-mono text-xs">
                   {job.status}
                 </Badge>

@@ -12,6 +12,12 @@ import frNav from "@/i18n/fr/nav.json";
 import frWorkspaces from "@/i18n/fr/workspaces.json";
 import frWorkspace from "@/i18n/fr/workspace.json";
 import frHarpocrate from "@/i18n/fr/harpocrate.json";
+import frPlayground from "@/i18n/fr/playground.json";
+import frChunkingStrategies from "@/i18n/fr/chunking_strategies.json";
+import frPrompts from "@/i18n/fr/prompts.json";
+import frPush from "@/i18n/fr/push.json";
+import frMcp from "@/i18n/fr/mcp.json";
+import frProfile from "@/i18n/fr/profile.json";
 
 import enCommon from "@/i18n/en/common.json";
 import enAuth from "@/i18n/en/auth.json";
@@ -19,6 +25,12 @@ import enNav from "@/i18n/en/nav.json";
 import enWorkspaces from "@/i18n/en/workspaces.json";
 import enWorkspace from "@/i18n/en/workspace.json";
 import enHarpocrate from "@/i18n/en/harpocrate.json";
+import enPlayground from "@/i18n/en/playground.json";
+import enChunkingStrategies from "@/i18n/en/chunking_strategies.json";
+import enPrompts from "@/i18n/en/prompts.json";
+import enPush from "@/i18n/en/push.json";
+import enMcp from "@/i18n/en/mcp.json";
+import enProfile from "@/i18n/en/profile.json";
 
 // i18n instance isolée pour les tests, forcée en FR
 const testI18n = i18next.createInstance();
@@ -27,7 +39,20 @@ void testI18n.use(initReactI18next).init({
   lng: "fr",
   fallbackLng: "fr",
   supportedLngs: ["fr", "en"],
-  ns: ["common", "auth", "nav", "workspaces", "workspace", "harpocrate"],
+  ns: [
+    "common",
+    "auth",
+    "nav",
+    "workspaces",
+    "workspace",
+    "harpocrate",
+    "playground",
+    "chunking_strategies",
+    "prompts",
+    "push",
+    "profile",
+    "mcp",
+  ],
   defaultNS: "common",
   resources: {
     fr: {
@@ -37,6 +62,12 @@ void testI18n.use(initReactI18next).init({
       workspaces: frWorkspaces,
       workspace: frWorkspace,
       harpocrate: frHarpocrate,
+      playground: frPlayground,
+      chunking_strategies: frChunkingStrategies,
+      prompts: frPrompts,
+      push: frPush,
+    profile: frProfile,
+      mcp: frMcp,
     },
     en: {
       common: enCommon,
@@ -45,6 +76,12 @@ void testI18n.use(initReactI18next).init({
       workspaces: enWorkspaces,
       workspace: enWorkspace,
       harpocrate: enHarpocrate,
+      playground: enPlayground,
+      chunking_strategies: enChunkingStrategies,
+      prompts: enPrompts,
+      push: enPush,
+    profile: enProfile,
+      mcp: enMcp,
     },
   },
   interpolation: { escapeValue: false },

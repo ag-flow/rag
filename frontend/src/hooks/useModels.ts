@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { modelsApi } from "@/lib/models";
-import type { ModelCreateRequest, ModelEntry, PricingData } from "@/lib/models.types";
+import type {
+  ModelCreateRequest,
+  ModelEntry,
+  ModelUpdateRequest,
+  PricingData,
+} from "@/lib/models.types";
 
 export function useModels() {
   return useQuery({
@@ -29,10 +34,40 @@ export function useDeleteModel() {
   });
 }
 
+export function useUpdateModel() {
+  const qc = useQueryClient();
+  return useMutation<
+    ModelEntry,
+    Error,
+    { provider: string; model: string; payload: ModelUpdateRequest }
+  >({
+    mutationFn: ({ provider, model, payload }) => modelsApi.update(provider, model, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["models"] });
+    },
+  });
+}
+
 export function usePricing() {
   return useQuery<PricingData>({
     queryKey: ["models-pricing"],
     queryFn: () => modelsApi.pricing(),
     staleTime: 5 * 60 * 1000, // 5 min — le fichier ne change pas souvent
+  });
+}
+
+export function useRerankPairings() {
+  return useQuery({
+    queryKey: ["models-rerank-pairings"],
+    queryFn: () => modelsApi.rerankPairings(),
+    staleTime: 5 * 60 * 1000, // référentiel seedé par migration, quasi statique
+  });
+}
+
+export function useProviderUrlTemplates() {
+  return useQuery({
+    queryKey: ["provider-url-templates"],
+    queryFn: () => modelsApi.urlTemplates(),
+    staleTime: 5 * 60 * 1000, // référentiel statique côté backend
   });
 }

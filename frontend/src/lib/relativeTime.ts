@@ -45,7 +45,5 @@ export function relativeTimeKey(iso: string): { key: string; count: number } {
  */
 export function formatRelativeTime(iso: string, t: TranslateFn): string {
   const rt = relativeTimeKey(iso);
-  return rt.key === "time.justNow"
-    ? t("time.justNow")
-    : t(rt.key, { count: rt.count });
+  return rt.key === "time.justNow" ? t("time.justNow") : t(rt.key, { count: rt.count });
 }

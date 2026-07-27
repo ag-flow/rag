@@ -112,10 +112,7 @@ export function ReplaceProviderKeyDialog({
             <Button type="button" variant="outline" onClick={() => handleClose(false)}>
               {t("apikeys.cancel")}
             </Button>
-            <Button
-              type="submit"
-              disabled={mutation.isPending || !newValue.trim()}
-            >
+            <Button type="submit" disabled={mutation.isPending || !newValue.trim()}>
               {t("apikeys.replace")}
             </Button>
           </DialogFooter>

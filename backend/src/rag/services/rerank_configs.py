@@ -28,7 +28,7 @@ async def get_rerank_config(
     row = await config_pool.fetchrow(
         """
         SELECT workspace_id, provider, model, base_url, api_key_ref,
-               top_k_pre_rerank, created_at, updated_at
+               top_k_pre_rerank, rpm_limit, tpm_limit, created_at, updated_at
         FROM rerank_configs
         WHERE workspace_id = $1
         """,
@@ -49,33 +49,33 @@ async def upsert_rerank_config(
 
     Lève l'exception du resolver si la ref n'est pas résolvable (aucune row écrite).
     """
-    if spec.api_key_ref:
-        # Eager validation uniquement pour les clés logiques (ancien format).
-        # Les vault_refs complets (harpo_path de provider_api_keys) utilisent
-        # vault_name comme identifiant, incompatible avec le resolver qui attend
-        # api_key_id — on leur fait confiance (proviennent d'un select filtré).
-        if not is_vault_ref(spec.api_key_ref):
-            await resolver.resolve_with_retry(
-                _to_vault_ref(spec.api_key_ref, default_vault_name)
-            )
+    # Eager validation uniquement pour les clés logiques (ancien format).
+    # Les vault_refs complets (harpo_path de provider_api_keys) utilisent
+    # vault_name comme identifiant, incompatible avec le resolver qui attend
+    # api_key_id — on leur fait confiance (proviennent d'un select filtré).
+    if spec.api_key_ref and not is_vault_ref(spec.api_key_ref):
+        await resolver.resolve_with_retry(_to_vault_ref(spec.api_key_ref, default_vault_name))
 
     row = await config_pool.fetchrow(
         """
         INSERT INTO rerank_configs
-            (workspace_id, provider, model, base_url, api_key_ref, top_k_pre_rerank)
-        VALUES ($1, $2, $3, $4, $5, $6)
+            (workspace_id, provider, model, base_url, api_key_ref, top_k_pre_rerank,
+             rpm_limit, tpm_limit)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         ON CONFLICT (workspace_id) DO UPDATE
         SET provider = EXCLUDED.provider,
             model = EXCLUDED.model,
             base_url = EXCLUDED.base_url,
             api_key_ref = EXCLUDED.api_key_ref,
             top_k_pre_rerank = EXCLUDED.top_k_pre_rerank,
+            rpm_limit = EXCLUDED.rpm_limit,
+            tpm_limit = EXCLUDED.tpm_limit,
             updated_at = now()
         RETURNING workspace_id, provider, model, base_url, api_key_ref,
-                  top_k_pre_rerank, created_at, updated_at
+                  top_k_pre_rerank, rpm_limit, tpm_limit, created_at, updated_at
         """,
         workspace_id, spec.provider, spec.model, spec.base_url,
-        spec.api_key_ref, spec.top_k_pre_rerank,
+        spec.api_key_ref, spec.top_k_pre_rerank, spec.rpm_limit, spec.tpm_limit,
     )
     if row is None:
         raise RuntimeError("unexpected None from RETURNING")

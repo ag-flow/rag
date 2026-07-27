@@ -12,6 +12,8 @@ function makeConfig(overrides: Partial<ChunkingConfig> = {}): ChunkingConfig {
     min_chars: 200,
     overlap_chars: 200,
     extras: {},
+    default_strategy_id: null,
+    engine: "legacy",
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     ...overrides,

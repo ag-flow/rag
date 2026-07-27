@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import UUID
 
 import asyncpg
 import pytest
@@ -69,8 +68,10 @@ async def test_create_and_list(pool: asyncpg.Pool) -> None:
             )
 
     assert created.key_id == "prod-openai"
-    assert created.harpo_path == "/v1/openai/prod-openai"
-    mock_client.set_secret.assert_called_once_with("/v1/openai/prod-openai", "sk-test")
+    # harpo_path est stocké au formalisme déclaratif ${vault://<vault>:<path>} ;
+    # le secret est écrit dans Harpocrate au chemin réel /{provider}/{key_id}.
+    assert created.harpo_path == "${vault://v1:/openai/prod-openai}"
+    mock_client.set_secret.assert_called_once_with("/openai/prod-openai", "sk-test")
 
     async with pool.acquire() as conn:
         keys = await list_provider_keys(conn, vault_id=vault["id"])
@@ -88,22 +89,20 @@ async def test_create_duplicate_409(pool: asyncpg.Pool) -> None:
                 conn,
                 vault=vault,
                 vault_svc=svc,
-                req=ProviderApiKeyCreate(
-                    key_id="dup", label="Dup", provider="openai", value="v"
-                ),
+                req=ProviderApiKeyCreate(key_id="dup", label="Dup", provider="openai", value="v"),
             )
 
-    with patch("rag.services.provider_api_keys.HarpocrateVaultClient"):
-        with pytest.raises(DuplicateProviderKeyError):
-            async with pool.acquire() as conn:
-                await create_provider_key(
-                    conn,
-                    vault=vault,
-                    vault_svc=svc,
-                    req=ProviderApiKeyCreate(
-                        key_id="dup", label="Dup2", provider="openai", value="v2"
-                    ),
-                )
+    with (
+        patch("rag.services.provider_api_keys.HarpocrateVaultClient"),
+        pytest.raises(DuplicateProviderKeyError),
+    ):
+        async with pool.acquire() as conn:
+            await create_provider_key(
+                conn,
+                vault=vault,
+                vault_svc=svc,
+                req=ProviderApiKeyCreate(key_id="dup", label="Dup2", provider="openai", value="v2"),
+            )
 
 
 async def test_update_label(pool: asyncpg.Pool) -> None:
@@ -147,9 +146,7 @@ async def test_delete_unreferenced(pool: asyncpg.Pool) -> None:
                 conn,
                 vault=vault,
                 vault_svc=svc,
-                req=ProviderApiKeyCreate(
-                    key_id="del-me", label="L", provider="openai", value="v"
-                ),
+                req=ProviderApiKeyCreate(key_id="del-me", label="L", provider="openai", value="v"),
             )
 
     with patch("rag.services.provider_api_keys.HarpocrateVaultClient") as mock_cls:

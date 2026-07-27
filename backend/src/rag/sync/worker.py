@@ -9,6 +9,7 @@ import structlog
 
 from rag.indexer.protocol import IndexerProtocol
 from rag.services.job_log_bus import JobLogBus
+from rag.services.load_gate import LoadGate
 from rag.sync.executor import execute_next_pending_job
 from rag.sync.repo_storage import RepoStorage
 from rag.sync.scheduler import schedule_due_sources
@@ -54,6 +55,7 @@ class SyncWorker:
         default_sync_interval_seconds: int,
         job_log_bus: JobLogBus | None = None,
         webhook_secret: str | None = None,
+        load_gate: LoadGate | None = None,
     ) -> None:
         self._config_pool = config_pool
         self._storage = storage
@@ -64,6 +66,8 @@ class SyncWorker:
         self._default_sync_interval = default_sync_interval_seconds
         self._job_log_bus = job_log_bus
         self._webhook_secret = webhook_secret
+        self._load_gate = load_gate
+        self._gate_paused = False
         self._task: asyncio.Task[None] | None = None
         self._stop_event = asyncio.Event()
 
@@ -89,36 +93,58 @@ class SyncWorker:
             self._task = None
             log.info("sync.worker.stopped")
 
+    def _gate_allows_pickup(self) -> bool:
+        """Gate de charge serveur (enabler 01f8992b) : surchargé ⇒ on saute le
+        pick de job de ce cycle, la file DB fait le backpressure. Log aux
+        seules transitions (pause/reprise), pas à chaque cycle."""
+        if self._load_gate is None:
+            return True
+        status = self._load_gate.status()
+        if status.overloaded and not self._gate_paused:
+            self._gate_paused = True
+            log.warning("sync.worker.load_gate_paused", reasons=status.reasons)
+        elif not status.overloaded and self._gate_paused:
+            self._gate_paused = False
+            log.info("sync.worker.load_gate_resumed")
+        return not status.overloaded
+
+    async def _cycle(self) -> None:
+        """Un cycle : scheduling, pick d'un job (si le gate de charge
+        l'autorise), entretiens."""
+        from rag.services.webhooks import purge_old_webhook_calls
+
+        await schedule_due_sources(
+            self._config_pool,
+            default_interval_seconds=self._default_sync_interval,
+        )
+        if self._gate_allows_pickup():
+            await execute_next_pending_job(
+                config_pool=self._config_pool,
+                storage=self._storage,
+                indexer=self._indexer,
+                resolver=self._resolver,
+                client_provider=self._client_provider,
+                job_log_bus=self._job_log_bus,
+                webhook_secret=self._webhook_secret,
+            )
+        try:
+            await purge_old_webhook_calls(self._config_pool)
+        except Exception:
+            log.warning("sync.worker.purge_webhook_calls_failed")
+        try:
+            from rag.services.circuit_breaker import auto_close_expired_circuits
+
+            await auto_close_expired_circuits(self._config_pool)
+        except Exception:
+            log.warning("sync.worker.circuit_breaker_cleanup_failed")
+
     async def _run(self) -> None:
         """Boucle principale. Catch toutes les exceptions de cycle pour
         ne pas tuer le worker — chaque cycle est isolé.
         """
-        from rag.services.webhooks import purge_old_webhook_calls
-
         while not self._stop_event.is_set():
             try:
-                await schedule_due_sources(
-                    self._config_pool,
-                    default_interval_seconds=self._default_sync_interval,
-                )
-                await execute_next_pending_job(
-                    config_pool=self._config_pool,
-                    storage=self._storage,
-                    indexer=self._indexer,
-                    resolver=self._resolver,
-                    client_provider=self._client_provider,
-                    job_log_bus=self._job_log_bus,
-                    webhook_secret=self._webhook_secret,
-                )
-                try:
-                    await purge_old_webhook_calls(self._config_pool)
-                except Exception:
-                    log.warning("sync.worker.purge_webhook_calls_failed")
-                try:
-                    from rag.services.circuit_breaker import auto_close_expired_circuits
-                    await auto_close_expired_circuits(self._config_pool)
-                except Exception:
-                    log.warning("sync.worker.circuit_breaker_cleanup_failed")
+                await self._cycle()
             except Exception:
                 log.exception("sync.worker.cycle_error")
 

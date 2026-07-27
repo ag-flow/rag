@@ -1,0 +1,60 @@
+{
+  "page_title": "Push activity",
+  "description": "Historique global des jobs d'indexation, tous workspaces confondus.",
+  "filters": {
+    "workspace_label": "Filtrer par workspace",
+    "all_workspaces": "Tous les workspaces",
+    "status_label": "Filtrer par statut",
+    "all_statuses": "Tous les statuts",
+    "source_label": "Filtrer par source",
+    "all_sources": "Toutes les sources"
+  },
+  "table": {
+    "workspace": "Workspace",
+    "trigger": "Déclencheur",
+    "status": "Statut",
+    "files": "Fichiers",
+    "date": "Date",
+    "detail_aria": "Voir le détail du job",
+    "source": "Source",
+    "path": "Document"
+  },
+  "files_summary": "{{changed}} modifiés / {{skipped}} ignorés",
+  "status": {
+    "pending": "En attente",
+    "running": "En cours",
+    "done": "Terminé",
+    "error": "Erreur",
+    "rejected": "Rejeté"
+  },
+  "empty": "Aucun job d'indexation.",
+  "error": "Impossible de charger les jobs.",
+  "time": {
+    "justNow": "à l'instant",
+    "minutesAgo": "il y a {{count}} min",
+    "hoursAgo": "il y a {{count}} h",
+    "daysAgo": "il y a {{count}} j"
+  },
+  "source": {
+    "rest_api": "API REST",
+    "webhook": "Webhook",
+    "git": "Git",
+    "admin": "Admin"
+  },
+  "load_gate": {
+    "title": "Charge serveur",
+    "help": "Quand la pression CPU (PSI, temps d'attente CPU sur 60 s) ou la mémoire dépasse les seuils, le worker suspend la prise de nouveaux jobs — la file attend, rien n'est rejeté. Le trafic de recherche n'est pas affecté.",
+    "badge_normal": "Normal",
+    "badge_paused": "Jobs en pause (surcharge)",
+    "badge_disabled": "Désactivé",
+    "cpu_metric": "Pression CPU 60 s",
+    "memory_metric": "Mémoire",
+    "unknown": "n/d",
+    "enabled_label": "Gate actif",
+    "cpu_threshold": "Seuil CPU (%)",
+    "memory_threshold": "Seuil mémoire (%)",
+    "submit": "Enregistrer",
+    "saved": "Seuils enregistrés — pris en compte immédiatement.",
+    "error": "Impossible d'enregistrer les seuils."
+  }
+}

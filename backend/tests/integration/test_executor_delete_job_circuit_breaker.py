@@ -64,13 +64,19 @@ async def _seed_delete_job(
             job_id,
             path,
         )
+        # Le document doit exister dans indexed_documents : sans lui, l'executor
+        # classe le delete job en 'skipped' sans jamais appeler l'indexeur.
+        await conn.execute(
+            "INSERT INTO indexed_documents (workspace_id, path, content_hash, indexer_used)"
+            " VALUES ($1, $2, 'sha256:abc', 'openai/text-embedding-3-small')",
+            ws_id,
+            path,
+        )
     return str(job_id), ws_id
 
 
 @pytest.mark.asyncio
-async def test_delete_job_quota_error_opens_circuit(
-    pool: asyncpg.Pool, tmp_path: Path
-) -> None:
+async def test_delete_job_quota_error_opens_circuit(pool: asyncpg.Pool, tmp_path: Path) -> None:
     job_id, ws_id = await _seed_delete_job(pool, "ws_del_cb_quota")
     indexer = _FailingIndexer(EmbeddingQuotaExhausted("no credits"))
 
@@ -84,14 +90,11 @@ async def test_delete_job_quota_error_opens_circuit(
     )
 
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT status FROM index_jobs WHERE id=$1::uuid", job_id
-        )
+        row = await conn.fetchrow("SELECT status FROM index_jobs WHERE id=$1::uuid", job_id)
         assert row["status"] == "error"
 
         circuit = await conn.fetchrow(
-            "SELECT provider, model FROM indexer_circuit_breakers"
-            " WHERE workspace_id=$1",
+            "SELECT provider, model FROM indexer_circuit_breakers WHERE workspace_id=$1",
             ws_id,
         )
         assert circuit is not None
@@ -99,9 +102,7 @@ async def test_delete_job_quota_error_opens_circuit(
 
 
 @pytest.mark.asyncio
-async def test_delete_job_auth_error_opens_circuit(
-    pool: asyncpg.Pool, tmp_path: Path
-) -> None:
+async def test_delete_job_auth_error_opens_circuit(pool: asyncpg.Pool, tmp_path: Path) -> None:
     _, ws_id = await _seed_delete_job(pool, "ws_del_cb_auth")
     indexer = _FailingIndexer(EmbeddingAuthError("invalid key"))
 
@@ -123,9 +124,7 @@ async def test_delete_job_auth_error_opens_circuit(
 
 
 @pytest.mark.asyncio
-async def test_delete_job_circuit_open_skips_job(
-    pool: asyncpg.Pool, tmp_path: Path
-) -> None:
+async def test_delete_job_circuit_open_skips_job(pool: asyncpg.Pool, tmp_path: Path) -> None:
     """Un delete job dont le workspace a un circuit ouvert n'est pas execute."""
     async with pool.acquire() as conn:
         ws_id = await seed_workspace(conn, name="ws_del_cb_skip")
@@ -162,7 +161,5 @@ async def test_delete_job_circuit_open_skips_job(
     assert result is False
 
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT status FROM index_jobs WHERE id=$1", job_id
-        )
+        row = await conn.fetchrow("SELECT status FROM index_jobs WHERE id=$1", job_id)
         assert row["status"] == "pending"

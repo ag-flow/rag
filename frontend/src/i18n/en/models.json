@@ -9,7 +9,12 @@
   },
   "row": {
     "dim": "dim {{dimension}}",
-    "delete": "Delete"
+    "delete": "Delete",
+    "system": "System",
+    "kind_rerank": "Rerank",
+    "kind_llm": "LLM",
+    "edit": "Edit",
+    "url_template": "URL template"
   },
   "time": {
     "now": "just now",
@@ -44,7 +49,13 @@
         "model_required": "Model name is required.",
         "dimension_positive": "Dimension must be a positive integer.",
         "provider_other_required": "Specify the custom provider name."
-      }
+      },
+      "kind": "Type",
+      "kind_embedding": "Embedding (vectorization)",
+      "kind_llm": "LLM (prompts)",
+      "kind_rerank": "Reranking",
+      "url_template": "URL template (optional)",
+      "url_template_hint": "Full call URL — {url} and {model} placeholders. Overrides the provider mask (Azure case: deployment name differs from model)."
     },
     "delete": {
       "title": "Delete model",
@@ -52,6 +63,22 @@
       "confirm": "Delete",
       "success": "Model deleted.",
       "error": "Failed to delete."
+    },
+    "edit": {
+      "title": "Edit model",
+      "submit": "Save",
+      "success": "Model updated",
+      "error": "Update failed"
     }
+  },
+  "filter": {
+    "all": "All",
+    "embedding": "Embedding",
+    "rerank": "Reranking",
+    "llm": "LLM"
+  },
+  "provider_labels": {
+    "ollama": "ollama local",
+    "ollama-cloud": "ollama cloud"
   }
 }

@@ -7,7 +7,9 @@ from typing import Any
 import asyncpg
 import structlog
 
+from rag.services.endpoint_throttle import estimate_tokens, llm_slot
 from rag.services.llm_clients import call_llm
+from rag.services.trigger_match import resolve_trigger
 
 log = structlog.get_logger(__name__)
 
@@ -40,10 +42,12 @@ async def run_enrichments(
     client_provider: Any,
     config_pool: Any | None = None,
 ) -> list[dict[str, Any]]:
-    """Exécute les trigger prompts actifs pour l'extension de `path`."""
-    import pathlib
-    extension = pathlib.Path(path).suffix.lower()
-    if not extension:
+    """Exécute les trigger prompts actifs pour le trigger qui matche `path`.
+
+    Un seul trigger s'applique par fichier : le pattern glob le plus
+    spécifique (`rag.services.trigger_match`)."""
+    trigger = await resolve_trigger(conn, workspace_id=workspace_id, path=path)
+    if trigger is None:
         return []
 
     trigger_prompts = await conn.fetch(
@@ -61,19 +65,15 @@ async def run_enrichments(
             lc.api_key_ref,
             lc.base_url AS llm_base_url
         FROM workspace_extension_trigger_prompts tp
-        JOIN workspace_extension_triggers t ON t.id = tp.trigger_id
-        JOIN workspaces w ON w.id = t.workspace_id
         JOIN prompt_templates pt ON pt.id = tp.template_id
         JOIN workspace_llm_configs lc ON lc.id = tp.llm_id
-        WHERE w.id = $1::uuid
-          AND t.extension = $2
-          AND t.enabled = true
+        WHERE tp.trigger_id = $1
           AND tp.enabled = true
           AND lc.enabled = true
+          AND pt.timing = 'post_index_metadata'
         ORDER BY tp.order_index
         """,
-        workspace_id,
-        extension,
+        trigger["id"],
     )
 
     if not trigger_prompts:
@@ -115,14 +115,17 @@ async def run_enrichments(
 
         prompt_text = row["prompt"].replace("{content}", content)
 
-        llm_result = await call_llm(
-            provider=row["llm_provider"],
-            model=row["llm_model"],
-            api_key=llm_api_key,
-            base_url=row["llm_base_url"],
-            system_prompt="",
-            messages=[{"role": "user", "content": prompt_text}],
-        )
+        # Throttling LLM cross-workspace par endpoint (enabler fe6b8dcb).
+        slot = await llm_slot(config_pool, workspace_id, tokens=estimate_tokens(prompt_text))
+        async with slot:
+            llm_result = await call_llm(
+                provider=row["llm_provider"],
+                model=row["llm_model"],
+                api_key=llm_api_key,
+                base_url=row["llm_base_url"],
+                system_prompt="",
+                messages=[{"role": "user", "content": prompt_text}],
+            )
         answer = (llm_result["answer"] or "").strip()
 
         if not answer:

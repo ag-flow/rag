@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC
 
 import httpx
 import pytest
@@ -24,7 +25,9 @@ _BASE = "https://api.example.com/v1"
 _KEY = "test-key"
 
 
-def _make_adapter(*, service=None, platform=None, model="test-model", transport=None, retry_sleep=0.0):
+def _make_adapter(
+    *, service=None, platform=None, model="test-model", transport=None, retry_sleep=0.0
+):
     svc = service or OpenAICompatibleService()
     plat = platform or BearerPlatform(_BASE, _KEY)
     return EmbeddingProviderAdapter(
@@ -170,10 +173,10 @@ def test_parse_retry_after_delta_seconds() -> None:
 
 
 def test_parse_retry_after_http_date_in_future() -> None:
+    from datetime import datetime, timedelta
     from email.utils import format_datetime
-    from datetime import datetime, timedelta, timezone
 
-    future = datetime.now(timezone.utc) + timedelta(seconds=45)
+    future = datetime.now(UTC) + timedelta(seconds=45)
     parsed = _parse_retry_after(format_datetime(future))
     assert parsed is not None
     assert 30.0 < parsed <= 45.0
@@ -203,7 +206,7 @@ async def test_azure_openai_platform_strips_model_from_payload() -> None:
     from rag.indexer.providers.platforms.azure_openai import AzureOpenAIPlatform
 
     captured: dict = {}
-    _AZ_BASE = "https://res.openai.azure.com/openai/deployments/emb"
+    az_base = "https://res.openai.azure.com/openai/deployments/emb"
 
     def handler(request: httpx.Request) -> httpx.Response:
         captured["url"] = str(request.url)
@@ -215,7 +218,7 @@ async def test_azure_openai_platform_strips_model_from_payload() -> None:
 
     adapter = EmbeddingProviderAdapter(
         service=OpenAICompatibleService(),
-        platform=AzureOpenAIPlatform(_AZ_BASE, "az-key"),
+        platform=AzureOpenAIPlatform(az_base, "az-key"),
         model="text-embedding-3-small",
         transport=httpx.MockTransport(handler),
         retry_sleep_seconds=0.0,

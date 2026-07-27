@@ -40,9 +40,7 @@ export function DocumentChunkViewer({ workspaceName, path }: Props) {
 
   if (isLoading) return <LoadingSpinner />;
   if (isError || !data) {
-    return (
-      <p className="text-xs text-red-500 py-2">{t("index.document_view.error")}</p>
-    );
+    return <p className="text-xs text-red-500 py-2">{t("index.document_view.error")}</p>;
   }
 
   return (
@@ -116,10 +114,7 @@ function SectionBlock({
             {t("index.document_view.embed_chunks_title", { count: chunkCount })}
           </p>
           {section.chunks.map((chunk) => (
-            <div
-              key={chunk.chunk_index}
-              className="rounded border border-slate-200 bg-white p-2"
-            >
+            <div key={chunk.chunk_index} className="rounded border border-slate-200 bg-white p-2">
               <p className="mb-1 text-xs font-medium text-slate-400">
                 {t("index.document_view.embed_chunk_label", { index: chunk.chunk_index })}
               </p>

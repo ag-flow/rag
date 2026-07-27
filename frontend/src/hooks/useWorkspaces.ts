@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { workspacesApi } from "@/lib/workspaces";
 import type {
-  ApiKeyRotateResponse,
   Job,
   Source,
   SourceCreateRequest,
@@ -45,6 +44,14 @@ export function useWorkspaceJobs(name: string | null, enabled: boolean) {
   });
 }
 
+export function useWorkspaceJob(name: string | null, jobId: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ["workspace", name, "jobs", jobId, "status"],
+    queryFn: () => workspacesApi.getJob(name as string, jobId as string),
+    enabled: name !== null && jobId !== null && enabled,
+  });
+}
+
 export function useWorkspaceJobFiles(name: string, jobId: string, enabled: boolean) {
   return useQuery({
     queryKey: ["workspace", name, "jobs", jobId, "files"],
@@ -83,12 +90,6 @@ export function useDeleteWorkspace() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["workspaces"] });
     },
-  });
-}
-
-export function useRevealApiKey(name: string) {
-  return useMutation<ApiKeyRotateResponse, Error, void>({
-    mutationFn: () => workspacesApi.revealApiKey(name),
   });
 }
 
@@ -158,7 +159,6 @@ export function useDetectBranches() {
       auth_ref?: string | null;
       ssh_key_ref?: string | null;
       ssh_username?: string | null;
-    }) =>
-      workspacesApi.detectBranches(payload),
+    }) => workspacesApi.detectBranches(payload),
   });
 }

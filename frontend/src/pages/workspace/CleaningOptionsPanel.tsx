@@ -19,12 +19,8 @@ export function CleaningOptionsPanel({ value, onChange, disabled = false }: Prop
   return (
     <div className="space-y-2">
       <div>
-        <p className="text-sm font-medium text-slate-700">
-          {t("chunking.cleaning.title")}
-        </p>
-        <p className="text-xs text-slate-500 mt-0.5">
-          {t("chunking.cleaning.description")}
-        </p>
+        <p className="text-sm font-medium text-slate-700">{t("chunking.cleaning.title")}</p>
+        <p className="text-xs text-slate-500 mt-0.5">{t("chunking.cleaning.description")}</p>
       </div>
 
       <div className="space-y-0 rounded-md border bg-white divide-y divide-slate-100">

@@ -20,6 +20,9 @@ class _McpRequestBase(BaseModel):
     query: str = Field(..., min_length=1, max_length=_QUERY_MAX_LEN)
     top_k: int = Field(default=5, ge=1, le=_TOP_K_MAX)
     min_score: float = Field(default=0.3, ge=-1.0, le=1.0)
+    # D8 : retourne les listes brutes par canal (matière première du
+    # Playground de recherche et des campagnes de mesure D9).
+    debug: bool = False
 
 
 class SingleWorkspaceRequest(_McpRequestBase):
@@ -70,6 +73,23 @@ class SearchHit(BaseModel):
     debug: DebugTrace | None = None
 
 
+class ChannelHit(BaseModel):
+    """Entrée d'une liste par canal (flag debug, D8)."""
+
+    path: str
+    chunk_index: int
+    rank: int
+    score: float
+
+
+class DebugChannels(BaseModel):
+    """Listes brutes par canal AVANT fusion — single-workspace uniquement."""
+
+    vector: list[ChannelHit]
+    lexical: list[ChannelHit]
+
+
 class McpResponse(BaseModel):
     query: str
     results: list[SearchHit]
+    channels: DebugChannels | None = None

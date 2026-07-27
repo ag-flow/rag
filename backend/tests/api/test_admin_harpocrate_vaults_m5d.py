@@ -1,10 +1,23 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
+
+from tests.api._helpers import make_app_client
+
+
+@pytest.fixture
+def admin_client(pg_container: str) -> Iterator[TestClient]:
+    """Client avec le VRAI HarpocrateVaultsService (les tests patchent son
+    HarpocrateVaultClient interne). Shadowe le `admin_client` du conftest,
+    dont le service coffres est stubé pour les tests workspaces."""
+    with make_app_client(pg_container) as c:
+        yield c
 
 
 def _payload(**overrides: Any) -> dict[str, Any]:

@@ -27,6 +27,7 @@
     "model": "Modèle",
     "rerank": "Rerank",
     "chunking": "Chunking",
+    "search": "Recherche",
     "playground": "Playground",
     "triggers": "Triggers",
     "apikeys": "Api",
@@ -54,12 +55,41 @@
     },
     "ids": {
       "title": "Identifiants (lecture seule)",
-      "name": "nom",
-      "id": "id"
+      "label": "nom d'affichage",
+      "name": "identifiant",
+      "id": "id",
+      "description": "description",
+      "description_empty": "Aucune description"
     },
     "save": {
       "success": "Référence enregistrée.",
       "error": "Erreur à l'enregistrement."
+    },
+    "llm": {
+      "title": "LLM (exécution des prompts)",
+      "empty": "Aucun LLM configuré — recréez le workspace depuis un endpoint avec LLM (Coffres → Endpoints).",
+      "disabled": "désactivé"
+    },
+    "refresh": {
+      "help": "Recopier la configuration (vectorisation, rerank, LLM) depuis l'endpoint d'origine du workspace.",
+      "button": "Rafraîchir depuis l'endpoint",
+      "no_link": "Workspace créé avant le lien endpoint — recréez-le pour activer le rafraîchissement.",
+      "done": "Configuration recopiée depuis l'endpoint.",
+      "error": "Échec du rafraîchissement depuis l'endpoint.",
+      "confirm": {
+        "title": "Changement de modèle d'embedding",
+        "intro": "L'endpoint définit un autre modèle de vectorisation : la recopie déclenchera une réindexation complète du workspace.",
+        "current": "Modèle actuel",
+        "requested": "Modèle de l'endpoint",
+        "consequence": "Tous les documents seront re-vectorisés. L'index reste indisponible pendant l'opération.",
+        "cancel": "Annuler",
+        "confirm": "Réindexer"
+      }
+    },
+    "limits": {
+      "title": "Limites",
+      "rpm": "{{value}} req/min",
+      "tpm": "{{value}} tokens/min"
     }
   },
   "sources": {
@@ -150,7 +180,8 @@
       "more": "+ {{count}} fichiers supplémentaires",
       "no_files": "Aucun détail de fichier (job antérieur à cette fonctionnalité).",
       "loading": "Chargement…",
-      "error": "Échec du chargement des fichiers."
+      "error": "Échec du chargement des fichiers.",
+      "params": "Paramètres de la demande"
     }
   },
   "model": {
@@ -158,7 +189,7 @@
     "provider": "provider",
     "model": "model",
     "base_url": "base_url",
-    "api_key_ref": "api_key_ref",
+    "api_key_ref": "Référence de clé API",
     "immutableNote": "Le modèle est immutable. Changer provider ou model invaliderait toutes les dimensions vecteurs et nécessiterait une réindexation complète, non supportée dans cette version."
   },
   "rerank": {
@@ -185,7 +216,7 @@
       "baseUrl": "Base URL (Ollama)",
       "baseUrlPlaceholder": "https://ollama.example.com",
       "baseUrlNotApplicable": "— non applicable —",
-      "apiKeyRef": "Référence clé API Harpocrate",
+      "apiKeyRef": "Référence de clé API",
       "apiKeyRefPlaceholder": "cohere_rerank_key",
       "apiKeyRefNotApplicable": "— non applicable —",
       "topK": "top_k pré-rerank",
@@ -248,7 +279,10 @@
       "min_lt_max": "Doit être inférieur à la taille max",
       "overlap_lt_max": "Doit être inférieur à la taille max"
     },
-    "actions": { "save": "Enregistrer", "cancel": "Annuler" },
+    "actions": {
+      "save": "Enregistrer",
+      "cancel": "Annuler"
+    },
     "save": {
       "success": "Configuration enregistrée",
       "noChange": "Aucune modification",
@@ -262,7 +296,10 @@
         "labelCurrent": "Configuration actuelle :",
         "labelNew": "Nouvelle configuration :",
         "consequence": "Cette opération va supprimer tous les chunks existants et ré-indexer les documents. Cela peut prendre plusieurs minutes.",
-        "actions": { "cancel": "Annuler", "confirm": "Réindexer maintenant" }
+        "actions": {
+          "cancel": "Annuler",
+          "confirm": "Réindexer maintenant"
+        }
       }
     },
     "lastModified": "Dernière modification : {{when}}",
@@ -287,6 +324,64 @@
           "description": "Retire les balises (<p>, <div>…) et décode les entités HTML (&amp; → &, &lt; → <…). Utile pour les exports web ou les sources scrappées."
         }
       }
+    },
+    "defaultStrategy": {
+      "title": "Stratégie par défaut",
+      "description": "Stratégie du catalogue liée par id : elle traite les fichiers de la catégorie par défaut (prose et extensions inconnues). Les catégories spécialisées (code, table, data) gardent leur routage.",
+      "label": "Stratégie du catalogue",
+      "cascade": "— cascade par catégories (aucun binding) —",
+      "save": "Appliquer",
+      "saved": "Stratégie par défaut mise à jour.",
+      "error": "La mise à jour a échoué."
+    },
+    "engine": {
+      "badgeStructured": "Moteur : structured",
+      "legacyBanner": "Ce workspace utilise le moteur historique (caractères). Le moteur structured (stratégies, tokens, régions) est la référence.",
+      "structuredInfo": {
+        "body": "Les paramètres de découpage (tokens, nettoyage, régions) sont définis dans les stratégies du catalogue, sur la page Stratégies de chunking. Les affectations par extension se règlent dans l'onglet Triggers.",
+        "link": "Ouvrir le catalogue des stratégies"
+      },
+      "actions": {
+        "switchToStructured": "Passer au moteur structured",
+        "switchToLegacy": "Repasser au moteur legacy"
+      },
+      "switched": "Moteur de chunking mis à jour",
+      "error": "La bascule du moteur a échoué"
+    }
+  },
+  "search": {
+    "title": "Recherche hybride",
+    "description": "Combine la recherche vectorielle (pgvector) et une recherche lexicale, fusionnées par RRF (Reciprocal Rank Fusion).",
+    "empty": {
+      "title": "Recherche vectorielle pure",
+      "description": "Aucune configuration hybride pour ce workspace : les requêtes utilisent uniquement la similarité vectorielle pgvector.",
+      "activate": "Activer la recherche hybride"
+    },
+    "fields": {
+      "enabled": "Recherche hybride activée",
+      "engine": "Moteur lexical",
+      "engines": {
+        "fts": "FTS natif Postgres",
+        "ftsHelp": "Bilingue pondéré, suffisant pour la plupart des corpus.",
+        "bm25": "BM25 via extension pg_search",
+        "bm25Help": "IDF global, saturation de fréquence ; utile sur gros corpus hétérogènes."
+      },
+      "weightVector": "Poids vectoriel",
+      "weightLexical": "Poids lexical",
+      "rrfK": "rrf_k (avancé)",
+      "rrfKHelp": "Constante d'amortissement RRF : chaque canal contribue poids / (k + rang). Plus k est grand, plus les écarts entre rangs sont lissés. Défaut : 60."
+    },
+    "actions": {
+      "save": "Enregistrer"
+    },
+    "save": {
+      "success": "Configuration enregistrée.",
+      "error": "Échec de l'enregistrement.",
+      "rebuild": "Reconstruction de l'index lexical lancée (job {{jobId}})."
+    },
+    "errors": {
+      "engineUnavailable": "Le moteur « {{engine}} » n'est pas disponible sur cette instance Postgres.",
+      "engineUnavailableExplain": "Installez l'extension pg_search sur l'instance Postgres, ou conservez le moteur FTS natif qui ne requiert aucune extension."
     }
   },
   "dialog": {
@@ -390,7 +485,11 @@
       "embed_chunks_title": "Chunks embeddés ({{count}})",
       "embed_chunk_label": "#{{index}}",
       "error": "Erreur de chargement de la vue document."
-    }
+    },
+    "meta_indexer": "Indexeur",
+    "meta_hash": "Empreinte",
+    "meta_indexed_at": "Indexé le",
+    "meta_source": "Voir l'original"
   },
   "optional": "optionnel",
   "time": {

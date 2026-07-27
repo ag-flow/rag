@@ -38,3 +38,32 @@ def make_app_client(
 
     app = build_app(version="0.2.0", git_sha="testsha", migrations_dir=MIGRATIONS_DIR)
     return TestClient(app)
+
+
+def make_ws_with_user_key(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    name: str,
+    *,
+    scope: str = "read_write",
+) -> tuple[dict, str]:
+    """Crée un workspace + une clé API utilisateur. → (workspace, clé).
+
+    Remplace l'ancien flux « la création de workspace retourne une api_key »
+    (supprimé par le chantier clés utilisateur, 444308a) : l'accès push/MCP
+    passe par une clé user (`/api/me/api-keys`) avec un niveau d'accès global
+    (`scope`, migration 067).
+    """
+    ws = client.post(
+        "/api/admin/workspaces",
+        headers=admin_headers,
+        json={"name": name, "label": name, "endpoint_id": client.default_endpoint_id},  # type: ignore[attr-defined]
+    )
+    assert ws.status_code == 201, ws.text
+    key = client.post(
+        "/api/me/api-keys",
+        headers=admin_headers,
+        json={"name": f"key-{name}", "scope": scope},
+    )
+    assert key.status_code == 201, key.text
+    return ws.json(), key.json()["api_key"]

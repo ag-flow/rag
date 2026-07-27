@@ -1,17 +1,35 @@
 // Types miroirs du schema Pydantic ModelEntry
 // (cf. backend/src/rag/schemas/admin.py:123)
 
+export type ModelKind = "embedding" | "llm" | "rerank";
+
 export type ModelEntry = {
   provider: string;
   model: string;
-  dimension: number;
+  /** embedding = vectorisation (dimension requise) ; llm = exécution des prompts. */
+  kind: ModelKind;
+  dimension: number | null;
+  /** URL d'appel complète optionnelle ({url}/{base_url}, {model}) — prime sur le masque provider. */
+  url_template?: string | null;
   created_at: string;
+  /** true = catalogue système (seeds), immuable ; false = modèle de l'utilisateur. */
+  is_system: boolean;
 };
 
 export type ModelCreateRequest = {
   provider: string;
   model: string;
-  dimension: number;
+  kind: ModelKind;
+  dimension: number | null;
+  /** URL d'appel complète optionnelle ({url}/{base_url}, {model}) — prime sur le masque provider. */
+  url_template?: string | null;
+};
+
+/** Body PATCH — la clé (provider, model) est immuable. */
+export type ModelUpdateRequest = {
+  kind: ModelKind;
+  dimension: number | null;
+  url_template?: string | null;
 };
 
 // ─── Pricing YAML types ───────────────────────────────────────────────────────
@@ -39,4 +57,24 @@ export interface PricingData {
   meta?: { releve_date?: string; devise?: string; unite_defaut?: string };
   providers?: Record<string, ProviderPricing>;
   remarques_globales?: Array<{ fr?: string; en?: string }>;
+}
+
+/** Préconisation de pairing embedder → reranker (motifs LIKE, '%' joker). */
+/** Masque d'URL d'une capacité d'un provider (référentiel backend). */
+export interface CapabilityUrl {
+  template: string;
+  default_base_url: string | null;
+}
+
+export type ProviderUrlTemplates = Record<
+  string,
+  Partial<Record<"embeddings" | "chat" | "rerank", CapabilityUrl>>
+>;
+
+export interface RerankPairing {
+  embed_provider_like: string;
+  embed_model_like: string;
+  rerank_provider_like: string;
+  rerank_model_like: string;
+  note: string;
 }

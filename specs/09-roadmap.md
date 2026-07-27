@@ -70,6 +70,24 @@ Sécurisation du `HARPOCRATE_TOKEN` dans le `.env` via le SDK Harpocrate. Transp
 
 ---
 
+### Alerte proactive d'expiration des clés de coffre
+
+**Statut : backlog, à planifier.**
+
+Aujourd'hui l'expiration d'une clé d'accès Harpocrate n'est que **lue** depuis le token et affichée passivement (badge « expire bientôt / expiré » dans l'onglet *Info* du coffre — `VaultWalletInfoTab`, seuil 30 jours). Rien ne prévient l'utilisateur **avant** qu'une clé expire ; il découvre le problème quand la résolution de secrets échoue.
+
+Objectif : signaler proactivement une clé proche de l'expiration ou expirée, pour que l'admin la remplace (via « 🔁 Remplacer la clé », déjà livré) avant la panne.
+
+Pistes à cadrer lors de la planification :
+- **Indicateur global** : badge/pastille sur l'entrée de menu Coffres + sur la ligne du coffre concerné dans la liste, agrégeant l'état d'expiration de tous les coffres.
+- **Bannière** en tête du paramétrage du coffre quand la clé courante expire sous X jours ou est déjà expirée.
+- **Seuil configurable** (défaut 30 j, réutiliser celui de `ExpiresCell`).
+- **Notification** (optionnel, jalon distinct) : canal à définir — le token portant déjà `exp`, pas de stockage `expires_at` supplémentaire nécessaire côté coffre.
+
+Aucune rotation automatique : le remplacement reste une action manuelle explicite (audit-loggée `vault.api_key_rotated`).
+
+---
+
 ### Intégration ag.flow
 
 Le service RAG sera référencé dans la partie Docker d'ag.flow comme ressource d'infrastructure. Les agents Docker auront accès au contexte de leur workspace via MCP sans configuration manuelle au-delà du `docker-compose.yml`.

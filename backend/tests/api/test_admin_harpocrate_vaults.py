@@ -1,8 +1,23 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
+
+from tests.api._helpers import make_app_client
+
+
+@pytest.fixture
+def admin_client(pg_container: str) -> Iterator[TestClient]:
+    """Client avec le VRAI HarpocrateVaultsService (CRUD coffres en DB).
+
+    Shadowe le `admin_client` du conftest, dont le service coffres est stubé
+    (nécessaire aux tests workspaces) : ici on teste précisément ce service.
+    """
+    with make_app_client(pg_container) as c:
+        yield c
 
 
 def _payload(**overrides: Any) -> dict[str, Any]:

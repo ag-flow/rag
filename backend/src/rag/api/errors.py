@@ -243,6 +243,25 @@ class ModelInUse(AdminError):
         }
 
 
+class ModelNotOwned(AdminError):
+    """Modèle du catalogue système (immuable) ou d'un autre utilisateur."""
+
+    http_status = 403
+
+    def __init__(self, provider: str, model: str, *, is_system: bool) -> None:
+        super().__init__(provider, model)
+        self.provider = provider
+        self.model = model
+        self.is_system = is_system
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "error": "model_system_immutable" if self.is_system else "model_not_owned",
+            "provider": self.provider,
+            "model": self.model,
+        }
+
+
 class PatchFieldNotAllowed(AdminError):
     http_status = 422
 
@@ -297,6 +316,18 @@ class OidcNotConfigured(AdminError):
         return {
             "error": "oidc_not_configured",
             "message": "POST /admin/oidc avec la master-key pour configurer Keycloak",
+        }
+
+
+class OidcClientSecretMissing(AdminError):
+    """Config OIDC présente en base mais RAG_OIDC_CLIENT_SECRET absent du .env."""
+
+    http_status = 500
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "error": "oidc_client_secret_missing",
+            "message": "RAG_OIDC_CLIENT_SECRET absent du .env (requis pour l'échange OIDC)",
         }
 
 
@@ -399,7 +430,10 @@ class SetupRequired(AdminError):
     http_status = 503
 
     def to_payload(self) -> dict[str, object]:
-        return {"error": "setup_required", "message": "Aucun utilisateur — complétez le wizard de premier démarrage"}
+        return {
+            "error": "setup_required",
+            "message": "Aucun utilisateur — complétez le wizard de premier démarrage",
+        }
 
 
 class LocalAuthInvalidCredentials(AdminError):
@@ -409,6 +443,18 @@ class LocalAuthInvalidCredentials(AdminError):
 
     def to_payload(self) -> dict[str, object]:
         return {"error": "invalid_credentials", "message": "Identifiants invalides"}
+
+
+class LocalAuthDisabled(AdminError):
+    """Login local tenté alors que RAG_LOCAL_AUTH_DISABLED=true."""
+
+    http_status = 403
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "error": "local_auth_disabled",
+            "message": "La connexion locale est désactivée (RAG_LOCAL_AUTH_DISABLED)",
+        }
 
 
 class LocalSessionExpired(AdminError):

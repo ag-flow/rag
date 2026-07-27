@@ -41,14 +41,12 @@ async def test_discover_fetches_well_known_and_caches() -> None:
 
     svc = OidcService(
         config_pool=None,  # pas utilisé dans _discover
-        secret_resolver=None,  # idem
         public_url="https://rag.example.com",
         http_client=client,
     )
     cfg = OidcConfig(
         issuer=issuer,
         client_id="rag-service",
-        client_secret_ref="x",
     )
     d1 = await svc._discover(cfg)
     d2 = await svc._discover(cfg)
@@ -75,11 +73,10 @@ async def test_discover_reloads_after_ttl() -> None:
 
     svc = OidcService(
         config_pool=None,
-        secret_resolver=None,
         public_url="https://rag.example.com",
         http_client=client,
     )
-    cfg = OidcConfig(issuer=issuer, client_id="x", client_secret_ref="x")
+    cfg = OidcConfig(issuer=issuer, client_id="x")
     await svc._discover(cfg)
     # Simule l'expiration : remplace l'entrée par une version avec fetched_at très ancien
     for key in list(svc._discovery_cache):
@@ -107,11 +104,10 @@ async def test_discover_raises_keycloak_unreachable_on_timeout() -> None:
 
     svc = OidcService(
         config_pool=None,
-        secret_resolver=None,
         public_url="https://rag.example.com",
         http_client=client,
     )
-    cfg = OidcConfig(issuer=issuer, client_id="x", client_secret_ref="x")
+    cfg = OidcConfig(issuer=issuer, client_id="x")
     with pytest.raises(OidcKeycloakUnreachable) as exc:
         await svc._discover(cfg)
     assert exc.value.issuer == issuer
@@ -129,11 +125,10 @@ async def test_discover_raises_keycloak_unreachable_on_500() -> None:
 
     svc = OidcService(
         config_pool=None,
-        secret_resolver=None,
         public_url="https://rag.example.com",
         http_client=client,
     )
-    cfg = OidcConfig(issuer=issuer, client_id="x", client_secret_ref="x")
+    cfg = OidcConfig(issuer=issuer, client_id="x")
     with pytest.raises(OidcKeycloakUnreachable):
         await svc._discover(cfg)
 
@@ -156,11 +151,10 @@ async def test_jwks_fetches_and_caches() -> None:
 
     svc = OidcService(
         config_pool=None,
-        secret_resolver=None,
         public_url="https://rag.example.com",
         http_client=client,
     )
-    cfg = OidcConfig(issuer=issuer, client_id="x", client_secret_ref="x")
+    cfg = OidcConfig(issuer=issuer, client_id="x")
     d = await svc._discover(cfg)
     ks1 = await svc._jwks(d)
     ks2 = await svc._jwks(d)  # cache

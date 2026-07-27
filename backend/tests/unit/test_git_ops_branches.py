@@ -10,10 +10,10 @@ from rag.sync.git_ops import list_remote_branches
 @pytest.mark.asyncio
 async def test_list_remote_branches_parses_heads() -> None:
     ls_remote_output = (
-        "abc123\trefs/heads/main\n"
-        "def456\trefs/heads/develop\n"
-        "ghi789\trefs/heads/feature/auth\n"
-    ).encode()
+        b"abc123\trefs/heads/main\n"
+        b"def456\trefs/heads/develop\n"
+        b"ghi789\trefs/heads/feature/auth\n"
+    )
 
     fake_proc = MagicMock()
     fake_proc.returncode = 0

@@ -7,6 +7,8 @@ import asyncpg
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.api.conftest import seed_endpoint_sync
+
 pytestmark = pytest.mark.smoke
 
 
@@ -32,22 +34,32 @@ def test_push_e2e_indexes_embeddings_in_pgvector(
         headers=admin_headers,
         json={
             "name": "ws_smoke_ollama",
-            "api_key_vault": "rag",
-            "indexer": {
-                "provider": "ollama",
-                "model": "nomic-embed-text",
-                "base_url": ollama_url,
-            },
+            "label": "ws_smoke_ollama",
+            "endpoint_id": seed_endpoint_sync(
+                os.environ["DATABASE_URL"],
+                slug="ep-ws_smoke_ollama",
+                provider="ollama",
+                model="nomic-embed-text",
+                api_key_ref=None,
+                base_url=ollama_url,
+            ),
         },
     )
     assert r.status_code == 201, r.text
-    api_key = r.json()["api_key"]
+    kr = admin_client.post(
+        "/api/me/api-keys",
+        headers=admin_headers,
+        json={"name": "key-smoke", "scope": "read_write"},
+    )
+    assert kr.status_code == 201, kr.text
+    api_key = kr.json()["api_key"]
 
     # 2. Push un doc.
     r2 = admin_client.post(
-        "/workspaces/ws_smoke_ollama/index",
+        "/api/v1/index",
         headers={"Authorization": f"Bearer {api_key}"},
         json={
+            "workspace": "ws_smoke_ollama",
             "path": "smoke/hello.md",
             "content": "Hello vector world. This is a smoke test for push.",
         },

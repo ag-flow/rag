@@ -15,16 +15,36 @@ from rag.schemas.enrichments import (
 log = structlog.get_logger(__name__)
 
 
+class UnknownTriggerStrategyError(ValueError):
+    """Stratégie invisible pour ce caller (ni système ni la sienne)."""
+
+
+async def _check_strategy_visible(
+    conn: asyncpg.Connection, *, strategy_id: object, owner_id: str
+) -> None:
+    """Le binding est par id (spec chunking §5) mais s'écrit uniquement vers
+    une stratégie visible du caller : système ou sa bibliothèque."""
+    visible = await conn.fetchval(
+        "SELECT 1 FROM chunking_strategies s "
+        "WHERE s.id = $1 AND s.workspace_id IS NULL "
+        "AND (s.owner_id IS NULL OR s.owner_id = $2)",
+        strategy_id,
+        owner_id,
+    )
+    if visible is None:
+        raise UnknownTriggerStrategyError(f"stratégie introuvable : {strategy_id}")
+
+
 async def list_triggers(
     conn: asyncpg.Connection, *, workspace_name: str
 ) -> list[TriggerOut]:
     rows = await conn.fetch(
         """
-        SELECT t.id, t.extension, t.enabled, t.created_at
+        SELECT t.id, t.pattern, t.enabled, t.strategy_id, t.created_at
         FROM workspace_extension_triggers t
         JOIN workspaces w ON w.id = t.workspace_id
         WHERE w.name = $1
-        ORDER BY t.extension
+        ORDER BY t.pattern
         """,
         workspace_name,
     )
@@ -32,34 +52,60 @@ async def list_triggers(
 
 
 async def create_trigger(
-    conn: asyncpg.Connection, *, workspace_name: str, req: TriggerCreate
+    conn: asyncpg.Connection, *, workspace_name: str, req: TriggerCreate, owner_id: str
 ) -> TriggerOut:
+    if req.strategy_id is not None:
+        await _check_strategy_visible(conn, strategy_id=req.strategy_id, owner_id=owner_id)
     row = await conn.fetchrow(
         """
-        INSERT INTO workspace_extension_triggers (workspace_id, extension, enabled)
-        SELECT w.id, $2, $3 FROM workspaces w WHERE w.name = $1
-        RETURNING id, extension, enabled, created_at
+        INSERT INTO workspace_extension_triggers (workspace_id, pattern, enabled, strategy_id)
+        SELECT w.id, $2, $3, $4 FROM workspaces w WHERE w.name = $1
+        RETURNING id, pattern, enabled, strategy_id, created_at
         """,
-        workspace_name, req.extension, req.enabled,
+        workspace_name, req.pattern, req.enabled, req.strategy_id,
     )
     if row is None:
         raise ValueError(f"workspace {workspace_name!r} not found")
-    log.info("trigger.created", workspace=workspace_name, extension=req.extension)
+    log.info("trigger.created", workspace=workspace_name, pattern=req.pattern)
     return TriggerOut.model_validate(dict(row))
 
 
 async def patch_trigger(
-    conn: asyncpg.Connection, *, workspace_name: str, trigger_id: str, req: TriggerPatch
+    conn: asyncpg.Connection,
+    *,
+    workspace_name: str,
+    trigger_id: str,
+    req: TriggerPatch,
+    owner_id: str,
 ) -> TriggerOut | None:
-    row = await conn.fetchrow(
-        """
-        UPDATE workspace_extension_triggers t SET enabled = $3
-        FROM workspaces w
-        WHERE w.id = t.workspace_id AND w.name = $1 AND t.id = $2::uuid
-        RETURNING t.id, t.extension, t.enabled, t.created_at
-        """,
-        workspace_name, trigger_id, req.enabled,
-    )
+    async with conn.transaction():
+        current = await conn.fetchrow(
+            """
+            SELECT t.enabled, t.strategy_id
+            FROM workspace_extension_triggers t
+            JOIN workspaces w ON w.id = t.workspace_id
+            WHERE w.name = $1 AND t.id = $2::uuid
+            FOR UPDATE OF t
+            """,
+            workspace_name, trigger_id,
+        )
+        if current is None:
+            return None
+        enabled = req.enabled if req.enabled is not None else current["enabled"]
+        strategy_id = (
+            req.strategy_id if "strategy_id" in req.model_fields_set else current["strategy_id"]
+        )
+        if strategy_id is not None and strategy_id != current["strategy_id"]:
+            await _check_strategy_visible(conn, strategy_id=strategy_id, owner_id=owner_id)
+        row = await conn.fetchrow(
+            """
+            UPDATE workspace_extension_triggers t SET enabled = $3, strategy_id = $4
+            FROM workspaces w
+            WHERE w.id = t.workspace_id AND w.name = $1 AND t.id = $2::uuid
+            RETURNING t.id, t.pattern, t.enabled, t.strategy_id, t.created_at
+            """,
+            workspace_name, trigger_id, enabled, strategy_id,
+        )
     return TriggerOut.model_validate(dict(row)) if row else None
 
 

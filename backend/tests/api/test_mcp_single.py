@@ -8,6 +8,20 @@ from fastapi.testclient import TestClient
 from pgvector.asyncpg import register_vector
 
 
+def _make_user_key(
+    client, admin_headers: dict[str, str], ws_id: str, name: str
+) -> str:
+    """Crée une clé utilisateur de niveau lecture (recherche MCP, accès global)."""
+    kr = client.post(
+        "/api/me/api-keys",
+        headers=admin_headers,
+        json={"name": f"key-{name}", "scope": "read"},
+    )
+    assert kr.status_code == 201, kr.text
+    return kr.json()["api_key"]
+
+
+
 def _run_async(coro):  # type: ignore[no-untyped-def]
     """Run a coroutine in a fresh event loop, safely from a sync test body.
 
@@ -28,18 +42,10 @@ def _make_ws(client: TestClient, admin_headers: dict[str, str], name: str) -> st
     r = client.post(
         "/api/admin/workspaces",
         headers=admin_headers,
-        json={
-            "name": name,
-            "api_key_vault": "rag",
-            "indexer": {
-                "provider": "openai",
-                "model": "text-embedding-3-small",
-                "api_key_ref": "openai_embedding_key",
-            },
-        },
+        json={"name": name, "label": name, "endpoint_id": client.default_endpoint_id},
     )
     assert r.status_code == 201, r.text
-    return r.json()["api_key"]
+    return _make_user_key(client, admin_headers, r.json()["id"], name)
 
 
 class _FakeProvider:
@@ -127,7 +133,7 @@ def test_mcp_single_returns_top_k_hits(
     _inject_fake_provider(vec=near)
 
     r = admin_client.post(
-        "/mcp",
+        "/api/v1/search",
         json={
             "workspace": "ws_mcp_a",
             "api_key": api_key,
@@ -168,7 +174,7 @@ def test_mcp_single_min_score_strict_returns_empty(
     _inject_fake_provider(vec=near)
 
     r = admin_client.post(
-        "/mcp",
+        "/api/v1/search",
         json={
             "workspace": "ws_mcp_strict",
             "api_key": api_key,
@@ -207,7 +213,7 @@ def test_mcp_single_default_top_k_is_5(
     _inject_fake_provider(vec=near)
 
     r = admin_client.post(
-        "/mcp",
+        "/api/v1/search",
         json={
             "workspace": "ws_mcp_def",
             "api_key": api_key,

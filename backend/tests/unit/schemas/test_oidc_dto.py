@@ -15,7 +15,6 @@ def test_oidc_config_create_accepts_valid_payload() -> None:
     cfg = OidcConfigCreate(
         issuer="https://keycloak.yoops.org/realms/homelab",
         client_id="rag-service",
-        client_secret_ref="keycloak_rag_client_secret",
     )
     assert str(cfg.issuer) == "https://keycloak.yoops.org/realms/homelab"
     assert cfg.client_id == "rag-service"
@@ -26,7 +25,6 @@ def test_oidc_config_create_rejects_non_url_issuer() -> None:
         OidcConfigCreate(
             issuer="not-a-url",
             client_id="rag-service",
-            client_secret_ref="x",
         )
 
 
@@ -35,16 +33,6 @@ def test_oidc_config_create_rejects_empty_client_id() -> None:
         OidcConfigCreate(
             issuer="https://keycloak.yoops.org/realms/homelab",
             client_id="",
-            client_secret_ref="x",
-        )
-
-
-def test_oidc_config_create_rejects_empty_client_secret_ref() -> None:
-    with pytest.raises(ValidationError):
-        OidcConfigCreate(
-            issuer="https://keycloak.yoops.org/realms/homelab",
-            client_id="rag-service",
-            client_secret_ref="",
         )
 
 
@@ -53,7 +41,6 @@ def test_oidc_config_create_rejects_extra_fields() -> None:
         OidcConfigCreate(
             issuer="https://keycloak.yoops.org/realms/homelab",
             client_id="rag-service",
-            client_secret_ref="x",
             extra_field="rejected",
         )
 
@@ -62,7 +49,6 @@ def test_oidc_config_read_serializes_full() -> None:
     cfg = OidcConfigRead(
         issuer="https://keycloak.yoops.org/realms/homelab",
         client_id="rag-service",
-        client_secret_ref="keycloak_rag_client_secret",
     )
     d = cfg.model_dump()
     assert d["issuer"] == "https://keycloak.yoops.org/realms/homelab"

@@ -36,7 +36,12 @@ describe("VaultDetailTab", () => {
   it("renders the form pre-filled with vault values", () => {
     render(
       <Wrapper>
-        <VaultDetailTab vault={vault} onReveal={() => {}} onRetire={() => {}} />
+        <VaultDetailTab
+          vault={vault}
+          onReveal={() => {}}
+          onReplaceKey={() => {}}
+          onRetire={() => {}}
+        />
       </Wrapper>,
     );
 
@@ -45,14 +50,20 @@ describe("VaultDetailTab", () => {
     expect(screen.getByDisplayValue("k-001")).toBeInTheDocument();
   });
 
-  it("invokes the retire and reveal handlers", async () => {
+  it("invokes the retire, reveal and replace-key handlers", async () => {
     const onRetire = vi.fn();
     const onReveal = vi.fn();
+    const onReplaceKey = vi.fn();
     const user = userEvent.setup();
 
     render(
       <Wrapper>
-        <VaultDetailTab vault={vault} onReveal={onReveal} onRetire={onRetire} />
+        <VaultDetailTab
+          vault={vault}
+          onReveal={onReveal}
+          onReplaceKey={onReplaceKey}
+          onRetire={onRetire}
+        />
       </Wrapper>,
     );
 
@@ -61,6 +72,9 @@ describe("VaultDetailTab", () => {
 
     await user.click(screen.getByRole("button", { name: /reveal/i }));
     expect(onReveal).toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /remplacer la clé/i }));
+    expect(onReplaceKey).toHaveBeenCalled();
   });
 
   it("calls api.patch when Enregistrer is clicked after editing", async () => {
@@ -71,7 +85,12 @@ describe("VaultDetailTab", () => {
 
     render(
       <Wrapper>
-        <VaultDetailTab vault={vault} onReveal={() => {}} onRetire={() => {}} />
+        <VaultDetailTab
+          vault={vault}
+          onReveal={() => {}}
+          onReplaceKey={() => {}}
+          onRetire={() => {}}
+        />
       </Wrapper>,
     );
 

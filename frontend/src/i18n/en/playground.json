@@ -1,7 +1,30 @@
 {
   "tabs": {
     "config": "LLM Config",
-    "chat": "Chat"
+    "chat": "Chat",
+    "chunkPreview": "Chunking preview",
+    "search": "Search"
+  },
+  "search": {
+    "query_placeholder": "Search query\u2026",
+    "run": "Search",
+    "running": "Searching\u2026",
+    "error": "Search failed.",
+    "hybrid_disabled": "Hybrid search is not enabled \u2014 the lexical channel is empty. Enable it in the workspace Search tab.",
+    "sections": {
+      "fusion": "Fusion (RRF)",
+      "vector": "Vector channel",
+      "lexical": "Lexical channel"
+    },
+    "rank": "#{{rank}}",
+    "empty_channel": "No results.",
+    "simulation": {
+      "title": "Weight simulation (client-side)",
+      "description": "Re-merges both channels locally with the weights below, without calling the server. Adjust to visualize the effect before saving in the workspace Search tab.",
+      "weightVector": "Vector weight (simulation)",
+      "weightLexical": "Lexical weight (simulation)",
+      "resultTitle": "Simulated fusion"
+    }
   },
   "config": {
     "title": "LLM Configurations",
@@ -39,5 +62,32 @@
     "tokens": "Tokens: prompt={{prompt}} / completion={{completion}}",
     "thinking": "Thinking…",
     "error_toast": "LLM call failed."
+  },
+  "chunkPreview": {
+    "strategy_a": "Strategy",
+    "strategy_b": "Compare with…",
+    "compare_none": "— no comparison —",
+    "content_label": "Sample document (markdown)",
+    "content_placeholder": "Paste a document here to preview its chunking…",
+    "run": "Preview",
+    "running": "Chunking…",
+    "totals": "{{chunks}} chunks · ~{{tokens}} tokens",
+    "diff_summary": "{{common}} common chunks · {{onlyA}} only A · {{onlyB}} only B",
+    "chunk_title": "chunk {{index}} · ~{{tokens}} tok",
+    "region_badge": "{{type}}{{qualifier}}",
+    "parents": "{{count}} parent section(s)",
+    "only_this_side": "absent from the other strategy",
+    "error": "Preview failed: {{message}}",
+    "empty_hint": "Pick a strategy and paste a document.",
+    "regions_title": "{{count}} detected region(s)",
+    "region_inline": "inline (no route)",
+    "region_inline_explicit": "inline (explicit route)",
+    "region_atomic": "atomic · {{policy}}",
+    "region_parent_only": "parent_only — returned to the LLM, never embedded",
+    "region_target": "routed to “{{label}}”",
+    "prompts_title": "Strategy inline prompts",
+    "run_prompts": "Generate contexts on the sample (real LLM calls)",
+    "prompts_executed": "contexts generated",
+    "prompt_disabled": "disabled"
   }
 }

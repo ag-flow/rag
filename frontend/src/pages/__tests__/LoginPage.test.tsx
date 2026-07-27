@@ -52,9 +52,16 @@ afterEach(() => {
   });
 });
 
-function mockMethods(methods: AuthMethods | undefined, isLoading = false) {
+const DEFAULT_METHODS: AuthMethods = {
+  oidc_configured: false,
+  local_auth_enabled: false,
+  needs_setup: false,
+  local_auth_disabled_by_config: false,
+};
+
+function mockMethods(methods: Partial<AuthMethods> | undefined, isLoading = false) {
   vi.mocked(useAuthMethods).mockReturnValue({
-    data: methods,
+    data: methods ? { ...DEFAULT_METHODS, ...methods } : undefined,
     isLoading,
   } as unknown as ReturnType<typeof useAuthMethods>);
 }
@@ -76,13 +83,13 @@ describe("LoginPage", () => {
     renderPage();
     expect(screen.getByText(/Créer le compte administrateur/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Adresse e-mail/i)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Keycloak/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /OIDC/i })).not.toBeInTheDocument();
   });
 
   it("oidc=true, local=true → bouton SSO + formulaire login visibles", () => {
     mockMethods({ oidc_configured: true, local_auth_enabled: true, needs_setup: false });
     renderPage();
-    expect(screen.getByRole("button", { name: /Keycloak/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /OIDC/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/Username/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Password/i)).toBeInTheDocument();
   });
@@ -90,7 +97,7 @@ describe("LoginPage", () => {
   it("oidc=false, local=true → formulaire login seul + message info", () => {
     mockMethods({ oidc_configured: false, local_auth_enabled: true, needs_setup: false });
     renderPage();
-    expect(screen.queryByRole("button", { name: /Keycloak/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /OIDC/i })).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Username/i)).toBeInTheDocument();
     expect(screen.getByText(/OIDC pas encore configuré/i)).toBeInTheDocument();
   });
@@ -98,16 +105,28 @@ describe("LoginPage", () => {
   it("oidc=true, local=false → SSO seul, pas de form login", () => {
     mockMethods({ oidc_configured: true, local_auth_enabled: false, needs_setup: false });
     renderPage();
-    expect(screen.getByRole("button", { name: /Keycloak/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /OIDC/i })).toBeInTheDocument();
     expect(screen.queryByLabelText(/Username/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Password/i)).not.toBeInTheDocument();
+  });
+
+  it("lien Contrats API en haut à droite, sur le login ET le wizard setup", () => {
+    mockMethods({ oidc_configured: true, local_auth_enabled: true, needs_setup: false });
+    const { unmount } = renderPage();
+    const link = screen.getByRole("link", { name: /Contrats API/i });
+    expect(link).toHaveAttribute("href", "/docs");
+    unmount();
+
+    mockMethods({ oidc_configured: false, local_auth_enabled: false, needs_setup: true });
+    renderPage();
+    expect(screen.getByRole("link", { name: /Contrats API/i })).toHaveAttribute("href", "/docs");
   });
 
   it("oidc=false, local=false → message d'erreur 'no_method'", () => {
     mockMethods({ oidc_configured: false, local_auth_enabled: false, needs_setup: false });
     renderPage();
     expect(screen.getByText(/Aucune méthode d'authentification/i)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Keycloak/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /OIDC/i })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Username/i)).not.toBeInTheDocument();
   });
 
@@ -175,7 +194,7 @@ describe("LoginPage", () => {
   it("clic SSO → redirect vers /auth/login?next=...", () => {
     mockMethods({ oidc_configured: true, local_auth_enabled: false, needs_setup: false });
     renderPage();
-    fireEvent.click(screen.getByRole("button", { name: /Keycloak/i }));
+    fireEvent.click(screen.getByRole("button", { name: /OIDC/i }));
     expect(locationStub.href).toBe(`/auth/login?next=${encodeURIComponent("/ui/workspaces")}`);
   });
 });

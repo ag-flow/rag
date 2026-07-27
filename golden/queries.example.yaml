@@ -1,0 +1,13 @@
+# Golden set d'exemple pour scripts/retrieval_bench.py — à copier par
+# workspace (ex. golden/docflow.yaml) et à faire vivre avec le corpus.
+# 20 à 50 questions RÉELLES (tickets, Slack, requêtes MCP des logs), chacune
+# annotée avec le ou les chemins attendus dans les résultats.
+
+- query: "Comment créer un workspace et lui associer un endpoint de vectorisation ?"
+  expected_paths:
+    - manuel/02-workspaces.md
+
+- query: "Comment fonctionne le routage d'une fence mermaid vers une description LLM ?"
+  expected_paths:
+    - docs/adr/0001-chunking-structure-aware.md
+    - manuel/chunking.md

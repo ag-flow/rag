@@ -249,13 +249,17 @@ export function VaultApikeysTab({ vaultId }: Props) {
           keyLabel={toReplaceProvider.label}
           provider={toReplaceProvider.provider}
           open={!!toReplaceProvider}
-          onOpenChange={(o) => { if (!o) setToReplaceProvider(null); }}
+          onOpenChange={(o) => {
+            if (!o) setToReplaceProvider(null);
+          }}
         />
       )}
 
       <AlertDialog
         open={!!toDeleteProvider}
-        onOpenChange={(o) => { if (!o) setToDeleteProvider(null); }}
+        onOpenChange={(o) => {
+          if (!o) setToDeleteProvider(null);
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -264,18 +268,17 @@ export function VaultApikeysTab({ vaultId }: Props) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("apikeys.cancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteProvider} className="bg-rose-600 hover:bg-rose-700">
+            <AlertDialogAction
+              onClick={handleDeleteProvider}
+              className="bg-rose-600 hover:bg-rose-700"
+            >
               {t("apikeys.delete_btn")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AddGitKeyDialog
-        vaultId={vaultId}
-        open={addGitOpen}
-        onOpenChange={setAddGitOpen}
-      />
+      <AddGitKeyDialog vaultId={vaultId} open={addGitOpen} onOpenChange={setAddGitOpen} />
 
       {toReplaceGit && (
         <ReplaceGitKeyDialog
@@ -284,13 +287,17 @@ export function VaultApikeysTab({ vaultId }: Props) {
           keyLabel={toReplaceGit.label}
           host={toReplaceGit.host}
           open={!!toReplaceGit}
-          onOpenChange={(o) => { if (!o) setToReplaceGit(null); }}
+          onOpenChange={(o) => {
+            if (!o) setToReplaceGit(null);
+          }}
         />
       )}
 
       <AlertDialog
         open={!!toDeleteGit}
-        onOpenChange={(o) => { if (!o) setToDeleteGit(null); }}
+        onOpenChange={(o) => {
+          if (!o) setToDeleteGit(null);
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>

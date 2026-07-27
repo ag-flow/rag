@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import re
 from collections.abc import Iterator
 from pathlib import Path
@@ -15,10 +16,10 @@ from rag.api.errors import (
 )
 from rag.db.migrations import run_migrations
 from rag.schemas.admin import (
-    IndexerSpec,
+    IndexerCreateSpec,
     SourceCreateRequest,
     SourceUpdateRequest,
-    WorkspaceCreateRequest,
+    WorkspaceCreateResolved,
 )
 from rag.schemas.harpocrate_vaults import VaultSummary
 from rag.secrets.resolver import VaultLookupFailed
@@ -43,19 +44,20 @@ class _Resolver:
 
 
 def _make_harpo_service() -> MagicMock:
+    """Stub HarpocrateVaultsService : get_default (await par create_workspace)
+    doit être un AsyncMock."""
     service = MagicMock()
     vault = MagicMock(spec=VaultSummary)
     vault.id = uuid4()
+    vault.name = "rag"
     service.get_by_name = AsyncMock(return_value=vault)
-    service.write_secret = AsyncMock(return_value=None)
-    service.delete_secret = AsyncMock(return_value=None)
+    service.get_default = AsyncMock(return_value=vault)
     return service
 
 
 @pytest.fixture
 def cleanup_ws_dbs(pg_container: str) -> Iterator[None]:
     yield
-    import asyncio
 
     async def _cleanup() -> None:
         admin = await asyncpg.connect(pg_container.rsplit("/", 1)[0] + "/postgres")
@@ -67,17 +69,19 @@ def cleanup_ws_dbs(pg_container: str) -> Iterator[None]:
         finally:
             await admin.close()
 
-    asyncio.get_event_loop().run_until_complete(_cleanup())
+    asyncio.run(_cleanup())
 
 
 async def _setup_ws(pg_container: str, session_pool: asyncpg.Pool, name: str) -> _Resolver:
     admin_dsn = pg_container.rsplit("/", 1)[0] + "/postgres"
     resolver = _Resolver({"k", "github_token"})
     await create_workspace(
-        request=WorkspaceCreateRequest(
+        request=WorkspaceCreateResolved(
             name=name,
-            api_key_vault="rag",
-            indexer=IndexerSpec(provider="openai", model="text-embedding-3-small", api_key_ref="k"),
+            label=name,
+            indexer=IndexerCreateSpec(
+                provider="openai", model="text-embedding-3-small", api_key_ref="k"
+            ),
         ),
         config_pool=session_pool,
         admin_dsn=admin_dsn,
@@ -99,8 +103,6 @@ async def test_add_source_git_inserts_row(
         request=SourceCreateRequest(
             name="harpocrate",
             type="git",
-            api_key_vault="rag",
-            auth_value=None,
             config={
                 "url": "https://github.com/gael/harpocrate",
                 "branch": "main",
@@ -127,14 +129,11 @@ async def test_add_source_workspace_not_found(session_pool: asyncpg.Pool) -> Non
             request=SourceCreateRequest(
                 name="repo",
                 type="git",
-                api_key_vault="rag",
-                auth_value=None,
                 config={"url": "https://github.com/x/y"},
             ),
             config_pool=session_pool,
             harpocrate_vaults_service=_make_harpo_service(),
         )
-
 
 
 @pytest.mark.asyncio
@@ -149,8 +148,6 @@ async def test_add_source_public_no_auth_value(
         request=SourceCreateRequest(
             name="pubrepo",
             type="git",
-            api_key_vault="rag",
-            auth_value=None,
             config={"url": "https://github.com/public/repo", "branch": "main"},
         ),
         config_pool=session_pool,
@@ -170,8 +167,6 @@ async def test_delete_source_removes_row(
         request=SourceCreateRequest(
             name="delrepo",
             type="git",
-            api_key_vault="rag",
-            auth_value=None,
             config={"url": "https://github.com/x/y"},
         ),
         config_pool=session_pool,
@@ -212,8 +207,6 @@ async def test_add_source_sets_next_sync_at_to_now(
         request=SourceCreateRequest(
             name="nextrepo",
             type="git",
-            api_key_vault="rag",
-            auth_value=None,
             config={"url": "https://github.com/x/y"},
         ),
         config_pool=session_pool,
@@ -241,8 +234,6 @@ async def test_add_source_empty_branch_detects_default(
         request=SourceCreateRequest(
             name="repo1",
             type="git",
-            api_key_vault="rag",
-            auth_value=None,
             config={"url": f"file://{bare}", "include": ["**/*.md"], "exclude": []},
         ),
         config_pool=session_pool,
@@ -263,8 +254,6 @@ async def test_add_source_unreachable_falls_back_to_main_with_warning(
         request=SourceCreateRequest(
             name="repo2",
             type="git",
-            api_key_vault="rag",
-            auth_value=None,
             config={
                 "url": "https://example.invalid/x/y.git",
                 "include": ["**/*.md"],
@@ -289,8 +278,6 @@ async def test_add_source_explicit_branch_no_detection(
         request=SourceCreateRequest(
             name="repo3",
             type="git",
-            api_key_vault="rag",
-            auth_value=None,
             config={
                 "url": "https://example.invalid/x/y.git",
                 "branch": "develop",
@@ -317,19 +304,18 @@ async def test_update_source_empty_branch_redetects(
         request=SourceCreateRequest(
             name="repo-upd",
             type="git",
-            api_key_vault="rag",
-            auth_value=None,
             config={"url": f"file://{bare}", "branch": "main", "include": [], "exclude": []},
         ),
         config_pool=session_pool,
         harpocrate_vaults_service=_make_harpo_service(),
     )
+    # PATCH partiel : une branche omise est préservée depuis la config existante.
+    # Pour forcer la redétection, le client envoie explicitement branch vide.
     updated = await update_source(
         workspace_name="ws_branch_upd",
         source_id=created["id"],
         request=SourceUpdateRequest(
-            auth_value=None,
-            config={"url": f"file://{bare}", "include": [], "exclude": []},
+            config={"url": f"file://{bare}", "branch": "", "include": [], "exclude": []},
         ),
         config_pool=session_pool,
         harpocrate_vaults_service=_make_harpo_service(),

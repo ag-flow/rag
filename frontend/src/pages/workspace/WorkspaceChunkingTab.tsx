@@ -1,156 +1,27 @@
-import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useForm, Controller } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertTriangle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { useToast } from "@/hooks/useToast";
-import { useChunkingConfig, useUpsertChunkingConfig } from "@/hooks/useChunking";
-import { ApiError } from "@/lib/api";
-import { isChunkingChangeRequiresReindex } from "@/lib/chunking";
-import type { UpsertChunkingResult } from "@/lib/chunking";
-import type { ChunkingConfig, ChunkingSpec, ChunkingStrategy } from "@/lib/chunking.types";
-import { computeExtrasPayload, extractCleaningOptions } from "@/lib/chunkingExtras";
-import { formatRelativeTime } from "@/lib/relativeTime";
+import { useChunkingConfig } from "@/hooks/useChunking";
 import type { Workspace } from "@/lib/workspaces.types";
-import { ChunkingConfirmReindexAlert } from "./ChunkingConfirmReindexAlert";
-import { CleaningOptionsPanel } from "./CleaningOptionsPanel";
-import { CLEANING_KEYS, type CleaningOptions } from "./CleaningOptionsPanel.schema";
-import {
-  CHUNKING_STRATEGIES,
-  chunkingFormSchema,
-  DEFAULT_CHUNKING_FORM,
-  type ChunkingFormValues,
-} from "./WorkspaceChunkingTab.schema";
-
-function configToForm(config: ChunkingConfig): ChunkingFormValues {
-  return {
-    strategy: config.strategy,
-    max_chars: config.max_chars,
-    min_chars: config.min_chars,
-    overlap_chars: config.overlap_chars,
-    ...extractCleaningOptions(config.extras),
-  };
-}
+import { ChunkingEngineSwitch } from "./ChunkingEngineSwitch";
+import { ChunkingLegacyForm } from "./ChunkingLegacyForm";
+import { ChunkingStructuredView } from "./ChunkingStructuredView";
 
 interface Props {
   workspace: Workspace;
   enabled: boolean;
 }
 
+/**
+ * Onglet Chunking du détail workspace. Rendu conditionnel par moteur :
+ * - `structured` (cible) : stratégie par défaut du catalogue + carte info,
+ *   les paramètres vivent dans les stratégies (/chunking-strategies).
+ * - `legacy` : bandeau d'avertissement avec bascule vers structured, puis le
+ *   formulaire historique en caractères.
+ */
 export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
   const { t } = useTranslation("workspace");
-  const { toast } = useToast();
   const { data, isLoading } = useChunkingConfig(workspace.name, enabled);
-  const upsert = useUpsertChunkingConfig(workspace.name);
-  const [confirmReindex, setConfirmReindex] = useState<{
-    payload: ChunkingSpec;
-    current: string;
-    next: string;
-  } | null>(null);
-
-  const form = useForm<ChunkingFormValues>({
-    resolver: zodResolver(chunkingFormSchema),
-    defaultValues: DEFAULT_CHUNKING_FORM,
-  });
-
-  useEffect(() => {
-    if (isLoading) return;
-    if (data) {
-      form.reset(configToForm(data));
-    }
-  }, [data, isLoading, form]);
-
-  const handleUpsertResult = (result: UpsertChunkingResult) => {
-    if (result.status === "no_change") {
-      toast({ title: t("chunking.save.noChange") });
-    } else if (result.status === "updated") {
-      toast({ title: t("chunking.save.success") });
-      form.reset(configToForm(result.config));
-    } else {
-      toast({ title: t("chunking.reindex.triggered") });
-      form.reset(form.getValues());
-    }
-  };
-
-  const onSubmit = (values: ChunkingFormValues) => {
-    // TS strict : data est garanti par le guard JSX (isLoading || !data → LoadingSpinner)
-    // mais le narrowing ne traverse pas la closure. Guard runtime no-op.
-    if (!data) return;
-    const cleaning: CleaningOptions = {
-      clean_content: values.clean_content,
-      strip_separators: values.strip_separators,
-      strip_boilerplate: values.strip_boilerplate,
-      strip_html: values.strip_html,
-    };
-    const payload: ChunkingSpec = {
-      strategy: values.strategy,
-      max_chars: values.max_chars,
-      min_chars: values.min_chars,
-      overlap_chars: values.overlap_chars,
-      extras: computeExtrasPayload(values.strategy, cleaning, data),
-    };
-    upsert.mutate(
-      { payload, confirm: false },
-      {
-        onSuccess: handleUpsertResult,
-        onError: (err) => {
-          if (
-            err instanceof ApiError &&
-            err.status === 409 &&
-            isChunkingChangeRequiresReindex(err.body)
-          ) {
-            setConfirmReindex({
-              payload,
-              current: err.body.current,
-              next: err.body.new,
-            });
-            return;
-          }
-          toast({ title: t("chunking.save.error"), variant: "destructive" });
-        },
-      },
-    );
-  };
-
-  const cleaningValue: CleaningOptions = {
-    clean_content: form.watch("clean_content"),
-    strip_separators: form.watch("strip_separators"),
-    strip_boilerplate: form.watch("strip_boilerplate"),
-    strip_html: form.watch("strip_html"),
-  };
-
-  const handleCleaningChange = (next: CleaningOptions) => {
-    for (const key of CLEANING_KEYS) {
-      form.setValue(key, next[key], { shouldDirty: true });
-    }
-  };
-
-  const onConfirmReindex = () => {
-    if (!confirmReindex) return;
-    upsert.mutate(
-      { payload: confirmReindex.payload, confirm: true },
-      {
-        onSuccess: (result) => {
-          setConfirmReindex(null);
-          handleUpsertResult(result);
-        },
-        onError: () => {
-          setConfirmReindex(null);
-          toast({ title: t("chunking.save.error"), variant: "destructive" });
-        },
-      },
-    );
-  };
 
   if (isLoading || !data) {
     return (
@@ -173,141 +44,21 @@ export function WorkspaceChunkingTab({ workspace, enabled }: Props) {
         <p className="mt-1 text-sm text-slate-600">{t("chunking.description")}</p>
       </div>
 
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="space-y-4 rounded-md border bg-white p-4"
-      >
-        {/* Stratégie */}
-        <div>
-          <label className="text-sm font-medium text-slate-700">
-            {t("chunking.fields.strategy")}
-          </label>
-          <Controller
-            name="strategy"
-            control={form.control}
-            render={({ field }) => (
-              <Select
-                value={field.value}
-                onValueChange={(v) => field.onChange(v as ChunkingStrategy)}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CHUNKING_STRATEGIES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {t(`chunking.fields.strategies.${s}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          />
-          <p className="mt-1 text-xs text-slate-500">
-            {t(`chunking.fields.strategyHelp.${form.watch("strategy")}`)}
-          </p>
-        </div>
-
-        {/* max_chars */}
-        <div>
-          <label className="text-sm font-medium text-slate-700">
-            {t("chunking.fields.maxChars")}
-          </label>
-          <Input
-            type="number"
-            min={1}
-            {...form.register("max_chars", { valueAsNumber: true })}
-            className="mt-1 w-32"
-          />
-          <p className="mt-1 text-xs text-slate-500">{t("chunking.fields.maxCharsHelp")}</p>
-          {form.formState.errors.max_chars && (
-            <p className="mt-1 text-xs text-red-600">
-              {t(`chunking.errors.${form.formState.errors.max_chars.message ?? "required"}`)}
-            </p>
-          )}
-        </div>
-
-        {/* min_chars */}
-        <div>
-          <label className="text-sm font-medium text-slate-700">
-            {t("chunking.fields.minChars")}
-          </label>
-          <Input
-            type="number"
-            min={0}
-            {...form.register("min_chars", { valueAsNumber: true })}
-            className="mt-1 w-32"
-          />
-          <p className="mt-1 text-xs text-slate-500">{t("chunking.fields.minCharsHelp")}</p>
-          {form.formState.errors.min_chars && (
-            <p className="mt-1 text-xs text-red-600">
-              {t(`chunking.errors.${form.formState.errors.min_chars.message ?? "required"}`)}
-            </p>
-          )}
-        </div>
-
-        {/* overlap_chars */}
-        <div>
-          <label className="text-sm font-medium text-slate-700">
-            {t("chunking.fields.overlapChars")}
-          </label>
-          <Input
-            type="number"
-            min={0}
-            {...form.register("overlap_chars", { valueAsNumber: true })}
-            className="mt-1 w-32"
-          />
-          <p className="mt-1 text-xs text-slate-500">{t("chunking.fields.overlapCharsHelp")}</p>
-          {form.formState.errors.overlap_chars && (
-            <p className="mt-1 text-xs text-red-600">
-              {t(`chunking.errors.${form.formState.errors.overlap_chars.message ?? "required"}`)}
-            </p>
-          )}
-        </div>
-
-        <CleaningOptionsPanel
-          value={cleaningValue}
-          onChange={handleCleaningChange}
-          disabled={upsert.isPending}
-        />
-
-        <p className="text-xs text-slate-500">
-          {t("chunking.lastModified", {
-            when: formatRelativeTime(data.updated_at, t),
-          })}
-        </p>
-
-        <div className="flex items-center justify-end gap-2 pt-2">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => form.reset(configToForm(data))}
-            disabled={!form.formState.isDirty}
-          >
-            {t("chunking.actions.cancel")}
-          </Button>
-          <Button type="submit" disabled={!form.formState.isDirty || upsert.isPending}>
-            {t("chunking.actions.save")}
-          </Button>
-        </div>
-      </form>
-
-      <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 flex gap-2 text-sm">
-        <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-        <p className="text-amber-900">{t("chunking.warning")}</p>
-      </div>
-
-      {confirmReindex && (
-        <ChunkingConfirmReindexAlert
-          open={true}
-          onOpenChange={(o) => {
-            if (!o) setConfirmReindex(null);
-          }}
-          current={confirmReindex.current}
-          next={confirmReindex.next}
-          onConfirm={onConfirmReindex}
-          pending={upsert.isPending}
-        />
+      {data.engine === "structured" ? (
+        <ChunkingStructuredView workspaceName={workspace.name} config={data} />
+      ) : (
+        <>
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm space-y-2">
+            <div className="flex gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <p className="text-amber-900">{t("chunking.engine.legacyBanner")}</p>
+            </div>
+            <div className="flex justify-end">
+              <ChunkingEngineSwitch workspaceName={workspace.name} targetEngine="structured" />
+            </div>
+          </div>
+          <ChunkingLegacyForm workspaceName={workspace.name} config={data} />
+        </>
       )}
     </div>
   );

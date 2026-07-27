@@ -9,11 +9,13 @@ import { VaultDetailTab } from "@/pages/harpocrate/VaultDetailTab";
 import { VaultSecretsTab } from "@/pages/harpocrate/VaultSecretsTab";
 import { VaultWalletInfoTab } from "@/pages/harpocrate/VaultWalletInfoTab";
 import { RevealApiKeyDialog } from "@/pages/harpocrate/RevealApiKeyDialog";
+import { ReplaceApiKeyDialog } from "@/pages/harpocrate/ReplaceApiKeyDialog";
 import { RetireVaultDialog } from "@/pages/harpocrate/RetireVaultDialog";
 import { VaultApikeysTab } from "@/pages/harpocrate/VaultApikeysTab";
 import { VaultSshTab } from "@/pages/harpocrate/VaultSshTab";
+import { VaultEndpointsTab } from "@/pages/harpocrate/VaultEndpointsTab";
 
-type DialogKind = "reveal" | "retire" | null;
+type DialogKind = "reveal" | "replace" | "retire" | null;
 
 interface VaultDetailPanelProps {
   vaultId: string;
@@ -60,12 +62,14 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
             <TabsTrigger value="info">{t("tabs.info")}</TabsTrigger>
             <TabsTrigger value="apikeys">{t("tabs.apikeys")}</TabsTrigger>
             <TabsTrigger value="ssh">{t("ssh.tab")}</TabsTrigger>
+            <TabsTrigger value="endpoints">{t("endpoints.tab")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="detail">
             <VaultDetailTab
               vault={vault}
               onReveal={() => setDialogOpen("reveal")}
+              onReplaceKey={() => setDialogOpen("replace")}
               onRetire={() => setDialogOpen("retire")}
             />
           </TabsContent>
@@ -85,6 +89,10 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
           <TabsContent value="ssh">
             <VaultSshTab vaultId={vault.id} />
           </TabsContent>
+
+          <TabsContent value="endpoints">
+            <VaultEndpointsTab vaultId={vault.id} />
+          </TabsContent>
         </Tabs>
       </div>
 
@@ -92,6 +100,12 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
         vaultId={vault.id}
         open={dialogOpen === "reveal"}
         onOpenChange={(o) => setDialogOpen(o ? "reveal" : null)}
+      />
+      <ReplaceApiKeyDialog
+        vaultId={vault.id}
+        currentApiKeyId={vault.api_key_id}
+        open={dialogOpen === "replace"}
+        onOpenChange={(o) => setDialogOpen(o ? "replace" : null)}
       />
       <RetireVaultDialog
         vault={vault}

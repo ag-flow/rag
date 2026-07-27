@@ -7,6 +7,8 @@ from uuid import UUID
 import asyncpg
 import structlog
 
+from rag.indexer.protocol import IndexOutcome, StoredSourceDocument
+
 log = structlog.get_logger(__name__)
 
 
@@ -30,23 +32,28 @@ class NoOpIndexer:
         content_hash: str,
         indexer_used: str,
         title: str | None = None,
-        strategy_override: str | None = None,
+        strategy_id: UUID | None = None,
         extra_metadata: Mapping[str, Any] | None = None,
-    ) -> int:
-        """INSERT/UPDATE `indexed_documents` via ON CONFLICT. Retourne 1
-        (1 chunk fictif). `content`, `strategy_override` et `extra_metadata`
-        ignorés en M3.
+        source_url: str | None = None,
+        store_source: bool = False,
+    ) -> IndexOutcome:
+        """INSERT/UPDATE `indexed_documents` via ON CONFLICT. Retourne un
+        résultat fictif (1 chunk, pas de stratégie). `content`, `strategy_id`,
+        `extra_metadata` et `store_source` ignorés en M3.
         """
         async with self._config_pool.acquire() as conn:
             await conn.execute(
                 """
                 INSERT INTO indexed_documents
-                    (workspace_id, path, content_hash, indexer_used, title, indexed_at)
-                VALUES ($1, $2, $3, $4, $5, now())
+                    (workspace_id, path, content_hash, indexer_used, title,
+                     source_url, indexed_at)
+                VALUES ($1, $2, $3, $4, $5, $6, now())
                 ON CONFLICT (workspace_id, path) DO UPDATE
                 SET content_hash = EXCLUDED.content_hash,
                     indexer_used = EXCLUDED.indexer_used,
                     title        = EXCLUDED.title,
+                    source_url   = COALESCE(EXCLUDED.source_url,
+                                            indexed_documents.source_url),
                     indexed_at   = EXCLUDED.indexed_at
                 """,
                 workspace_id,
@@ -54,6 +61,7 @@ class NoOpIndexer:
                 content_hash,
                 indexer_used,
                 title,
+                source_url,
             )
         log.info(
             "noop_indexer.index_file",
@@ -61,7 +69,7 @@ class NoOpIndexer:
             path=path,
             content_len=len(content),
         )
-        return 1
+        return IndexOutcome(chunks=1, strategy=None)
 
     async def delete_file(self, *, workspace_id: UUID, path: str) -> None:
         """DELETE indexed_documents. Idempotent (silencieux si absent)."""
@@ -76,3 +84,7 @@ class NoOpIndexer:
             workspace_id=str(workspace_id),
             path=path,
         )
+
+    async def stored_sources(self, *, workspace_id: UUID) -> list[StoredSourceDocument]:
+        """M3 : aucun stockage de source — toujours vide."""
+        return []

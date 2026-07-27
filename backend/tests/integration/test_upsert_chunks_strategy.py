@@ -44,7 +44,9 @@ async def ws_pool(pg_container: str) -> AsyncIterator[asyncpg.Pool]:
         await setup.close()
 
     pool = await asyncpg.create_pool(
-        ws_dsn, min_size=1, max_size=2,
+        ws_dsn,
+        min_size=1,
+        max_size=2,
         init=register_vector,
     )
     try:
@@ -67,9 +69,13 @@ def _chunks(texts: list[str]) -> tuple[list[Chunk], list[list[float]]]:
 @pytest.mark.asyncio
 async def test_replace_strategy_overwrites(ws_pool: asyncpg.Pool) -> None:
     chunks_v1, embs_v1 = _chunks(["version 1"])
-    await upsert_chunks(ws_pool, path="LESSONS.md", chunks=chunks_v1, embeddings=embs_v1, strategy="replace")
+    await upsert_chunks(
+        ws_pool, path="LESSONS.md", chunks=chunks_v1, embeddings=embs_v1, strategy="replace"
+    )
     chunks_v2, embs_v2 = _chunks(["version 2"])
-    await upsert_chunks(ws_pool, path="LESSONS.md", chunks=chunks_v2, embeddings=embs_v2, strategy="replace")
+    await upsert_chunks(
+        ws_pool, path="LESSONS.md", chunks=chunks_v2, embeddings=embs_v2, strategy="replace"
+    )
     async with ws_pool.acquire() as conn:
         rows = await conn.fetch("SELECT content FROM embeddings WHERE path='LESSONS.md'")
     assert len(rows) == 1
@@ -79,11 +85,17 @@ async def test_replace_strategy_overwrites(ws_pool: asyncpg.Pool) -> None:
 @pytest.mark.asyncio
 async def test_append_strategy_accumulates(ws_pool: asyncpg.Pool) -> None:
     chunks_v1, embs_v1 = _chunks(["version 1"])
-    await upsert_chunks(ws_pool, path="LESSONS.md", chunks=chunks_v1, embeddings=embs_v1, strategy="append")
+    await upsert_chunks(
+        ws_pool, path="LESSONS.md", chunks=chunks_v1, embeddings=embs_v1, strategy="append"
+    )
     chunks_v2, embs_v2 = _chunks(["version 2"])
-    await upsert_chunks(ws_pool, path="LESSONS.md", chunks=chunks_v2, embeddings=embs_v2, strategy="append")
+    await upsert_chunks(
+        ws_pool, path="LESSONS.md", chunks=chunks_v2, embeddings=embs_v2, strategy="append"
+    )
     async with ws_pool.acquire() as conn:
-        rows = await conn.fetch("SELECT content FROM embeddings WHERE path='LESSONS.md' ORDER BY id")
+        rows = await conn.fetch(
+            "SELECT content FROM embeddings WHERE path='LESSONS.md' ORDER BY id"
+        )
     contents = [r["content"] for r in rows]
     assert "version 1" in contents
     assert "version 2" in contents
@@ -93,13 +105,20 @@ async def test_append_strategy_accumulates(ws_pool: asyncpg.Pool) -> None:
 @pytest.mark.asyncio
 async def test_append_two_batches_distinct_indexed_at(ws_pool: asyncpg.Pool) -> None:
     import asyncio
+
     chunks1, embs1 = _chunks(["lesson A"])
-    await upsert_chunks(ws_pool, path="LESSONS.md", chunks=chunks1, embeddings=embs1, strategy="append")
+    await upsert_chunks(
+        ws_pool, path="LESSONS.md", chunks=chunks1, embeddings=embs1, strategy="append"
+    )
     await asyncio.sleep(0.01)
     chunks2, embs2 = _chunks(["lesson B"])
-    await upsert_chunks(ws_pool, path="LESSONS.md", chunks=chunks2, embeddings=embs2, strategy="append")
+    await upsert_chunks(
+        ws_pool, path="LESSONS.md", chunks=chunks2, embeddings=embs2, strategy="append"
+    )
     async with ws_pool.acquire() as conn:
-        rows = await conn.fetch("SELECT DISTINCT indexed_at FROM embeddings WHERE path='LESSONS.md'")
+        rows = await conn.fetch(
+            "SELECT DISTINCT indexed_at FROM embeddings WHERE path='LESSONS.md'"
+        )
     assert len(rows) == 2
 
 

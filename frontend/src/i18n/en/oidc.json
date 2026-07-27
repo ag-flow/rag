@@ -3,8 +3,17 @@
   "subtitle": "Single Sign-On authentication (Keycloak, Auth0, …).",
   "fields": {
     "issuer": "Issuer URL",
-    "client_id": "Client ID",
-    "client_secret_ref": "client_secret reference (Harpocrate)"
+    "client_id": "Client ID"
+  },
+  "client_secret": {
+    "title": "Client secret",
+    "help": "Entered here then persisted server-side in the admin.env file (never shown again). Takes effect immediately, no restart.",
+    "set": "Set",
+    "unset": "Not set",
+    "placeholder": "Paste the Keycloak client secret",
+    "submit": "Save",
+    "saved": "Client secret saved.",
+    "error": "Failed to save the client secret."
   },
   "actions": {
     "cancel": "Cancel",
@@ -22,5 +31,42 @@
     "required": "Required field.",
     "too_long": "Maximum 255 characters.",
     "alphanum_underscore_only": "Allowed characters: a-z, A-Z, 0-9, underscore."
+  },
+  "local_auth": {
+    "title": "Local login (password)",
+    "help_enabled": "Enabled: the username / password form is offered on the login page, alongside SSO.",
+    "help_disabled": "Disabled: only SSO is offered; any local login attempt is rejected by the backend.",
+    "breakglass": "Anti-lockout: this setting is persisted in admin.env. If SSO breaks, set RAG_LOCAL_AUTH_DISABLED=false in that file on the server to re-enable local login.",
+    "error": "Failed to change local login."
+  },
+  "procedure": {
+    "title": "Create a Client ID (Keycloak)",
+    "intro": "Detailed procedure to create the OIDC client referenced above. Values in angle brackets must be adapted to your deployment.",
+    "steps": [
+      "Open the Keycloak admin console (https://<keycloak>/admin) and sign in with a realm admin account.",
+      "Top left, select the target realm (e.g. yoops) — this realm is the one that appears in the Issuer URL.",
+      "Clients menu → « Create client » button.",
+      "« General settings » step: Client type = OpenID Connect; Client ID = a short identifier (e.g. rag). This is exactly the value to enter in the « Client ID » field above. Click Next.",
+      "« Capability config » step: turn on « Client authentication » (ON → confidential client, a secret is generated); turn on « Standard flow » (Authorization Code Flow); leave the rest at defaults. Click Next.",
+      "« Login settings » step — Valid redirect URIs: <RAG_PUBLIC_URL>/auth/callback (e.g. https://rag.example.com/auth/callback).",
+      "Valid post logout redirect URIs: <RAG_PUBLIC_URL>/ (the root, with trailing slash).",
+      "Web origins: <RAG_PUBLIC_URL> (or the value + to auto-derive from redirect URIs). Click Save.",
+      "Client « Credentials » tab → copy the « Client secret ». Paste it into the « Client secret » field above and Save (takes effect immediately).",
+      "Client « Client scopes » tab → verify the openid, email and profile scopes are assigned (default): the user's email must be present in the token, as it determines their identity (owner_id).",
+      "Client \"Roles\" tab → \"Create role\": create rag-admin (full access) and, for read-only accounts, rag-viewer. Without one of these roles the user is rejected (403) after signing in.",
+      "Users menu → select the user → \"Role mapping\" tab → \"Assign role\" → filter by client → assign rag-admin (or rag-viewer).",
+      "Client scopes menu → roles → \"Mappers\" tab → \"client roles\" → enable \"Add to ID token\" then Save: rag reads roles from the ID token, where Keycloak does NOT put them by default.",
+      "Enter the Issuer URL in the field above: https://<keycloak>/realms/<realm> (e.g. https://keycloak.example.com/realms/yoops), then Save the configuration."
+    ],
+    "note": "After saving, test via the SSO button on the login page. On a redirect_uri error, check that the Valid redirect URI matches <RAG_PUBLIC_URL>/auth/callback exactly."
+  },
+  "public_url": {
+    "title": "Application public URL",
+    "help": "Used to build the OIDC callback URL (redirect_uri). Empty = derived automatically from the address the browser uses to reach the app (recommended). Takes precedence over the server-side RAG_PUBLIC_URL.",
+    "placeholder": "https://rag.yoops.org (empty = automatic)",
+    "derived": "Automatic (client calling address)",
+    "submit": "Save",
+    "saved": "Public URL saved.",
+    "error": "Could not save the public URL."
   }
 }

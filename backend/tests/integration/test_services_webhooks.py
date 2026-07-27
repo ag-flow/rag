@@ -60,7 +60,7 @@ async def test_create_webhook_reserved_header_raises(pool: asyncpg.Pool) -> None
             url="https://x.com",
             enabled=True,
             headers=[{"name": "X-Correlation-ID", "value": "v", "vault": None, "enabled": True}],
-            resolver=None,
+            client_provider=None,
         )
 
 

@@ -99,12 +99,7 @@ export type ProviderApiKeyUpdate = {
   valid_days?: number | null;
 };
 
-export type GitHost =
-  | "github"
-  | "gitlab"
-  | "gitea"
-  | "bitbucket"
-  | "azure-devops";
+export type GitHost = "github" | "gitlab" | "gitea" | "bitbucket" | "azure-devops";
 
 export type GitCredential = {
   id: string;
@@ -193,4 +188,12 @@ export type SshKeyWithVault = {
   vault_name: string;
   vault_label: string;
   created_at: string;
+};
+
+// Alerte proactive d'expiration (GET /api/admin/harpocrate-vaults/expiries)
+export type VaultKeyExpiry = {
+  vault_id: string;
+  name: string;
+  label: string;
+  api_key_expires_at: string | null;
 };

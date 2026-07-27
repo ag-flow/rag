@@ -9,7 +9,7 @@
 # =============================================================================
 
 meta:
-  releve_date: "2026-05-29"
+  releve_date: "2026-07-26"
   devise: "USD"
   unite_defaut: "par 1M tokens (input only pour les embeddings)"
   avertissement:
@@ -208,14 +208,14 @@ providers:
         description:
           fr: "Version 1.5 ; dimension réductible (Matryoshka)."
           en: "Version 1.5; reducible dimension (Matryoshka)."
-      - name: "qwen3-embedding-0.6b"
+      - name: "qwen3-embedding:0.6b"
         dim: 1024
         migration: "022"
         price_per_1m: 0.0
         description:
           fr: "Embedder dédié léger."
           en: "Lightweight dedicated embedder."
-      - name: "qwen3-embedding-8b"
+      - name: "qwen3-embedding:8b"
         dim: 4096
         migration: "022"
         price_per_1m: 0.0
@@ -226,6 +226,248 @@ providers:
           en: >
             Heavy dedicated embedder (8B). Check it fits in VRAM alongside the
             rest of the stack on the 4090.
+
+      # --- Ajouts 2026-07-26 : catalogue < 12 Go (migrations 080/081), coût $0 ---
+      - name: "nomic-embed-text-v2-moe"
+        type: embedding
+        dim: 768
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "MoE multilingue, local."
+          en: "Multilingual MoE, local."
+      - name: "bge-large"
+        type: embedding
+        dim: 1024
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "BGE anglais, local."
+          en: "English BGE, local."
+      - name: "snowflake-arctic-embed"
+        type: embedding
+        dim: 1024
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Arctic Embed, local."
+          en: "Arctic Embed, local."
+      - name: "snowflake-arctic-embed2"
+        type: embedding
+        dim: 1024
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Arctic Embed 2 multilingue, local."
+          en: "Multilingual Arctic Embed 2, local."
+      - name: "all-minilm"
+        type: embedding
+        dim: 384
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Mini modèle de phrases, local."
+          en: "Tiny sentence model, local."
+      - name: "paraphrase-multilingual"
+        type: embedding
+        dim: 768
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Sentence-transformers multilingue, local."
+          en: "Multilingual sentence-transformers, local."
+      - name: "granite-embedding"
+        type: embedding
+        dim: 768
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "IBM Granite 278m, local."
+          en: "IBM Granite 278m, local."
+      - name: "embeddinggemma"
+        type: embedding
+        dim: 768
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Google 300m, local."
+          en: "Google 300m, local."
+      - name: "qwen3-embedding:4b"
+        type: embedding
+        dim: 2560
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Qwen3 4b, 32K contexte, local. Préco : qwen3-reranker."
+          en: "Qwen3 4b, 32K context, local. Reco: qwen3-reranker."
+      - name: "bge-reranker-v2-m3"
+        type: reranker
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Couple standard avec bge-m3. Nécessite un serveur exposant /api/rerank (pas Ollama upstream)."
+          en: "Standard pair with bge-m3. Needs a /api/rerank server (not upstream Ollama)."
+      - name: "bge-reranker-base"
+        type: reranker
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Reranker BGE léger (même contrainte /api/rerank)."
+          en: "Light BGE reranker (same /api/rerank constraint)."
+      - name: "ms-marco-minilm"
+        type: reranker
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Cross-encoder MiniLM (même contrainte /api/rerank)."
+          en: "MiniLM cross-encoder (same /api/rerank constraint)."
+      - name: "llama3.1:8b"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "LLM local 8b."
+          en: "Local 8b LLM."
+      - name: "llama3.2:3b"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "LLM local 3b."
+          en: "Local 3b LLM."
+      - name: "gemma3:12b"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Gemma 3 12b, vision."
+          en: "Gemma 3 12b, vision."
+      - name: "gemma4:12b"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Gemma 4 12b."
+          en: "Gemma 4 12b."
+      - name: "qwen3:14b"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Qwen3 14b, bon en extraction structurée."
+          en: "Qwen3 14b, strong structured extraction."
+      - name: "qwen3.5:9b"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Qwen3.5 9b — reco enrichissement local (résident 16 Go)."
+          en: "Qwen3.5 9b — local enrichment pick (fits resident in 16 GB)."
+      - name: "qwen2.5:14b"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Qwen2.5 14b."
+          en: "Qwen2.5 14b."
+      - name: "qwen2.5-coder:14b"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Qwen2.5 Coder 14b (code)."
+          en: "Qwen2.5 Coder 14b (code)."
+      - name: "deepseek-r1:14b"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "DeepSeek R1 14b (raisonnement)."
+          en: "DeepSeek R1 14b (reasoning)."
+      - name: "deepseek-coder-v2:16b"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "DeepSeek Coder v2 MoE 16b."
+          en: "DeepSeek Coder v2 MoE 16b."
+      - name: "mistral:7b"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Mistral 7b."
+          en: "Mistral 7b."
+      - name: "mistral-nemo:12b"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Mistral Nemo 12b, bon en français."
+          en: "Mistral Nemo 12b, strong French."
+      - name: "ministral-3:14b"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Ministral 3 14b."
+          en: "Ministral 3 14b."
+      - name: "phi4:14b"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Phi-4 14b."
+          en: "Phi-4 14b."
+      - name: "phi4-mini:3.8b"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "Phi-4 mini 3.8b."
+          en: "Phi-4 mini 3.8b."
+      - name: "glm4:9b"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "GLM4 9b."
+          en: "GLM4 9b."
+      - name: "granite4.1:8b"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "IBM Granite 4.1 8b."
+          en: "IBM Granite 4.1 8b."
+      - name: "nemotron-3-nano:4b"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0
+        description:
+          fr: "NVIDIA Nemotron 3 nano 4b."
+          en: "NVIDIA Nemotron 3 nano 4b."
 
   # ===========================================================================
   mistral:
@@ -368,7 +610,7 @@ providers:
           en: "Shut down. Replaced by gemini-embedding-001 (same dimension range)."
 
   # ===========================================================================
-  qwen:
+  dashscope:
     cost_model: per_token
     pricing_url: "https://www.alibabacloud.com/help/en/model-studio/model-pricing"
     description:
@@ -447,6 +689,261 @@ providers:
         description:
           fr: "Version originale GTE. Tarif non publié ; préférer gte-rerank-v2 ou qwen3-rerank."
           en: "Original GTE version. Price not published; prefer gte-rerank-v2 or qwen3-rerank."
+      - name: "qwen3.7-max"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 1.25    # input ; output ~3.75 (relevé 2026-07, fiche user)
+        description:
+          fr: "LLM flagship MoE 188B-active, contexte 1M. Enrichissement haut de gamme."
+          en: "Flagship MoE LLM, 188B active, 1M context. High-end enrichment."
+      - name: "qwen3-plus"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: null    # budget tier, tarif region-dependent ; voir pricing_url
+        description:
+          fr: "Tier budget Alibaba pour l'enrichissement batch."
+          en: "Alibaba budget tier for batch enrichment."
+
+  # ===========================================================================
+  azure-openai:
+    cost_model: per_token
+    pricing_url: "https://azure.microsoft.com/en-us/pricing/details/cognitive-services/openai-service/"
+    description:
+      fr: >
+        Modèles OpenAI servis par Azure (déploiements). Tarifs alignés sur
+        OpenAI direct à région comparable ; la page Azure fait foi.
+      en: >
+        OpenAI models served by Azure (deployments). Prices aligned with direct
+        OpenAI for comparable regions; the Azure page prevails.
+    models:
+      - name: "text-embedding-3-small"
+        type: embedding
+        dim: 1536
+        statut: "current"
+        price_per_1m: 0.02
+        description:
+          fr: "Identique à OpenAI direct."
+          en: "Same as direct OpenAI."
+      - name: "text-embedding-3-large"
+        type: embedding
+        dim: 3072
+        statut: "current"
+        price_per_1m: 0.13
+        description:
+          fr: "Identique à OpenAI direct."
+          en: "Same as direct OpenAI."
+
+  # ===========================================================================
+  azure-foundry:
+    cost_model: per_token
+    pricing_url: "https://azure.microsoft.com/en-us/pricing/details/ai-foundry/"
+    description:
+      fr: >
+        Modèles tiers (Voyage, Cohere Rerank…) déployés via Azure AI Foundry.
+        Facturation marketplace par déploiement — tarif visible dans le portail
+        Azure au moment du déploiement.
+      en: >
+        Third-party models (Voyage, Cohere Rerank…) deployed through Azure AI
+        Foundry. Marketplace billing per deployment — price shown in the Azure
+        portal at deployment time.
+    models: []
+
+  # ===========================================================================
+  claude:
+    cost_model: per_token
+    pricing_url: "https://www.anthropic.com/pricing"
+    description:
+      fr: >
+        API Anthropic. Prompt caching : lecture de cache -90% sur l'input —
+        très rentable pour l'enrichissement avec prompt système constant
+        (notre client pose les marqueurs de cache automatiquement).
+      en: >
+        Anthropic API. Prompt caching: cache reads -90% on input — very
+        cost-effective for enrichment with a constant system prompt (our
+        client sets cache markers automatically).
+    models:
+      - name: "claude-haiku-4-5"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 1.00    # input ; output 5.00
+        description:
+          fr: "Rapide, bon en extraction structurée. (NB : 0.25/1.25 = tarif Haiku 3, obsolète.)"
+          en: "Fast, strong structured extraction. (NB: 0.25/1.25 was Haiku 3 pricing.)"
+      - name: "claude-sonnet-4-6"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 3.00    # input ; output 15.00 ; cache read 0.30
+        description:
+          fr: "Qualité supérieure ; rentable avec prompt caching (input -90%)."
+          en: "Higher quality; cost-effective with prompt caching (input -90%)."
+
+  # ===========================================================================
+  cohere:
+    cost_model: per_token
+    pricing_url: "https://cohere.com/pricing"
+    description:
+      fr: >
+        Embeddings facturés au token (API compatibilité OpenAI chez nous).
+        Rerank facturé À LA RECHERCHE (~2$/1k searches, 1 search = 1 query
+        jusqu'à 100 documents) — pas de prix par token.
+      en: >
+        Embeddings billed per token (we use the OpenAI-compatibility API).
+        Rerank billed PER SEARCH (~$2/1k searches, 1 search = 1 query up to
+        100 documents) — no per-token price.
+    models:
+      - name: "embed-v4"
+        type: embedding
+        dim: 1536             # Matryoshka 256–1536
+        statut: "current"
+        price_per_1m: 0.12
+        description:
+          fr: "Multimodal texte+image, 100+ langues, contexte 128K."
+          en: "Multimodal text+image, 100+ languages, 128K context."
+      - name: "embed-english-v3.0"
+        type: embedding
+        dim: 1024
+        statut: "older_model"
+        price_per_1m: 0.10
+        description:
+          fr: "English-only, legacy mais courant."
+          en: "English-only, legacy but common."
+      - name: "embed-multilingual-v3.0"
+        type: embedding
+        dim: 1024
+        statut: "older_model"
+        price_per_1m: 0.10
+        description:
+          fr: "100+ langues, génération v3."
+          en: "100+ languages, v3 generation."
+      - name: "rerank-v3.5"
+        type: reranker
+        dim: null
+        statut: "current"
+        price_per_1m: null    # facturé par recherche (~2$/1k searches)
+        description:
+          fr: "Reranker courant — préco avec embed-* Cohere et text-embedding-3-*."
+          en: "Current reranker — recommended with Cohere embed-* and text-embedding-3-*."
+
+  # ===========================================================================
+  deepseek:
+    cost_model: per_token
+    pricing_url: "https://api-docs.deepseek.com/quick_start/pricing"
+    description:
+      fr: "Open weights, ultra-économique. Le roi de l'enrichissement batch."
+      en: "Open weights, ultra-cheap. The batch-enrichment king."
+    models:
+      - name: "deepseek-v4-flash"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 0.14    # input ; output 0.28
+        description:
+          fr: "Contexte 1M, MoE 13B actifs. Aussi accessible via Ollama cloud."
+          en: "1M context, 13B-active MoE. Also reachable via Ollama cloud."
+      - name: "deepseek-v4-pro"
+        type: llm
+        dim: null
+        statut: "current"
+        price_per_1m: 1.74    # input ; relevé 2026-07
+        description:
+          fr: "Quand il faut plus de raisonnement."
+          en: "When more reasoning is needed."
+
+  # ===========================================================================
+  deepinfra:
+    cost_model: per_token
+    pricing_url: "https://deepinfra.com/pricing"
+    description:
+      fr: >
+        Hébergeur pay-per-token de modèles open-source (endpoint
+        OpenAI-compatible). Tarifs par modèle sur la fiche de chaque modèle —
+        typiquement les plus bas du marché pour Qwen3-Embedding/Reranker.
+      en: >
+        Pay-per-token host for open-source models (OpenAI-compatible endpoint).
+        Per-model prices on each model card — typically the lowest for
+        Qwen3-Embedding/Reranker.
+    models:
+      - name: "Qwen/Qwen3-Reranker-4B"
+        type: reranker
+        dim: null
+        statut: "current"
+        price_per_1m: null    # voir fiche modèle DeepInfra
+        description:
+          fr: "Préco cross-famille : améliore toutes les configs d'embedding (arXiv)."
+          en: "Cross-family pick: improves every embedding config (arXiv)."
+
+  # ===========================================================================
+  fireworks:
+    cost_model: per_token
+    pricing_url: "https://fireworks.ai/pricing"
+    description:
+      fr: "Serverless OpenAI-compatible ; /v1/rerank au format Cohere."
+      en: "OpenAI-compatible serverless; Cohere-style /v1/rerank."
+    models: []
+
+  # ===========================================================================
+  together:
+    cost_model: per_token
+    pricing_url: "https://www.together.ai/pricing"
+    description:
+      fr: "Hébergeur open-source OpenAI-compatible."
+      en: "OpenAI-compatible open-source host."
+    models: []
+
+  # ===========================================================================
+  mixedbread:
+    cost_model: per_token
+    pricing_url: "https://www.mixedbread.com/pricing"
+    description:
+      fr: "Rerankers mxbai-rerank-v2 (SOTA BEIR, Apache 2.0, 100+ langues)."
+      en: "mxbai-rerank-v2 rerankers (SOTA BEIR, Apache 2.0, 100+ languages)."
+    models: []
+
+  # ===========================================================================
+  bedrock:
+    cost_model: per_token
+    pricing_url: "https://aws.amazon.com/bedrock/pricing/"
+    description:
+      fr: >
+        AWS Bedrock — auth SigV4, adapter NON câblé chez nous à ce jour
+        (référencé au registre uniquement).
+      en: >
+        AWS Bedrock — SigV4 auth, adapter NOT wired on our side yet
+        (registry reference only).
+    models:
+      - name: "amazon.titan-embed-text-v2:0"
+        type: embedding
+        dim: 1024
+        statut: "current"
+        price_per_1m: 0.02
+        description:
+          fr: "Dimensions flexibles 256/512/1024, 100+ langues."
+          en: "Flexible 256/512/1024 dimensions, 100+ languages."
+      - name: "cohere.embed-v4:0"
+        type: embedding
+        dim: 1536
+        statut: "current"
+        price_per_1m: 0.12
+        description:
+          fr: "Cohere embed v4 via Bedrock."
+          en: "Cohere embed v4 through Bedrock."
+
+  # ===========================================================================
+  ollama-cloud:
+    cost_model: subscription
+    pricing_url: "https://ollama.com/cloud"
+    description:
+      fr: >
+        Modèles hébergés par Ollama Cloud — abonnement à l'usage (pas de tarif
+        par token publié par modèle). Clé API ollama.com requise.
+      en: >
+        Ollama Cloud hosted models — usage-based subscription (no published
+        per-token per-model price). ollama.com API key required.
+    models: []
 
 # -----------------------------------------------------------------------------
 # REMARQUES TRANSVERSES (conception dispatcher / schéma migration)

@@ -8,10 +8,10 @@ import { WorkspaceDetailTab } from "./WorkspaceDetailTab";
 import { WorkspaceSourcesTab } from "./WorkspaceSourcesTab";
 import { WorkspaceJobsTab } from "./WorkspaceJobsTab";
 import { WorkspaceChunkingTab } from "./WorkspaceChunkingTab";
+import { WorkspaceSearchTab } from "./WorkspaceSearchTab";
 import { WorkspaceWebhooksTab } from "./WorkspaceWebhooksTab";
 import { WorkspacePlaygroundTab } from "./WorkspacePlaygroundTab";
 import { WorkspaceTriggersTab } from "./WorkspaceTriggersTab";
-import { WorkspaceApiKeysTab } from "./WorkspaceApiKeysTab";
 import { WorkspaceIndexTab } from "./WorkspaceIndexTab";
 import { ReindexConfirmDialog } from "./ReindexConfirmDialog";
 import { DeleteWorkspaceAlert } from "./DeleteWorkspaceAlert";
@@ -54,16 +54,16 @@ export function WorkspaceDetailPanel({ name }: Props) {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="px-6 py-4">
         <TabsList>
           <TabsTrigger value="detail">{t("tabs.detail")}</TabsTrigger>
+          <TabsTrigger value="chunking">{t("tabs.chunking")}</TabsTrigger>
+          <TabsTrigger value="triggers">{t("tabs.triggers")}</TabsTrigger>
+          <TabsTrigger value="jobs">{t("tabs.jobs")}</TabsTrigger>
+          <TabsTrigger value="index">{t("tabs.index")}</TabsTrigger>
           <TabsTrigger value="sources">
             {t("tabs.sources", { count: ws.sources_count })}
           </TabsTrigger>
-          <TabsTrigger value="jobs">{t("tabs.jobs")}</TabsTrigger>
-          <TabsTrigger value="index">{t("tabs.index")}</TabsTrigger>
-          <TabsTrigger value="chunking">{t("tabs.chunking")}</TabsTrigger>
+          <TabsTrigger value="search">{t("tabs.search")}</TabsTrigger>
           <TabsTrigger value="webhooks">{t("webhooks.tab")}</TabsTrigger>
           <TabsTrigger value="playground">{t("tabs.playground")}</TabsTrigger>
-          <TabsTrigger value="triggers">{t("tabs.triggers")}</TabsTrigger>
-          <TabsTrigger value="apikeys">{t("tabs.apikeys")}</TabsTrigger>
         </TabsList>
         <TabsContent value="detail" className="pt-4">
           <WorkspaceDetailTab workspace={ws} enabled={activeTab === "detail"} />
@@ -80,6 +80,9 @@ export function WorkspaceDetailPanel({ name }: Props) {
         <TabsContent value="chunking" className="pt-4">
           <WorkspaceChunkingTab workspace={ws} enabled={activeTab === "chunking"} />
         </TabsContent>
+        <TabsContent value="search" className="pt-4">
+          <WorkspaceSearchTab name={ws.name} enabled={activeTab === "search"} />
+        </TabsContent>
         <TabsContent value="webhooks" className="pt-4">
           <WorkspaceWebhooksTab workspaceName={ws.name} />
         </TabsContent>
@@ -88,9 +91,6 @@ export function WorkspaceDetailPanel({ name }: Props) {
         </TabsContent>
         <TabsContent value="triggers" className="pt-4">
           <WorkspaceTriggersTab workspaceName={ws.name} />
-        </TabsContent>
-        <TabsContent value="apikeys" className="pt-4">
-          <WorkspaceApiKeysTab workspaceName={ws.name} workspaceId={ws.id} />
         </TabsContent>
       </Tabs>
       <ReindexConfirmDialog

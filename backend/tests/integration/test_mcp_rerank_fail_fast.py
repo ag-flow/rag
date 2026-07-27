@@ -14,12 +14,11 @@ from uuid import UUID
 import asyncpg
 import pytest
 
-from rag.auth.workspace_auth import ApiKeyCache
 from rag.db.pool import WorkspacePoolRegistry
 from rag.rerank.protocol import RerankProvider, RerankProviderUnreachable
 from rag.schemas.mcp import SearchHit
 from rag.services.mcp import McpWorkspaceRef, search
-from tests.integration._workspace_seed import seed_workspace
+from tests.integration._workspace_seed import seed_user_api_key, seed_workspace
 
 # ---------------------------------------------------------------------------
 # Constantes de test
@@ -75,6 +74,7 @@ async def test_rerank_provider_unreachable_falls_back_to_base_order(
             rag_cnx="postgresql://unused/test",
             rag_base="rag_test",
         )
+        await seed_user_api_key(conn, api_key=_API_KEY, scope="read_write")
         await conn.execute(
             "INSERT INTO indexer_configs (workspace_id, provider, model, dimension) "
             "VALUES ($1, 'ollama', 'mxbai-embed-large', 4)",
@@ -114,14 +114,13 @@ async def test_rerank_provider_unreachable_falls_back_to_base_order(
     )
     rerank_factory: Any = MagicMock(return_value=failing_reranker)
 
-    hits = await search(
+    hits, _channels = await search(
         refs=[McpWorkspaceRef(name=_WS_NAME, api_key=_API_KEY)],
         query="test query",
         top_k=2,
         min_score=0.0,
         config_pool=migrated,
         pool_registry=registry,
-        apikey_cache=ApiKeyCache(),
         secret_resolver=_StubResolver(),
         provider_factory=provider_factory,
         rerank_factory=rerank_factory,

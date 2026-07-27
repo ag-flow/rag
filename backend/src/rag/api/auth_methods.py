@@ -17,9 +17,11 @@ def build_auth_methods_router() -> APIRouter:
         oidc_cfg = await request.app.state.oidc.get_config()
         local_auth = request.app.state.local_auth
         count = await local_auth.user_count()
+        disabled = request.app.state.admin_env.is_local_auth_disabled()
         return AuthMethodsResponse(
             oidc_configured=oidc_cfg is not None,
-            local_auth_enabled=count > 0,
+            local_auth_enabled=count > 0 and not disabled,
+            local_auth_disabled_by_config=disabled,
             needs_setup=count == 0,
         )
 

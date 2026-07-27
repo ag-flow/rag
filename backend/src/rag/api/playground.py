@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from uuid import UUID
 
 import asyncpg
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
+from rag.api.workspace_access import require_owned_workspace_id
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.schemas.playground import (
     LlmConfigCreate,
@@ -31,9 +33,41 @@ def _pool(request: Request) -> asyncpg.Pool:
     return request.app.state.pools.config_pool  # type: ignore[no-any-return]
 
 
+def make_harpo_resolver(request: Request) -> Callable[[str], Awaitable[str | None]]:
+    """Résolveur de ref Harpocrate partagé chat/recherche.
+
+    Normalise une clé logique (format legacy) en ref vault par défaut,
+    comme RealIndexer à l'indexation : sans ça, un api_key_ref logique
+    était droppé → embedding/LLM appelé avec api_key=None → 401 (BUG-024).
+    """
+    from rag.secrets.refs import as_vault_ref, is_vault_ref, parse_ref
+
+    config_pool: asyncpg.Pool = _pool(request)
+    vault_svc = request.app.state.harpocrate_vaults_service
+    client_provider = request.app.state.client_provider
+
+    async def _resolve(harpo_path: str) -> str | None:
+        ref = harpo_path
+        if not is_vault_ref(ref):
+            default_vault_name = await client_provider.get_default_vault_name()
+            if default_vault_name is None:
+                return None
+            ref = as_vault_ref(ref, default_vault_name)
+        vault_name, secret_path = parse_ref(ref)
+        async with config_pool.acquire() as conn:
+            vault = await vault_svc.get_by_name(conn, vault_name)
+        if vault is None:
+            return None
+        client = await client_provider.get_client(vault.api_key_id)
+        return await asyncio.to_thread(client.get_secret, secret_path)
+
+    return _resolve
+
+
 @router_admin.get("", response_model=list[LlmConfigOut])
 async def list_configs(workspace_name: str, request: Request) -> list[LlmConfigOut]:
     from rag.services.llm_configs import list_llm_configs
+    await require_owned_workspace_id(request, workspace_name, _pool(request))
     async with _pool(request).acquire() as conn:
         return await list_llm_configs(conn, workspace_name=workspace_name)
 
@@ -43,6 +77,7 @@ async def create_config(
     workspace_name: str, body: LlmConfigCreate, request: Request
 ) -> LlmConfigOut:
     from rag.services.llm_configs import create_llm_config
+    await require_owned_workspace_id(request, workspace_name, _pool(request))
     async with _pool(request).acquire() as conn:
         try:
             return await create_llm_config(conn, workspace_name=workspace_name, req=body)
@@ -59,6 +94,7 @@ async def patch_config(
     workspace_name: str, config_id: UUID, body: LlmConfigPatch, request: Request
 ) -> LlmConfigOut:
     from rag.services.llm_configs import patch_llm_config
+    await require_owned_workspace_id(request, workspace_name, _pool(request))
     async with _pool(request).acquire() as conn:
         result = await patch_llm_config(
             conn, workspace_name=workspace_name, config_id=str(config_id), req=body
@@ -73,6 +109,7 @@ async def delete_config(
     workspace_name: str, config_id: UUID, request: Request
 ) -> Response:
     from rag.services.llm_configs import delete_llm_config
+    await require_owned_workspace_id(request, workspace_name, _pool(request))
     async with _pool(request).acquire() as conn:
         deleted = await delete_llm_config(
             conn, workspace_name=workspace_name, config_id=str(config_id)
@@ -100,38 +137,21 @@ async def playground_chat(
     """Chat RAG-ancré : embed → vector_search → LLM."""
     from rag.db.workspace_search import vector_search
     from rag.indexer.providers.factory import make_provider
-    from rag.secrets.refs import as_vault_ref, is_vault_ref, parse_ref
+    from rag.services.endpoint_throttle import estimate_tokens, llm_slot
     from rag.services.llm_clients import build_prompt, call_llm
     from rag.services.llm_configs import get_llm_config_for_chat
 
     config_pool: asyncpg.Pool = _pool(request)
     pool_registry = request.app.state.pools
-    vault_svc = request.app.state.harpocrate_vaults_service
-    client_provider = request.app.state.client_provider
-    default_vault_name: str | None = await client_provider.get_default_vault_name()
+    _resolve_harpo = make_harpo_resolver(request)
 
-    async def _resolve_harpo(harpo_path: str) -> str | None:
-        # Normalise une clé logique (format legacy) en ref vault par défaut,
-        # comme RealIndexer à l'indexation : sans ça, un api_key_ref logique
-        # était droppé → embedding/LLM appelé avec api_key=None → 401 (BUG-024).
-        ref = harpo_path
-        if not is_vault_ref(ref):
-            if default_vault_name is None:
-                return None
-            ref = as_vault_ref(ref, default_vault_name)
-        vault_name, secret_path = parse_ref(ref)
-        async with config_pool.acquire() as conn:
-            vault = await vault_svc.get_by_name(conn, vault_name)
-        if vault is None:
-            return None
-        client = await client_provider.get_client(vault.api_key_id)
-        return await asyncio.to_thread(client.get_secret, secret_path)
+    await require_owned_workspace_id(request, workspace_name, config_pool)
 
     # 1. Workspace + indexer config
     async with config_pool.acquire() as conn:
         ws_row = await conn.fetchrow(
             """
-            SELECT w.rag_cnx, w.name AS ws_name,
+            SELECT w.id AS ws_id, w.rag_cnx, w.name AS ws_name,
                    ic.provider AS idx_provider, ic.model AS idx_model,
                    ic.api_key_ref AS idx_api_key_ref, ic.base_url AS idx_base_url,
                    md.service AS idx_service
@@ -199,14 +219,21 @@ async def playground_chat(
         history=[{"role": m.role, "content": m.content} for m in body.history],
         message=body.message,
     )
-    llm_result = await call_llm(
-        provider=llm_cfg["provider"],
-        model=llm_cfg["model"],
-        api_key=llm_api_key,
-        base_url=llm_cfg.get("base_url"),
-        system_prompt=system_prompt,
-        messages=messages,
+    # Throttling LLM cross-workspace par endpoint (enabler fe6b8dcb).
+    slot = await llm_slot(
+        config_pool,
+        ws_row["ws_id"],
+        tokens=estimate_tokens(system_prompt, *(m["content"] for m in messages)),
     )
+    async with slot:
+        llm_result = await call_llm(
+            provider=llm_cfg["provider"],
+            model=llm_cfg["model"],
+            api_key=llm_api_key,
+            base_url=llm_cfg.get("base_url"),
+            system_prompt=system_prompt,
+            messages=messages,
+        )
 
     log.info(
         "playground.chat",
