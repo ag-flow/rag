@@ -39,10 +39,17 @@ log = structlog.get_logger(__name__)
 async def pick_next_pending_job(
     config_pool: asyncpg.Pool,
 ) -> JobToProcess | None:
-    """Picke le job pending le plus ancien et le transitionne en running
-    atomiquement (CTE + UPDATE … FROM).
+    """Picke un job pending et le transitionne en running atomiquement
+    (CTE + UPDATE … FROM).
 
-    Retourne `None` si aucun job pending. Sinon retourne un `JobToProcess`
+    Ordonnancement équitable multi-utilisateurs (feature a9719d13) :
+      - un seul job running par workspace (dédup/index non réentrants) ;
+      - priorité aux propriétaires (owner_id du workspace, NULL = bucket
+        « partagé ») qui n'ont AUCUN job en cours — le gros reindex d'un
+        utilisateur ne bloque pas le push d'un autre ;
+      - FIFO (created_at) à l'intérieur d'un même niveau de priorité.
+
+    Retourne `None` si aucun job éligible. Sinon retourne un `JobToProcess`
     avec tout le contexte nécessaire à l'executor (workspace, source, indexer).
 
     `FOR UPDATE SKIP LOCKED` rend l'opération safe pour multi-worker M3+.
@@ -50,8 +57,15 @@ async def pick_next_pending_job(
     async with config_pool.acquire() as conn, conn.transaction():
         row = await conn.fetchrow(
             """
-            WITH picked AS (
+            WITH running_owners AS (
+                SELECT DISTINCT w.owner_id
+                FROM index_jobs r
+                JOIN workspaces w ON w.id = r.workspace_id
+                WHERE r.status = 'running'
+            ),
+            picked AS (
                 SELECT j.id FROM index_jobs j
+                JOIN workspaces w ON w.id = j.workspace_id
                 WHERE j.status = 'pending'
                   AND (j.retry_after IS NULL OR j.retry_after <= now())
                   AND NOT EXISTS (
@@ -59,7 +73,17 @@ async def pick_next_pending_job(
                       WHERE cb.workspace_id = j.workspace_id
                         AND (cb.open_until IS NULL OR cb.open_until > now())
                   )
-                ORDER BY j.created_at
+                  AND NOT EXISTS (
+                      SELECT 1 FROM index_jobs r
+                      WHERE r.workspace_id = j.workspace_id
+                        AND r.status = 'running'
+                  )
+                ORDER BY
+                    EXISTS (
+                        SELECT 1 FROM running_owners ro
+                        WHERE ro.owner_id IS NOT DISTINCT FROM w.owner_id
+                    ),
+                    j.created_at
                 LIMIT 1
                 FOR UPDATE OF j SKIP LOCKED
             )
@@ -647,7 +671,34 @@ async def execute_next_pending_job(
     job = await pick_next_pending_job(config_pool)
     if job is None:
         return False
+    await execute_picked_job(
+        job=job,
+        config_pool=config_pool,
+        storage=storage,
+        indexer=indexer,
+        resolver=resolver,
+        client_provider=client_provider,
+        job_log_bus=job_log_bus,
+        webhook_secret=webhook_secret,
+    )
+    return True
 
+
+async def execute_picked_job(
+    *,
+    job: JobToProcess,
+    config_pool: asyncpg.Pool,
+    storage: RepoStorage,
+    indexer: IndexerProtocol,
+    resolver: _ResolverProtocol,
+    client_provider: _ClientProviderProtocol,
+    job_log_bus: JobLogBus | None = None,
+    webhook_secret: str | None = None,
+) -> None:
+    """Exécute un job déjà pické (status=running) : dispatch par type +
+    machinerie retry/backoff/circuit-breaker. Le pick est séparé pour que le
+    worker parallèle picke séquentiellement (ordonnancement équitable sans
+    course) et exécute en tasks concurrentes."""
     try:
         if job.triggered_by in ("push", "reindex_document"):
             await _execute_push_job(
@@ -734,7 +785,6 @@ async def execute_next_pending_job(
             if job_log_bus is not None:
                 job_log_bus.publish(jid, "error", f"Erreur : {msg}")
                 job_log_bus.complete(jid, status="error")
-    return True
 
 
 async def _execute_reindex_job(

@@ -22,6 +22,7 @@ from rag.api.admin_harpocrate_vaults import router as admin_harpocrate_vaults_ro
 from rag.api.admin_index_keys import build_index_keys_router
 from rag.api.admin_load_gate import build_admin_load_gate_router
 from rag.api.admin_oidc import build_admin_oidc_router
+from rag.api.admin_processing import build_admin_processing_router
 from rag.api.admin_provider_keys import router as admin_provider_keys_router
 from rag.api.admin_provider_keys import router_global as admin_provider_keys_global_router
 from rag.api.admin_search_test import router as admin_search_test_router
@@ -315,6 +316,7 @@ def build_app(
     app.include_router(build_admin_oidc_router(), prefix="/api/admin")
     app.include_router(build_admin_auth_config_router(), prefix="/api/admin")
     app.include_router(build_admin_load_gate_router(), prefix="/api/admin")
+    app.include_router(build_admin_processing_router(), prefix="/api/admin")
     app.include_router(admin_search_test_router)
     app.include_router(admin_harpocrate_vaults_router)
     app.include_router(admin_vault_endpoints_router)

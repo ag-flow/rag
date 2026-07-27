@@ -87,3 +87,20 @@ class TestPreservation:
         assert "# commentaire" in content
         assert store.get_oidc_client_secret() == "kept"
         assert store.is_local_auth_disabled() is True
+
+
+class TestWorkerMaxJobs:
+    def test_default_is_two(self, tmp_path: Path) -> None:
+        assert _store(tmp_path).get_worker_max_jobs() == 2
+
+    def test_set_then_read(self, tmp_path: Path) -> None:
+        store = _store(tmp_path)
+        store.set_worker_max_jobs(4)
+        assert store.get_worker_max_jobs() == 4
+
+    def test_invalid_or_zero_falls_back_to_default(self, tmp_path: Path) -> None:
+        p = tmp_path / "admin.env"
+        p.write_text("RAG_WORKER_MAX_JOBS=abc\n", encoding="utf-8")
+        assert _store(tmp_path).get_worker_max_jobs() == 2
+        p.write_text("RAG_WORKER_MAX_JOBS=0\n", encoding="utf-8")
+        assert _store(tmp_path).get_worker_max_jobs() == 2

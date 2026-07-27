@@ -15,6 +15,7 @@
     "harpocrate_vaults": "Harpocrate vaults",
     "api_keys": "API keys",
     "oidc_config": "OIDC config",
+    "processing": "Processing",
     "prompts": "Prompts",
     "chunking_strategies": "Chunking strategies",
     "events_producer": "Workflow events",

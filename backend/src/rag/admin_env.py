@@ -12,12 +12,17 @@ KEY_LOAD_GATE_ENABLED = "RAG_LOAD_GATE_ENABLED"
 KEY_LOAD_GATE_CPU_PSI_PCT = "RAG_LOAD_GATE_CPU_PSI_PCT"
 KEY_LOAD_GATE_MEMORY_PCT = "RAG_LOAD_GATE_MEMORY_PCT"
 KEY_LOAD_GATE_IO_PSI_PCT = "RAG_LOAD_GATE_IO_PSI_PCT"
+KEY_WORKER_MAX_JOBS = "RAG_WORKER_MAX_JOBS"
 
 # Défauts du gate de charge (enabler 01f8992b) : PSI CPU some avg60 et
 # mémoire cgroup — seuils prudents, gate actif par défaut.
 LOAD_GATE_DEFAULT_CPU_PSI_PCT = 40
 LOAD_GATE_DEFAULT_MEMORY_PCT = 85
 LOAD_GATE_DEFAULT_IO_PSI_PCT = 60
+
+# Slots de jobs concurrents du worker (feature a9719d13) : deux utilisateurs
+# doivent pouvoir être traités en parallèle — plafond machine, ajustable IHM.
+WORKER_DEFAULT_MAX_JOBS = 2
 
 
 class AdminEnvStore:
@@ -143,6 +148,12 @@ class AdminEnvStore:
         self._write_key(KEY_LOAD_GATE_CPU_PSI_PCT, str(cpu_psi_pct))
         self._write_key(KEY_LOAD_GATE_MEMORY_PCT, str(memory_pct))
         self._write_key(KEY_LOAD_GATE_IO_PSI_PCT, str(io_psi_pct))
+
+    def get_worker_max_jobs(self) -> int:
+        return self._get_int(KEY_WORKER_MAX_JOBS, WORKER_DEFAULT_MAX_JOBS)
+
+    def set_worker_max_jobs(self, value: int) -> None:
+        self._write_key(KEY_WORKER_MAX_JOBS, str(value))
 
     def is_local_auth_disabled(self) -> bool:
         # Variable absente ⇒ connexion locale activée (disabled = False).

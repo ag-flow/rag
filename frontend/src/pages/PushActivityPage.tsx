@@ -18,7 +18,6 @@ import type { Job, JobSource } from "@/lib/workspaces.types";
 import { formatDurationMs } from "@/lib/duration";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { JobDetailPanel } from "@/pages/workspace/JobDetailPanel";
-import { LoadGatePanel } from "@/pages/push/LoadGatePanel";
 
 const JOB_SOURCES: JobSource[] = ["rest_api", "webhook", "git", "admin"];
 
@@ -163,8 +162,6 @@ export function PushActivityPage() {
         <h1 className="text-xl font-semibold text-slate-900">{t("page_title")}</h1>
         <p className="mt-1 text-sm text-slate-500">{t("description")}</p>
       </div>
-
-      <LoadGatePanel />
 
       <div className="flex gap-2">
         <select

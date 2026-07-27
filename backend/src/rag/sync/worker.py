@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from collections.abc import Callable
 from typing import Protocol
 
 import asyncpg
 import structlog
 
 from rag.indexer.protocol import IndexerProtocol
+from rag.schemas.sync import JobToProcess
 from rag.services.job_log_bus import JobLogBus
 from rag.services.load_gate import LoadGate
-from rag.sync.executor import execute_next_pending_job
+from rag.sync.executor import execute_picked_job, pick_next_pending_job
 from rag.sync.repo_storage import RepoStorage
 from rag.sync.scheduler import schedule_due_sources
 
@@ -30,8 +32,16 @@ class SyncWorker:
 
     Boucle infinie qui réveille toutes les `poll_interval_seconds` :
       1. schedule_due_sources(...) → INSERT jobs pour les sources dues
-      2. execute_next_pending_job(...) → picke 1 job, exécute, transition
+      2. remplissage des slots : pick séquentiel (équité par owner, un job
+         par workspace — voir pick_next_pending_job) puis exécution en tasks
+         asyncio concurrentes, jusqu'à `max_jobs_provider()` jobs en vol
       3. asyncio.sleep(poll_interval_seconds)
+
+    Parallélisme (feature a9719d13) : N slots globaux dans CE process — les
+    picks restent séquentiels dans la boucle (l'ordonnancement équitable lit
+    les jobs `running` committés), seule l'exécution est concurrente. Le
+    circuit breaker et le throttling par endpoint sont in-process : ils
+    restent cohérents tant que le worker vit dans le process de l'app.
 
     Lifecycle :
       - `await worker.start()` lance la task.
@@ -40,7 +50,8 @@ class SyncWorker:
 
     Single replica : la sub-query `NOT EXISTS pending|running` du scheduler
     + `FOR UPDATE SKIP LOCKED` du picker rendent multi-worker safe en théorie,
-    mais M3 reste single-task.
+    mais l'exclusion par workspace/owner n'est garantie qu'avec des picks
+    sérialisés — un seul process worker.
     """
 
     def __init__(
@@ -56,6 +67,7 @@ class SyncWorker:
         job_log_bus: JobLogBus | None = None,
         webhook_secret: str | None = None,
         load_gate: LoadGate | None = None,
+        max_jobs_provider: Callable[[], int] | None = None,
     ) -> None:
         self._config_pool = config_pool
         self._storage = storage
@@ -67,7 +79,9 @@ class SyncWorker:
         self._job_log_bus = job_log_bus
         self._webhook_secret = webhook_secret
         self._load_gate = load_gate
+        self._max_jobs_provider = max_jobs_provider
         self._gate_paused = False
+        self._job_tasks: set[asyncio.Task[None]] = set()
         self._task: asyncio.Task[None] | None = None
         self._stop_event = asyncio.Event()
 
@@ -80,18 +94,39 @@ class SyncWorker:
         log.info("sync.worker.started", poll_interval=self._poll_interval)
 
     async def stop(self, *, stop_timeout: float = 10.0) -> None:
-        """Demande l'arrêt et attend la task. Idempotent."""
+        """Demande l'arrêt et attend la task + les jobs en vol. Idempotent."""
         self._stop_event.set()
         if self._task is None:
             return
+        pending = {self._task, *self._job_tasks}
         try:
-            await asyncio.wait_for(self._task, timeout=stop_timeout)
+            await asyncio.wait_for(
+                asyncio.gather(*pending, return_exceptions=True),
+                timeout=stop_timeout,
+            )
         except TimeoutError:
             log.warning("sync.worker.stop_timeout")
-            self._task.cancel()
+            for task in pending:
+                task.cancel()
         finally:
             self._task = None
+            self._job_tasks.clear()
             log.info("sync.worker.stopped")
+
+    @property
+    def active_jobs(self) -> int:
+        """Jobs en cours d'exécution dans ce process (slots occupés)."""
+        return sum(1 for t in self._job_tasks if not t.done())
+
+    def _max_jobs(self) -> int:
+        """Plafond de slots, relu à chaud (admin.env). Borné à 1 minimum."""
+        if self._max_jobs_provider is None:
+            return 1
+        try:
+            return max(1, int(self._max_jobs_provider()))
+        except Exception:
+            log.warning("sync.worker.max_jobs_provider_failed")
+            return 1
 
     def _gate_allows_pickup(self) -> bool:
         """Gate de charge serveur (enabler 01f8992b) : surchargé ⇒ on saute le
@@ -108,17 +143,12 @@ class SyncWorker:
             log.info("sync.worker.load_gate_resumed")
         return not status.overloaded
 
-    async def _cycle(self) -> None:
-        """Un cycle : scheduling, pick d'un job (si le gate de charge
-        l'autorise), entretiens."""
-        from rag.services.webhooks import purge_old_webhook_calls
-
-        await schedule_due_sources(
-            self._config_pool,
-            default_interval_seconds=self._default_sync_interval,
-        )
-        if self._gate_allows_pickup():
-            await execute_next_pending_job(
+    async def _run_job(self, job: JobToProcess) -> None:
+        """Exécute un job pické dans sa task dédiée — jamais d'exception qui
+        remonte (l'échec d'un job ne doit pas toucher les autres slots)."""
+        try:
+            await execute_picked_job(
+                job=job,
                 config_pool=self._config_pool,
                 storage=self._storage,
                 indexer=self._indexer,
@@ -127,6 +157,34 @@ class SyncWorker:
                 job_log_bus=self._job_log_bus,
                 webhook_secret=self._webhook_secret,
             )
+        except Exception:
+            log.exception("sync.worker.job_task_error", job_id=str(job.job_id))
+
+    async def _fill_slots(self) -> None:
+        """Picke séquentiellement jusqu'à remplir les slots libres.
+
+        Les tasks terminées sont purgées d'abord ; le gate de charge est
+        re-consulté avant chaque pick (un job libéré pendant la surcharge ne
+        doit pas être remplacé)."""
+        self._job_tasks = {t for t in self._job_tasks if not t.done()}
+        while len(self._job_tasks) < self._max_jobs():
+            if not self._gate_allows_pickup():
+                return
+            job = await pick_next_pending_job(self._config_pool)
+            if job is None:
+                return
+            task = asyncio.create_task(self._run_job(job), name=f"sync-job-{job.job_id}")
+            self._job_tasks.add(task)
+
+    async def _cycle(self) -> None:
+        """Un cycle : scheduling, remplissage des slots de jobs, entretiens."""
+        from rag.services.webhooks import purge_old_webhook_calls
+
+        await schedule_due_sources(
+            self._config_pool,
+            default_interval_seconds=self._default_sync_interval,
+        )
+        await self._fill_slots()
         try:
             await purge_old_webhook_calls(self._config_pool)
         except Exception:

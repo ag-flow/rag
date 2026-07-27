@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -41,14 +42,22 @@ def _worker(gate: Any) -> SyncWorker:
     )
 
 
+async def _drain(w: SyncWorker) -> None:
+    if w._job_tasks:
+        await asyncio.gather(*w._job_tasks)
+
+
 @pytest.fixture
 def cycle_mocks(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     mocks = SimpleNamespace(
         schedule=AsyncMock(),
+        # Un job pickable puis file vide (le worker picke en boucle jusqu'à None).
+        pick=AsyncMock(side_effect=[MagicMock(job_id="j1"), None, None, None]),
         execute=AsyncMock(),
     )
     monkeypatch.setattr(worker_mod, "schedule_due_sources", mocks.schedule)
-    monkeypatch.setattr(worker_mod, "execute_next_pending_job", mocks.execute)
+    monkeypatch.setattr(worker_mod, "pick_next_pending_job", mocks.pick)
+    monkeypatch.setattr(worker_mod, "execute_picked_job", mocks.execute)
     monkeypatch.setattr("rag.services.webhooks.purge_old_webhook_calls", AsyncMock(), raising=False)
     monkeypatch.setattr(
         "rag.services.circuit_breaker.auto_close_expired_circuits",
@@ -61,21 +70,27 @@ def cycle_mocks(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
 @pytest.mark.asyncio
 async def test_overloaded_skips_job_pickup(cycle_mocks: SimpleNamespace) -> None:
     gate = SimpleNamespace(status=lambda: _status(True))
-    await _worker(gate)._cycle()
+    w = _worker(gate)
+    await w._cycle()
+    await _drain(w)
     cycle_mocks.schedule.assert_awaited_once()  # le scheduling continue
-    cycle_mocks.execute.assert_not_awaited()
+    cycle_mocks.pick.assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_normal_load_picks_job(cycle_mocks: SimpleNamespace) -> None:
     gate = SimpleNamespace(status=lambda: _status(False))
-    await _worker(gate)._cycle()
+    w = _worker(gate)
+    await w._cycle()
+    await _drain(w)
     cycle_mocks.execute.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_no_gate_behaves_as_before(cycle_mocks: SimpleNamespace) -> None:
-    await _worker(None)._cycle()
+    w = _worker(None)
+    await w._cycle()
+    await _drain(w)
     cycle_mocks.execute.assert_awaited_once()
 
 
@@ -87,6 +102,7 @@ async def test_pause_and_resume_transition(cycle_mocks: SimpleNamespace) -> None
     await w._cycle()
     await w._cycle()
     await w._cycle()
-    # 2 cycles surchargés (0 pick), puis reprise (1 pick).
+    await _drain(w)
+    # 2 cycles surchargés (0 pick), puis reprise (1 job exécuté).
     assert cycle_mocks.execute.await_count == 1
     assert w._gate_paused is False
