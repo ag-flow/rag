@@ -106,6 +106,50 @@ class TestConcurrency:
         assert peak <= 2
 
     @pytest.mark.asyncio
+    async def test_llm_slot_reads_endpoint_limits(self) -> None:
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+        from uuid import uuid4
+
+        from rag.services.endpoint_throttle import llm_slot
+
+        reg, ft = _registry()
+        ep = uuid4()
+        pool = SimpleNamespace(
+            fetchrow=AsyncMock(
+                return_value={
+                    "endpoint_id": ep,
+                    "llm_rpm_limit": 1,
+                    "llm_tpm_limit": None,
+                    "llm_max_concurrency": None,
+                }
+            )
+        )
+        async with await llm_slot(pool, uuid4(), tokens=10, registry=reg):
+            pass
+        async with await llm_slot(pool, uuid4(), tokens=10, registry=reg):
+            pass
+        # Deuxième appel : fenêtre rpm=1 pleine → attente.
+        assert len(ft.slept) >= 1
+
+    @pytest.mark.asyncio
+    async def test_llm_slot_passthrough_without_endpoint(self) -> None:
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+        from uuid import uuid4
+
+        from rag.services.endpoint_throttle import llm_slot
+
+        reg, ft = _registry()
+        pool = SimpleNamespace(fetchrow=AsyncMock(return_value={"endpoint_id": None}))
+        async with await llm_slot(pool, uuid4(), tokens=10, registry=reg):
+            pass
+        assert ft.slept == []
+        # Pool absent (chemins où config_pool est optionnel) : passthrough aussi.
+        async with await llm_slot(None, uuid4(), tokens=10, registry=reg):
+            pass
+
+    @pytest.mark.asyncio
     async def test_keys_are_independent(self) -> None:
         reg, ft = _registry()
         async with reg.slot(_EP, "vectorization", rpm_limit=1):

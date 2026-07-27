@@ -7,6 +7,7 @@ from typing import Any
 import asyncpg
 import structlog
 
+from rag.services.endpoint_throttle import estimate_tokens, llm_slot
 from rag.services.llm_clients import call_llm
 from rag.services.trigger_match import resolve_trigger
 
@@ -114,14 +115,17 @@ async def run_enrichments(
 
         prompt_text = row["prompt"].replace("{content}", content)
 
-        llm_result = await call_llm(
-            provider=row["llm_provider"],
-            model=row["llm_model"],
-            api_key=llm_api_key,
-            base_url=row["llm_base_url"],
-            system_prompt="",
-            messages=[{"role": "user", "content": prompt_text}],
-        )
+        # Throttling LLM cross-workspace par endpoint (enabler fe6b8dcb).
+        slot = await llm_slot(config_pool, workspace_id, tokens=estimate_tokens(prompt_text))
+        async with slot:
+            llm_result = await call_llm(
+                provider=row["llm_provider"],
+                model=row["llm_model"],
+                api_key=llm_api_key,
+                base_url=row["llm_base_url"],
+                system_prompt="",
+                messages=[{"role": "user", "content": prompt_text}],
+            )
         answer = (llm_result["answer"] or "").strip()
 
         if not answer:

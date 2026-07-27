@@ -11,6 +11,7 @@ from rag.indexer.chunking.breadcrumb import prepend_breadcrumb
 from rag.indexer.chunking.hashing import compute_chunk_hash
 from rag.indexer.chunking.structured import ChildChunk, ChunkedDocument, RoutedRegion
 from rag.secrets.refs import is_vault_ref
+from rag.services.endpoint_throttle import estimate_tokens, llm_slot
 from rag.services.llm_clients import call_llm_with_cached_prefix
 from rag.services.trigger_match import resolve_trigger
 
@@ -316,16 +317,19 @@ async def _get_or_generate(
 
     prompt = binding.prompt.replace("{chunk}", source_text).replace("{document}", "")
     try:
-        context = (
-            await call_llm_with_cached_prefix(
-                provider=binding.llm_provider,
-                model=binding.llm_model,
-                api_key=api_key,
-                base_url=binding.llm_base_url,
-                cached_prefix=document,
-                prompt=prompt,
-            )
-        ).strip()
+        # Throttling LLM cross-workspace par endpoint (enabler fe6b8dcb).
+        slot = await llm_slot(config_pool, workspace_id, tokens=estimate_tokens(document, prompt))
+        async with slot:
+            context = (
+                await call_llm_with_cached_prefix(
+                    provider=binding.llm_provider,
+                    model=binding.llm_model,
+                    api_key=api_key,
+                    base_url=binding.llm_base_url,
+                    cached_prefix=document,
+                    prompt=prompt,
+                )
+            ).strip()
     except Exception as exc:  # politique S6.2 : jamais d'échec du job complet
         log.warning(
             "inline_context.llm_failed",

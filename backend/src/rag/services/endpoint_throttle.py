@@ -23,7 +23,8 @@ import asyncio
 import time
 from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager, nullcontext
+from typing import Any
 
 import structlog
 
@@ -124,6 +125,48 @@ class EndpointThrottleRegistry:
 def estimate_tokens(*texts: str) -> int:
     """Estimation heuristique (≈ 4 caractères / token) pour le budget TPM."""
     return sum(len(t) for t in texts) // 4
+
+
+_LLM_LIMITS = (
+    "SELECT w.endpoint_id, ve.llm_rpm_limit, ve.llm_tpm_limit, ve.llm_max_concurrency "
+    "FROM workspaces w LEFT JOIN vault_endpoints ve ON ve.id = w.endpoint_id "
+    "WHERE w.id = $1"
+)
+
+
+async def llm_slot(
+    config_pool: Any,
+    workspace_id: Any,
+    *,
+    tokens: int,
+    registry: EndpointThrottleRegistry | None = None,
+) -> AbstractAsyncContextManager[None]:
+    """Créneau de throttling du service LLM pour un workspace.
+
+    Les limites sont lues sur l'ENDPOINT lié (`workspaces.endpoint_id`) —
+    cross-workspace comme les autres services. Workspace sans endpoint, ou
+    `config_pool` absent (chemins où il est optionnel) : passthrough."""
+    if config_pool is None:
+        return nullcontext()
+    try:
+        row = await config_pool.fetchrow(_LLM_LIMITS, workspace_id)
+        endpoint_id = row["endpoint_id"] if row is not None else None
+    except Exception as exc:
+        # Best-effort : une limite illisible ne doit jamais empêcher l'appel
+        # LLM (ni le faire passer pour un échec LLM chez les callers S6.2).
+        log.warning("endpoint_throttle.limits_load_failed", error=type(exc).__name__)
+        return nullcontext()
+    if endpoint_id is None:
+        return nullcontext()
+    reg = registry if registry is not None else get_throttle_registry()
+    return reg.slot(
+        str(endpoint_id),
+        "llm",
+        max_concurrency=row["llm_max_concurrency"],
+        rpm_limit=row["llm_rpm_limit"],
+        tpm_limit=row["llm_tpm_limit"],
+        tokens=tokens,
+    )
 
 
 # Singleton du process — tous les points d'appel partagent les fenêtres.

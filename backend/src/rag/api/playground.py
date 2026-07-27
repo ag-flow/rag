@@ -137,6 +137,7 @@ async def playground_chat(
     """Chat RAG-ancré : embed → vector_search → LLM."""
     from rag.db.workspace_search import vector_search
     from rag.indexer.providers.factory import make_provider
+    from rag.services.endpoint_throttle import estimate_tokens, llm_slot
     from rag.services.llm_clients import build_prompt, call_llm
     from rag.services.llm_configs import get_llm_config_for_chat
 
@@ -150,7 +151,7 @@ async def playground_chat(
     async with config_pool.acquire() as conn:
         ws_row = await conn.fetchrow(
             """
-            SELECT w.rag_cnx, w.name AS ws_name,
+            SELECT w.id AS ws_id, w.rag_cnx, w.name AS ws_name,
                    ic.provider AS idx_provider, ic.model AS idx_model,
                    ic.api_key_ref AS idx_api_key_ref, ic.base_url AS idx_base_url,
                    md.service AS idx_service
@@ -218,14 +219,21 @@ async def playground_chat(
         history=[{"role": m.role, "content": m.content} for m in body.history],
         message=body.message,
     )
-    llm_result = await call_llm(
-        provider=llm_cfg["provider"],
-        model=llm_cfg["model"],
-        api_key=llm_api_key,
-        base_url=llm_cfg.get("base_url"),
-        system_prompt=system_prompt,
-        messages=messages,
+    # Throttling LLM cross-workspace par endpoint (enabler fe6b8dcb).
+    slot = await llm_slot(
+        config_pool,
+        ws_row["ws_id"],
+        tokens=estimate_tokens(system_prompt, *(m["content"] for m in messages)),
     )
+    async with slot:
+        llm_result = await call_llm(
+            provider=llm_cfg["provider"],
+            model=llm_cfg["model"],
+            api_key=llm_api_key,
+            base_url=llm_cfg.get("base_url"),
+            system_prompt=system_prompt,
+            messages=messages,
+        )
 
     log.info(
         "playground.chat",
