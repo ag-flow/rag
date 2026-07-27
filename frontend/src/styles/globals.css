@@ -1,42 +1,73 @@
+@import "./tokens.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* Styles de base : normalisation navigateur + états d'interaction.
+ * Les COULEURS viennent exclusivement de tokens.css (via tailwind.config.js) —
+ * ne jamais réintroduire d'hexadécimal ici (contrôlé par lint:colors). */
 @layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 47.4% 11.2%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 47.4% 11.2%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 47.4% 11.2%;
-
-    --primary: 199 89% 39%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 199 89% 39%;
-
-    --radius: 0.5rem;
+  body {
+    background-color: rgb(var(--ground));
+    color: rgb(var(--neutral-900));
+    font-family: var(--font-body);
   }
 
-  body {
-    @apply bg-background text-foreground;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: 0.01em;
+  }
+
+  /* Liens : plus jamais le bleu navigateur. */
+  a {
+    color: rgb(var(--accent-700));
+  }
+  a:hover {
+    color: rgb(var(--accent-800));
+  }
+
+  ::selection {
+    background-color: rgb(var(--accent-200));
+    color: rgb(var(--neutral-900));
+  }
+
+  /* Anneau de focus unique : accent, 2 px, décollé. Les composants shadcn qui
+   * posent leur propre `focus-visible:outline-none` + ring gardent leur anneau
+   * (même couleur via --ring) ; tout le reste hérite de celui-ci. */
+  :focus-visible {
+    outline: var(--focus-ring-w) solid rgb(var(--accent-600));
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  /* Contrôles natifs (checkbox, radio, progress) alignés sur l'accent. */
+  input,
+  select,
+  textarea {
+    accent-color: rgb(var(--accent-600));
+  }
+
+  [disabled],
+  :disabled {
+    opacity: var(--disabled-opacity);
+    cursor: not-allowed;
+  }
+}
+
+@layer components {
+  /* Densité (aéré / compact) — appliquer ces classes au lieu de py-2 / p-4
+   * sur la barre latérale, les lignes de liste et les cartes. */
+  .density-nav {
+    padding-top: var(--density-nav-py);
+    padding-bottom: var(--density-nav-py);
+  }
+  .density-row {
+    padding-top: var(--density-row-py);
+    padding-bottom: var(--density-row-py);
+  }
+  .density-card {
+    padding: var(--density-card-p);
   }
 }

@@ -9,6 +9,10 @@ export default [
   { ignores: ["dist", "vite.config.ts", "vitest.config.ts", "vite.config.js", "vitest.config.js", "*.d.ts"] },
   js.configs.recommended,
   {
+    files: ["scripts/**/*.mjs"],
+    languageOptions: { globals: { ...globals.node } },
+  },
+  {
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
       parser: tsParser,

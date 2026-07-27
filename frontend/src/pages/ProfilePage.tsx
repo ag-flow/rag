@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useToast } from "@/hooks/useToast";
+import { applyDensity, getStoredDensity, type Density } from "@/lib/density";
 import { profileApi } from "@/lib/profile";
 
 /** Profil utilisateur : email (pivot d'identité, matching OIDC) + GUID
@@ -16,7 +17,11 @@ export function ProfilePage() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const { data: profile, isLoading, isError } = useQuery({
+  const {
+    data: profile,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["me", "profile"],
     queryFn: profileApi.get,
   });
@@ -119,6 +124,46 @@ export function ProfilePage() {
           </Button>
         </div>
       </section>
+
+      <DensitySection />
     </div>
+  );
+}
+
+/** Préférence d'affichage locale au navigateur (tokens de densité). */
+function DensitySection() {
+  const { t } = useTranslation("profile");
+  const [density, setDensity] = useState<Density>(getStoredDensity);
+
+  const choose = (value: Density) => {
+    applyDensity(value);
+    setDensity(value);
+  };
+
+  return (
+    <section className="density-card space-y-2 rounded-md border bg-white">
+      <Label className="text-xs uppercase tracking-wider text-slate-600">
+        {t("density_label")}
+      </Label>
+      <p className="text-xs text-slate-500">{t("density_help")}</p>
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant={density === "comfortable" ? "default" : "outline"}
+          onClick={() => choose("comfortable")}
+        >
+          {t("density_comfortable")}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={density === "compact" ? "default" : "outline"}
+          onClick={() => choose("compact")}
+        >
+          {t("density_compact")}
+        </Button>
+      </div>
+    </section>
   );
 }
