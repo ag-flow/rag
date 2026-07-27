@@ -53,6 +53,9 @@
       "Web origins: <RAG_PUBLIC_URL> (or the value + to auto-derive from redirect URIs). Click Save.",
       "Client « Credentials » tab → copy the « Client secret ». Paste it into the « Client secret » field above and Save (takes effect immediately).",
       "Client « Client scopes » tab → verify the openid, email and profile scopes are assigned (default): the user's email must be present in the token, as it determines their identity (owner_id).",
+      "Client \"Roles\" tab → \"Create role\": create rag-admin (full access) and, for read-only accounts, rag-viewer. Without one of these roles the user is rejected (403) after signing in.",
+      "Users menu → select the user → \"Role mapping\" tab → \"Assign role\" → filter by client → assign rag-admin (or rag-viewer).",
+      "Client scopes menu → roles → \"Mappers\" tab → \"client roles\" → enable \"Add to ID token\" then Save: rag reads roles from the ID token, where Keycloak does NOT put them by default.",
       "Enter the Issuer URL in the field above: https://<keycloak>/realms/<realm> (e.g. https://keycloak.example.com/realms/yoops), then Save the configuration."
     ],
     "note": "After saving, test via the SSO button on the login page. On a redirect_uri error, check that the Valid redirect URI matches <RAG_PUBLIC_URL>/auth/callback exactly."
