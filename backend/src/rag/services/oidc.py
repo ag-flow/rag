@@ -252,11 +252,16 @@ class OidcService:
 
     # --- Authorize + Logout URL ---
 
-    async def build_authorize_url(self) -> tuple[str, str, str]:
+    async def build_authorize_url(self, *, redirect_uri: str | None = None) -> tuple[str, str, str]:
         """Construit l'URL d'authorize Keycloak avec state + nonce aléatoires.
 
         Returns (url, state, nonce). Le caller stocke (state, nonce) dans
         un cookie éphémère (Starlette session) pour validation au callback.
+
+        `redirect_uri` : URI de callback effective (admin.env sinon dérivée de
+        l'adresse d'appel — le caller la stocke dans la session pour la
+        REPASSER telle quelle à `exchange_code`, l'échange exigeant la même
+        valeur). Omise : repli sur RAG_PUBLIC_URL.
 
         Raise OidcNotConfigured si aucune config OIDC en DB.
         """
@@ -269,7 +274,7 @@ class OidcService:
         nonce = secrets.token_urlsafe(32)
         params = {
             "client_id": cfg.client_id,
-            "redirect_uri": f"{self._public_url}/auth/callback",
+            "redirect_uri": redirect_uri or f"{self._public_url}/auth/callback",
             "response_type": "code",
             "scope": "openid email profile",
             "state": state,
@@ -286,10 +291,13 @@ class OidcService:
         code: str,
         expected_nonce: str,
         config: OidcConfig,
+        redirect_uri: str | None = None,
     ) -> _TokenPair:
         """POST token_endpoint avec grant_type=authorization_code.
 
         Vérifie la signature + claims du id_token et contrôle le nonce.
+        `redirect_uri` DOIT être celle envoyée à l'authorize (le caller la
+        relit depuis la session) ; omise : repli sur RAG_PUBLIC_URL.
 
         Raise OidcInvalidCode si Keycloak rejette le code.
         Raise OidcInvalidToken si nonce ne match pas.
@@ -299,7 +307,7 @@ class OidcService:
             data={
                 "grant_type": "authorization_code",
                 "code": code,
-                "redirect_uri": f"{self._public_url}/auth/callback",
+                "redirect_uri": redirect_uri or f"{self._public_url}/auth/callback",
             },
             expected_nonce=expected_nonce,
         )

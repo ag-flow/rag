@@ -26,6 +26,23 @@ class TestDefaults:
         assert store.has_oidc_client_secret() is False
 
 
+class TestPublicUrl:
+    def test_missing_file_no_public_url(self, tmp_path: Path) -> None:
+        # Absent ⇒ None : le caller dérive l'URL de l'adresse d'appel.
+        assert _store(tmp_path).get_public_url() is None
+
+    def test_set_then_read_strips_trailing_slash(self, tmp_path: Path) -> None:
+        store = _store(tmp_path)
+        store.set_public_url("https://rag.yoops.org/")
+        assert store.get_public_url() == "https://rag.yoops.org"
+
+    def test_set_empty_clears(self, tmp_path: Path) -> None:
+        store = _store(tmp_path)
+        store.set_public_url("https://rag.yoops.org")
+        store.set_public_url("")
+        assert store.get_public_url() is None
+
+
 class TestLocalAuthFlag:
     def test_set_disabled_then_read(self, tmp_path: Path) -> None:
         store = _store(tmp_path)

@@ -9,6 +9,8 @@ from rag.schemas.admin_auth_config import (
     ClientSecretStatus,
     LocalLoginSet,
     LocalLoginState,
+    PublicUrlSet,
+    PublicUrlState,
 )
 
 log = structlog.get_logger(__name__)
@@ -36,6 +38,16 @@ def build_admin_auth_config_router() -> APIRouter:
         request.app.state.admin_env.set_oidc_client_secret(payload.value)
         log.info("oidc.client_secret.set")
         return ClientSecretStatus(configured=True)
+
+    @router.get("/oidc/public-url", response_model=PublicUrlState)
+    async def get_public_url(request: Request) -> PublicUrlState:
+        return PublicUrlState(value=request.app.state.admin_env.get_public_url())
+
+    @router.put("/oidc/public-url", response_model=PublicUrlState)
+    async def set_public_url(payload: PublicUrlSet, request: Request) -> PublicUrlState:
+        request.app.state.admin_env.set_public_url(payload.value)
+        log.info("oidc.public_url.set", cleared=payload.value == "")
+        return PublicUrlState(value=request.app.state.admin_env.get_public_url())
 
     @router.get("/auth/local-login", response_model=LocalLoginState)
     async def get_local_login(request: Request) -> LocalLoginState:

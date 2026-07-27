@@ -12,8 +12,10 @@ import { useOidcConfig, useUpsertOidcConfig } from "@/hooks/useOidcConfig";
 import {
   useClientSecretStatus,
   useLocalLogin,
+  usePublicUrl,
   useSetClientSecret,
   useSetLocalLogin,
+  useSetPublicUrl,
 } from "@/hooks/useAdminAuthConfig";
 import { useToast } from "@/hooks/useToast";
 
@@ -39,6 +41,13 @@ export function OidcConfigPage() {
   const { data: localLogin } = useLocalLogin();
   const setLocalLogin = useSetLocalLogin();
   const localEnabled = localLogin?.enabled ?? true;
+
+  const { data: publicUrl } = usePublicUrl();
+  const setPublicUrl = useSetPublicUrl();
+  const [publicUrlInput, setPublicUrlInput] = useState("");
+  useEffect(() => {
+    setPublicUrlInput(publicUrl?.value ?? "");
+  }, [publicUrl]);
 
   const procedureSteps = t("procedure.steps", { returnObjects: true }) as string[];
 
@@ -75,6 +84,13 @@ export function OidcConfigPage() {
         setSecretInput("");
       },
       onError: () => toast({ title: t("client_secret.error"), variant: "destructive" }),
+    });
+  };
+
+  const handleSavePublicUrl = () => {
+    setPublicUrl.mutate(publicUrlInput.trim(), {
+      onSuccess: () => toast({ title: t("public_url.saved") }),
+      onError: () => toast({ title: t("public_url.error"), variant: "destructive" }),
     });
   };
 
@@ -180,6 +196,34 @@ export function OidcConfigPage() {
             disabled={!secretInput || setSecret.isPending}
           >
             {t("client_secret.submit")}
+          </Button>
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-md border bg-white p-6">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-sm font-semibold text-slate-900">{t("public_url.title")}</h2>
+          {!publicUrl?.value && (
+            <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">
+              {t("public_url.derived")}
+            </span>
+          )}
+        </div>
+        <p className="mt-2 text-xs text-slate-500">{t("public_url.help")}</p>
+        <div className="mt-3 flex items-center gap-2">
+          <Input
+            value={publicUrlInput}
+            onChange={(e) => setPublicUrlInput(e.target.value)}
+            placeholder={t("public_url.placeholder")}
+            className="flex-1 font-mono"
+            aria-label={t("public_url.title")}
+          />
+          <Button
+            type="button"
+            onClick={handleSavePublicUrl}
+            disabled={setPublicUrl.isPending || publicUrlInput.trim() === (publicUrl?.value ?? "")}
+          >
+            {t("public_url.submit")}
           </Button>
         </div>
       </section>

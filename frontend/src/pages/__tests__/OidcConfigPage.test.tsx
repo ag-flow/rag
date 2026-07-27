@@ -13,6 +13,7 @@ import { OidcConfigPage } from "@/pages/OidcConfigPage";
 const mutateMock = vi.fn();
 const setSecretMutate = vi.fn();
 const setLocalMutate = vi.fn();
+const setPublicUrlMutate = vi.fn();
 
 vi.mock("@/hooks/useOidcConfig", () => ({
   useOidcConfig: vi.fn(),
@@ -28,10 +29,12 @@ vi.mock("@/hooks/useAdminAuthConfig", () => ({
   useSetClientSecret: () => ({ mutate: setSecretMutate, isPending: false }),
   useLocalLogin: vi.fn(),
   useSetLocalLogin: () => ({ mutate: setLocalMutate, isPending: false }),
+  usePublicUrl: vi.fn(),
+  useSetPublicUrl: () => ({ mutate: setPublicUrlMutate, isPending: false }),
 }));
 
 import { useOidcConfig } from "@/hooks/useOidcConfig";
-import { useClientSecretStatus, useLocalLogin } from "@/hooks/useAdminAuthConfig";
+import { useClientSecretStatus, useLocalLogin, usePublicUrl } from "@/hooks/useAdminAuthConfig";
 
 function mockSecretStatus(configured: boolean): void {
   vi.mocked(useClientSecretStatus).mockReturnValue({
@@ -43,6 +46,12 @@ function mockLocalLogin(enabled: boolean): void {
   vi.mocked(useLocalLogin).mockReturnValue({
     data: { enabled },
   } as unknown as ReturnType<typeof useLocalLogin>);
+}
+
+function mockPublicUrl(value: string | null): void {
+  vi.mocked(usePublicUrl).mockReturnValue({
+    data: { value },
+  } as unknown as ReturnType<typeof usePublicUrl>);
 }
 
 const testI18n = i18next.createInstance();
@@ -84,7 +93,28 @@ describe("OidcConfigPage", () => {
     vi.clearAllMocks();
     mockSecretStatus(false);
     mockLocalLogin(true);
+    mockPublicUrl(null);
     mockConfig(null);
+  });
+
+  it("URL publique : badge Automatique quand vide, saisie appelle setPublicUrl", () => {
+    renderPage();
+    expect(screen.getByText("Automatique (adresse d'appel du client)")).toBeInTheDocument();
+
+    const input = screen.getByRole("textbox", { name: "URL publique de l'application" });
+    fireEvent.change(input, { target: { value: "https://rag.yoops.org" } });
+    const section = input.closest("section");
+    expect(section).not.toBeNull();
+    fireEvent.click(within(section as HTMLElement).getByRole("button", { name: "Enregistrer" }));
+    expect(setPublicUrlMutate).toHaveBeenCalledWith("https://rag.yoops.org", expect.anything());
+  });
+
+  it("URL publique : valeur configurée pré-remplie, pas de badge Automatique", () => {
+    mockPublicUrl("https://rag.yoops.org");
+    renderPage();
+    const input = screen.getByRole("textbox", { name: "URL publique de l'application" });
+    expect((input as HTMLInputElement).value).toBe("https://rag.yoops.org");
+    expect(screen.queryByText("Automatique (adresse d'appel du client)")).not.toBeInTheDocument();
   });
 
   it("form vide si pas de config", () => {

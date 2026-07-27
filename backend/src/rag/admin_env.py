@@ -7,6 +7,7 @@ from pathlib import Path
 # Clés gérées via l'IHM et persistées dans le fichier admin.env.
 KEY_OIDC_CLIENT_SECRET = "RAG_OIDC_CLIENT_SECRET"  # noqa: S105 — nom de variable, pas un secret
 KEY_LOCAL_AUTH_DISABLED = "RAG_LOCAL_AUTH_DISABLED"
+KEY_PUBLIC_URL = "RAG_PUBLIC_URL"
 
 
 class AdminEnvStore:
@@ -90,6 +91,21 @@ class AdminEnvStore:
 
     def set_oidc_client_secret(self, value: str) -> None:
         self._write_key(KEY_OIDC_CLIENT_SECRET, value)
+
+    def get_public_url(self) -> str | None:
+        """URL publique de l'app fixée depuis l'IHM (page OIDC).
+
+        Absente ou vide ⇒ None : le caller dérive alors l'URL de l'ADRESSE
+        D'APPEL du client (`public_base_from_request`). Prioritaire sur le
+        RAG_PUBLIC_URL du `.env` principal (souvent périmé — cf. bug
+        redirect_uri=localhost du 2026-07-27)."""
+        value = self._read_all().get(KEY_PUBLIC_URL, "").strip()
+        return value.rstrip("/") or None
+
+    def set_public_url(self, value: str) -> None:
+        """Écrit l'URL publique ; chaîne vide = retour au défaut (dérivée de
+        l'adresse d'appel)."""
+        self._write_key(KEY_PUBLIC_URL, value.strip())
 
     def is_local_auth_disabled(self) -> bool:
         # Variable absente ⇒ connexion locale activée (disabled = False).

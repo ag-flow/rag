@@ -49,12 +49,21 @@ def build_auth_router() -> APIRouter:
         if cfg is None:
             raise OidcNotConfigured()
 
-        url, state, nonce = await oidc.build_authorize_url()
-        # Stocke (state, nonce, next) dans session signée (cookie HttpOnly).
+        # redirect_uri effectif : URL publique fixée depuis l'IHM (admin.env),
+        # sinon dérivée de l'ADRESSE D'APPEL — fiable même si le
+        # RAG_PUBLIC_URL du .env est périmé (bug redirect_uri=localhost).
+        public_base = request.app.state.admin_env.get_public_url() or public_base_from_request(
+            request
+        )
+        redirect_uri = f"{public_base}/auth/callback"
+        url, state, nonce = await oidc.build_authorize_url(redirect_uri=redirect_uri)
+        # Stocke (state, nonce, next, redirect_uri) dans session signée : le
+        # callback DOIT repasser exactement la même redirect_uri à l'échange.
         request.session[_STATE_KEY] = {
             "state": state,
             "nonce": nonce,
             "next": _safe_next(next),
+            "redirect_uri": redirect_uri,
         }
         return RedirectResponse(url=url, status_code=302)
 
@@ -79,6 +88,7 @@ def build_auth_router() -> APIRouter:
             code=code,
             expected_nonce=state_payload["nonce"],
             config=cfg,
+            redirect_uri=state_payload.get("redirect_uri"),
         )
         # Set session cookie (signée par SessionMiddleware).
         request.session[_SESSION_KEY] = {

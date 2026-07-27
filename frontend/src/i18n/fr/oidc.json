@@ -56,5 +56,14 @@
       "Reporter l'Issuer URL dans le champ ci-dessus : https://<keycloak>/realms/<realm> (ex. https://keycloak.example.com/realms/yoops), puis Enregistrer la configuration."
     ],
     "note": "Après enregistrement, tester via le bouton SSO de la page de connexion. En cas d'erreur redirect_uri, vérifier que la Valid redirect URI correspond exactement à <RAG_PUBLIC_URL>/auth/callback."
+  },
+  "public_url": {
+    "title": "URL publique de l'application",
+    "help": "Utilisée pour construire l'URL de retour OIDC (redirect_uri). Vide = dérivée automatiquement de l'adresse par laquelle le navigateur accède à l'application (recommandé). Prime sur le RAG_PUBLIC_URL du .env serveur.",
+    "placeholder": "https://rag.yoops.org (vide = automatique)",
+    "derived": "Automatique (adresse d'appel du client)",
+    "submit": "Enregistrer",
+    "saved": "URL publique enregistrée.",
+    "error": "Impossible d'enregistrer l'URL publique."
   }
 }

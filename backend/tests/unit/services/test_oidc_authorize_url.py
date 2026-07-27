@@ -61,6 +61,18 @@ async def test_build_authorize_url_includes_required_params() -> None:
 
 
 @pytest.mark.asyncio
+async def test_build_authorize_url_honors_redirect_uri_override() -> None:
+    # Le caller (route /auth/login) fournit le redirect_uri effectif :
+    # valeur admin.env, sinon dérivé de l'adresse d'appel — RAG_PUBLIC_URL
+    # du .env n'est plus qu'un dernier repli.
+    issuer = "https://kc.example.com/realms/test"
+    svc = _make_service_with_config(issuer)
+    url, _, _ = await svc.build_authorize_url(redirect_uri="https://rag.yoops.org/auth/callback")
+    params = parse_qs(urlparse(url).query)
+    assert params["redirect_uri"] == ["https://rag.yoops.org/auth/callback"]
+
+
+@pytest.mark.asyncio
 async def test_build_authorize_url_state_and_nonce_unique() -> None:
     issuer = "https://kc.example.com/realms/test"
     svc = _make_service_with_config(issuer)
