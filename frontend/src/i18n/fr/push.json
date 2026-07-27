@@ -17,7 +17,8 @@
     "date": "Date",
     "detail_aria": "Voir le détail du job",
     "source": "Source",
-    "path": "Document"
+    "path": "Document",
+    "duration": "Durée"
   },
   "files_summary": "{{changed}} modifiés / {{skipped}} ignorés",
   "status": {

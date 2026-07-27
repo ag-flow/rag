@@ -26,7 +26,12 @@ const makeWorkspace = (name: string): Workspace => ({
   endpoint_id: null,
   label: name,
   description: "",
-  indexer: { provider: "openai", model: "text-embedding-3-small", api_key_ref: null, base_url: null },
+  indexer: {
+    provider: "openai",
+    model: "text-embedding-3-small",
+    api_key_ref: null,
+    base_url: null,
+  },
   sources_count: 0,
   documents_count: 0,
   last_indexed_at: null,
@@ -69,6 +74,8 @@ describe("PushActivityPage", () => {
     expect(screen.getByRole("cell", { name: "Terminé" })).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "Erreur" })).toBeInTheDocument();
     expect(screen.getAllByText("3 modifiés / 1 ignorés")).toHaveLength(2);
+    // Durée de traitement (duration_ms: 1200 → 1.2 s).
+    expect(screen.getAllByText("1.2 s")).toHaveLength(2);
     expect(listGlobal).toHaveBeenCalledWith({});
   });
 

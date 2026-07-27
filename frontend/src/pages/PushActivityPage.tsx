@@ -14,6 +14,7 @@ import { useGlobalJobs } from "@/hooks/useGlobalJobs";
 import { useWorkspaces, useWorkspaceJob } from "@/hooks/useWorkspaces";
 import type { GlobalJob, GlobalJobsFilters } from "@/lib/jobs.types";
 import type { Job, JobSource } from "@/lib/workspaces.types";
+import { formatDurationMs } from "@/lib/duration";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { JobDetailPanel } from "@/pages/workspace/JobDetailPanel";
 import { LoadGatePanel } from "@/pages/push/LoadGatePanel";
@@ -109,13 +110,16 @@ function JobRow({
             })
           )}
         </TableCell>
+        <TableCell className="text-right font-mono text-xs text-slate-600">
+          {formatDurationMs(current.duration_ms)}
+        </TableCell>
         <TableCell className="text-xs text-slate-500">
           {current.started_at ? formatRelativeTime(current.started_at, t) : "—"}
         </TableCell>
       </TableRow>
       {isOpen && !isRejected && job.workspace_name && (
         <TableRow>
-          <TableCell colSpan={7} className="p-0">
+          <TableCell colSpan={8} className="p-0">
             <JobDetailPanel name={job.workspace_name} job={current} />
           </TableCell>
         </TableRow>
@@ -210,6 +214,7 @@ export function PushActivityPage() {
                 <TableHead>{t("table.path")}</TableHead>
                 <TableHead>{t("table.status")}</TableHead>
                 <TableHead>{t("table.files")}</TableHead>
+                <TableHead className="text-right">{t("table.duration")}</TableHead>
                 <TableHead>{t("table.date")}</TableHead>
               </TableRow>
             </TableHeader>
