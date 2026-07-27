@@ -382,6 +382,12 @@
     "errors": {
       "engineUnavailable": "The “{{engine}}” engine is not available on this Postgres instance.",
       "engineUnavailableExplain": "Install the pg_search extension on the Postgres instance, or keep the native FTS engine which requires no extension."
+    },
+    "help": {
+      "title": "What is hybrid search?",
+      "what": "Vector search alone retrieves passages by meaning, but can miss exact matches: technical identifiers, function names, error codes, acronyms. Hybrid search queries a second lexical (full-text) index in parallel and merges both rankings by rank (weighted RRF fusion — the sliders below tune each channel's weight).",
+      "activation": "Enabling it builds the lexical index over already-indexed documents (a rebuild job, no re-embedding so no provider cost); existing search stays available during the operation and the switch is reversible.",
+      "doc_link": "Product documentation — Hybrid search"
     }
   },
   "dialog": {

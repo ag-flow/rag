@@ -1,15 +1,11 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertCircle, HelpCircle, Info } from "lucide-react";
+import { HybridSearchHelp } from "@/pages/workspace/HybridSearchHelp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useToast } from "@/hooks/useToast";
 import { useHybridConfig, useSaveHybridConfig } from "@/hooks/useSearchConfig";
@@ -82,6 +78,7 @@ export function WorkspaceSearchTab({ name, enabled }: Props) {
     return (
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-slate-900">{t("search.title")}</h3>
+        <HybridSearchHelp />
         <div className="rounded-md border bg-white p-4 space-y-3">
           <p className="text-sm font-medium text-slate-700">{t("search.empty.title")}</p>
           <p className="text-sm text-slate-500">{t("search.empty.description")}</p>
@@ -101,6 +98,8 @@ export function WorkspaceSearchTab({ name, enabled }: Props) {
         <h3 className="text-sm font-semibold text-slate-900">{t("search.title")}</h3>
         <p className="mt-1 text-sm text-slate-600">{t("search.description")}</p>
       </div>
+
+      <HybridSearchHelp />
 
       {rebuildJobId && (
         <div className="rounded-md border border-sky-200 bg-sky-50 px-4 py-3 flex gap-2 text-sm">
@@ -231,9 +230,7 @@ export function WorkspaceSearchTab({ name, enabled }: Props) {
                     <HelpCircle className="h-3.5 w-3.5" />
                   </span>
                 </TooltipTrigger>
-                <TooltipContent className="max-w-xs">
-                  {t("search.fields.rrfKHelp")}
-                </TooltipContent>
+                <TooltipContent className="max-w-xs">{t("search.fields.rrfKHelp")}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </label>

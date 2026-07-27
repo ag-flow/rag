@@ -382,6 +382,12 @@
     "errors": {
       "engineUnavailable": "Le moteur « {{engine}} » n'est pas disponible sur cette instance Postgres.",
       "engineUnavailableExplain": "Installez l'extension pg_search sur l'instance Postgres, ou conservez le moteur FTS natif qui ne requiert aucune extension."
+    },
+    "help": {
+      "title": "Qu'est-ce que la recherche hybride ?",
+      "what": "La recherche vectorielle seule retrouve les passages par le sens, mais peut rater les correspondances exactes : identifiants techniques, noms de fonctions, codes d'erreur, sigles. La recherche hybride interroge en parallèle un second index lexical (plein-texte) et fusionne les deux classements par rangs (fusion RRF pondérée — les curseurs ci-dessous règlent le poids de chaque canal).",
+      "activation": "L'activation construit l'index lexical sur les documents déjà indexés (job de reconstruction, sans ré-embedding donc sans surcoût provider) ; la recherche existante reste disponible pendant l'opération et la bascule est réversible.",
+      "doc_link": "Documentation produit — Recherche hybride"
     }
   },
   "dialog": {
