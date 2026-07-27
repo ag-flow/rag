@@ -13,6 +13,7 @@ from rag.admin_env import AdminEnvStore
 from rag.api.admin import build_admin_router
 from rag.api.admin.circuit_breaker import build_circuit_breaker_router
 from rag.api.admin_auth_config import build_admin_auth_config_router
+from rag.api.admin_load_gate import build_admin_load_gate_router
 from rag.api.admin_chunking_preview import build_chunking_preview_router
 from rag.api.admin_chunking_strategies import build_chunking_strategies_router
 from rag.api.admin_events_producer import build_events_producer_router
@@ -190,6 +191,9 @@ def build_app(
             app.state.resolver = resolver_factory(settings, app)
 
             app.state.admin_env = AdminEnvStore(settings.rag_admin_env_file)
+            from rag.services.load_gate import LoadGate
+
+            app.state.load_gate = LoadGate(app.state.admin_env)
             app.state.oidc = OidcService(
                 config_pool=registry.config_pool,
                 public_url=str(settings.rag_public_url).rstrip("/"),
@@ -239,6 +243,7 @@ def build_app(
                 default_sync_interval_seconds=settings.sync_default_interval_seconds,
                 job_log_bus=app.state.job_log_bus,
                 webhook_secret=webhook_secret,
+                load_gate=app.state.load_gate,
             )
             await sync_worker.start()
             app.state.sync_worker = sync_worker
@@ -308,6 +313,7 @@ def build_app(
     app.include_router(build_admin_router(), prefix="/api/admin")
     app.include_router(build_admin_oidc_router(), prefix="/api/admin")
     app.include_router(build_admin_auth_config_router(), prefix="/api/admin")
+    app.include_router(build_admin_load_gate_router(), prefix="/api/admin")
     app.include_router(admin_harpocrate_vaults_router)
     app.include_router(admin_vault_endpoints_router)
     app.include_router(admin_provider_keys_router)

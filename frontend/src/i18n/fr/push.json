@@ -40,5 +40,21 @@
     "webhook": "Webhook",
     "git": "Git",
     "admin": "Admin"
+  },
+  "load_gate": {
+    "title": "Charge serveur",
+    "help": "Quand la pression CPU (PSI, temps d'attente CPU sur 60 s) ou la mémoire dépasse les seuils, le worker suspend la prise de nouveaux jobs — la file attend, rien n'est rejeté. Le trafic de recherche n'est pas affecté.",
+    "badge_normal": "Normal",
+    "badge_paused": "Jobs en pause (surcharge)",
+    "badge_disabled": "Désactivé",
+    "cpu_metric": "Pression CPU 60 s",
+    "memory_metric": "Mémoire",
+    "unknown": "n/d",
+    "enabled_label": "Gate actif",
+    "cpu_threshold": "Seuil CPU (%)",
+    "memory_threshold": "Seuil mémoire (%)",
+    "submit": "Enregistrer",
+    "saved": "Seuils enregistrés — pris en compte immédiatement.",
+    "error": "Impossible d'enregistrer les seuils."
   }
 }

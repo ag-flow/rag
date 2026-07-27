@@ -40,5 +40,21 @@
     "webhook": "Webhook",
     "git": "Git",
     "admin": "Admin"
+  },
+  "load_gate": {
+    "title": "Server load",
+    "help": "When CPU pressure (PSI, CPU wait time over 60 s) or memory exceeds the thresholds, the worker pauses picking new jobs — the queue waits, nothing is rejected. Search traffic is unaffected.",
+    "badge_normal": "Normal",
+    "badge_paused": "Jobs paused (overload)",
+    "badge_disabled": "Disabled",
+    "cpu_metric": "CPU pressure 60 s",
+    "memory_metric": "Memory",
+    "unknown": "n/a",
+    "enabled_label": "Gate enabled",
+    "cpu_threshold": "CPU threshold (%)",
+    "memory_threshold": "Memory threshold (%)",
+    "submit": "Save",
+    "saved": "Thresholds saved — applied immediately.",
+    "error": "Could not save the thresholds."
   }
 }

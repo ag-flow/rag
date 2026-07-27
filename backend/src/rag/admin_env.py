@@ -8,6 +8,14 @@ from pathlib import Path
 KEY_OIDC_CLIENT_SECRET = "RAG_OIDC_CLIENT_SECRET"  # noqa: S105 — nom de variable, pas un secret
 KEY_LOCAL_AUTH_DISABLED = "RAG_LOCAL_AUTH_DISABLED"
 KEY_PUBLIC_URL = "RAG_PUBLIC_URL"
+KEY_LOAD_GATE_ENABLED = "RAG_LOAD_GATE_ENABLED"
+KEY_LOAD_GATE_CPU_PSI_PCT = "RAG_LOAD_GATE_CPU_PSI_PCT"
+KEY_LOAD_GATE_MEMORY_PCT = "RAG_LOAD_GATE_MEMORY_PCT"
+
+# Défauts du gate de charge (enabler 01f8992b) : PSI CPU some avg60 et
+# mémoire cgroup — seuils prudents, gate actif par défaut.
+LOAD_GATE_DEFAULT_CPU_PSI_PCT = 40
+LOAD_GATE_DEFAULT_MEMORY_PCT = 85
 
 
 class AdminEnvStore:
@@ -106,6 +114,29 @@ class AdminEnvStore:
         """Écrit l'URL publique ; chaîne vide = retour au défaut (dérivée de
         l'adresse d'appel)."""
         self._write_key(KEY_PUBLIC_URL, value.strip())
+
+    def _get_int(self, key: str, default: int) -> int:
+        raw = self._read_all().get(key, "").strip()
+        try:
+            value = int(raw)
+        except ValueError:
+            return default
+        return value if value >= 1 else default
+
+    def get_load_gate_enabled(self) -> bool:
+        # Variable absente ⇒ gate actif (seuils prudents par défaut).
+        return self._read_all().get(KEY_LOAD_GATE_ENABLED, "true").lower() != "false"
+
+    def get_load_gate_cpu_psi_pct(self) -> int:
+        return self._get_int(KEY_LOAD_GATE_CPU_PSI_PCT, LOAD_GATE_DEFAULT_CPU_PSI_PCT)
+
+    def get_load_gate_memory_pct(self) -> int:
+        return self._get_int(KEY_LOAD_GATE_MEMORY_PCT, LOAD_GATE_DEFAULT_MEMORY_PCT)
+
+    def set_load_gate(self, *, enabled: bool, cpu_psi_pct: int, memory_pct: int) -> None:
+        self._write_key(KEY_LOAD_GATE_ENABLED, "true" if enabled else "false")
+        self._write_key(KEY_LOAD_GATE_CPU_PSI_PCT, str(cpu_psi_pct))
+        self._write_key(KEY_LOAD_GATE_MEMORY_PCT, str(memory_pct))
 
     def is_local_auth_disabled(self) -> bool:
         # Variable absente ⇒ connexion locale activée (disabled = False).
