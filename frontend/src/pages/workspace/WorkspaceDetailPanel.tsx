@@ -14,6 +14,7 @@ import { WorkspaceWebhooksTab } from "./WorkspaceWebhooksTab";
 import { WorkspacePlaygroundTab } from "./WorkspacePlaygroundTab";
 import { WorkspaceTriggersTab } from "./WorkspaceTriggersTab";
 import { WorkspaceIndexTab } from "./WorkspaceIndexTab";
+import { WorkspaceSearchTestTab } from "./WorkspaceSearchTestTab";
 import { ReindexConfirmDialog } from "./ReindexConfirmDialog";
 import { DeleteWorkspaceAlert } from "./DeleteWorkspaceAlert";
 
@@ -71,6 +72,7 @@ export function WorkspaceDetailPanel({ name }: Props) {
             {t("tabs.sources", { count: ws.sources_count })}
           </TabsTrigger>
           <TabsTrigger value="search">{t("tabs.search")}</TabsTrigger>
+          <TabsTrigger value="search-test">{t("tabs.search_test")}</TabsTrigger>
           <TabsTrigger value="webhooks">{t("webhooks.tab")}</TabsTrigger>
           <TabsTrigger value="playground">{t("tabs.playground")}</TabsTrigger>
         </TabsList>
@@ -95,6 +97,9 @@ export function WorkspaceDetailPanel({ name }: Props) {
         </TabsContent>
         <TabsContent value="search" className="pt-4">
           <WorkspaceSearchTab name={ws.name} enabled={activeTab === "search"} />
+        </TabsContent>
+        <TabsContent value="search-test" className="pt-4">
+          <WorkspaceSearchTestTab workspaceName={ws.name} enabled={activeTab === "search-test"} />
         </TabsContent>
         <TabsContent value="webhooks" className="pt-4">
           <WorkspaceWebhooksTab workspaceName={ws.name} />

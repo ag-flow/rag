@@ -470,6 +470,7 @@ async def list_workspaces() -> str:
 from rag.api.mcp_endpoint_tools import register_endpoint_tools  # noqa: E402
 from rag.api.mcp_library_tools import register_library_tools  # noqa: E402
 from rag.api.mcp_ops_tools import register_ops_tools  # noqa: E402
+from rag.api.mcp_search_test_tools import register_search_test_tools  # noqa: E402
 from rag.api.mcp_source_tools import register_source_tools  # noqa: E402
 from rag.api.mcp_trigger_tools import register_trigger_tools  # noqa: E402
 from rag.api.mcp_workspace_admin_tools import register_workspace_admin_tools  # noqa: E402
@@ -480,6 +481,7 @@ register_endpoint_tools(_mcp, _ws_ctx)
 register_workspace_admin_tools(_mcp, _ws_ctx)
 register_source_tools(_mcp, _ws_ctx)
 register_trigger_tools(_mcp, _ws_ctx)
+register_search_test_tools(_mcp, _ws_ctx)
 
 
 class McpPathNormalizerMiddleware:

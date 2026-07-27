@@ -31,7 +31,8 @@
     "playground": "Playground",
     "triggers": "Triggers",
     "apikeys": "Api",
-    "index": "Index"
+    "index": "Index",
+    "search_test": "Test bench"
   },
   "detail": {
     "stats": {
@@ -503,5 +504,22 @@
     "minutesAgo": "{{count}} min ago",
     "hoursAgo": "{{count}} h ago",
     "daysAgo": "{{count}} d ago"
+  },
+  "search_test": {
+    "title": "Test bench ({{count}} questions)",
+    "intro": "Questions pushed by agents via MCP (push_test_question), with the expected document. A campaign asks each question and checks the document shows up in the top 10.",
+    "run_btn": "Run a campaign",
+    "running": "Campaign running…",
+    "run_done": "Campaign finished — {{failed}} miss(es).",
+    "run_error": "The campaign failed.",
+    "empty": "No questions yet. An agent can push some via the push_test_question MCP primitive.",
+    "toggle_aria": "Question enabled",
+    "delete_aria": "Delete question",
+    "runs_title": "Campaigns",
+    "runs_empty": "No campaign yet.",
+    "cfg_hybrid": "hybrid",
+    "cfg_vector": "vector only",
+    "failed_count": "{{failed}}/{{total}} misses",
+    "miss_label": "Expected document missing from top 10:"
   }
 }

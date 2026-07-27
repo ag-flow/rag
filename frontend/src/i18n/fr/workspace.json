@@ -31,7 +31,8 @@
     "playground": "Playground",
     "triggers": "Triggers",
     "apikeys": "Api",
-    "index": "Index"
+    "index": "Index",
+    "search_test": "Banc de test"
   },
   "detail": {
     "stats": {
@@ -503,5 +504,22 @@
     "minutesAgo": "il y a {{count}} min",
     "hoursAgo": "il y a {{count}} h",
     "daysAgo": "il y a {{count}} j"
+  },
+  "search_test": {
+    "title": "Banc de test ({{count}} questions)",
+    "intro": "Questions poussées par les agents via MCP (push_test_question), avec le document attendu. La campagne pose chaque question au moteur et vérifie que le document ressort dans le top-10.",
+    "run_btn": "Lancer une campagne",
+    "running": "Campagne en cours…",
+    "run_done": "Campagne terminée — {{failed}} échec(s).",
+    "run_error": "La campagne a échoué.",
+    "empty": "Aucune question. Un agent peut en pousser via la primitive MCP push_test_question.",
+    "toggle_aria": "Question activée",
+    "delete_aria": "Supprimer la question",
+    "runs_title": "Campagnes",
+    "runs_empty": "Aucune campagne lancée.",
+    "cfg_hybrid": "hybride",
+    "cfg_vector": "vectoriel seul",
+    "failed_count": "{{failed}}/{{total}} échecs",
+    "miss_label": "Document attendu absent du top-10 :"
   }
 }
