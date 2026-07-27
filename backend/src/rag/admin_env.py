@@ -11,11 +11,13 @@ KEY_PUBLIC_URL = "RAG_PUBLIC_URL"
 KEY_LOAD_GATE_ENABLED = "RAG_LOAD_GATE_ENABLED"
 KEY_LOAD_GATE_CPU_PSI_PCT = "RAG_LOAD_GATE_CPU_PSI_PCT"
 KEY_LOAD_GATE_MEMORY_PCT = "RAG_LOAD_GATE_MEMORY_PCT"
+KEY_LOAD_GATE_IO_PSI_PCT = "RAG_LOAD_GATE_IO_PSI_PCT"
 
 # Défauts du gate de charge (enabler 01f8992b) : PSI CPU some avg60 et
 # mémoire cgroup — seuils prudents, gate actif par défaut.
 LOAD_GATE_DEFAULT_CPU_PSI_PCT = 40
 LOAD_GATE_DEFAULT_MEMORY_PCT = 85
+LOAD_GATE_DEFAULT_IO_PSI_PCT = 60
 
 
 class AdminEnvStore:
@@ -55,9 +57,7 @@ class AdminEnvStore:
         répertoire puis `os.replace` (rename atomique sur POSIX).
         """
         existing = (
-            self._path.read_text(encoding="utf-8").splitlines()
-            if self._path.exists()
-            else []
+            self._path.read_text(encoding="utf-8").splitlines() if self._path.exists() else []
         )
         new_line = f"{key}={value}"
         out: list[str] = []
@@ -133,10 +133,16 @@ class AdminEnvStore:
     def get_load_gate_memory_pct(self) -> int:
         return self._get_int(KEY_LOAD_GATE_MEMORY_PCT, LOAD_GATE_DEFAULT_MEMORY_PCT)
 
-    def set_load_gate(self, *, enabled: bool, cpu_psi_pct: int, memory_pct: int) -> None:
+    def get_load_gate_io_psi_pct(self) -> int:
+        return self._get_int(KEY_LOAD_GATE_IO_PSI_PCT, LOAD_GATE_DEFAULT_IO_PSI_PCT)
+
+    def set_load_gate(
+        self, *, enabled: bool, cpu_psi_pct: int, memory_pct: int, io_psi_pct: int
+    ) -> None:
         self._write_key(KEY_LOAD_GATE_ENABLED, "true" if enabled else "false")
         self._write_key(KEY_LOAD_GATE_CPU_PSI_PCT, str(cpu_psi_pct))
         self._write_key(KEY_LOAD_GATE_MEMORY_PCT, str(memory_pct))
+        self._write_key(KEY_LOAD_GATE_IO_PSI_PCT, str(io_psi_pct))
 
     def is_local_auth_disabled(self) -> bool:
         # Variable absente ⇒ connexion locale activée (disabled = False).

@@ -20,8 +20,10 @@ def _status(overloaded: bool) -> LoadGateStatus:
         overloaded=overloaded,
         cpu_psi_avg60=55.0 if overloaded else 5.0,
         memory_used_pct=40.0,
+        io_psi_avg60=None,
         cpu_threshold_pct=40,
         memory_threshold_pct=85,
+        io_threshold_pct=60,
         reasons=["cpu psi avg60 55.0 > 40%"] if overloaded else [],
     )
 

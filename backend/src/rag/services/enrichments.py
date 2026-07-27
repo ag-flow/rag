@@ -10,6 +10,7 @@ import structlog
 from rag.services.endpoint_failover import (
     ServiceSpec,
     call_with_failover,
+    fallback_slot,
     load_failover,
 )
 from rag.services.endpoint_throttle import estimate_tokens, llm_slot
@@ -146,14 +147,15 @@ async def run_enrichments(
                 if fb.api_key_ref and config_pool
                 else None
             )
-            return await call_llm(
-                provider=fb.provider,
-                model=fb.model,
-                api_key=fb_key,
-                base_url=fb.base_url,
-                system_prompt="",
-                messages=messages,
-            )
+            async with fallback_slot(fb, "llm", tokens=estimate_tokens(prompt_text)):
+                return await call_llm(
+                    provider=fb.provider,
+                    model=fb.model,
+                    api_key=fb_key,
+                    base_url=fb.base_url,
+                    system_prompt="",
+                    messages=messages,
+                )
 
         failover = (
             await load_failover(config_pool, workspace_id=workspace_id, service="llm")

@@ -40,7 +40,14 @@ def _gate(
         "MemTotal:       16000000 kB\nMemFree:         2000000 kB\nMemAvailable:    8000000 kB\n",
         encoding="utf-8",
     )
-    return LoadGate(admin_env, psi_cpu_path=psi, cgroup_dir=cgroup, meminfo_path=meminfo)
+    # psi io : fichier absent par défaut (fail-open) — déterministe en test.
+    return LoadGate(
+        admin_env,
+        psi_cpu_path=psi,
+        psi_io_path=tmp_path / "pressure_io",
+        cgroup_dir=cgroup,
+        meminfo_path=meminfo,
+    )
 
 
 class TestMetrics:
@@ -91,3 +98,18 @@ class TestThresholds:
         ).status()
         assert st.enabled is False
         assert st.overloaded is False
+
+
+class TestIoPressure:
+    def test_io_above_threshold_overloads(self, tmp_path: Path) -> None:
+        gate = _gate(tmp_path)
+        (tmp_path / "pressure_io").write_text(_PSI.format(avg60=75.0), encoding="utf-8")
+        st = gate.status()
+        assert st.io_psi_avg60 == 75.0
+        assert st.overloaded is True
+        assert any("io" in r for r in st.reasons)
+
+    def test_io_absent_fail_open(self, tmp_path: Path) -> None:
+        st = _gate(tmp_path).status()
+        assert st.io_psi_avg60 is None
+        assert st.io_threshold_pct == 60

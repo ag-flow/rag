@@ -35,8 +35,10 @@ class LoadGateStatus:
     overloaded: bool
     cpu_psi_avg60: float | None
     memory_used_pct: float | None
+    io_psi_avg60: float | None
     cpu_threshold_pct: int
     memory_threshold_pct: int
+    io_threshold_pct: int
     reasons: list[str]
 
 
@@ -51,17 +53,19 @@ class LoadGate:
         admin_env: AdminEnvStore,
         *,
         psi_cpu_path: Path = Path("/proc/pressure/cpu"),
+        psi_io_path: Path = Path("/proc/pressure/io"),
         cgroup_dir: Path = Path("/sys/fs/cgroup"),
         meminfo_path: Path = Path("/proc/meminfo"),
     ) -> None:
         self._admin_env = admin_env
         self._psi_cpu_path = psi_cpu_path
+        self._psi_io_path = psi_io_path
         self._cgroup_dir = cgroup_dir
         self._meminfo_path = meminfo_path
 
-    def _read_psi_avg60(self) -> float | None:
+    def _read_psi_avg60(self, path: Path) -> float | None:
         try:
-            for line in self._psi_cpu_path.read_text(encoding="utf-8").splitlines():
+            for line in path.read_text(encoding="utf-8").splitlines():
                 if line.startswith("some"):
                     for token in line.split():
                         if token.startswith("avg60="):
@@ -105,7 +109,9 @@ class LoadGate:
         enabled = self._admin_env.get_load_gate_enabled()
         cpu_threshold = self._admin_env.get_load_gate_cpu_psi_pct()
         memory_threshold = self._admin_env.get_load_gate_memory_pct()
-        cpu = self._read_psi_avg60()
+        io_threshold = self._admin_env.get_load_gate_io_psi_pct()
+        cpu = self._read_psi_avg60(self._psi_cpu_path)
+        io_pressure = self._read_psi_avg60(self._psi_io_path)
         memory = self._read_memory_pct()
         reasons: list[str] = []
         if enabled:
@@ -113,12 +119,16 @@ class LoadGate:
                 reasons.append(f"cpu psi avg60 {cpu} > {cpu_threshold}%")
             if memory is not None and memory > memory_threshold:
                 reasons.append(f"memory {memory} > {memory_threshold}%")
+            if io_pressure is not None and io_pressure > io_threshold:
+                reasons.append(f"io psi avg60 {io_pressure} > {io_threshold}%")
         return LoadGateStatus(
             enabled=enabled,
             overloaded=bool(reasons),
             cpu_psi_avg60=cpu,
             memory_used_pct=memory,
+            io_psi_avg60=io_pressure,
             cpu_threshold_pct=cpu_threshold,
             memory_threshold_pct=memory_threshold,
+            io_threshold_pct=io_threshold,
             reasons=reasons,
         )

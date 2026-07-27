@@ -203,6 +203,10 @@ class TestLoadFailover:
                     "fb_api_key_ref": None,
                     "fb_base_url": "http://mirror",
                     "fb_service": "openai-compatible",
+                    "fb_endpoint_id": uuid4(),
+                    "fb_rpm_limit": 100,
+                    "fb_tpm_limit": None,
+                    "fb_max_concurrency": 2,
                 }
             )
         )
@@ -211,6 +215,10 @@ class TestLoadFailover:
         assert spec.endpoint_id == str(ep)
         assert spec.fallback is not None
         assert spec.fallback.base_url == "http://mirror"
+        # Budget de throttling du fallback (consommé par les appels basculés).
+        assert spec.fallback.endpoint_id is not None
+        assert spec.fallback.rpm_limit == 100
+        assert spec.fallback.max_concurrency == 2
 
     @pytest.mark.asyncio
     async def test_best_effort_on_error(self) -> None:

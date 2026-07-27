@@ -26,6 +26,7 @@ import structlog
 from rag.indexer.providers.protocol import EmbeddingProviderUnreachable
 from rag.rerank.protocol import RerankProviderUnreachable
 from rag.services.endpoint_breaker import EndpointBreakerRegistry, get_breaker_registry
+from rag.services.endpoint_throttle import get_throttle_registry
 
 log = structlog.get_logger(__name__)
 
@@ -45,6 +46,12 @@ class ServiceSpec:
     # Famille d'API du provider (model_dimensions.service) — requis par la
     # factory d'embedding, absent pour rerank/llm.
     provider_service: str | None = None
+    # Identité + limites du FALLBACK : un appel basculé consomme le budget de
+    # throttling du fallback, pas celui du primaire (fiche a7e2ec90).
+    endpoint_id: str | None = None
+    rpm_limit: int | None = None
+    tpm_limit: int | None = None
+    max_concurrency: int | None = None
 
 
 @dataclass(frozen=True)
@@ -89,6 +96,10 @@ async def load_failover(
                    fb.{prefix}_provider AS fb_provider, fb.{prefix}_model AS fb_model,
                    fb.{prefix}_api_key_ref AS fb_api_key_ref,
                    fb.{prefix}_base_url AS fb_base_url,
+                   fb.id AS fb_endpoint_id,
+                   fb.{prefix}_rpm_limit AS fb_rpm_limit,
+                   fb.{prefix}_tpm_limit AS fb_tpm_limit,
+                   fb.{prefix}_max_concurrency AS fb_max_concurrency,
                    {fb_service_col}
                    ve.fallback_endpoint_id
             FROM workspaces w
@@ -109,6 +120,10 @@ async def load_failover(
                 api_key_ref=row["fb_api_key_ref"],
                 base_url=row["fb_base_url"],
                 provider_service=row["fb_service"],
+                endpoint_id=str(row["fb_endpoint_id"]),
+                rpm_limit=row["fb_rpm_limit"],
+                tpm_limit=row["fb_tpm_limit"],
+                max_concurrency=row["fb_max_concurrency"],
             )
         return FailoverSpec(
             endpoint_id=str(row["endpoint_id"]),
@@ -121,6 +136,24 @@ async def load_failover(
         # doit jamais casser l'appel primaire.
         log.warning("endpoint_failover.load_failed", error=type(exc).__name__)
         return None
+
+
+def fallback_slot(fb: ServiceSpec, service: str, *, tokens: int = 0) -> Any:
+    """Créneau de throttling du FALLBACK : l'appel basculé consomme le budget
+    (rpm/tpm/concurrence) de l'endpoint de fallback — jamais celui du
+    primaire. Sans identité connue : passthrough."""
+    from contextlib import nullcontext
+
+    if fb.endpoint_id is None:
+        return nullcontext()
+    return get_throttle_registry().slot(
+        fb.endpoint_id,
+        service,
+        max_concurrency=fb.max_concurrency,
+        rpm_limit=fb.rpm_limit,
+        tpm_limit=fb.tpm_limit,
+        tokens=tokens,
+    )
 
 
 async def call_with_failover(

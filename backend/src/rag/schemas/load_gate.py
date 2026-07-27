@@ -11,6 +11,7 @@ class LoadGateSettings(BaseModel):
     enabled: bool
     cpu_threshold_pct: int = Field(..., ge=1, le=100)
     memory_threshold_pct: int = Field(..., ge=1, le=100)
+    io_threshold_pct: int = Field(default=60, ge=1, le=100)
 
 
 class LoadGateStatusOut(BaseModel):
@@ -20,6 +21,8 @@ class LoadGateStatusOut(BaseModel):
     overloaded: bool
     cpu_psi_avg60: float | None
     memory_used_pct: float | None
+    io_psi_avg60: float | None
     cpu_threshold_pct: int
     memory_threshold_pct: int
+    io_threshold_pct: int
     reasons: list[str]

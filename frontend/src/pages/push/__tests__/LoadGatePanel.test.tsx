@@ -27,8 +27,10 @@ function mockStatus(partial: Partial<LoadGateStatus>): void {
       overloaded: false,
       cpu_psi_avg60: 5.2,
       memory_used_pct: 42.0,
+      io_psi_avg60: 1.5,
       cpu_threshold_pct: 40,
       memory_threshold_pct: 85,
+      io_threshold_pct: 60,
       reasons: [],
       ...partial,
     },
@@ -84,7 +86,7 @@ describe("LoadGatePanel", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
     expect(setGateMutate).toHaveBeenCalledWith(
-      { enabled: true, cpu_threshold_pct: 60, memory_threshold_pct: 85 },
+      { enabled: true, cpu_threshold_pct: 60, memory_threshold_pct: 85, io_threshold_pct: 60 },
       expect.anything(),
     );
   });

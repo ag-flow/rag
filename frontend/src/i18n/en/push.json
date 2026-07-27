@@ -57,6 +57,8 @@
     "memory_threshold": "Memory threshold (%)",
     "submit": "Save",
     "saved": "Thresholds saved — applied immediately.",
-    "error": "Could not save the thresholds."
+    "error": "Could not save the thresholds.",
+    "io_metric": "I/O pressure 60 s",
+    "io_threshold": "I/O threshold (%)"
   }
 }

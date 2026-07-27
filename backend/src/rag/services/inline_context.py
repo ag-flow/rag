@@ -14,6 +14,7 @@ from rag.secrets.refs import is_vault_ref
 from rag.services.endpoint_failover import (
     ServiceSpec,
     call_with_failover,
+    fallback_slot,
     load_failover,
 )
 from rag.services.endpoint_throttle import estimate_tokens, llm_slot
@@ -350,14 +351,15 @@ async def _get_or_generate(
                 if resolver is not None and fb.api_key_ref and is_vault_ref(fb.api_key_ref)
                 else None
             )
-            return await call_llm_with_cached_prefix(
-                provider=fb.provider,
-                model=fb.model,
-                api_key=fb_key,
-                base_url=fb.base_url,
-                cached_prefix=document,
-                prompt=prompt,
-            )
+            async with fallback_slot(fb, "llm", tokens=estimate_tokens(document, prompt)):
+                return await call_llm_with_cached_prefix(
+                    provider=fb.provider,
+                    model=fb.model,
+                    api_key=fb_key,
+                    base_url=fb.base_url,
+                    cached_prefix=document,
+                    prompt=prompt,
+                )
 
         failover = await load_failover(config_pool, workspace_id=workspace_id, service="llm")
         context = (

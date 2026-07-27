@@ -142,6 +142,7 @@ async def playground_chat(
     from rag.services.endpoint_failover import (
         ServiceSpec,
         call_with_failover,
+        fallback_slot,
         load_failover,
     )
     from rag.services.endpoint_throttle import estimate_tokens, llm_slot
@@ -246,14 +247,15 @@ async def playground_chat(
 
     async def _llm_fallback(fb: ServiceSpec) -> dict:
         fb_key = await _resolve_harpo(fb.api_key_ref) if fb.api_key_ref else None
-        return await call_llm(
-            provider=fb.provider,
-            model=fb.model,
-            api_key=fb_key,
-            base_url=fb.base_url,
-            system_prompt=system_prompt,
-            messages=messages,
-        )
+        async with fallback_slot(fb, "llm", tokens=estimate_tokens(system_prompt)):
+            return await call_llm(
+                provider=fb.provider,
+                model=fb.model,
+                api_key=fb_key,
+                base_url=fb.base_url,
+                system_prompt=system_prompt,
+                messages=messages,
+            )
 
     llm_failover = await load_failover(config_pool, workspace_id=ws_row["ws_id"], service="llm")
     llm_result = await call_with_failover(

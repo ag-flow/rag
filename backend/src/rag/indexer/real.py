@@ -38,6 +38,7 @@ from rag.services.chunking_routing import build_strategy_chunker, resolve_strate
 from rag.services.endpoint_failover import (
     ServiceSpec,
     call_with_failover,
+    fallback_slot,
     load_failover,
 )
 from rag.services.endpoint_throttle import estimate_tokens, get_throttle_registry
@@ -381,7 +382,8 @@ class RealIndexer:
                 api_key=api_key,
                 base_url=fb.base_url,
             )
-            return await fb_provider.embed_texts(texts)
+            async with fallback_slot(fb, "vectorization", tokens=estimate_tokens(*texts)):
+                return await fb_provider.embed_texts(texts)
 
         return await call_with_failover(
             spec=spec, service="vectorization", primary=_primary, fallback_call=_fallback

@@ -36,6 +36,7 @@ from rag.secrets.refs import build_ref, is_vault_ref
 from rag.services.endpoint_failover import (
     ServiceSpec,
     call_with_failover,
+    fallback_slot,
     load_failover,
 )
 from rag.services.endpoint_throttle import estimate_tokens, get_throttle_registry
@@ -418,7 +419,8 @@ async def _search_one(
             api_key=fb_key,
             base_url=fb.base_url,
         )
-        return await fb_provider.embed_query(query)
+        async with fallback_slot(fb, "vectorization", tokens=len(query) // 4):
+            return await fb_provider.embed_query(query)
 
     query_vec = await call_with_failover(
         spec=embed_failover,
@@ -496,7 +498,8 @@ async def _search_one(
             fb_reranker = rerank_factory(
                 provider=fb.provider, model=fb.model, api_key=fb_key, base_url=fb.base_url
             )
-            return await fb_reranker.rerank(query=query, documents=documents, top_k=top_k)
+            async with fallback_slot(fb, "rerank", tokens=estimate_tokens(query, *documents)):
+                return await fb_reranker.rerank(query=query, documents=documents, top_k=top_k)
 
         try:
             results = await call_with_failover(
