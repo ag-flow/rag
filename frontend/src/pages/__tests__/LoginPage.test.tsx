@@ -9,9 +9,14 @@ import enLogin from "@/i18n/en/login.json";
 
 import { LoginPage } from "@/pages/LoginPage";
 import { useAuthMethods, type AuthMethods } from "@/hooks/useAuthMethods";
+import { usePublicStats, useVersionInfo } from "@/hooks/usePublicInfo";
 
 vi.mock("@/hooks/useAuthMethods", () => ({
   useAuthMethods: vi.fn(),
+}));
+vi.mock("@/hooks/usePublicInfo", () => ({
+  usePublicStats: vi.fn(),
+  useVersionInfo: vi.fn(),
 }));
 
 const testI18n = i18next.createInstance();
@@ -41,6 +46,10 @@ beforeEach(() => {
     writable: true,
     value: locationStub,
   });
+  mockStats({ indexed_documents: 1234, workspaces: 7 });
+  vi.mocked(useVersionInfo).mockReturnValue({
+    data: { version: "2.14", git: "abc123", environment: "prod" },
+  } as unknown as ReturnType<typeof useVersionInfo>);
 });
 
 afterEach(() => {
@@ -66,6 +75,12 @@ function mockMethods(methods: Partial<AuthMethods> | undefined, isLoading = fals
   } as unknown as ReturnType<typeof useAuthMethods>);
 }
 
+function mockStats(stats: { indexed_documents: number | null; workspaces: number | null } | null) {
+  vi.mocked(usePublicStats).mockReturnValue({
+    data: stats,
+  } as unknown as ReturnType<typeof usePublicStats>);
+}
+
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -86,19 +101,23 @@ describe("LoginPage", () => {
     expect(screen.queryByRole("button", { name: /OIDC/i })).not.toBeInTheDocument();
   });
 
-  it("oidc=true, local=true → bouton SSO + formulaire login visibles", () => {
+  it("oidc=true, local=true → local en premier (primaire), OIDC en secondaire", () => {
     mockMethods({ oidc_configured: true, local_auth_enabled: true, needs_setup: false });
     renderPage();
     expect(screen.getByRole("button", { name: /OIDC/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/Username/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Identifiant/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Mot de passe/i)).toBeInTheDocument();
+    const buttons = screen.getAllByRole("button");
+    const submitIdx = buttons.findIndex((b) => /Se connecter/i.test(b.textContent ?? ""));
+    const oidcIdx = buttons.findIndex((b) => /OIDC/i.test(b.textContent ?? ""));
+    expect(submitIdx).toBeLessThan(oidcIdx);
   });
 
   it("oidc=false, local=true → formulaire login seul + message info", () => {
     mockMethods({ oidc_configured: false, local_auth_enabled: true, needs_setup: false });
     renderPage();
     expect(screen.queryByRole("button", { name: /OIDC/i })).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/Username/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Identifiant/i)).toBeInTheDocument();
     expect(screen.getByText(/OIDC pas encore configuré/i)).toBeInTheDocument();
   });
 
@@ -106,15 +125,18 @@ describe("LoginPage", () => {
     mockMethods({ oidc_configured: true, local_auth_enabled: false, needs_setup: false });
     renderPage();
     expect(screen.getByRole("button", { name: /OIDC/i })).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Username/i)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/Password/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Identifiant/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Mot de passe/i)).not.toBeInTheDocument();
   });
 
-  it("lien Contrats API en haut à droite, sur le login ET le wizard setup", () => {
+  it("liens GitHub et Contrats API, sur le login ET le wizard setup", () => {
     mockMethods({ oidc_configured: true, local_auth_enabled: true, needs_setup: false });
     const { unmount } = renderPage();
-    const link = screen.getByRole("link", { name: /Contrats API/i });
-    expect(link).toHaveAttribute("href", "/docs");
+    expect(screen.getByRole("link", { name: /Contrats API/i })).toHaveAttribute("href", "/docs");
+    expect(screen.getByRole("link", { name: /GitHub/i })).toHaveAttribute(
+      "href",
+      "https://github.com/ag-flow/rag",
+    );
     unmount();
 
     mockMethods({ oidc_configured: false, local_auth_enabled: false, needs_setup: true });
@@ -127,7 +149,47 @@ describe("LoginPage", () => {
     renderPage();
     expect(screen.getByText(/Aucune méthode d'authentification/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /OIDC/i })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/Username/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Identifiant/i)).not.toBeInTheDocument();
+  });
+
+  it("panneau de présentation : métriques servies par l'API", () => {
+    mockMethods({ oidc_configured: false, local_auth_enabled: true, needs_setup: false });
+    renderPage();
+    expect(screen.getByText(/Toute la chaîne RAG/i)).toBeInTheDocument();
+    expect(screen.getByText((1234).toLocaleString())).toBeInTheDocument();
+    expect(screen.getByText("7")).toBeInTheDocument();
+  });
+
+  it("métriques indisponibles → cellules vides, pas d'erreur bloquante", () => {
+    mockMethods({ oidc_configured: false, local_auth_enabled: true, needs_setup: false });
+    mockStats(null);
+    renderPage();
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByLabelText(/Identifiant/i)).toBeInTheDocument();
+  });
+
+  it("champs vides → messages d'erreur, aucune requête", async () => {
+    mockMethods({ oidc_configured: false, local_auth_enabled: true, needs_setup: false });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /Se connecter/i }));
+    await waitFor(() => expect(screen.getAllByText(/Champ requis/i)).toHaveLength(2));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("lien setup absent hors premier démarrage", () => {
+    mockMethods({ oidc_configured: false, local_auth_enabled: true, needs_setup: false });
+    renderPage();
+    expect(screen.queryByText(/Premier démarrage/i)).not.toBeInTheDocument();
+  });
+
+  it("pied de page : version, environnement et bascule de langue", () => {
+    mockMethods({ oidc_configured: false, local_auth_enabled: true, needs_setup: false });
+    renderPage();
+    expect(screen.getByText(/api 2\.14/i)).toBeInTheDocument();
+    expect(screen.getByText("prod")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "en" })).toBeInTheDocument();
   });
 
   it("submit login valide → POST /auth/local/login puis redirect vers /ui/workspaces", async () => {
@@ -136,8 +198,8 @@ describe("LoginPage", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderPage();
-    fireEvent.change(screen.getByLabelText(/Username/i), { target: { value: "admin" } });
-    fireEvent.change(screen.getByLabelText(/Password/i), { target: { value: "s3cret" } });
+    fireEvent.change(screen.getByLabelText(/Identifiant/i), { target: { value: "admin" } });
+    fireEvent.change(screen.getByLabelText(/Mot de passe/i), { target: { value: "s3cret" } });
     fireEvent.click(screen.getByRole("button", { name: /Se connecter/i }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
@@ -149,18 +211,23 @@ describe("LoginPage", () => {
     await waitFor(() => expect(locationStub.href).toBe("/ui/workspaces"));
   });
 
-  it("submit login retourne 401 → erreur visible, pas de redirect", async () => {
+  it("submit login retourne 401 → erreur visible, effacée à la saisie", async () => {
     mockMethods({ oidc_configured: false, local_auth_enabled: true, needs_setup: false });
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 401 });
     vi.stubGlobal("fetch", fetchMock);
 
     renderPage();
-    fireEvent.change(screen.getByLabelText(/Username/i), { target: { value: "admin" } });
-    fireEvent.change(screen.getByLabelText(/Password/i), { target: { value: "wrong" } });
+    fireEvent.change(screen.getByLabelText(/Identifiant/i), { target: { value: "admin" } });
+    fireEvent.change(screen.getByLabelText(/Mot de passe/i), { target: { value: "wrong" } });
     fireEvent.click(screen.getByRole("button", { name: /Se connecter/i }));
 
     await waitFor(() => expect(screen.getByText(/Identifiants invalides/i)).toBeInTheDocument());
     expect(locationStub.href).toBe("");
+
+    fireEvent.change(screen.getByLabelText(/Mot de passe/i), { target: { value: "retry" } });
+    await waitFor(() =>
+      expect(screen.queryByText(/Identifiants invalides/i)).not.toBeInTheDocument(),
+    );
   });
 
   it("submit wizard setup → POST /api/setup/init-admin puis redirect", async () => {

@@ -1,49 +1,15 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { FileCode2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { FileCode2, Github } from "lucide-react";
+
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useAuthMethods } from "@/hooks/useAuthMethods";
+import { useVersionInfo } from "@/hooks/usePublicInfo";
+import { HeroPanel } from "@/pages/login/HeroPanel";
+import { LoginCard } from "@/pages/login/LoginCard";
+import { SetupCard } from "@/pages/login/SetupCard";
 
-/** Contrats d'API publics (OpenAPI + outils MCP) — accessibles sans session. */
-function ApiContractsLink() {
-  const { t } = useTranslation("login");
-  return (
-    <a
-      href="/docs"
-      target="_blank"
-      rel="noreferrer"
-      className="absolute right-6 top-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
-    >
-      <FileCode2 className="h-4 w-4" />
-      {t("contracts_link")}
-    </a>
-  );
-}
-
-const loginSchema = z.object({
-  username: z.string().min(1, "required"),
-  password: z.string().min(1, "required"),
-});
-
-const setupSchema = z
-  .object({
-    username: z.string().min(1, "required"),
-    email: z.string().email("invalid email"),
-    password: z.string().min(8, "min 8 chars"),
-    confirm_password: z.string().min(1, "required"),
-  })
-  .refine((d) => d.password === d.confirm_password, {
-    path: ["confirm_password"],
-    message: "passwords_mismatch",
-  });
-
-type LoginValues = z.infer<typeof loginSchema>;
-type SetupValues = z.infer<typeof setupSchema>;
+const GITHUB_URL = "https://github.com/ag-flow/rag";
 
 function getNextFromSearch(): string {
   const params = new URLSearchParams(window.location.search);
@@ -54,136 +20,79 @@ function getNextFromSearch(): string {
   return "/workspaces";
 }
 
-function SetupForm() {
+/** Liens publics du panneau droit : dépôt GitHub + contrats d'API. */
+function TopLinks() {
   const { t } = useTranslation("login");
-  const [error, setError] = useState<string | null>(null);
-  const form = useForm<SetupValues>({
-    resolver: zodResolver(setupSchema),
-    defaultValues: { username: "admin", email: "", password: "", confirm_password: "" },
-  });
-
-  const onSubmit = async (values: SetupValues) => {
-    setError(null);
-    const resp = await fetch("/api/setup/init-admin", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        username: values.username,
-        email: values.email,
-        password: values.password,
-      }),
-    });
-    if (resp.ok) {
-      window.location.href = "/ui" + getNextFromSearch();
-      return;
-    }
-    if (resp.status === 409) {
-      window.location.reload();
-    } else {
-      setError(t("setup.errors.generic", { status: resp.status }));
-    }
-  };
-
   return (
-    <div className="relative flex h-screen items-center justify-center bg-slate-50">
-      <ApiContractsLink />
-      <div className="w-full max-w-md rounded-md border bg-white p-6 shadow-sm">
-        <h1 className="text-xl font-semibold text-slate-900 mb-1">{t("setup.title")}</h1>
-        <p className="text-sm text-slate-500 mb-5">{t("setup.subtitle")}</p>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-          <div>
-            <label htmlFor="setup-username" className="text-sm font-medium text-slate-700">
-              {t("setup.fields.username")}
-            </label>
-            <Input id="setup-username" {...form.register("username")} className="mt-1" />
-            {form.formState.errors.username && (
-              <p className="text-xs text-red-600 mt-1">{form.formState.errors.username.message}</p>
-            )}
-          </div>
-          <div>
-            <label htmlFor="setup-email" className="text-sm font-medium text-slate-700">
-              {t("setup.fields.email")}
-            </label>
-            <Input id="setup-email" type="email" {...form.register("email")} className="mt-1" />
-            {form.formState.errors.email && (
-              <p className="text-xs text-red-600 mt-1">{form.formState.errors.email.message}</p>
-            )}
-          </div>
-          <div>
-            <label htmlFor="setup-password" className="text-sm font-medium text-slate-700">
-              {t("setup.fields.password")}
-            </label>
-            <Input
-              id="setup-password"
-              type="password"
-              {...form.register("password")}
-              className="mt-1"
-            />
-            {form.formState.errors.password && (
-              <p className="text-xs text-red-600 mt-1">{form.formState.errors.password.message}</p>
-            )}
-          </div>
-          <div>
-            <label htmlFor="setup-confirm" className="text-sm font-medium text-slate-700">
-              {t("setup.fields.confirm_password")}
-            </label>
-            <Input
-              id="setup-confirm"
-              type="password"
-              {...form.register("confirm_password")}
-              className="mt-1"
-            />
-            {form.formState.errors.confirm_password && (
-              <p className="text-xs text-red-600 mt-1">
-                {form.formState.errors.confirm_password.message === "passwords_mismatch"
-                  ? t("setup.errors.passwords_mismatch")
-                  : form.formState.errors.confirm_password.message}
-              </p>
-            )}
-          </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-            {t("setup.submit")}
-          </Button>
-        </form>
-      </div>
+    <div className="flex items-center justify-end gap-4 p-4">
+      <a
+        href={GITHUB_URL}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
+      >
+        <Github className="h-4 w-4" aria-hidden="true" />
+        {t("github_link")}
+      </a>
+      <a
+        href="/docs"
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
+      >
+        <FileCode2 className="h-4 w-4" aria-hidden="true" />
+        {t("contracts_link")}
+      </a>
     </div>
   );
 }
 
+/** Pied de page : version d'API, environnement, bascule de langue. */
+function Footer() {
+  const { i18n } = useTranslation("login");
+  const { data: info } = useVersionInfo();
+
+  const langButton = (lng: "fr" | "en") => (
+    <button
+      type="button"
+      onClick={() => void i18n.changeLanguage(lng)}
+      className={
+        i18n.resolvedLanguage === lng
+          ? "font-semibold text-slate-700"
+          : "text-slate-400 hover:text-slate-600"
+      }
+    >
+      {lng}
+    </button>
+  );
+
+  return (
+    <footer className="flex items-center justify-center gap-2 p-4 font-mono text-xs text-slate-400">
+      {info && (
+        <>
+          <span>api {info.version}</span>
+          <span aria-hidden="true">·</span>
+          <span>{info.environment}</span>
+          <span aria-hidden="true">·</span>
+        </>
+      )}
+      {langButton("fr")}
+      <span aria-hidden="true">/</span>
+      {langButton("en")}
+    </footer>
+  );
+}
+
+/** Écran de connexion scindé (feature 2ca3ceb8) : présentation produit à
+ * gauche (masquée < 900 px), authentification à droite — connexion locale en
+ * premier, OIDC en secondaire, variante setup au premier démarrage. */
 export function LoginPage() {
-  const { t } = useTranslation("login");
   const { data: methods, isLoading } = useAuthMethods();
-  const [error, setError] = useState<string | null>(null);
-  const form = useForm<LoginValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { username: "", password: "" },
-  });
+  // Premier démarrage : la variante setup est proposée d'office (et reste la
+  // seule atteignable via le lien bas de carte — critère de la fiche).
+  const [mode, setMode] = useState<"login" | "setup" | null>(null);
 
-  const onSubmit = async (values: LoginValues) => {
-    setError(null);
-    const resp = await fetch("/auth/local/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(values),
-    });
-    if (resp.ok) {
-      window.location.href = "/ui" + getNextFromSearch();
-      return;
-    }
-    if (resp.status === 401) {
-      setError(t("errors.invalid_credentials"));
-    } else {
-      setError(t("errors.generic", { status: resp.status }));
-    }
-  };
-
-  const handleSsoClick = () => {
-    const next = encodeURIComponent("/ui" + getNextFromSearch());
-    window.location.href = `/auth/login?next=${next}`;
-  };
-
-  if (isLoading) {
+  if (isLoading || !methods) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50">
         <LoadingSpinner />
@@ -191,69 +100,24 @@ export function LoginPage() {
     );
   }
 
-  if (methods?.needs_setup) {
-    return <SetupForm />;
-  }
-
-  const showOidc = !!methods?.oidc_configured;
-  const showLocal = !!methods?.local_auth_enabled;
+  const nextPath = getNextFromSearch();
+  const effectiveMode = mode ?? (methods.needs_setup ? "setup" : "login");
+  const showSetup = effectiveMode === "setup" && methods.needs_setup;
 
   return (
-    <div className="relative flex h-screen items-center justify-center bg-slate-50">
-      <ApiContractsLink />
-      <div className="w-full max-w-md rounded-md border bg-white p-6 shadow-sm">
-        <div className="mb-5 text-center">
-          <h1 className="text-2xl font-bold text-slate-900">{t("app_name")}</h1>
-          <p className="mt-0.5 text-sm text-slate-500">{t("title")}</p>
+    <div className="flex min-h-screen bg-slate-50">
+      <HeroPanel />
+      <main className="flex min-w-0 flex-1 flex-col">
+        <TopLinks />
+        <div className="flex flex-1 items-center justify-center p-6">
+          {showSetup ? (
+            <SetupCard nextPath={nextPath} onBack={() => setMode("login")} />
+          ) : (
+            <LoginCard methods={methods} nextPath={nextPath} onSetup={() => setMode("setup")} />
+          )}
         </div>
-
-        {!showOidc && !showLocal && <p className="text-sm text-red-600">{t("errors.no_method")}</p>}
-
-        {showLocal && (
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-            {!showOidc && (
-              <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-                {t("info.oidc_not_configured")}
-              </p>
-            )}
-            <div>
-              <label htmlFor="username" className="text-sm font-medium text-slate-700">
-                {t("local.fields.username")}
-              </label>
-              <Input id="username" {...form.register("username")} className="mt-1" />
-            </div>
-            <div>
-              <label htmlFor="password" className="text-sm font-medium text-slate-700">
-                {t("local.fields.password")}
-              </label>
-              <Input
-                id="password"
-                type="password"
-                {...form.register("password")}
-                className="mt-1"
-              />
-            </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-              {t("local.submit")}
-            </Button>
-          </form>
-        )}
-
-        {showOidc && showLocal && (
-          <div className="my-4 flex items-center gap-2 text-xs text-slate-400">
-            <div className="flex-1 border-t" />
-            <span>{t("info.separator_or")}</span>
-            <div className="flex-1 border-t" />
-          </div>
-        )}
-
-        {showOidc && (
-          <Button type="button" onClick={handleSsoClick} className="w-full">
-            {t("oidc.button")}
-          </Button>
-        )}
-      </div>
+        <Footer />
+      </main>
     </div>
   );
 }
