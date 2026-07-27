@@ -22,18 +22,11 @@ export function Header() {
     .toUpperCase();
 
   function handleLogout() {
-    const isLocal = user.sub === "admin" && user.email === null;
-    if (isLocal) {
-      fetch("/auth/local/logout", { method: "POST" })
-        .catch(() => {
-          // Session non joignable côté serveur — on procède quand même au redirect.
-        })
-        .finally(() => {
-          window.location.href = "/ui/login";
-        });
-      return;
-    }
-    // OIDC : POST /auth/logout (cookie envoyé), backend redirige vers Keycloak logout.
+    // Logout unifié : le backend purge les DEUX sessions (OIDC + locale) et
+    // redirige — vers Keycloak s'il y a une session OIDC, sinon vers l'app
+    // (l'AuthGuard renvoie au login). Deviner le mode côté client (ex.
+    // sub === "admin") laissait connectées les sessions locales à username
+    // différent. Vrai POST formulaire : le navigateur suit la 302 cross-origin.
     const form = document.createElement("form");
     form.method = "POST";
     form.action = "/auth/logout";

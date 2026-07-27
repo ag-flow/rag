@@ -111,6 +111,24 @@ def test_local_login_then_logout_clears_session(
     assert me_resp.status_code == 401
 
 
+def test_unified_logout_clears_local_session(
+    client_with_user: TestClient,
+) -> None:
+    """POST /auth/logout (bouton unique de l'IHM) purge AUSSI la session
+    locale — deviner le mode côté client laissait connectées les sessions
+    locales à username ≠ 'admin' (bug 2026-07-27). Sans session OIDC : pas de
+    détour Keycloak, redirection directe vers l'app."""
+    client_with_user.post(
+        "/auth/local/login",
+        json={"username": _USERNAME, "password": _PASSWORD},
+    )
+    out = client_with_user.post("/auth/logout", follow_redirects=False)
+    assert out.status_code == 302
+    assert "keycloak" not in out.headers["location"].lower()
+    me_resp = client_with_user.get("/me")
+    assert me_resp.status_code == 401
+
+
 # ──────────────────────────────────────────────
 # Tests /api/auth/methods
 # ──────────────────────────────────────────────

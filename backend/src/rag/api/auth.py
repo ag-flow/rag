@@ -131,14 +131,22 @@ def build_auth_router() -> APIRouter:
 
     @router.post("/auth/logout")
     async def logout(request: Request) -> Response:
+        """Logout unifié : purge la session OIDC ET la session locale.
+
+        Le bouton de l'IHM poste toujours ici, quel que soit le mode de
+        connexion — deviner le mode côté client (ex. `sub == "admin"`) laissait
+        les sessions locales à username différent connectées (bug 2026-07-27).
+        Session locale seule : pas de détour Keycloak, retour direct à l'app
+        (l'AuthGuard renvoie au login)."""
         oidc = request.app.state.oidc
         cfg = await oidc.get_config()
         session = request.session.get(_SESSION_KEY)
         id_token = session.get("id_token") if session else None
 
-        # Clear session locally
+        # Clear session locally (OIDC + locale)
         request.session.pop(_SESSION_KEY, None)
         request.session.pop(_STATE_KEY, None)
+        request.session.pop(_LOCAL_SESSION_KEY, None)
 
         # Base dérivée de l'ADRESSE D'APPEL (X-Forwarded-Host) : fiable même si
         # RAG_PUBLIC_URL est erroné (sinon le logout renvoyait sur localhost).
