@@ -39,11 +39,36 @@ export function isErrorBodyWithDetail(body: unknown, expected: string): boolean 
   return typeof detail === "string" && detail === expected;
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
+/**
+ * Rafraîchissement de session OIDC (single-flight) : plusieurs requêtes 401
+ * simultanées ne déclenchent qu'un seul POST /auth/refresh. L'ID token
+ * Keycloak expire vite (5 min par défaut) — sans ce refresh, la session
+ * « tombait » à chaque expiration (bug 2026-07-27). Une session locale n'a
+ * pas de refresh token : l'appel répond 401 et le 401 d'origine remonte.
+ */
+let refreshInFlight: Promise<boolean> | null = null;
+
+function tryRefreshSession(): Promise<boolean> {
+  refreshInFlight ??= fetch("/auth/refresh", { method: "POST", credentials: "include" })
+    .then((r) => r.ok)
+    .catch(() => false)
+    .finally(() => {
+      refreshInFlight = null;
+    });
+  return refreshInFlight;
+}
+
+async function request<T>(url: string, init?: RequestInit, allowRefresh = true): Promise<T> {
   const resp = await fetch(url, {
     ...init,
     credentials: "include",
   });
+
+  if (resp.status === 401 && allowRefresh && (await tryRefreshSession())) {
+    // Session rafraîchie : rejoue la requête UNE fois (body = string JSON,
+    // réutilisable sans clonage).
+    return request<T>(url, init, false);
+  }
 
   // 204/205 : pas de body par contrat HTTP, ne pas tenter de parser.
   if (resp.status === 204 || resp.status === 205) {
@@ -97,12 +122,17 @@ export const api = {
    * du status code (200/202/204). Les codes 4xx/5xx remontent comme `ApiError`.
    */
   putRaw: async (url: string, body: unknown): Promise<Response> => {
-    const resp = await fetch(url, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      credentials: "include",
-    });
+    const doFetch = () =>
+      fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        credentials: "include",
+      });
+    let resp = await doFetch();
+    if (resp.status === 401 && (await tryRefreshSession())) {
+      resp = await doFetch();
+    }
     if (!resp.ok) {
       let parsed: unknown = null;
       try {
