@@ -55,6 +55,23 @@ describe("WorkspaceIndexTab", () => {
     await waitFor(() => expect(screen.getByText("LESSONS.md")).toBeInTheDocument());
   });
 
+  it("focusPath (lien profond Push activity) : pré-filtre et déplie le document", async () => {
+    mockIndexKeys([
+      makeEntry({ path: "docs/a.md", content_hash: "sha256:abc" }),
+      makeEntry({ path: "docs/b.md" }),
+    ]);
+    renderWithProviders(
+      <WorkspaceIndexTab workspaceName="my-ws" enabled={true} focusPath="docs/a.md" />,
+    );
+
+    // Filtre pré-rempli avec le path ciblé → seul docs/a.md est listé.
+    await waitFor(() => expect(screen.getByText("docs/a.md")).toBeInTheDocument());
+    expect(screen.getByDisplayValue("docs/a.md")).toBeInTheDocument();
+    expect(screen.queryByText("docs/b.md")).not.toBeInTheDocument();
+    // Déplié : les métadonnées du document sont visibles.
+    expect(screen.getByText("sha256:abc")).toBeInTheDocument();
+  });
+
   it("affiche le lien 'Voir l'original' quand source_url est présent", async () => {
     const user = userEvent.setup();
     mockIndexKeys([

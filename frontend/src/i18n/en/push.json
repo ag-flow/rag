@@ -18,7 +18,8 @@
     "detail_aria": "View job detail",
     "source": "Source",
     "path": "Document",
-    "duration": "Duration"
+    "duration": "Duration",
+    "open_in_index": "Open in the workspace index"
   },
   "files_summary": "{{changed}} changed / {{skipped}} skipped",
   "status": {

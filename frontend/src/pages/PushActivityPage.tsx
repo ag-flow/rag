@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import {
   Table,
   TableBody,
@@ -95,7 +96,20 @@ function JobRow({
         </TableCell>
         <TableCell className="font-mono text-xs text-slate-600">{current.triggered_by}</TableCell>
         <TableCell className="max-w-[220px] truncate font-mono text-xs text-slate-700">
-          {current.path ?? "—"}
+          {current.path && job.workspace_name && !isRejected ? (
+            // Lien profond vers l'item dans l'onglet Index du workspace —
+            // stopPropagation pour ne pas déclencher le drill-down de la ligne.
+            <Link
+              to={`/workspaces?ws=${encodeURIComponent(job.workspace_name)}&tab=index&doc=${encodeURIComponent(current.path)}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-sky-700 underline-offset-2 hover:underline"
+              title={t("table.open_in_index")}
+            >
+              {current.path}
+            </Link>
+          ) : (
+            (current.path ?? "—")
+          )}
         </TableCell>
         <TableCell>
           <StatusBadge status={current.status} />

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspaces";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -25,8 +26,16 @@ type DialogKey = "reindex" | "delete" | null;
 export function WorkspaceDetailPanel({ name }: Props) {
   const { t } = useTranslation("workspace");
   const { data: ws, isLoading, isError } = useWorkspace(name);
-  const [activeTab, setActiveTab] = useState("detail");
+  // Liens profonds (ex. Push activity → onglet Index sur un document) :
+  // ?tab=<onglet> ouvre l'onglet, ?doc=<path> est transmis à l'onglet Index.
+  const [searchParams] = useSearchParams();
+  const urlTab = searchParams.get("tab");
+  const focusDoc = searchParams.get("doc");
+  const [activeTab, setActiveTab] = useState(urlTab ?? "detail");
   const [openDialog, setOpenDialog] = useState<DialogKey>(null);
+  useEffect(() => {
+    if (urlTab) setActiveTab(urlTab);
+  }, [urlTab, focusDoc]);
 
   if (isLoading) {
     return (
@@ -75,7 +84,11 @@ export function WorkspaceDetailPanel({ name }: Props) {
           <WorkspaceJobsTab name={ws.name} enabled={activeTab === "jobs"} />
         </TabsContent>
         <TabsContent value="index" className="pt-4">
-          <WorkspaceIndexTab workspaceName={ws.name} enabled={activeTab === "index"} />
+          <WorkspaceIndexTab
+            workspaceName={ws.name}
+            enabled={activeTab === "index"}
+            focusPath={focusDoc}
+          />
         </TabsContent>
         <TabsContent value="chunking" className="pt-4">
           <WorkspaceChunkingTab workspace={ws} enabled={activeTab === "chunking"} />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -11,13 +11,22 @@ import { DocumentChunkViewer } from "./DocumentChunkViewer";
 interface Props {
   workspaceName: string;
   enabled: boolean;
+  /** Lien profond (Push activity) : pré-filtre sur ce path et le déplie. */
+  focusPath?: string | null;
 }
 
-export function WorkspaceIndexTab({ workspaceName, enabled }: Props) {
+export function WorkspaceIndexTab({ workspaceName, enabled, focusPath }: Props) {
   const { t } = useTranslation("workspace");
   const { data, isLoading } = useIndexKeys(workspaceName, enabled);
-  const [filter, setFilter] = useState("");
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState(focusPath ?? "");
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => new Set(focusPath ? [focusPath] : []),
+  );
+  useEffect(() => {
+    if (!focusPath) return;
+    setFilter(focusPath);
+    setExpanded(new Set([focusPath]));
+  }, [focusPath]);
 
   if (isLoading) return <LoadingSpinner />;
 

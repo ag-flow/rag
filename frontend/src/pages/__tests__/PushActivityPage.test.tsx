@@ -127,7 +127,9 @@ describe("PushActivityPage", () => {
 
     // "API REST" apparaît en option du filtre ET en badge de la ligne (≥ 2).
     expect(screen.getAllByText("API REST").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText("docs/a.md")).toBeInTheDocument();
+    // Le document est un lien profond vers l'onglet Index du workspace.
+    const docLink = screen.getByRole("link", { name: "docs/a.md" });
+    expect(docLink).toHaveAttribute("href", "/workspaces?ws=ws-a&tab=index&doc=docs%2Fa.md");
 
     listGlobal.mockResolvedValue([]);
     fireEvent.change(screen.getByLabelText("Filtrer par source"), {
