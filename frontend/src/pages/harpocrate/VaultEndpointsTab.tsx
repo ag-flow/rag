@@ -22,7 +22,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { useDeleteEndpoint, useVaultEndpoints } from "@/hooks/useVaultEndpoints";
+import {
+  useDeleteEndpoint,
+  useEndpointsHealth,
+  useVaultEndpoints,
+} from "@/hooks/useVaultEndpoints";
 import { useToast } from "@/hooks/useToast";
 import { EndpointFormDialog } from "./EndpointFormDialog";
 import type { VaultEndpoint } from "@/lib/vault-endpoints.types";
@@ -35,6 +39,7 @@ export function VaultEndpointsTab({ vaultId }: Props) {
   const { t } = useTranslation("harpocrate");
   const { toast } = useToast();
   const { data: endpoints = [], isLoading } = useVaultEndpoints(vaultId);
+  const { data: health = {} } = useEndpointsHealth(vaultId);
   const deleteMutation = useDeleteEndpoint(vaultId);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -93,7 +98,10 @@ export function VaultEndpointsTab({ vaultId }: Props) {
               {endpoints.map((ep) => (
                 <TableRow key={ep.id}>
                   <TableCell>
-                    <span className="font-medium text-slate-800">{ep.label}</span>
+                    <span className="inline-flex items-center gap-1.5 font-medium text-slate-800">
+                      {ep.label}
+                      <HealthDot states={health[ep.id]} />
+                    </span>
                     <div className="font-mono text-xs text-slate-400">{ep.slug}</div>
                   </TableCell>
                   <TableCell>
@@ -162,5 +170,23 @@ export function VaultEndpointsTab({ vaultId }: Props) {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+/** Pastille d'état des breakers de fallback (lot 3, f94bfd84) : rouge si un
+ * service est basculé (open), ambre en re-test (half_open), rien sinon. */
+function HealthDot({ states }: { states: Record<string, string> | undefined }) {
+  const { t } = useTranslation("harpocrate");
+  if (!states) return null;
+  const entries = Object.entries(states).filter(([, s]) => s !== "closed");
+  if (entries.length === 0) return null;
+  const hasOpen = entries.some(([, s]) => s === "open");
+  const title = entries.map(([svc, s]) => `${svc}: ${s}`).join(", ");
+  return (
+    <span
+      className={`h-2 w-2 rounded-full ${hasOpen ? "bg-rose-500" : "bg-amber-400"}`}
+      title={`${t("endpoints.health_degraded")} — ${title}`}
+      aria-label={t("endpoints.health_degraded")}
+    />
   );
 }

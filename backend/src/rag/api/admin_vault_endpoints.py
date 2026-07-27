@@ -87,6 +87,22 @@ async def delete_endpoint(vault_id: UUID, endpoint_id: UUID, request: Request) -
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.get("/health")
+async def endpoints_health(vault_id: UUID, request: Request) -> dict[str, dict[str, str]]:
+    """État des breakers de fallback par endpoint du coffre (lot 3, f94bfd84).
+
+    {endpoint_id: {service: closed|open|half_open}} — lecture pure du snapshot
+    in-process, les services jamais sollicités sont absents (= closed)."""
+    from rag.services.endpoint_breaker import get_breaker_registry
+
+    await _checked_vault(request, vault_id)
+    pool = request.app.state.pools.config_pool
+    async with pool.acquire() as conn:
+        eps = await svc.list_endpoints(conn, vault_id=vault_id)
+    registry = get_breaker_registry()
+    return {str(ep.id): registry.snapshot(str(ep.id)) for ep in eps}
+
+
 @router.post("/test", response_model=EndpointTestResult)
 async def test_endpoint(
     vault_id: UUID, req: EndpointTestRequest, request: Request

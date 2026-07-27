@@ -15,6 +15,7 @@ from rag.api.mcp_endpoint_support import (
 from rag.api.mcp_library_support import dump
 from rag.schemas.vault_endpoints import EndpointOut, EndpointUpdate
 from rag.services import vault_endpoints as endpoints_svc
+from rag.services.endpoint_breaker import get_breaker_registry
 from rag.services.endpoint_fallback import EndpointFallbackInvalidError
 
 log = structlog.get_logger(__name__)
@@ -131,6 +132,20 @@ def register_endpoint_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
         payload = ep.model_dump(mode="json")
         payload.pop("id", None)
         payload.pop("vault_id", None)
+        # Santé des breakers de fallback (lot 3, f94bfd84) — lecture pure du
+        # snapshot in-process : closed | open | half_open par service, et la
+        # cible active (open + fallback déclaré ⇒ les appels vont au fallback).
+        snapshot = get_breaker_registry().snapshot(str(ep.id))
+        has_fallback = ep.fallback_endpoint_id is not None
+        payload["health"] = {
+            service: {
+                "state": snapshot.get(service, "closed"),
+                "active_target": (
+                    "fallback" if has_fallback and snapshot.get(service) == "open" else "primary"
+                ),
+            }
+            for service in ("vectorization", "rerank", "llm")
+        }
         return dump({"vault": vault, "writable": v["owner_id"] == ctx.owner_id, **payload})
 
     @mcp.tool()

@@ -7,6 +7,11 @@ from typing import Any
 import asyncpg
 import structlog
 
+from rag.services.endpoint_failover import (
+    ServiceSpec,
+    call_with_failover,
+    load_failover,
+)
 from rag.services.endpoint_throttle import estimate_tokens, llm_slot
 from rag.services.llm_clients import call_llm
 from rag.services.trigger_match import resolve_trigger
@@ -18,6 +23,7 @@ async def _resolve_harpo(
     harpo_path: str, vault_svc: Any, client_provider: Any, config_pool: Any
 ) -> str | None:
     from rag.secrets.refs import is_vault_ref, parse_ref
+
     if not is_vault_ref(harpo_path):
         return None
     vault_name, secret_path = parse_ref(harpo_path)
@@ -94,17 +100,21 @@ async def run_enrichments(
         existing = await conn.fetchrow(
             "SELECT id, result_hash FROM document_enrichments "
             "WHERE workspace_id = $1::uuid AND path = $2 AND template_id = $3::uuid",
-            workspace_id, path, template_id,
+            workspace_id,
+            path,
+            template_id,
         )
 
         if existing and existing["result_hash"] == dedup_key:
-            results.append({
-                "path": path,
-                "metadata_key": metadata_key,
-                "template": row["template_name"],
-                "result_type": row["result_type"],
-                "status": "skipped",
-            })
+            results.append(
+                {
+                    "path": path,
+                    "metadata_key": metadata_key,
+                    "template": row["template_name"],
+                    "result_type": row["result_type"],
+                    "status": "skipped",
+                }
+            )
             continue
 
         llm_api_key: str | None = None
@@ -115,17 +125,44 @@ async def run_enrichments(
 
         prompt_text = row["prompt"].replace("{content}", content)
 
-        # Throttling LLM cross-workspace par endpoint (enabler fe6b8dcb).
-        slot = await llm_slot(config_pool, workspace_id, tokens=estimate_tokens(prompt_text))
-        async with slot:
-            llm_result = await call_llm(
-                provider=row["llm_provider"],
-                model=row["llm_model"],
-                api_key=llm_api_key,
-                base_url=row["llm_base_url"],
-                system_prompt="",
-                messages=[{"role": "user", "content": prompt_text}],
+        # Throttling LLM (fe6b8dcb) + bascule de fallback (f94bfd84 lot 2b).
+        messages = [{"role": "user", "content": prompt_text}]
+
+        async def _primary() -> dict[str, Any]:
+            slot = await llm_slot(config_pool, workspace_id, tokens=estimate_tokens(prompt_text))
+            async with slot:
+                return await call_llm(
+                    provider=row["llm_provider"],
+                    model=row["llm_model"],
+                    api_key=llm_api_key,
+                    base_url=row["llm_base_url"],
+                    system_prompt="",
+                    messages=messages,
+                )
+
+        async def _fallback(fb: ServiceSpec) -> dict[str, Any]:
+            fb_key = (
+                await _resolve_harpo(fb.api_key_ref, vault_svc, client_provider, config_pool)
+                if fb.api_key_ref and config_pool
+                else None
             )
+            return await call_llm(
+                provider=fb.provider,
+                model=fb.model,
+                api_key=fb_key,
+                base_url=fb.base_url,
+                system_prompt="",
+                messages=messages,
+            )
+
+        failover = (
+            await load_failover(config_pool, workspace_id=workspace_id, service="llm")
+            if config_pool
+            else None
+        )
+        llm_result = await call_with_failover(
+            spec=failover, service="llm", primary=_primary, fallback_call=_fallback
+        )
         answer = (llm_result["answer"] or "").strip()
 
         if not answer:
@@ -134,14 +171,16 @@ async def run_enrichments(
                 await conn.execute(
                     "DELETE FROM document_enrichments WHERE id = $1::uuid", existing["id"]
                 )
-            results.append({
-                "path": path,
-                "metadata_key": metadata_key,
-                "template": row["template_name"],
-                "result_type": row["result_type"],
-                "status": "empty",
-                "previous_enrichment_deleted": existing is not None,
-            })
+            results.append(
+                {
+                    "path": path,
+                    "metadata_key": metadata_key,
+                    "template": row["template_name"],
+                    "result_type": row["result_type"],
+                    "status": "empty",
+                    "previous_enrichment_deleted": existing is not None,
+                }
+            )
             continue
 
         await indexer.index_file(
@@ -167,18 +206,26 @@ async def run_enrichments(
                 llm_model = EXCLUDED.llm_model,
                 indexed_at = now()
             """,
-            workspace_id, path, template_id, metadata_key,
-            row["result_type"], answer, dedup_key,
-            row["llm_provider"], row["llm_model"],
+            workspace_id,
+            path,
+            template_id,
+            metadata_key,
+            row["result_type"],
+            answer,
+            dedup_key,
+            row["llm_provider"],
+            row["llm_model"],
         )
 
         log.info("enrichment.done", workspace=workspace_name, path=path, metadata_key=metadata_key)
-        results.append({
-            "path": path,
-            "metadata_key": metadata_key,
-            "template": row["template_name"],
-            "result_type": row["result_type"],
-            "status": "done",
-        })
+        results.append(
+            {
+                "path": path,
+                "metadata_key": metadata_key,
+                "template": row["template_name"],
+                "result_type": row["result_type"],
+                "status": "done",
+            }
+        )
 
     return results
