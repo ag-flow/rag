@@ -91,7 +91,7 @@ export function Sidebar() {
     <aside className="w-[220px] flex-shrink-0 border-r border-slate-200 bg-zinc-50 flex flex-col">
       <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
         <div className="h-6 w-6 rounded-md bg-primary" />
-        <span className="font-semibold text-slate-900">ag-flow.rag</span>
+        <span className="font-semibold text-slate-900">ragflow</span>
       </div>
 
       <nav className="flex-1 py-3">
