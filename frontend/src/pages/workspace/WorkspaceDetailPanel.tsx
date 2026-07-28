@@ -55,7 +55,7 @@ export function WorkspaceDetailPanel({ name }: Props) {
   }
 
   return (
-    <div className="flex-1 max-w-[760px] overflow-auto">
+    <div className="min-w-0 flex-1 overflow-auto">
       <WorkspaceHeader
         workspace={ws}
         onReindex={() => setOpenDialog("reindex")}
