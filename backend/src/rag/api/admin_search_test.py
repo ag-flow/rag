@@ -8,7 +8,6 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 
-from rag.api.playground_search import perform_workspace_search
 from rag.api.workspace_access import require_owned_workspace_id
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.services import search_test as svc
@@ -92,37 +91,22 @@ async def delete_question(workspace_name: str, question_id: UUID, request: Reque
 
 @router.post("/runs", status_code=201)
 async def run_campaign(workspace_name: str, request: Request) -> dict[str, Any]:
-    """Lance la campagne (déclenchement IHM — spec architecte) : chaque
-    question activée passe par la recherche du produit, le run est persisté."""
+    """Lance la campagne (IHM ou master key) : chaque question activée passe
+    par la recherche du produit, le run est persisté avec le détail retourné."""
+    from rag.api.playground import make_harpo_resolver
+    from rag.api.search_test_campaign import launch_campaign
+
     ws_id = await _ws_id(request, workspace_name)
-    pool = request.app.state.pools.config_pool
-
-    from rag.services.mcp import _load_hybrid_config
-
-    hybrid = await _load_hybrid_config(pool, ws_id)
-    config: dict[str, Any] = (
-        {
-            "hybrid": bool(hybrid["enabled"]),
-            "lexical_engine": hybrid["lexical_engine"],
-            "weight_vector": float(hybrid["weight_vector"]),
-            "weight_lexical": float(hybrid["weight_lexical"]),
-            "rrf_k": int(hybrid["rrf_k"]),
-        }
-        if hybrid is not None
-        else {"hybrid": False}
-    )
-
-    async def search_fn(question: str) -> list[str]:
-        resp = await perform_workspace_search(
-            request, workspace_name, query=question, top_k=10, min_score=0.0
-        )
-        return [h.path for h in resp.hits]
-
     try:
-        run = await svc.run_campaign(pool, workspace_id=ws_id, search_fn=search_fn, config=config)
+        return await launch_campaign(
+            config_pool=request.app.state.pools.config_pool,
+            pool_registry=request.app.state.pools,
+            resolve_harpo=make_harpo_resolver(request),
+            workspace_id=ws_id,
+            workspace_name=workspace_name,
+        )
     except ValueError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
-    return run
 
 
 @router.get("/runs")

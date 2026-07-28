@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
 import { Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,7 @@ import {
   useTestRunDetail,
   useTestRuns,
 } from "@/hooks/useSearchTest";
-import type { TestRun } from "@/lib/search-test";
+import { SearchTestRunRow } from "@/pages/workspace/SearchTestRunRow";
 
 interface Props {
   workspaceName: string;
@@ -28,8 +27,6 @@ const familyClass: Record<string, string> = {
   indirecte: "bg-amber-50 text-amber-700",
   libre: "bg-slate-100 text-slate-600",
 };
-
-const pct = (v: number) => `${Math.round(v * 100)} %`;
 
 /** Banc de test de recherche (feature 1a9b8b67) : questions poussées par les
  * agents via MCP, campagne lancée ICI, résultats consultables sur cette page. */
@@ -118,7 +115,7 @@ export function WorkspaceSearchTestTab({ workspaceName, enabled }: Props) {
         ) : (
           <div className="mt-2 space-y-1">
             {runs.map((run) => (
-              <RunRow
+              <SearchTestRunRow
                 key={run.id}
                 run={run}
                 workspaceName={workspaceName}
@@ -130,80 +127,6 @@ export function WorkspaceSearchTestTab({ workspaceName, enabled }: Props) {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function RunRow({
-  run,
-  workspaceName,
-  isOpen,
-  detail,
-  onToggle,
-}: {
-  run: TestRun;
-  workspaceName: string;
-  isOpen: boolean;
-  detail: TestRun | undefined;
-  onToggle: () => void;
-}) {
-  const { t } = useTranslation("workspace");
-  const m = run.metrics;
-  return (
-    <div className="rounded border border-slate-200 bg-white">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50"
-      >
-        <span className="text-xs text-slate-500">{new Date(run.started_at).toLocaleString()}</span>
-        <span
-          className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-            run.config.hybrid ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"
-          }`}
-        >
-          {run.config.hybrid ? t("search_test.cfg_hybrid") : t("search_test.cfg_vector")}
-        </span>
-        <span className="font-mono text-xs text-slate-700">
-          R@1 {pct(m["recall@1"])} · R@5 {pct(m["recall@5"])} · R@10 {pct(m["recall@10"])} · MRR{" "}
-          {m.mrr.toFixed(2)}
-        </span>
-        <span
-          className={`text-xs ${run.questions_failed > 0 ? "text-rose-600" : "text-emerald-700"}`}
-        >
-          {t("search_test.failed_count", {
-            failed: run.questions_failed,
-            total: run.questions_total,
-          })}
-        </span>
-      </button>
-      {isOpen && (
-        <div className="space-y-2 border-t border-slate-100 bg-slate-50 px-3 py-2 text-xs">
-          <div className="space-y-0.5">
-            {Object.entries(m.families).map(([family, fm]) => (
-              <p key={family} className="font-mono text-slate-600">
-                {family} : R@5 {pct(fm["recall@5"])} · MRR {fm.mrr.toFixed(2)}
-              </p>
-            ))}
-          </div>
-          {(detail?.results ?? [])
-            .filter((r) => r.rank === null)
-            .map((r) => (
-              <div key={r.question} className="rounded border border-rose-200 bg-white p-2">
-                <p className="text-slate-700">{r.question}</p>
-                <p className="mt-0.5 text-slate-500">
-                  {t("search_test.miss_label")}{" "}
-                  <Link
-                    to={`/workspaces?ws=${encodeURIComponent(workspaceName)}&tab=index&doc=${encodeURIComponent(r.expected_path_contains)}`}
-                    className="text-sky-700 underline-offset-2 hover:underline"
-                  >
-                    {r.expected_path_contains}
-                  </Link>
-                </p>
-              </div>
-            ))}
-        </div>
-      )}
     </div>
   );
 }

@@ -21,11 +21,24 @@ export type TestRunMetrics = {
   >;
 };
 
+export type ReturnedHit = {
+  rank: number;
+  path: string;
+  score: number;
+  chunk_index: number;
+  snippet: string;
+  matched: boolean;
+};
+
 export type TestRunResult = {
   question: string;
   family: string;
   expected_path_contains: string;
   rank: number | null;
+  // Échec d'appel de la recherche (distinct d'un rank null = document absent).
+  error: string | null;
+  // Top-k retourné au moment du run — la matière d'analyse (migration 093).
+  returned: ReturnedHit[];
 };
 
 export type TestRun = {

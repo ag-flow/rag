@@ -9,14 +9,14 @@ const runMutate = vi.fn();
 vi.mock("@/hooks/useSearchTest", () => ({
   useTestQuestions: vi.fn(),
   useTestRuns: vi.fn(),
-  useTestRunDetail: vi.fn(() => ({ data: undefined })),
+  useTestRunDetail: vi.fn(),
   useSetQuestionEnabled: () => ({ mutate: vi.fn() }),
   useDeleteQuestion: () => ({ mutate: vi.fn() }),
   useRunCampaign: () => ({ mutate: runMutate, isPending: false }),
 }));
 vi.mock("@/hooks/useToast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
-import { useTestQuestions, useTestRuns } from "@/hooks/useSearchTest";
+import { useTestQuestions, useTestRunDetail, useTestRuns } from "@/hooks/useSearchTest";
 
 const question: TestQuestion = {
   id: "q-1",
@@ -42,7 +42,14 @@ const run: TestRun = {
   questions_failed: 1,
 };
 
+function mockDetail(detail: TestRun | undefined): void {
+  vi.mocked(useTestRunDetail).mockReturnValue({
+    data: detail,
+  } as unknown as ReturnType<typeof useTestRunDetail>);
+}
+
 function mockData(questions: TestQuestion[], runs: TestRun[]): void {
+  mockDetail(undefined);
   vi.mocked(useTestQuestions).mockReturnValue({
     data: questions,
     isLoading: false,
@@ -72,6 +79,42 @@ describe("WorkspaceSearchTestTab", () => {
     expect(screen.getByText(/R@1 50 % · R@5 75 % · R@10 100 %/)).toBeInTheDocument();
     expect(screen.getByText("1/4 échecs")).toBeInTheDocument();
     expect(screen.getByText("vectoriel seul")).toBeInTheDocument();
+  });
+
+  it("détail par question : attendu, top retourné avec scores, hit surligné", () => {
+    mockData([question], [run]);
+    mockDetail({
+      ...run,
+      results: [
+        {
+          question: "Comment créer un workspace ?",
+          family: "paraphrasee",
+          expected_path_contains: "6a398cd2",
+          rank: null,
+          error: null,
+          returned: [
+            {
+              rank: 1,
+              path: "ragflow/documentation/autre-doc.md",
+              score: 0.812,
+              chunk_index: 0,
+              snippet: "un extrait du chunk",
+              matched: false,
+            },
+          ],
+        },
+      ],
+    });
+    renderWithProviders(<WorkspaceSearchTestTab workspaceName="ws-1" enabled />);
+
+    fireEvent.click(screen.getByText(/R@1 50 %/));
+    const row = screen.getByText("absent");
+    fireEvent.click(row);
+    expect(screen.getByRole("link", { name: "6a398cd2" })).toBeInTheDocument();
+    expect(screen.getByText(/Retourné \(top 1\)/)).toBeInTheDocument();
+    expect(screen.getByText("ragflow/documentation/autre-doc.md")).toBeInTheDocument();
+    expect(screen.getByText("0.812")).toBeInTheDocument();
+    expect(screen.getByText("un extrait du chunk")).toBeInTheDocument();
   });
 
   it("bouton désactivé sans question activée", () => {

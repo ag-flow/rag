@@ -18,9 +18,10 @@ _WRITE_REFUSAL = (
 
 def register_search_test_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
     """Banc de test de recherche (feature 1a9b8b67) : les agents poussent les
-    questions avec leur réponse attendue en parcourant docflow ; le lancement
-    de la campagne se fait depuis l'IHM ; `get_search_test_report` expose les
-    résultats à un agent (diagnostic, comparaison avant/après)."""
+    questions avec leur réponse attendue en parcourant docflow ;
+    `run_search_test_campaign` lance la campagne (aussi possible depuis
+    l'IHM) ; `get_search_test_report` expose les résultats détaillés — attendu
+    ET retourné — pour l'analyse (diagnostic, comparaison avant/après)."""
 
     def _write_refusal(ctx: Any) -> str | None:
         return None if ctx.scope in ("read_write", "admin") else _WRITE_REFUSAL
@@ -53,7 +54,8 @@ def register_search_test_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
           indirecte (besoin utilisateur dont la page est la réponse) | libre
 
         Upsert par (workspace, question). Requiert une clé 'read_write' ou
-        'admin'. La campagne se LANCE depuis l'IHM (onglet Banc de test).
+        'admin'. La campagne se lance via run_search_test_campaign ou depuis
+        l'IHM (onglet Banc de test).
         """
         ctx = ws_ctx.get()
         refusal = _write_refusal(ctx)
@@ -96,14 +98,61 @@ def register_search_test_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
         return dump({"deleted": ok})
 
     @mcp.tool()
+    async def run_search_test_campaign(workspace: str) -> str:
+        """Lance une campagne du banc de test et retourne son résumé.
+
+        Chaque question ACTIVÉE est posée à la recherche du produit (config
+        hybride du workspace respectée, top-10) ; le run est historisé avec,
+        pour chaque question, le rang du document attendu ET le top-10
+        retourné (path, score, extrait) — consultable ensuite via
+        get_search_test_report ou l'IHM (onglet Banc de test).
+
+        Sortie : {id (run_id), started_at, config, metrics (recall@1/5/10,
+        mrr — globaux et par famille), questions_total, questions_failed}.
+        Requiert une clé 'read_write' ou 'admin'. Attention : la campagne
+        consomme des appels d'embedding (une recherche par question).
+        """
+        from rag.api.mcp_standard import _resolve_ws
+        from rag.api.playground import make_harpo_resolver_from
+        from rag.api.search_test_campaign import launch_campaign
+
+        ctx = ws_ctx.get()
+        refusal = _write_refusal(ctx)
+        if refusal:
+            return refusal.replace("alimenter le banc de test", "lancer une campagne")
+        ws = await _resolve_ws(ctx, workspace)
+        try:
+            run = await launch_campaign(
+                config_pool=ctx.config_pool,
+                pool_registry=ctx.pool_registry,
+                resolve_harpo=make_harpo_resolver_from(
+                    config_pool=ctx.config_pool,
+                    vault_svc=ctx.vaults_service,
+                    client_provider=ctx.client_provider,
+                ),
+                workspace_id=ws.workspace_id,
+                workspace_name=ws.workspace_name,
+            )
+        except ValueError as exc:
+            return f"Campagne refusée : {exc}"
+        summary = {k: v for k, v in run.items() if k != "results"}
+        return dump(summary)
+
+    @mcp.tool()
     async def get_search_test_report(workspace: str, run_id: str = "") -> str:
-        """Résultats du banc de test : dernier run (défaut) ou run précis.
+        """Résultats détaillés du banc de test : dernier run (défaut) ou run
+        précis — la matière d'analyse d'un agent diagnosticien.
 
         Sortie : {id, started_at, config (hybride, moteur, pondérations,
         top_k), metrics (recall@1/5/10, mrr — globaux et par famille),
         questions_total, questions_failed, results: [{question, family,
-        expected_path_contains, rank}]} — rank null = document attendu absent
-        du top-k (échec à diagnostiquer). Lecture seule, toute clé valide.
+        expected_path_contains (CE QUI ÉTAIT ATTENDU : fragment du path du
+        document), rank (rang où il est ressorti — null = absent du top-k),
+        error (échec d'appel de la recherche, sinon null),
+        returned: [{rank, path, score, snippet, matched}] (CE QUI EST REVENU,
+        ordonné)}]}. Comparer expected_path_contains aux returned[].path d'un
+        échec montre quels documents ont pris la place et avec quels scores.
+        Lecture seule, toute clé valide.
         """
         ctx = ws_ctx.get()
         ws_id = await _ws_id(ctx, workspace)
@@ -118,7 +167,7 @@ def register_search_test_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
             )
         if run is None:
             return (
-                "Aucun run pour ce workspace — lance une campagne depuis l'IHM "
-                "(onglet Banc de test du workspace)."
+                "Aucun run pour ce workspace — lance une campagne via "
+                "run_search_test_campaign ou depuis l'IHM (onglet Banc de test)."
             )
         return dump(run)

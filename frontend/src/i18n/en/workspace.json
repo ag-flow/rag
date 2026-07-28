@@ -520,6 +520,13 @@
     "cfg_hybrid": "hybrid",
     "cfg_vector": "vector only",
     "failed_count": "{{failed}}/{{total}} misses",
-    "miss_label": "Expected document missing from top 10:"
+    "miss_label": "Expected document missing from top 10:",
+    "rank_badge": "rank {{rank}}",
+    "absent_badge": "absent",
+    "error_badge": "error",
+    "expected_label": "Expected:",
+    "error_label": "Call error:",
+    "returned_title": "Returned (top {{count}}):",
+    "returned_empty": "No result returned."
   }
 }

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import asyncpg
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -48,18 +50,39 @@ async def perform_workspace_search(
     top_k: int,
     min_score: float,
 ) -> PlaygroundSearchResponse:
-    """Recherche du produit côté serveur (session), config hybride du
-    workspace respectée. Réutilisée par le Playground ET le banc de test
-    (feature 1a9b8b67) — le caller a déjà validé l'accès au workspace."""
+    """Recherche du produit côté serveur (session) — wrapper Request.
+    Le caller a déjà validé l'accès au workspace."""
     from rag.api.playground import make_harpo_resolver
+
+    return await perform_search(
+        config_pool=request.app.state.pools.config_pool,
+        pool_registry=request.app.state.pools,
+        resolve_harpo=make_harpo_resolver(request),
+        workspace_name=workspace_name,
+        query=query,
+        top_k=top_k,
+        min_score=min_score,
+    )
+
+
+async def perform_search(
+    *,
+    config_pool: asyncpg.Pool,
+    pool_registry: Any,
+    resolve_harpo: Any,
+    workspace_name: str,
+    query: str,
+    top_k: int,
+    min_score: float,
+) -> PlaygroundSearchResponse:
+    """Recherche du produit, config hybride du workspace respectée.
+
+    Cœur sans dépendance à la Request FastAPI : réutilisé par le Playground,
+    le banc de test IHM ET la primitive MCP de campagne (feature 1a9b8b67)."""
     from rag.db.lexical_engines import get_lexical_engine
     from rag.db.workspace_search import hybrid_search, vector_search
     from rag.indexer.providers.factory import make_provider
     from rag.services.mcp import _load_hybrid_config
-
-    config_pool: asyncpg.Pool = request.app.state.pools.config_pool
-    pool_registry = request.app.state.pools
-    resolve_harpo = make_harpo_resolver(request)
 
     ws_row = await config_pool.fetchrow(_WS_QUERY, workspace_name)
     if ws_row is None:

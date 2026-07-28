@@ -22,8 +22,10 @@ log = structlog.get_logger(__name__)
 RECALL_KS = (1, 5, 10)
 FAMILIES = ("litterale", "paraphrasee", "indirecte", "libre")
 
-# Le run appelle la recherche du produit : question → paths ordonnés.
-SearchFn = Callable[[str], Awaitable[list[str]]]
+# Le run appelle la recherche du produit : question → hits ordonnés
+# [{path, score, chunk_index, snippet}] — le détail retourné est persisté
+# avec chaque résultat pour l'analyse (migration 093).
+SearchFn = Callable[[str], Awaitable[list[dict[str, Any]]]]
 
 
 def first_relevant_rank(paths: list[str], fragment: str) -> int | None:
@@ -129,8 +131,10 @@ async def run_campaign(
     """Exécute la campagne sur les questions ACTIVÉES et persiste le run.
 
     `search_fn(question)` = la recherche du produit (config hybride du
-    workspace respectée), retourne les paths ordonnés. Une question en échec
-    d'appel N'interrompT pas la campagne : rang absent + trace.
+    workspace respectée), retourne les hits ordonnés [{path, score,
+    chunk_index, snippet}] — persistés avec chaque résultat (attendu vs
+    retourné, migration 093). Une question en échec d'appel N'interrompt pas
+    la campagne : rang absent + erreur historisée.
     """
     questions = [q for q in await list_questions(pool, workspace_id=workspace_id) if q["enabled"]]
     if not questions:
@@ -139,19 +143,28 @@ async def run_campaign(
     entries: list[tuple[str, int | None]] = []
     results: list[dict[str, Any]] = []
     for q in questions:
+        error: str | None = None
         try:
-            paths = await search_fn(q["question"])
+            hits = await search_fn(q["question"])
         except Exception as exc:
             log.warning("search_test.question_failed", question=q["question"], error=str(exc))
-            paths = []
-        rank = first_relevant_rank(paths[:top_k], q["expected_path_contains"])
+            hits, error = [], str(exc)
+        hits = hits[:top_k]
+        fragment = q["expected_path_contains"]
+        rank = first_relevant_rank([h["path"] for h in hits], fragment)
         entries.append((q["family"], rank))
         results.append(
             {
                 "question": q["question"],
                 "family": q["family"],
-                "expected_path_contains": q["expected_path_contains"],
+                "expected_path_contains": fragment,
                 "rank": rank,
+                "error": error,
+                # Ce qui est REVENU, ordonné — matière première de l'analyse.
+                "returned": [
+                    {**h, "rank": i + 1, "matched": fragment in h["path"]}
+                    for i, h in enumerate(hits)
+                ],
             }
         )
 
@@ -174,13 +187,15 @@ async def run_campaign(
         for r in results:
             await conn.execute(
                 "INSERT INTO search_test_run_results "
-                "(run_id, question, family, expected_path_contains, rank) "
-                "VALUES ($1, $2, $3, $4, $5)",
+                "(run_id, question, family, expected_path_contains, rank, returned, error) "
+                "VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)",
                 run["id"],
                 r["question"],
                 r["family"],
                 r["expected_path_contains"],
                 r["rank"],
+                json.dumps(r["returned"]),
+                r["error"],
             )
     log.info(
         "search_test.run_done",
@@ -223,11 +238,15 @@ async def get_run(pool: asyncpg.Pool, *, workspace_id: UUID, run_id: UUID) -> di
         return None
     run = _run_to_dict(row)
     results = await pool.fetch(
-        "SELECT question, family, expected_path_contains, rank "
+        "SELECT question, family, expected_path_contains, rank, returned, error "
         "FROM search_test_run_results WHERE run_id = $1 ORDER BY family, question",
         run_id,
     )
-    run["results"] = [dict(r) for r in results]
+
+    def _parse_returned(value: Any) -> Any:
+        return json.loads(value) if isinstance(value, str) else value
+
+    run["results"] = [{**dict(r), "returned": _parse_returned(r["returned"])} for r in results]
     return run
 
 

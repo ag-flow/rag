@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from typing import Any
 from uuid import UUID
 
 import asyncpg
@@ -34,17 +35,28 @@ def _pool(request: Request) -> asyncpg.Pool:
 
 
 def make_harpo_resolver(request: Request) -> Callable[[str], Awaitable[str | None]]:
-    """Résolveur de ref Harpocrate partagé chat/recherche.
+    """Résolveur de ref Harpocrate partagé chat/recherche — wrapper Request."""
+    return make_harpo_resolver_from(
+        config_pool=_pool(request),
+        vault_svc=request.app.state.harpocrate_vaults_service,
+        client_provider=request.app.state.client_provider,
+    )
+
+
+def make_harpo_resolver_from(
+    *,
+    config_pool: asyncpg.Pool,
+    vault_svc: Any,
+    client_provider: Any,
+) -> Callable[[str], Awaitable[str | None]]:
+    """Résolveur de ref Harpocrate à partir des dépendances explicites
+    (utilisable hors Request — ex. primitive MCP de campagne).
 
     Normalise une clé logique (format legacy) en ref vault par défaut,
     comme RealIndexer à l'indexation : sans ça, un api_key_ref logique
     était droppé → embedding/LLM appelé avec api_key=None → 401 (BUG-024).
     """
     from rag.secrets.refs import as_vault_ref, is_vault_ref, parse_ref
-
-    config_pool: asyncpg.Pool = _pool(request)
-    vault_svc = request.app.state.harpocrate_vaults_service
-    client_provider = request.app.state.client_provider
 
     async def _resolve(harpo_path: str) -> str | None:
         ref = harpo_path

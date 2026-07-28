@@ -520,6 +520,13 @@
     "cfg_hybrid": "hybride",
     "cfg_vector": "vectoriel seul",
     "failed_count": "{{failed}}/{{total}} échecs",
-    "miss_label": "Document attendu absent du top-10 :"
+    "miss_label": "Document attendu absent du top-10 :",
+    "rank_badge": "rang {{rank}}",
+    "absent_badge": "absent",
+    "error_badge": "erreur",
+    "expected_label": "Attendu :",
+    "error_label": "Erreur d'appel :",
+    "returned_title": "Retourné (top {{count}}) :",
+    "returned_empty": "Aucun résultat retourné."
   }
 }

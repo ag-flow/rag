@@ -82,8 +82,11 @@ class TestRunCampaign:
             ]
         )
 
-        async def search_fn(question: str) -> list[str]:
-            return ["x/doc-aaa"] if question == "q1" else ["autre", "encore"]
+        def _hit(path: str, score: float = 0.9) -> dict[str, Any]:
+            return {"path": path, "score": score, "chunk_index": 0, "snippet": "extrait"}
+
+        async def search_fn(question: str) -> list[dict[str, Any]]:
+            return [_hit("x/doc-aaa")] if question == "q1" else [_hit("autre"), _hit("encore")]
 
         run = await run_campaign(
             pool, workspace_id=_WS, search_fn=search_fn, config={"hybrid": False}
@@ -94,6 +97,17 @@ class TestRunCampaign:
         assert run["metrics"]["recall@1"] == 0.5
         assert run["results"][0]["rank"] == 1
         assert run["results"][1]["rank"] is None
+        # Détail analysable (093) : ce qui est revenu, ordonné + flag matched.
+        assert run["results"][0]["returned"][0] == {
+            "path": "x/doc-aaa",
+            "score": 0.9,
+            "chunk_index": 0,
+            "snippet": "extrait",
+            "rank": 1,
+            "matched": True,
+        }
+        assert [h["matched"] for h in run["results"][1]["returned"]] == [False, False]
+        assert run["results"][0]["error"] is None
         # Persistance : 1 INSERT run (fetchrow) + 1 INSERT par résultat.
         pool._conn.fetchrow.assert_awaited_once()
         assert pool._conn.execute.await_count == 2
@@ -104,12 +118,15 @@ class TestRunCampaign:
     async def test_search_error_counts_as_miss(self) -> None:
         pool = _fake_pool([_question("q1", "doc-aaa")])
 
-        async def search_fn(question: str) -> list[str]:
+        async def search_fn(question: str) -> list[dict[str, Any]]:
             raise RuntimeError("provider down")
 
         run = await run_campaign(pool, workspace_id=_WS, search_fn=search_fn, config={})
         assert run["questions_failed"] == 1
         assert run["results"][0]["rank"] is None
+        # L'échec d'appel est historisé distinctement d'un simple miss.
+        assert run["results"][0]["error"] == "provider down"
+        assert run["results"][0]["returned"] == []
 
     @pytest.mark.asyncio
     async def test_no_enabled_question_raises(self) -> None:
@@ -117,7 +134,7 @@ class TestRunCampaign:
         disabled["enabled"] = False
         pool = _fake_pool([disabled])
 
-        async def search_fn(question: str) -> list[str]:  # pragma: no cover
+        async def search_fn(question: str) -> list[dict[str, Any]]:  # pragma: no cover
             return []
 
         with pytest.raises(ValueError, match="aucune question"):
@@ -127,8 +144,9 @@ class TestRunCampaign:
     async def test_rank_beyond_top_k_is_a_miss(self) -> None:
         pool = _fake_pool([_question("q1", "doc-aaa")])
 
-        async def search_fn(question: str) -> list[str]:
-            return [f"p{i}" for i in range(10)] + ["x/doc-aaa"]  # rang 11 > top_k
+        async def search_fn(question: str) -> list[dict[str, Any]]:
+            paths = [f"p{i}" for i in range(10)] + ["x/doc-aaa"]  # rang 11 > top_k
+            return [{"path": p, "score": 0.5, "chunk_index": 0, "snippet": ""} for p in paths]
 
         run = await run_campaign(pool, workspace_id=_WS, search_fn=search_fn, config={}, top_k=10)
         assert run["results"][0]["rank"] is None
