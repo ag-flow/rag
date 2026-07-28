@@ -527,6 +527,7 @@
     "expected_label": "Expected:",
     "error_label": "Call error:",
     "returned_title": "Returned (top {{count}}):",
-    "returned_empty": "No result returned."
+    "returned_empty": "No result returned.",
+    "runs_retention": "History kept for 72 h, then purged automatically."
   }
 }

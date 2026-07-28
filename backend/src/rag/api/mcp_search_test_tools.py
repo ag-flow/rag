@@ -109,7 +109,9 @@ def register_search_test_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
 
         Sortie : {id (run_id), started_at, config, metrics (recall@1/5/10,
         mrr — globaux et par famille), questions_total, questions_failed}.
-        Requiert une clé 'read_write' ou 'admin'. Attention : la campagne
+        L'historique des runs est conservé 72 h puis purgé automatiquement —
+        exploiter un rapport sans tarder. Requiert une clé 'read_write' ou
+        'admin'. Attention : la campagne
         consomme des appels d'embedding (une recherche par question).
         """
         from rag.api.mcp_standard import _resolve_ws
@@ -152,7 +154,7 @@ def register_search_test_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
         returned: [{rank, path, score, snippet, matched}] (CE QUI EST REVENU,
         ordonné)}]}. Comparer expected_path_contains aux returned[].path d'un
         échec montre quels documents ont pris la place et avec quels scores.
-        Lecture seule, toute clé valide.
+        Historique conservé 72 h puis purgé. Lecture seule, toute clé valide.
         """
         ctx = ws_ctx.get()
         ws_id = await _ws_id(ctx, workspace)

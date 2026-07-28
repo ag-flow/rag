@@ -110,6 +110,7 @@ export function WorkspaceSearchTestTab({ workspaceName, enabled }: Props) {
 
       <div>
         <h4 className="text-sm font-semibold text-slate-900">{t("search_test.runs_title")}</h4>
+        <p className="mt-0.5 text-xs text-slate-400">{t("search_test.runs_retention")}</p>
         {runs.length === 0 ? (
           <p className="mt-2 text-sm text-slate-500">{t("search_test.runs_empty")}</p>
         ) : (

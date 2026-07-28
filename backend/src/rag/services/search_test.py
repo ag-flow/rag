@@ -22,6 +22,12 @@ log = structlog.get_logger(__name__)
 RECALL_KS = (1, 5, 10)
 FAMILIES = ("litterale", "paraphrasee", "indirecte", "libre")
 
+# Rétention de l'historique des campagnes (décision architecte 2026-07-28) :
+# les runs sont une matière de diagnostic, purgés automatiquement après 72 h
+# (le DELETE cascade sur search_test_run_results). Les QUESTIONS, elles, sont
+# permanentes.
+RUNS_RETENTION_HOURS = 72
+
 # Le run appelle la recherche du produit : question → hits ordonnés
 # [{path, score, chunk_index, snippet}] — le détail retourné est persisté
 # avec chaque résultat pour l'analyse (migration 093).
@@ -248,6 +254,21 @@ async def get_run(pool: asyncpg.Pool, *, workspace_id: UUID, run_id: UUID) -> di
 
     run["results"] = [{**dict(r), "returned": _parse_returned(r["returned"])} for r in results]
     return run
+
+
+async def purge_old_runs(pool: asyncpg.Pool) -> int:
+    """Purge les runs plus vieux que RUNS_RETENTION_HOURS (entretien worker).
+
+    Retourne le nombre de runs supprimés (les résultats suivent par cascade).
+    """
+    status = await pool.execute(
+        "DELETE FROM search_test_runs WHERE started_at < now() - make_interval(hours => $1)",
+        RUNS_RETENTION_HOURS,
+    )
+    count = int(status.split()[-1])
+    if count:
+        log.info("search_test.runs_purged", count=count, retention_hours=RUNS_RETENTION_HOURS)
+    return count
 
 
 def _run_to_dict(row: asyncpg.Record) -> dict[str, Any]:

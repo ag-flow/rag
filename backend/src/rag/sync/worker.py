@@ -190,6 +190,12 @@ class SyncWorker:
         except Exception:
             log.warning("sync.worker.purge_webhook_calls_failed")
         try:
+            from rag.services.search_test import purge_old_runs
+
+            await purge_old_runs(self._config_pool)
+        except Exception:
+            log.warning("sync.worker.purge_search_test_runs_failed")
+        try:
             from rag.services.circuit_breaker import auto_close_expired_circuits
 
             await auto_close_expired_circuits(self._config_pool)

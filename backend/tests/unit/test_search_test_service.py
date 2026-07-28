@@ -150,3 +150,22 @@ class TestRunCampaign:
 
         run = await run_campaign(pool, workspace_id=_WS, search_fn=search_fn, config={}, top_k=10)
         assert run["results"][0]["rank"] is None
+
+
+class TestPurgeOldRuns:
+    @pytest.mark.asyncio
+    async def test_purges_beyond_retention_and_reports_count(self) -> None:
+        from rag.services.search_test import RUNS_RETENTION_HOURS, purge_old_runs
+
+        pool = SimpleNamespace(execute=AsyncMock(return_value="DELETE 3"))
+        assert await purge_old_runs(pool) == 3
+        sql, hours = pool.execute.await_args.args
+        assert "search_test_runs" in sql and "make_interval" in sql
+        assert hours == RUNS_RETENTION_HOURS == 72
+
+    @pytest.mark.asyncio
+    async def test_noop_when_nothing_to_purge(self) -> None:
+        from rag.services.search_test import purge_old_runs
+
+        pool = SimpleNamespace(execute=AsyncMock(return_value="DELETE 0"))
+        assert await purge_old_runs(pool) == 0
