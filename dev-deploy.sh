@@ -347,6 +347,25 @@ else
 fi
 echo
 
+# ─── Contrôle collecte métriques (non bloquant) ─────────────────────────────
+# Même piège que pour Loki : un METRICS_URL périmé fait pousser Alloy dans le
+# vide sans signal. On teste /-/ready sur l'endpoint remote-write dérivé.
+METRICS_URL_VAL="$(read_env_var METRICS_URL)"
+if [ -n "$METRICS_URL_VAL" ]; then
+  METRICS_READY="${METRICS_URL_VAL%/api/v1/write}/-/ready"
+  if curl -sf -m 5 "$METRICS_READY" >/dev/null 2>&1; then
+    echo "✓ Backend métriques joignable ($METRICS_READY) — CPU/mémoire/disque collectés."
+  else
+    echo "⚠  Backend métriques INJOIGNABLE depuis ce host : $METRICS_READY" >&2
+    echo "   CPU/mémoire/disque ne seront PAS historisés. Vérifier METRICS_URL" >&2
+    echo "   dans .env puis :" >&2
+    echo "     docker compose -f ${COMPOSE_FILE} up -d alloy" >&2
+  fi
+else
+  echo "ℹ  METRICS_URL non défini — pas d'historisation CPU/mémoire/disque."
+fi
+echo
+
 # ─── Affichage final : URL d'accès ──────────────────────────────────────────
 # Pour le smoke (URLs affichées à l'admin local), on utilise TOUJOURS l'IP
 # détectée localement (route par défaut, quel que soit le nom de

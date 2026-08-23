@@ -1,0 +1,25 @@
+# Provisioning Grafana — à déposer dans le répertoire de provisioning des
+# datasources du Grafana central (LXC 116), typiquement
+# /etc/grafana/provisioning/datasources/, puis redémarrer Grafana.
+#
+# Sans cette datasource, ragflow-resources-dashboard.json ne peut pas être
+# importé (il réclame une entrée `DS_PROM` de type prometheus).
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    uid: prometheus
+    # Prometheus tourne sur le même hôte que Grafana : si les deux partagent un
+    # réseau compose, remplacer par http://agflow-prometheus:9090.
+    url: http://127.0.0.1:9090
+    isDefault: false
+    jsonData:
+      httpMethod: POST
+      # Doit couvrir la cadence la plus lente qui soit interrogée BRUTE. Les
+      # panneaux disque enveloppent déjà leurs requêtes dans
+      # last_over_time(...[35m]), donc 5 min (défaut) suffit et évite de
+      # fausser la fraîcheur du CPU et de la mémoire.
+      timeInterval: 30s

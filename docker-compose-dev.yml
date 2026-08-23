@@ -89,11 +89,16 @@ services:
       - "8081:8081"
     networks: [rag]
 
-  # Collecteur de logs → Loki (LXC 116) : lit les logs de TOUS les conteneurs
-  # Docker de l'hôte (via la socket) et les pousse vers Loki. La config vit
-  # dans deploy/alloy-config.alloy (label job=ragflow, host=LOKI_HOSTNAME).
-  # Requiert LOKI_URL dans .env ; à défaut, Alloy redémarre en boucle sans
-  # impacter le reste du stack.
+  # Collecteur d'observabilité de l'hôte. Deux flux indépendants, config dans
+  # deploy/alloy-config.alloy :
+  #   - LOGS -> Loki (LXC 116) : lit les logs de TOUS les conteneurs Docker de
+  #     l'hôte via la socket (label job=ragflow, host=LOKI_HOSTNAME).
+  #     Requiert LOKI_URL ; à défaut Alloy redémarre en boucle sans impacter
+  #     le reste du stack.
+  #   - MÉTRIQUES -> backend Prometheus : CPU (30 s), mémoire (60 s) et espace
+  #     disque (30 min), pour l'hôte (node_exporter) et par conteneur
+  #     (cadvisor). Requiert METRICS_URL ; à défaut les envois échouent en
+  #     boucle sans couper la collecte de logs.
   alloy:
     image: grafana/alloy:latest
     container_name: rag-alloy
@@ -104,18 +109,31 @@ services:
     command:
       - run
       - /etc/alloy/config.alloy
+      # WAL de prometheus.remote_write : sans chemin de stockage persistant,
+      # les métriques en attente sont perdues à chaque redémarrage d'Alloy.
+      - --storage.path=/var/lib/alloy/data
       - --server.http.listen-addr=0.0.0.0:12345
     environment:
       LOKI_URL: "${LOKI_URL:-}"
+      METRICS_URL: "${METRICS_URL:-}"
       HOSTNAME: "${LOKI_HOSTNAME:-rag-dev}"
     volumes:
       - ./deploy/alloy-config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy/data
+      # Métriques : node_exporter et cadvisor embarqués doivent lire le /proc,
+      # /sys et le rootfs de l'HÔTE. Sans ces montages, CPU/mémoire/disque
+      # décriraient le conteneur Alloy lui-même, pas la machine.
+      - /proc:/host/proc:ro
+      - /sys:/sys:ro
+      - /:/rootfs:ro
+      - /var/lib/docker/:/var/lib/docker:ro
 
 volumes:
   postgres_data:
   caddy_data:
   caddy_config:
+  alloy_data:   # WAL remote-write des métriques (CPU / mémoire / disque)
   rag_repos:    # M3 : clones git du sync worker (/var/lib/rag/repos)
 
 networks:

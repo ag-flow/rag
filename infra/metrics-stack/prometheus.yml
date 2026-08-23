@@ -1,0 +1,17 @@
+# Configuration minimale : Prometheus ne scrute que lui-même. Toutes les
+# métriques applicatives arrivent par remote-write depuis les agents Alloy
+# (voir deploy/alloy-config.alloy côté ragflow) — il n'y a donc AUCUN job de
+# scrutation à déclarer ici quand on enrôle un nouvel hôte : il suffit de poser
+# METRICS_URL dans son .env.
+
+global:
+  # Ne concerne que l'auto-scrutation ci-dessous. Les cadences réelles des
+  # métriques (CPU 30 s, mémoire 60 s, disque 30 min) sont fixées par l'agent
+  # Alloy émetteur, pas ici.
+  scrape_interval: 60s
+  evaluation_interval: 60s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["127.0.0.1:9090"]
