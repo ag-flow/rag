@@ -14,8 +14,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from rag.auth.obo import read_obo_actor
-from rag.auth.owner import principal_to_owner_id
+from rag.auth.obo_resolver import resolve_effective_owner_id
 from rag.db.enrichment_lookup import get_enrichment as get_enrichment_db
 from rag.db.workspace_search import vector_search
 from rag.indexer.providers.factory import make_provider
@@ -42,6 +41,10 @@ class _KeyCtx:
     resolver: Any
     client_provider: Any
     default_vault_name: str | None = None
+    # Provenance de `owner_id` : "apikey" (propriétaire de la clé) ou "obo"
+    # (identité humaine signée du portail). Journalisée par les outils qui
+    # attribuent une ressource, sans quoi l'owner tracé est ambigu.
+    owner_source: str = "apikey"
     # Administration (outils create_workspace / reset_workspace_from_endpoint) :
     # DSN admin Postgres (CREATE DATABASE) et service coffres Harpocrate.
     admin_dsn: str | None = None
@@ -589,20 +592,19 @@ class RagMcpDispatcher:
 
         # OBO (contrat d0e2dad3 v6, GUID-only) : si le portail a propagé une
         # identité humaine SIGNÉE (secret = le Bearer de cette requête),
-        # l'acteur est un GUID OPAQUE mappé sur l'utilisateur dont
-        # users.identity = cette valeur ; l'attribution bascule alors sur son
-        # EMAIL (pivot d'identité — même owner_id que la session OIDC/locale).
-        # En-tête absent/mal signé OU GUID inconnu → ignoré (jamais 401),
-        # on garde l'identité de la clé (fail-safe).
-        actor = read_obo_actor(list(scope.get("headers", [])), token)
-        if actor is not None:
-            from rag.services.user_profile import email_for_identity
-
-            email = await email_for_identity(self._config_pool, actor)
-            if email is not None:
-                ctx = replace(ctx, owner_id=principal_to_owner_id(email))
-            else:
-                log.info("mcp_standard.obo_unknown_identity", actor=actor[:8])
+        # l'attribution bascule sur l'EMAIL de l'humain (pivot d'identité —
+        # même owner_id que la session OIDC/locale). Résolution DÉLÉGUÉE au
+        # point d'application partagé avec la surface REST : deux
+        # implémentations divergentes attribuaient deux owners au même humain.
+        effective_owner = await resolve_effective_owner_id(
+            self._config_pool,
+            list(scope.get("headers", [])),
+            token,
+            key_owner_id=ctx.owner_id,
+            surface="mcp",
+        )
+        if effective_owner != ctx.owner_id:
+            ctx = replace(ctx, owner_id=effective_owner, owner_source="obo")
 
         # Le mount Starlette "/mcp" ampute le préfixe : une requête sur `/mcp`
         # nu arrive ici avec un path vide → normalisé sur "/" pour matcher la

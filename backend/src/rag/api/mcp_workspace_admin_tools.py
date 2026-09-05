@@ -100,7 +100,12 @@ def register_workspace_admin_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
             return f"Création refusée : {dump(exc.to_payload())}"
 
         await _emit_created(ctx, resolved)
-        log.info("mcp.workspace_created", workspace=name, owner=ctx.owner_id[:8])
+        log.info(
+            "mcp.workspace_created",
+            workspace=name,
+            owner=ctx.owner_id[:8],
+            owner_source=getattr(ctx, "owner_source", "apikey"),
+        )
         return dump(resp)
 
     @mcp.tool()
