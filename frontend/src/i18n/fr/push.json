@@ -17,7 +17,9 @@
     "date": "Date",
     "detail_aria": "Voir le détail du job",
     "source": "Source",
-    "path": "Document"
+    "path": "Document",
+    "duration": "Durée",
+    "open_in_index": "Ouvrir dans l'index du workspace"
   },
   "files_summary": "{{changed}} modifiés / {{skipped}} ignorés",
   "status": {
@@ -55,6 +57,8 @@
     "memory_threshold": "Seuil mémoire (%)",
     "submit": "Enregistrer",
     "saved": "Seuils enregistrés — pris en compte immédiatement.",
-    "error": "Impossible d'enregistrer les seuils."
+    "error": "Impossible d'enregistrer les seuils.",
+    "io_metric": "Pression I/O 60 s",
+    "io_threshold": "Seuil I/O (%)"
   }
 }

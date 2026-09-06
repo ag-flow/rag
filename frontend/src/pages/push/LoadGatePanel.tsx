@@ -30,12 +30,14 @@ export function LoadGatePanel() {
   const [enabled, setEnabled] = useState(true);
   const [cpuPct, setCpuPct] = useState("40");
   const [memPct, setMemPct] = useState("85");
+  const [ioPct, setIoPct] = useState("60");
 
   useEffect(() => {
     if (!status) return;
     setEnabled(status.enabled);
     setCpuPct(String(status.cpu_threshold_pct));
     setMemPct(String(status.memory_threshold_pct));
+    setIoPct(String(status.io_threshold_pct));
   }, [status]);
 
   if (!status) return null;
@@ -57,6 +59,7 @@ export function LoadGatePanel() {
         enabled,
         cpu_threshold_pct: intOr(cpuPct, status.cpu_threshold_pct),
         memory_threshold_pct: intOr(memPct, status.memory_threshold_pct),
+        io_threshold_pct: intOr(ioPct, status.io_threshold_pct),
       },
       {
         onSuccess: () => toast({ title: t("load_gate.saved") }),
@@ -66,7 +69,7 @@ export function LoadGatePanel() {
   };
 
   return (
-    <section className="rounded-md border bg-white p-4">
+    <section className="density-card rounded-md border bg-white">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-sm font-semibold text-slate-900">{t("load_gate.title")}</h2>
         <span
@@ -88,6 +91,13 @@ export function LoadGatePanel() {
           t("load_gate.memory_metric"),
           status.memory_used_pct,
           status.memory_threshold_pct,
+          t("load_gate.unknown"),
+        )}
+        {" — "}
+        {metricLine(
+          t("load_gate.io_metric"),
+          status.io_psi_avg60,
+          status.io_threshold_pct,
           t("load_gate.unknown"),
         )}
       </p>
@@ -122,6 +132,18 @@ export function LoadGatePanel() {
             onChange={(e) => setMemPct(e.target.value)}
             className="mt-1 w-24"
             aria-label={t("load_gate.memory_threshold")}
+          />
+        </div>
+        <div>
+          <Label className="text-xs text-slate-600">{t("load_gate.io_threshold")}</Label>
+          <Input
+            type="number"
+            min={1}
+            max={100}
+            value={ioPct}
+            onChange={(e) => setIoPct(e.target.value)}
+            className="mt-1 w-24"
+            aria-label={t("load_gate.io_threshold")}
           />
         </div>
         <Button type="button" size="sm" onClick={save} disabled={setGate.isPending}>

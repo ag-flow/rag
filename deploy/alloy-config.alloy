@@ -45,3 +45,149 @@ loki.write "default" {
     host = sys.env("HOSTNAME"),
   }
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// MÉTRIQUES — ressources hôte + conteneurs → backend Prometheus (remote-write).
+//
+// Piloté par METRICS_URL (endpoint remote-write, ex.
+// http://192.168.10.164:9090/api/v1/write). Non défini => les envois échouent
+// en boucle mais la collecte de logs ci-dessus n'est pas impactée.
+//
+// Cadences demandées, une par famille :
+//   CPU            ->  30 s
+//   Mémoire        ->  60 s
+//   Espace disque  ->  30 min
+//
+// Un `prometheus.scrape` porte UN seul scrape_interval : on scrute donc les
+// mêmes exporters trois fois, chaque job ne gardant (`keep` sur __name__) que
+// la famille qui le concerne. Les exporters sont in-process, le surcoût des
+// scrutations redondantes est négligeable — et c'est la seule façon d'avoir
+// des cadences distinctes par métrique.
+//
+// ATTENTION disque / 30 min : au-delà de 5 min sans point, Prometheus
+// considère la série périmée (`staleness`) et les graphes se trouent. Côté
+// dashboard, interroger le disque avec last_over_time(...[35m]) — voir
+// infra/grafana/README.md.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Métriques de l'HÔTE (node_exporter embarqué). Les chemins pointent sur les
+// montages du host : sans eux, les valeurs décriraient le conteneur Alloy.
+prometheus.exporter.unix "host" {
+  procfs_path = "/host/proc"
+  sysfs_path  = "/sys"
+  rootfs_path = "/rootfs"
+
+  // Seuls les collecteurs qui alimentent les trois familles suivies.
+  set_collectors = ["cpu", "loadavg", "meminfo", "filesystem"]
+
+  filesystem {
+    fs_types_exclude     = "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tmpfs|tracefs)$"
+    mount_points_exclude = "^/(dev|proc|run/credentials/.+|sys|var/lib/docker/.+)($|/)"
+    mount_timeout        = "5s"
+  }
+}
+
+// Métriques PAR CONTENEUR (cadvisor embarqué) — c'est ce qui permet d'imputer
+// un pic CPU à un service précis (backend, postgres, worker…) plutôt qu'à
+// l'hôte en bloc.
+prometheus.exporter.cadvisor "containers" {
+  docker_host      = "unix:///var/run/docker.sock"
+  storage_duration = "5m"
+}
+
+// ─── Les trois jobs de scrutation, une cadence chacun ────────────────────────
+
+prometheus.scrape "cpu" {
+  targets = array.concat(
+    prometheus.exporter.unix.host.targets,
+    prometheus.exporter.cadvisor.containers.targets,
+  )
+  job_name        = "ragflow-cpu"
+  scrape_interval = "30s"
+  scrape_timeout  = "10s"
+  forward_to      = [prometheus.relabel.cpu.receiver]
+}
+
+prometheus.scrape "memory" {
+  targets = array.concat(
+    prometheus.exporter.unix.host.targets,
+    prometheus.exporter.cadvisor.containers.targets,
+  )
+  job_name        = "ragflow-memory"
+  scrape_interval = "60s"
+  scrape_timeout  = "15s"
+  forward_to      = [prometheus.relabel.memory.receiver]
+}
+
+prometheus.scrape "disk" {
+  targets         = prometheus.exporter.unix.host.targets
+  job_name        = "ragflow-disk"
+  scrape_interval = "30m"
+  scrape_timeout  = "30s"
+  forward_to      = [prometheus.relabel.disk.receiver]
+}
+
+// ─── Filtres par famille : chaque job ne conserve que « ses » métriques ──────
+
+prometheus.relabel "cpu" {
+  forward_to = [prometheus.relabel.common.receiver]
+
+  // `up` est conservé ici (et seulement ici) : c'est le battement de cœur de la
+  // collecte, à la cadence la plus rapide des trois. Sans lui, une collecte
+  // arrêtée serait indiscernable d'une machine au repos.
+  rule {
+    action        = "keep"
+    source_labels = ["__name__"]
+    regex         = "up|node_cpu_seconds_total|node_load(1|5|15)|container_cpu_usage_seconds_total|container_cpu_cfs_throttled_seconds_total"
+  }
+}
+
+prometheus.relabel "memory" {
+  forward_to = [prometheus.relabel.common.receiver]
+
+  rule {
+    action        = "keep"
+    source_labels = ["__name__"]
+    regex         = "node_memory_(MemTotal|MemAvailable|SwapTotal|SwapFree)_bytes|container_memory_working_set_bytes|container_spec_memory_limit_bytes"
+  }
+}
+
+prometheus.relabel "disk" {
+  forward_to = [prometheus.relabel.common.receiver]
+
+  // `avail` est la demande ; `size` l'accompagne car sans elle on ne peut pas
+  // tracer un pourcentage de remplissage.
+  rule {
+    action        = "keep"
+    source_labels = ["__name__"]
+    regex         = "node_filesystem_(avail|size)_bytes"
+  }
+}
+
+// ─── Normalisation commune aux trois familles ───────────────────────────────
+
+prometheus.relabel "common" {
+  forward_to = [prometheus.remote_write.metrics.receiver]
+
+  // cadvisor nomme le conteneur `name` ; les logs Loki utilisent `container`.
+  // On aligne les deux pour pouvoir corréler un pic CPU avec ses lignes de log.
+  rule {
+    action        = "replace"
+    source_labels = ["name"]
+    target_label  = "container"
+  }
+  rule {
+    action = "labeldrop"
+    regex  = "name"
+  }
+}
+
+prometheus.remote_write "metrics" {
+  endpoint {
+    url = sys.env("METRICS_URL")
+  }
+  external_labels = {
+    host   = sys.env("HOSTNAME"),
+    module = "ragflow",
+  }
+}

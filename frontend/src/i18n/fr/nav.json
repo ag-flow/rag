@@ -15,6 +15,7 @@
     "harpocrate_vaults": "Coffres Harpocrate",
     "api_keys": "Clés API",
     "oidc_config": "Config OIDC",
+    "processing": "Traitement",
     "prompts": "Prompts",
     "chunking_strategies": "Stratégies de chunking",
     "events_producer": "Events workflow",

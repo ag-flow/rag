@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from typing import Any
 from uuid import UUID
 
 import asyncpg
@@ -34,17 +35,28 @@ def _pool(request: Request) -> asyncpg.Pool:
 
 
 def make_harpo_resolver(request: Request) -> Callable[[str], Awaitable[str | None]]:
-    """Résolveur de ref Harpocrate partagé chat/recherche.
+    """Résolveur de ref Harpocrate partagé chat/recherche — wrapper Request."""
+    return make_harpo_resolver_from(
+        config_pool=_pool(request),
+        vault_svc=request.app.state.harpocrate_vaults_service,
+        client_provider=request.app.state.client_provider,
+    )
+
+
+def make_harpo_resolver_from(
+    *,
+    config_pool: asyncpg.Pool,
+    vault_svc: Any,
+    client_provider: Any,
+) -> Callable[[str], Awaitable[str | None]]:
+    """Résolveur de ref Harpocrate à partir des dépendances explicites
+    (utilisable hors Request — ex. primitive MCP de campagne).
 
     Normalise une clé logique (format legacy) en ref vault par défaut,
     comme RealIndexer à l'indexation : sans ça, un api_key_ref logique
     était droppé → embedding/LLM appelé avec api_key=None → 401 (BUG-024).
     """
     from rag.secrets.refs import as_vault_ref, is_vault_ref, parse_ref
-
-    config_pool: asyncpg.Pool = _pool(request)
-    vault_svc = request.app.state.harpocrate_vaults_service
-    client_provider = request.app.state.client_provider
 
     async def _resolve(harpo_path: str) -> str | None:
         ref = harpo_path
@@ -67,6 +79,7 @@ def make_harpo_resolver(request: Request) -> Callable[[str], Awaitable[str | Non
 @router_admin.get("", response_model=list[LlmConfigOut])
 async def list_configs(workspace_name: str, request: Request) -> list[LlmConfigOut]:
     from rag.services.llm_configs import list_llm_configs
+
     await require_owned_workspace_id(request, workspace_name, _pool(request))
     async with _pool(request).acquire() as conn:
         return await list_llm_configs(conn, workspace_name=workspace_name)
@@ -77,6 +90,7 @@ async def create_config(
     workspace_name: str, body: LlmConfigCreate, request: Request
 ) -> LlmConfigOut:
     from rag.services.llm_configs import create_llm_config
+
     await require_owned_workspace_id(request, workspace_name, _pool(request))
     async with _pool(request).acquire() as conn:
         try:
@@ -94,6 +108,7 @@ async def patch_config(
     workspace_name: str, config_id: UUID, body: LlmConfigPatch, request: Request
 ) -> LlmConfigOut:
     from rag.services.llm_configs import patch_llm_config
+
     await require_owned_workspace_id(request, workspace_name, _pool(request))
     async with _pool(request).acquire() as conn:
         result = await patch_llm_config(
@@ -105,10 +120,9 @@ async def patch_config(
 
 
 @router_admin.delete("/{config_id}", status_code=204)
-async def delete_config(
-    workspace_name: str, config_id: UUID, request: Request
-) -> Response:
+async def delete_config(workspace_name: str, config_id: UUID, request: Request) -> Response:
     from rag.services.llm_configs import delete_llm_config
+
     await require_owned_workspace_id(request, workspace_name, _pool(request))
     async with _pool(request).acquire() as conn:
         deleted = await delete_llm_config(
@@ -137,6 +151,12 @@ async def playground_chat(
     """Chat RAG-ancré : embed → vector_search → LLM."""
     from rag.db.workspace_search import vector_search
     from rag.indexer.providers.factory import make_provider
+    from rag.services.endpoint_failover import (
+        ServiceSpec,
+        call_with_failover,
+        fallback_slot,
+        load_failover,
+    )
     from rag.services.endpoint_throttle import estimate_tokens, llm_slot
     from rag.services.llm_clients import build_prompt, call_llm
     from rag.services.llm_configs import get_llm_config_for_chat
@@ -219,21 +239,40 @@ async def playground_chat(
         history=[{"role": m.role, "content": m.content} for m in body.history],
         message=body.message,
     )
-    # Throttling LLM cross-workspace par endpoint (enabler fe6b8dcb).
-    slot = await llm_slot(
-        config_pool,
-        ws_row["ws_id"],
-        tokens=estimate_tokens(system_prompt, *(m["content"] for m in messages)),
-    )
-    async with slot:
-        llm_result = await call_llm(
-            provider=llm_cfg["provider"],
-            model=llm_cfg["model"],
-            api_key=llm_api_key,
-            base_url=llm_cfg.get("base_url"),
-            system_prompt=system_prompt,
-            messages=messages,
+
+    # Throttling LLM (fe6b8dcb) + bascule de fallback (f94bfd84 lot 2b).
+    async def _llm_primary() -> dict:
+        slot = await llm_slot(
+            config_pool,
+            ws_row["ws_id"],
+            tokens=estimate_tokens(system_prompt, *(m["content"] for m in messages)),
         )
+        async with slot:
+            return await call_llm(
+                provider=llm_cfg["provider"],
+                model=llm_cfg["model"],
+                api_key=llm_api_key,
+                base_url=llm_cfg.get("base_url"),
+                system_prompt=system_prompt,
+                messages=messages,
+            )
+
+    async def _llm_fallback(fb: ServiceSpec) -> dict:
+        fb_key = await _resolve_harpo(fb.api_key_ref) if fb.api_key_ref else None
+        async with fallback_slot(fb, "llm", tokens=estimate_tokens(system_prompt)):
+            return await call_llm(
+                provider=fb.provider,
+                model=fb.model,
+                api_key=fb_key,
+                base_url=fb.base_url,
+                system_prompt=system_prompt,
+                messages=messages,
+            )
+
+    llm_failover = await load_failover(config_pool, workspace_id=ws_row["ws_id"], service="llm")
+    llm_result = await call_with_failover(
+        spec=llm_failover, service="llm", primary=_llm_primary, fallback_call=_llm_fallback
+    )
 
     log.info(
         "playground.chat",

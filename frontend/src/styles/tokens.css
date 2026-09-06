@@ -1,0 +1,145 @@
+/**
+ * Feuille de tokens unique (enabler 75058a6a) — SOURCE DE VÉRITÉ des styles.
+ *
+ * Règles du jeu :
+ * - Aucune couleur hexadécimale en dur dans les écrans : les palettes Tailwind
+ *   (slate/sky/emerald/amber/rose et leurs alias) sont REMAPPÉES sur ces rampes
+ *   dans tailwind.config.js — changer une valeur ici propage partout.
+ * - Les états (survol, actif, pressé) sont des pas de rampe (600 → 700 → 800),
+ *   pas des color-mix improvisés.
+ * - Format RGB « R G B » pour composer l'opacité côté Tailwind
+ *   (rgb(var(--x) / alpha)).
+ *
+ * Référence visuelle : design system Industry — accent acier sur fond
+ * technique clair, objets filaires à angles droits.
+ */
+
+:root {
+  /* ---- Couleurs : ground & texte ---------------------------------------- */
+  --surface-0: 255 255 255; /* fond des cartes / panneaux */
+  --ground: 250 250 250; /* fond applicatif */
+
+  /* ---- Rampe neutre (texte, bordures, fonds techniques) ------------------ */
+  --neutral-50: 248 250 252;
+  --neutral-100: 241 245 249;
+  --neutral-200: 226 232 240;
+  --neutral-300: 203 213 225;
+  --neutral-400: 126 142 164; /* chrome/icônes — ≥3:1 sur blanc */
+  --neutral-500: 100 116 139; /* plus petit pas autorisé pour du texte courant */
+  --neutral-600: 71 85 105;
+  --neutral-700: 51 65 85;
+  --neutral-800: 30 41 59;
+  --neutral-900: 15 23 42;
+
+  /* ---- Rampe accent « acier » (actions, liens, focus) -------------------- */
+  --accent-50: 242 245 248;
+  --accent-100: 228 234 240;
+  --accent-200: 201 213 225;
+  --accent-300: 167 186 204;
+  --accent-400: 127 154 180;
+  --accent-500: 95 127 158;
+  --accent-600: 74 104 133; /* accent par défaut (boutons) */
+  --accent-700: 60 86 112; /* liens, survol */
+  --accent-800: 51 72 93; /* pressé */
+  --accent-900: 43 60 78;
+
+  /* ---- Rampes sémantiques (statuts) -------------------------------------- */
+  --success-50: 236 253 245;
+  --success-100: 209 250 229;
+  --success-200: 167 243 208;
+  --success-300: 110 231 183;
+  --success-400: 52 211 153;
+  --success-500: 16 185 129;
+  --success-600: 5 150 105;
+  --success-700: 4 120 87;
+  --success-800: 6 95 70;
+  --success-900: 6 78 59;
+
+  --warning-50: 255 251 235;
+  --warning-100: 254 243 199;
+  --warning-200: 253 230 138;
+  --warning-300: 252 211 77;
+  --warning-400: 251 191 36;
+  --warning-500: 245 158 11;
+  --warning-600: 217 119 6;
+  --warning-700: 180 83 9;
+  --warning-800: 146 64 14;
+  --warning-900: 120 53 15;
+
+  --danger-50: 255 241 242;
+  --danger-100: 255 228 230;
+  --danger-200: 254 205 211;
+  --danger-300: 253 164 175;
+  --danger-400: 251 113 133;
+  --danger-500: 244 63 94;
+  --danger-600: 225 29 72;
+  --danger-700: 190 18 60;
+  --danger-800: 159 18 57;
+  --danger-900: 136 19 55;
+
+  /* ---- Typographie -------------------------------------------------------- */
+  --font-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --text-xs: 0.75rem;
+  --leading-xs: 1rem;
+  --text-sm: 0.875rem;
+  --leading-sm: 1.25rem;
+  --text-base: 1rem;
+  --leading-base: 1.5rem;
+  --text-lg: 1.125rem;
+  --leading-lg: 1.75rem;
+  --text-xl: 1.25rem;
+  --leading-xl: 1.75rem;
+  --text-2xl: 1.5rem;
+  --leading-2xl: 2rem;
+  --text-3xl: 1.875rem;
+  --leading-3xl: 2.25rem;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* ---- Espacements (échelle unique — pas de 13px) ------------------------ */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  /* ---- Rayons, bordures, ombres (3 niveaux d'élévation max) -------------- */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius: var(--radius-lg); /* compat shadcn */
+
+  --border-w: 1px;
+
+  --shadow-1: 0 1px 2px 0 rgb(var(--neutral-900) / 0.05);
+  --shadow-2: 0 2px 8px -2px rgb(var(--neutral-900) / 0.1);
+  --shadow-3: 0 8px 24px -6px rgb(var(--neutral-900) / 0.16);
+
+  /* ---- États d'interaction ------------------------------------------------ */
+  --focus-ring-w: 2px;
+  --focus-ring-offset: 2px;
+  --disabled-opacity: 0.45;
+
+  /* ---- Densité (aéré par défaut) ----------------------------------------- */
+  --density-nav-py: var(--space-2);
+  --density-row-py: var(--space-2);
+  --density-card-p: var(--space-4);
+}
+
+/* Densité compacte : un attribut sur <html>, pilote les trois tokens —
+ * aucun composant dupliqué. */
+:root[data-density="compact"] {
+  --density-nav-py: var(--space-1);
+  --density-row-py: var(--space-1);
+  --density-card-p: var(--space-3);
+}

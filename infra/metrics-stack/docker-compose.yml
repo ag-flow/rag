@@ -1,0 +1,41 @@
+# Backend métriques de la suite ag-flow — à déployer sur le LXC 116
+# (`agflow-logs`, 192.168.10.164), à côté de Loki et Grafana.
+#
+# Prometheus est ici un simple RÉCEPTEUR : il ne va rien scruter lui-même, ce
+# sont les agents Alloy des hôtes qui poussent en remote-write (d'où
+# `--web.enable-remote-write-receiver`). Même topologie que Loki pour les logs.
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    container_name: agflow-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # Réception des métriques poussées par les Alloy distants.
+      - --web.enable-remote-write-receiver
+      # Rechargement de la config sans redémarrage (POST /-/reload).
+      - --web.enable-lifecycle
+      # 30 jours : un pic CPU ne s'interprète qu'en comparant à son historique
+      # (quotidien ? hebdomadaire ?). Au débit de cette instance (~100 séries,
+      # cadences 30 s / 60 s / 30 min) cela reste sous les 50 Mo — la rétention
+      # 7 j de Loki n'a pas à s'appliquer ici, elle est dictée par le volume
+      # des logs, sans commune mesure.
+      - --storage.tsdb.retention.time=${PROM_RETENTION:-30d}
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      # Exposé sur le LAN, sans auth — même posture que Loki (:3100) sur cet
+      # hôte. Ne PAS publier au-delà du réseau privé.
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:9090/-/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  prometheus_data:

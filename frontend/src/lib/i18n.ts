@@ -22,6 +22,7 @@ import frChunkingStrategies from "@/i18n/fr/chunking_strategies.json";
 import frEventsProducer from "@/i18n/fr/events_producer.json";
 import frIntegration from "@/i18n/fr/integration.json";
 import frProfile from "@/i18n/fr/profile.json";
+import frProcessing from "@/i18n/fr/processing.json";
 
 import enCommon from "@/i18n/en/common.json";
 import enAuth from "@/i18n/en/auth.json";
@@ -43,6 +44,7 @@ import enChunkingStrategies from "@/i18n/en/chunking_strategies.json";
 import enEventsProducer from "@/i18n/en/events_producer.json";
 import enIntegration from "@/i18n/en/integration.json";
 import enProfile from "@/i18n/en/profile.json";
+import enProcessing from "@/i18n/en/processing.json";
 
 void i18n
   .use(LanguageDetector)
@@ -71,6 +73,7 @@ void i18n
       "push",
       "mcp",
       "profile",
+      "processing",
     ],
     defaultNS: "common",
     resources: {
@@ -95,6 +98,7 @@ void i18n
         push: frPush,
         mcp: frMcp,
         profile: frProfile,
+        processing: frProcessing,
       },
       en: {
         common: enCommon,
@@ -117,6 +121,7 @@ void i18n
         push: enPush,
         mcp: enMcp,
         profile: enProfile,
+        processing: enProcessing,
       },
     },
     interpolation: { escapeValue: false },

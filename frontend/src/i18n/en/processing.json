@@ -1,0 +1,13 @@
+{
+  "page_title": "Processing",
+  "description": "Global job execution settings — machine-level cap, shared by all workspaces (admin only).",
+  "worker": {
+    "title": "Parallel jobs",
+    "help": "Number of indexing jobs the worker runs at the same time. Each user gets one slot before anyone gets a second one: a user's heavy job does not block the others. One job at a time per workspace.",
+    "max_label": "Max simultaneous jobs",
+    "active_jobs": "Running: {{count}}",
+    "submit": "Save",
+    "saved": "Settings saved",
+    "error": "Save failed"
+  }
+}

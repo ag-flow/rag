@@ -33,6 +33,12 @@ from rag.schemas.mcp import (
     SingleWorkspaceRequest,
 )
 from rag.secrets.refs import build_ref, is_vault_ref
+from rag.services.endpoint_failover import (
+    ServiceSpec,
+    call_with_failover,
+    fallback_slot,
+    load_failover,
+)
 from rag.services.endpoint_throttle import estimate_tokens, get_throttle_registry
 
 log = structlog.get_logger(__name__)
@@ -391,11 +397,37 @@ async def _search_one(
         api_key=api_key,
         base_url=ctx["base_url"],
     )
-    # Throttling cross-workspace par (endpoint, service) — enabler a7e2ec90 :
-    # les limites vivent sur l'endpoint et sont partagées par tous les
-    # workspaces qui le référencent (workspace sans endpoint = pas de limite).
-    async with _endpoint_slot(ctx, "vectorization", "ep_indexer", tokens=len(query) // 4):
-        query_vec = await provider.embed_query(query)
+    embed_failover = await load_failover(
+        config_pool, workspace_id=auth.workspace_id, service="vectorization"
+    )
+
+    async def _embed_primary() -> list[float]:
+        # Throttling cross-workspace par (endpoint, service) — enabler a7e2ec90.
+        async with _endpoint_slot(ctx, "vectorization", "ep_indexer", tokens=len(query) // 4):
+            return await provider.embed_query(query)
+
+    async def _embed_fallback(fb: ServiceSpec) -> list[float]:
+        fb_key: str | None = None
+        if fb.api_key_ref:
+            fb_key = await secret_resolver.resolve_with_retry(
+                _as_vault_ref(fb.api_key_ref, default_vault_name)
+            )
+        fb_provider = provider_factory(
+            service=fb.provider_service or ctx["service"],
+            provider=fb.provider,
+            model=fb.model,
+            api_key=fb_key,
+            base_url=fb.base_url,
+        )
+        async with fallback_slot(fb, "vectorization", tokens=len(query) // 4):
+            return await fb_provider.embed_query(query)
+
+    query_vec = await call_with_failover(
+        spec=embed_failover,
+        service="vectorization",
+        primary=_embed_primary,
+        fallback_call=_embed_fallback,
+    )
 
     rerank_cfg = ctx.get("rerank")
     pre_top_k = max(top_k, rerank_cfg["top_k_pre_rerank"]) if rerank_cfg else top_k
@@ -448,10 +480,34 @@ async def _search_one(
             base_url=rerank_cfg["base_url"],
         )
         documents = [h.content for h in hits]
-        try:
+        rerank_failover = await load_failover(
+            config_pool, workspace_id=auth.workspace_id, service="rerank"
+        )
+
+        async def _rerank_primary() -> list[RerankResult]:
             tokens = estimate_tokens(query, *documents)
             async with _endpoint_slot(ctx, "rerank", "ep_rerank", tokens=tokens):
-                results = await reranker.rerank(query=query, documents=documents, top_k=top_k)
+                return await reranker.rerank(query=query, documents=documents, top_k=top_k)
+
+        async def _rerank_fallback(fb: ServiceSpec) -> list[RerankResult]:
+            fb_key: str | None = None
+            if fb.api_key_ref:
+                fb_key = await secret_resolver.resolve_with_retry(
+                    _as_vault_ref(fb.api_key_ref, default_vault_name)
+                )
+            fb_reranker = rerank_factory(
+                provider=fb.provider, model=fb.model, api_key=fb_key, base_url=fb.base_url
+            )
+            async with fallback_slot(fb, "rerank", tokens=estimate_tokens(query, *documents)):
+                return await fb_reranker.rerank(query=query, documents=documents, top_k=top_k)
+
+        try:
+            results = await call_with_failover(
+                spec=rerank_failover,
+                service="rerank",
+                primary=_rerank_primary,
+                fallback_call=_rerank_fallback,
+            )
             results = _validate_rerank_results(results, n_documents=len(documents))
         except RerankProviderError as exc:
             # Fallback dégradé (BUG-002) : un échec provider (429 / timeout /

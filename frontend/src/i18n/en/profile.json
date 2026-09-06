@@ -16,5 +16,9 @@
   "error_identity_taken": "This GUID is already used by another user.",
   "error_email_taken": "This email is already used by another user.",
   "error_invalid_identity": "Invalid GUID format.",
-  "error_generic": "Save failed."
+  "error_generic": "Save failed.",
+  "density_label": "Display density",
+  "density_help": "Browser-local preference: spacing of lists, sidebar and cards.",
+  "density_comfortable": "Comfortable",
+  "density_compact": "Compact"
 }

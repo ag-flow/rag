@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspaces";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,6 +14,7 @@ import { WorkspaceWebhooksTab } from "./WorkspaceWebhooksTab";
 import { WorkspacePlaygroundTab } from "./WorkspacePlaygroundTab";
 import { WorkspaceTriggersTab } from "./WorkspaceTriggersTab";
 import { WorkspaceIndexTab } from "./WorkspaceIndexTab";
+import { WorkspaceSearchTestTab } from "./WorkspaceSearchTestTab";
 import { ReindexConfirmDialog } from "./ReindexConfirmDialog";
 import { DeleteWorkspaceAlert } from "./DeleteWorkspaceAlert";
 
@@ -25,8 +27,16 @@ type DialogKey = "reindex" | "delete" | null;
 export function WorkspaceDetailPanel({ name }: Props) {
   const { t } = useTranslation("workspace");
   const { data: ws, isLoading, isError } = useWorkspace(name);
-  const [activeTab, setActiveTab] = useState("detail");
+  // Liens profonds (ex. Push activity → onglet Index sur un document) :
+  // ?tab=<onglet> ouvre l'onglet, ?doc=<path> est transmis à l'onglet Index.
+  const [searchParams] = useSearchParams();
+  const urlTab = searchParams.get("tab");
+  const focusDoc = searchParams.get("doc");
+  const [activeTab, setActiveTab] = useState(urlTab ?? "detail");
   const [openDialog, setOpenDialog] = useState<DialogKey>(null);
+  useEffect(() => {
+    if (urlTab) setActiveTab(urlTab);
+  }, [urlTab, focusDoc]);
 
   if (isLoading) {
     return (
@@ -45,7 +55,7 @@ export function WorkspaceDetailPanel({ name }: Props) {
   }
 
   return (
-    <div className="flex-1 max-w-[760px] overflow-auto">
+    <div className="min-w-0 flex-1 overflow-auto">
       <WorkspaceHeader
         workspace={ws}
         onReindex={() => setOpenDialog("reindex")}
@@ -62,6 +72,7 @@ export function WorkspaceDetailPanel({ name }: Props) {
             {t("tabs.sources", { count: ws.sources_count })}
           </TabsTrigger>
           <TabsTrigger value="search">{t("tabs.search")}</TabsTrigger>
+          <TabsTrigger value="search-test">{t("tabs.search_test")}</TabsTrigger>
           <TabsTrigger value="webhooks">{t("webhooks.tab")}</TabsTrigger>
           <TabsTrigger value="playground">{t("tabs.playground")}</TabsTrigger>
         </TabsList>
@@ -75,13 +86,20 @@ export function WorkspaceDetailPanel({ name }: Props) {
           <WorkspaceJobsTab name={ws.name} enabled={activeTab === "jobs"} />
         </TabsContent>
         <TabsContent value="index" className="pt-4">
-          <WorkspaceIndexTab workspaceName={ws.name} enabled={activeTab === "index"} />
+          <WorkspaceIndexTab
+            workspaceName={ws.name}
+            enabled={activeTab === "index"}
+            focusPath={focusDoc}
+          />
         </TabsContent>
         <TabsContent value="chunking" className="pt-4">
           <WorkspaceChunkingTab workspace={ws} enabled={activeTab === "chunking"} />
         </TabsContent>
         <TabsContent value="search" className="pt-4">
           <WorkspaceSearchTab name={ws.name} enabled={activeTab === "search"} />
+        </TabsContent>
+        <TabsContent value="search-test" className="pt-4">
+          <WorkspaceSearchTestTab workspaceName={ws.name} enabled={activeTab === "search-test"} />
         </TabsContent>
         <TabsContent value="webhooks" className="pt-4">
           <WorkspaceWebhooksTab workspaceName={ws.name} />

@@ -31,7 +31,8 @@
     "playground": "Playground",
     "triggers": "Triggers",
     "apikeys": "Api",
-    "index": "Index"
+    "index": "Index",
+    "search_test": "Test bench"
   },
   "detail": {
     "stats": {
@@ -382,6 +383,12 @@
     "errors": {
       "engineUnavailable": "The “{{engine}}” engine is not available on this Postgres instance.",
       "engineUnavailableExplain": "Install the pg_search extension on the Postgres instance, or keep the native FTS engine which requires no extension."
+    },
+    "help": {
+      "title": "What is hybrid search?",
+      "what": "Vector search alone retrieves passages by meaning, but can miss exact matches: technical identifiers, function names, error codes, acronyms. Hybrid search queries a second lexical (full-text) index in parallel and merges both rankings by rank (weighted RRF fusion — the sliders below tune each channel's weight).",
+      "activation": "Enabling it builds the lexical index over already-indexed documents (a rebuild job, no re-embedding so no provider cost); existing search stays available during the operation and the switch is reversible.",
+      "doc_link": "Product documentation — Hybrid search"
     }
   },
   "dialog": {
@@ -497,5 +504,30 @@
     "minutesAgo": "{{count}} min ago",
     "hoursAgo": "{{count}} h ago",
     "daysAgo": "{{count}} d ago"
+  },
+  "search_test": {
+    "title": "Test bench ({{count}} questions)",
+    "intro": "Questions pushed by agents via MCP (push_test_question), with the expected document. A campaign asks each question and checks the document shows up in the top 10.",
+    "run_btn": "Run a campaign",
+    "running": "Campaign running…",
+    "run_done": "Campaign finished — {{failed}} miss(es).",
+    "run_error": "The campaign failed.",
+    "empty": "No questions yet. An agent can push some via the push_test_question MCP primitive.",
+    "toggle_aria": "Question enabled",
+    "delete_aria": "Delete question",
+    "runs_title": "Campaigns",
+    "runs_empty": "No campaign yet.",
+    "cfg_hybrid": "hybrid",
+    "cfg_vector": "vector only",
+    "failed_count": "{{failed}}/{{total}} misses",
+    "miss_label": "Expected document missing from top 10:",
+    "rank_badge": "rank {{rank}}",
+    "absent_badge": "absent",
+    "error_badge": "error",
+    "expected_label": "Expected:",
+    "error_label": "Call error:",
+    "returned_title": "Returned (top {{count}}):",
+    "returned_empty": "No result returned.",
+    "runs_retention": "History kept for 72 h, then purged automatically."
   }
 }

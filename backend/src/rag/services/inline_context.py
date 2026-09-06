@@ -11,6 +11,12 @@ from rag.indexer.chunking.breadcrumb import prepend_breadcrumb
 from rag.indexer.chunking.hashing import compute_chunk_hash
 from rag.indexer.chunking.structured import ChildChunk, ChunkedDocument, RoutedRegion
 from rag.secrets.refs import is_vault_ref
+from rag.services.endpoint_failover import (
+    ServiceSpec,
+    call_with_failover,
+    fallback_slot,
+    load_failover,
+)
 from rag.services.endpoint_throttle import estimate_tokens, llm_slot
 from rag.services.llm_clients import call_llm_with_cached_prefix
 from rag.services.trigger_match import resolve_trigger
@@ -177,7 +183,9 @@ async def apply_inline_context(
     for binding in (b for b in bindings if b.target == "chunk"):
         api_key = await _resolve_key(binding, resolver)
         children = [
-            await _contextualize_chunk(config_pool, workspace_id, content, child, binding, api_key)
+            await _contextualize_chunk(
+                config_pool, workspace_id, content, child, binding, api_key, resolver
+            )
             for child in children
         ]
 
@@ -188,7 +196,7 @@ async def apply_inline_context(
             continue
         api_key = await _resolve_key(binding, resolver)
         described = await _describe_region(
-            config_pool, workspace_id, content, region, binding, api_key
+            config_pool, workspace_id, content, region, binding, api_key, resolver
         )
         if described is not None:
             children.append(described)
@@ -235,6 +243,7 @@ async def _contextualize_chunk(
     child: ChildChunk,
     binding: InlineBinding,
     api_key: str | None,
+    resolver: _ResolverProtocol | None = None,
 ) -> ChildChunk:
     source_hash = compute_chunk_hash(child.embed_text)
     context = await _get_or_generate(
@@ -245,6 +254,7 @@ async def _contextualize_chunk(
         document=document,
         binding=binding,
         api_key=api_key,
+        resolver=resolver,
     )
     if not context:
         return child
@@ -262,6 +272,7 @@ async def _describe_region(
     region: RoutedRegion,
     binding: InlineBinding,
     api_key: str | None,
+    resolver: _ResolverProtocol | None = None,
 ) -> ChildChunk | None:
     source_hash = compute_chunk_hash(region.content)
     description = await _get_or_generate(
@@ -272,6 +283,7 @@ async def _describe_region(
         document=document,
         binding=binding,
         api_key=api_key,
+        resolver=resolver,
     )
     if not description:
         return None
@@ -303,6 +315,7 @@ async def _get_or_generate(
     document: str,
     binding: InlineBinding,
     api_key: str | None,
+    resolver: _ResolverProtocol | None = None,
 ) -> str:
     cached = await config_pool.fetchval(
         "SELECT context FROM chunk_context_cache "
@@ -317,11 +330,13 @@ async def _get_or_generate(
 
     prompt = binding.prompt.replace("{chunk}", source_text).replace("{document}", "")
     try:
-        # Throttling LLM cross-workspace par endpoint (enabler fe6b8dcb).
-        slot = await llm_slot(config_pool, workspace_id, tokens=estimate_tokens(document, prompt))
-        async with slot:
-            context = (
-                await call_llm_with_cached_prefix(
+        # Throttling LLM (fe6b8dcb) + bascule de fallback (f94bfd84 lot 2b).
+        async def _primary() -> str:
+            slot = await llm_slot(
+                config_pool, workspace_id, tokens=estimate_tokens(document, prompt)
+            )
+            async with slot:
+                return await call_llm_with_cached_prefix(
                     provider=binding.llm_provider,
                     model=binding.llm_model,
                     api_key=api_key,
@@ -329,7 +344,29 @@ async def _get_or_generate(
                     cached_prefix=document,
                     prompt=prompt,
                 )
-            ).strip()
+
+        async def _fallback(fb: ServiceSpec) -> str:
+            fb_key = (
+                await resolver.resolve_with_retry(fb.api_key_ref)
+                if resolver is not None and fb.api_key_ref and is_vault_ref(fb.api_key_ref)
+                else None
+            )
+            async with fallback_slot(fb, "llm", tokens=estimate_tokens(document, prompt)):
+                return await call_llm_with_cached_prefix(
+                    provider=fb.provider,
+                    model=fb.model,
+                    api_key=fb_key,
+                    base_url=fb.base_url,
+                    cached_prefix=document,
+                    prompt=prompt,
+                )
+
+        failover = await load_failover(config_pool, workspace_id=workspace_id, service="llm")
+        context = (
+            await call_with_failover(
+                spec=failover, service="llm", primary=_primary, fallback_call=_fallback
+            )
+        ).strip()
     except Exception as exc:  # politique S6.2 : jamais d'échec du job complet
         log.warning(
             "inline_context.llm_failed",

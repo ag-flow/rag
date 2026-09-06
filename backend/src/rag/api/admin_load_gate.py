@@ -24,8 +24,10 @@ def build_admin_load_gate_router() -> APIRouter:
             overloaded=status.overloaded,
             cpu_psi_avg60=status.cpu_psi_avg60,
             memory_used_pct=status.memory_used_pct,
+            io_psi_avg60=status.io_psi_avg60,
             cpu_threshold_pct=status.cpu_threshold_pct,
             memory_threshold_pct=status.memory_threshold_pct,
+            io_threshold_pct=status.io_threshold_pct,
             reasons=status.reasons,
         )
 
@@ -39,6 +41,7 @@ def build_admin_load_gate_router() -> APIRouter:
             enabled=payload.enabled,
             cpu_psi_pct=payload.cpu_threshold_pct,
             memory_pct=payload.memory_threshold_pct,
+            io_psi_pct=payload.io_threshold_pct,
         )
         log.info(
             "load_gate.settings_updated",

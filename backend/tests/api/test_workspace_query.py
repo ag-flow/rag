@@ -54,14 +54,14 @@ def test_read_scope_key_is_accepted(
     assert body["documents_count"] == 0
 
 
-def test_unknown_workspace_returns_401(
+def test_unknown_workspace_returns_404(
     admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
 ) -> None:
-    """Clé valide mais workspace non visible → 401 uniforme."""
+    """Split 401/404 (2026-09-06) : workspace non visible → 404, pas un refus d'auth."""
     key = _ws_key(admin_client, admin_headers, "wq_known")
     r = _get(admin_client, "/api/v1/index-status", key=key, params={"workspace": "ghost"})
-    assert r.status_code == 401
-    assert r.json()["detail"] == "invalid_workspace_apikey"
+    assert r.status_code == 404
+    assert r.json()["detail"] == "workspace_not_found"
 
 
 def test_index_status_document_not_indexed_returns_404(

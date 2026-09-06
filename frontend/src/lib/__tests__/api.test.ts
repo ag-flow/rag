@@ -57,3 +57,61 @@ describe("api.put", () => {
     expect(result).toEqual({ ok: true });
   });
 });
+
+describe("refresh de session sur 401", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function jsonResp(status: number, body: unknown) {
+    return { ok: status < 400, status, json: async () => body } as Response;
+  }
+
+  it("401 → POST /auth/refresh réussi → la requête est rejouée une fois", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResp(401, { detail: "oidc_session_expired" }))
+      .mockResolvedValueOnce(jsonResp(200, { ok: true })) // /auth/refresh
+      .mockResolvedValueOnce(jsonResp(200, { value: 42 })); // retry
+    vi.stubGlobal("fetch", fetchMock);
+
+    const out = await api.get<{ value: number }>("/api/x");
+
+    expect(out).toEqual({ value: 42 });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/auth/refresh");
+  });
+
+  it("401 → refresh en échec → l'ApiError 401 originale remonte", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResp(401, { detail: "oidc_session_expired" }))
+      .mockResolvedValueOnce(jsonResp(401, { detail: "oidc_session_missing" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.get("/api/x")).rejects.toMatchObject({ status: 401 });
+    expect(fetchMock).toHaveBeenCalledTimes(2); // pas de retry, pas de boucle
+  });
+
+  it("deux 401 simultanés ne déclenchent qu'UN refresh (single-flight)", async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url === "/auth/refresh") return Promise.resolve(jsonResp(200, { ok: true }));
+      if (fetchMock.mock.calls.filter((c) => c[0] !== "/auth/refresh").length <= 2) {
+        return Promise.resolve(jsonResp(401, {}));
+      }
+      return Promise.resolve(jsonResp(200, { ok: true }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await Promise.all([api.get("/api/a"), api.get("/api/b")]);
+
+    const refreshCalls = fetchMock.mock.calls.filter((c) => c[0] === "/auth/refresh");
+    expect(refreshCalls).toHaveLength(1);
+  });
+
+  it("les 4xx non-401 ne déclenchent pas de refresh", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResp(404, { detail: "not_found" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.get("/api/x")).rejects.toMatchObject({ status: 404 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});

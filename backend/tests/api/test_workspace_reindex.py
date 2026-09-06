@@ -125,7 +125,7 @@ def test_index_read_scope_key_returns_401(
         json={"workspace": "ws_reidx_ro", "path": "x.md", "content": "y", "force": True},
     )
     assert r.status_code == 401
-    assert r.json()["detail"] == "invalid_workspace_apikey"
+    assert r.json()["detail"] == "insufficient_scope"
 
 
 def test_index_requires_content(

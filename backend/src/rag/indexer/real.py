@@ -35,6 +35,12 @@ from rag.indexer.providers.factory import make_provider
 from rag.indexer.providers.protocol import EmbeddingProvider
 from rag.secrets.refs import build_ref, is_vault_ref
 from rag.services.chunking_routing import build_strategy_chunker, resolve_strategy_for_file
+from rag.services.endpoint_failover import (
+    ServiceSpec,
+    call_with_failover,
+    fallback_slot,
+    load_failover,
+)
 from rag.services.endpoint_throttle import estimate_tokens, get_throttle_registry
 from rag.services.inline_context import apply_inline_context, load_inline_bindings
 from rag.services.llm_clients import CONTEXT_MAX_TOKENS
@@ -199,8 +205,9 @@ class RealIndexer:
         api_key = await self._resolve_api_key(ctx, workspace_id, path)
         provider = self._build_provider(ctx, api_key)
         texts = [c.content for c in chunks]
-        async with _embedding_slot(ctx, texts):
-            embeddings = await provider.embed_texts(texts)
+        embeddings = await self._embed_with_failover(
+            ctx=ctx, workspace_id=workspace_id, provider=provider, texts=texts
+        )
 
         strategy = await get_strategy(self._config_pool, workspace_id, path)
         await upsert_chunks(
@@ -307,8 +314,9 @@ class RealIndexer:
         embeddings: list[Any] = []
         if to_embed:
             texts = [c.embed_text for _, c in to_embed]
-            async with _embedding_slot(ctx, texts):
-                embeddings = await provider.embed_texts(texts)
+            embeddings = await self._embed_with_failover(
+                ctx=ctx, workspace_id=workspace_id, provider=provider, texts=texts
+            )
         emb_by_hash = {h: emb for (h, _), emb in zip(to_embed, embeddings, strict=True)}
 
         child_rows = [
@@ -345,6 +353,53 @@ class RealIndexer:
             **result,
         )
         return IndexOutcome(chunks=len(child_rows), strategy=strategy_name)
+
+    async def _embed_with_failover(
+        self,
+        *,
+        ctx: dict[str, Any],
+        workspace_id: UUID,
+        provider: EmbeddingProvider,
+        texts: list[str],
+    ) -> list[list[float]]:
+        """Embed throttlé avec bascule de fallback (lot 2b, f94bfd84) : après
+        N indisponibilités du primaire, le service homologue de l'endpoint de
+        fallback prend le relais (même modèle — garde de la migration 090)."""
+        spec = await load_failover(
+            self._config_pool, workspace_id=workspace_id, service="vectorization"
+        )
+
+        async def _primary() -> list[list[float]]:
+            async with _embedding_slot(ctx, texts):
+                return await provider.embed_texts(texts)
+
+        async def _fallback(fb: ServiceSpec) -> list[list[float]]:
+            api_key = await self._resolve_ref_value(fb.api_key_ref)
+            fb_provider = self._provider_factory(
+                service=fb.provider_service or ctx["service"],
+                provider=fb.provider,
+                model=fb.model,
+                api_key=api_key,
+                base_url=fb.base_url,
+            )
+            async with fallback_slot(fb, "vectorization", tokens=estimate_tokens(*texts)):
+                return await fb_provider.embed_texts(texts)
+
+        return await call_with_failover(
+            spec=spec, service="vectorization", primary=_primary, fallback_call=_fallback
+        )
+
+    async def _resolve_ref_value(self, ref: str | None) -> str | None:
+        """Résout une ref de clé arbitraire (fallback) — même normalisation
+        vault-par-défaut que `_resolve_api_key`, sans cache."""
+        if not ref:
+            return None
+        if not is_vault_ref(ref):
+            default_vault_name = await self._client_provider.get_default_vault_name()
+            if default_vault_name is None:
+                raise _NoDefaultVaultError()
+            ref = _to_vault_ref(ref, default_vault_name)
+        return await self._secret_resolver.resolve_with_retry(ref)
 
     async def _resolve_api_key(
         self,

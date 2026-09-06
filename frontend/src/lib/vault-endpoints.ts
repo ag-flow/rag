@@ -28,6 +28,9 @@ const BASE = "/api/admin/harpocrate-vaults";
 
 export const vaultEndpointsApi = {
   list: (vaultId: string) => api.get<VaultEndpoint[]>(`${BASE}/${vaultId}/endpoints`),
+  // État des breakers de fallback par endpoint : {endpoint_id: {service: state}}.
+  health: (vaultId: string) =>
+    api.get<Record<string, Record<string, string>>>(`${BASE}/${vaultId}/endpoints/health`),
   create: (vaultId: string, payload: EndpointCreate) =>
     api.post<VaultEndpoint>(`${BASE}/${vaultId}/endpoints`, payload),
   update: (vaultId: string, endpointId: string, payload: EndpointUpdate) =>

@@ -5,14 +5,14 @@
   },
   "local": {
     "fields": {
-      "username": "Username",
-      "password": "Password"
+      "username": "Identifiant",
+      "password": "Mot de passe"
     },
     "submit": "Se connecter"
   },
   "setup": {
     "title": "Créer le compte administrateur",
-    "subtitle": "Première connexion — configurez votre accès admin.",
+    "subtitle": "Premier démarrage — créez l'accès local. Il restera utilisable même si l'OIDC est indisponible.",
     "fields": {
       "username": "Nom d'utilisateur",
       "email": "Adresse e-mail",
@@ -20,20 +20,38 @@
       "confirm_password": "Confirmer le mot de passe"
     },
     "submit": "Créer le compte",
+    "back": "← Retour à la connexion",
     "errors": {
       "passwords_mismatch": "Les mots de passe ne correspondent pas",
       "generic": "Erreur lors de la création ({{status}})"
     }
   },
+  "setup_link": "Premier démarrage ? Créer le compte administrateur",
   "errors": {
     "invalid_credentials": "Identifiants invalides",
+    "required": "Champ requis",
     "no_method": "Aucune méthode d'authentification configurée — contactez l'administrateur",
     "generic": "Erreur {{status}}"
   },
   "info": {
-    "oidc_not_configured": "OIDC pas encore configuré. Loguez-vous avec le compte admin local pour le paramétrer.",
+    "oidc_not_configured": "OIDC pas encore configuré. Connectez-vous avec le compte admin local pour le paramétrer.",
     "separator_or": "ou"
   },
+  "hero": {
+    "tagline": "Toute la chaîne RAG, sous contrôle.",
+    "subtitle": "Indexez vos corpus, mesurez votre recherche, branchez vos agents.",
+    "arg1_title": "Entièrement paramétrable",
+    "arg1_text": "Modèles, chunking, prompts d'enrichissement, pondération de recherche — par workspace, sans redéploiement.",
+    "arg2_title": "Utilisable par vos agents via MCP",
+    "arg2_text": "Interrogation de l'index et construction du workspace (création, sources, chunking, recherche) pilotables comme outils MCP, mêmes portées, même traçabilité.",
+    "arg3_title": "Ingestion pilotée, pas subie",
+    "arg3_text": "Git, webhook ou REST : chaque push laisse un job traçable, rejouable, avec son motif de rejet.",
+    "arg4_title": "Réponses justifiables",
+    "arg4_text": "Recherche hybride et reranking mesurés : score, source et extrait pour chaque résultat.",
+    "metric_documents": "documents indexés",
+    "metric_workspaces": "workspaces"
+  },
+  "github_link": "GitHub",
   "contracts_link": "Contrats API",
   "app_name": "Ragflow"
 }

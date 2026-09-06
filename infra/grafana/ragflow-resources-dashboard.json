@@ -1,0 +1,282 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROM",
+      "label": "Prometheus",
+      "description": "Backend métriques alimenté en remote-write par Alloy (METRICS_URL)",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "tags": [
+    "ragflow",
+    "ressources"
+  ],
+  "title": "ragflow — ressources (CPU / mémoire / disque)",
+  "uid": "ragflow-resources",
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROM",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "host",
+        "type": "query",
+        "datasource": "${DS_PROM}",
+        "query": "label_values(node_load1, host)",
+        "current": {
+          "text": "rag-dev",
+          "value": "rag-dev"
+        },
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "hide": 0
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "CPU hôte — % utilisé",
+      "datasource": "${DS_PROM}",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "${DS_PROM}",
+          "expr": "100 - (avg by (host) (rate(node_cpu_seconds_total{host=~\"$host\", mode=\"idle\"}[5m])) * 100)",
+          "legendFormat": "{{host}}"
+        }
+      ],
+      "description": "Scruté toutes les 30 s. Taux sur 5 min : un pic plus court que ~1 min est lissé."
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "CPU par conteneur — cœurs consommés",
+      "datasource": "${DS_PROM}",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "${DS_PROM}",
+          "expr": "sum by (container) (rate(container_cpu_usage_seconds_total{host=~\"$host\", container!=\"\"}[5m]))",
+          "legendFormat": "{{container}}"
+        }
+      ],
+      "description": "C'est ce panneau qui impute un pic à un service précis (backend, postgres, worker d'indexation…). 1 = un cœur saturé."
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Charge moyenne (load average)",
+      "datasource": "${DS_PROM}",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "${DS_PROM}",
+          "expr": "node_load1{host=~\"$host\"}",
+          "legendFormat": "{{host}} — 1 min"
+        },
+        {
+          "refId": "B",
+          "datasource": "${DS_PROM}",
+          "expr": "node_load5{host=~\"$host\"}",
+          "legendFormat": "{{host}} — 5 min"
+        },
+        {
+          "refId": "C",
+          "datasource": "${DS_PROM}",
+          "expr": "node_load15{host=~\"$host\"}",
+          "legendFormat": "{{host}} — 15 min"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Mémoire hôte — utilisée",
+      "datasource": "${DS_PROM}",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "${DS_PROM}",
+          "expr": "node_memory_MemTotal_bytes{host=~\"$host\"} - node_memory_MemAvailable_bytes{host=~\"$host\"}",
+          "legendFormat": "{{host}} — utilisée"
+        },
+        {
+          "refId": "B",
+          "datasource": "${DS_PROM}",
+          "expr": "node_memory_MemTotal_bytes{host=~\"$host\"}",
+          "legendFormat": "{{host}} — totale"
+        }
+      ],
+      "description": "Scruté toutes les 60 s. « Utilisée » = total - disponible (exclut cache/buffers récupérables)."
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Mémoire par conteneur — working set",
+      "datasource": "${DS_PROM}",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "${DS_PROM}",
+          "expr": "container_memory_working_set_bytes{host=~\"$host\", container!=\"\"}",
+          "legendFormat": "{{container}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Espace disque disponible",
+      "datasource": "${DS_PROM}",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "pointSize": 6,
+            "showPoints": "always"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "${DS_PROM}",
+          "expr": "last_over_time(node_filesystem_avail_bytes{host=~\"$host\"}[35m])",
+          "legendFormat": "{{host}} {{mountpoint}}"
+        }
+      ],
+      "description": "Scruté toutes les 30 min. Prometheus périme une série après 5 min sans point : le last_over_time(...[35m]) est OBLIGATOIRE ici, sinon la courbe est vide entre deux scrutations. Tracé en marches — un point = une mesure réelle."
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Remplissage disque — %",
+      "datasource": "${DS_PROM}",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "pointSize": 6,
+            "showPoints": "always"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": "${DS_PROM}",
+          "expr": "100 * (1 - last_over_time(node_filesystem_avail_bytes{host=~\"$host\"}[35m]) / last_over_time(node_filesystem_size_bytes{host=~\"$host\"}[35m]))",
+          "legendFormat": "{{host}} {{mountpoint}}"
+        }
+      ],
+      "description": "Même contrainte de fraîcheur que le panneau précédent (fenêtre 35 min)."
+    }
+  ]
+}

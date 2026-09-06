@@ -11,8 +11,8 @@
     "submit": "Sign in"
   },
   "setup": {
-    "title": "Create admin account",
-    "subtitle": "First login — set up your admin access.",
+    "title": "Create the administrator account",
+    "subtitle": "First start — create the local access. It stays usable even if OIDC is unavailable.",
     "fields": {
       "username": "Username",
       "email": "Email address",
@@ -20,13 +20,16 @@
       "confirm_password": "Confirm password"
     },
     "submit": "Create account",
+    "back": "← Back to sign in",
     "errors": {
       "passwords_mismatch": "Passwords do not match",
-      "generic": "Error creating account ({{status}})"
+      "generic": "Error while creating ({{status}})"
     }
   },
+  "setup_link": "First start? Create the administrator account",
   "errors": {
     "invalid_credentials": "Invalid credentials",
+    "required": "Required field",
     "no_method": "No authentication method configured — contact the administrator",
     "generic": "Error {{status}}"
   },
@@ -34,6 +37,21 @@
     "oidc_not_configured": "OIDC is not configured yet. Sign in with the local admin account to set it up.",
     "separator_or": "or"
   },
+  "hero": {
+    "tagline": "The whole RAG chain, under control.",
+    "subtitle": "Index your corpora, measure your search, plug in your agents.",
+    "arg1_title": "Fully configurable",
+    "arg1_text": "Models, chunking, enrichment prompts, search weighting — per workspace, no redeployment.",
+    "arg2_title": "Usable by your agents through MCP",
+    "arg2_text": "Querying the index and building the workspace (creation, sources, chunking, search) as MCP tools — same scopes, same traceability.",
+    "arg3_title": "Ingestion you drive, not endure",
+    "arg3_text": "Git, webhook or REST: every push leaves a traceable, replayable job with its rejection reason.",
+    "arg4_title": "Justifiable answers",
+    "arg4_text": "Hybrid search and reranking, measured: score, source and excerpt for every hit.",
+    "metric_documents": "indexed documents",
+    "metric_workspaces": "workspaces"
+  },
+  "github_link": "GitHub",
   "contracts_link": "API contracts",
   "app_name": "Ragflow"
 }

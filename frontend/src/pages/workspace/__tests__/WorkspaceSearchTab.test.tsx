@@ -40,6 +40,14 @@ describe("WorkspaceSearchTab", () => {
     expect(
       screen.getByRole("button", { name: "Activer la recherche hybride" }),
     ).toBeInTheDocument();
+    // Documentation ponctuelle + lien vers le manuel produit (docflow).
+    expect(screen.getByText("Qu'est-ce que la recherche hybride ?")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Documentation produit — Recherche hybride/ }),
+    ).toHaveAttribute(
+      "href",
+      "https://doc.yoops.org/ws/ragflow/blocs/documentation/documents/de40ecfa-05d8-4de2-89b3-6fb142acdd01",
+    );
   });
 
   it("active l'hybride avec les défauts depuis l'état vide", () => {

@@ -16,5 +16,9 @@
   "error_identity_taken": "Ce GUID est déjà utilisé par un autre utilisateur.",
   "error_email_taken": "Cet email est déjà utilisé par un autre utilisateur.",
   "error_invalid_identity": "Format de GUID invalide.",
-  "error_generic": "Échec de l'enregistrement."
+  "error_generic": "Échec de l'enregistrement.",
+  "density_label": "Densité d'affichage",
+  "density_help": "Préférence locale au navigateur : espacement des listes, de la barre latérale et des cartes.",
+  "density_comfortable": "Aéré",
+  "density_compact": "Compact"
 }

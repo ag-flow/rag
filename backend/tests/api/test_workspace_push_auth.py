@@ -20,18 +20,18 @@ def _make_ws(
     return api_key
 
 
-def test_push_returns_401_for_unknown_workspace(
+def test_push_returns_404_for_unknown_workspace(
     admin_client: TestClient, admin_headers: dict[str, str], cleanup_ws_dbs_api: None
 ) -> None:
+    """Split 401/404 (2026-09-06) : workspace inconnu ≠ problème de sécurité."""
     key = _make_ws(admin_client, admin_headers, "ws_known")
     r = admin_client.post(
         "/api/v1/index",
         headers={"Authorization": f"Bearer {key}"},
         json={"workspace": "ghost", "path": "doc.md", "content": "x"},
     )
-    assert r.status_code == 401
-    # Clé valide mais workspace non visible.
-    assert r.json()["detail"] == "invalid_workspace_apikey"
+    assert r.status_code == 404
+    assert r.json()["detail"] == "workspace_not_found"
 
 
 def test_push_returns_401_without_authorization(
@@ -100,4 +100,5 @@ def test_push_read_scope_key_returns_401(
         json={"workspace": "ws_readonly", "path": "x.md", "content": "y"},
     )
     assert r.status_code == 401
-    assert r.json()["detail"] == "invalid_workspace_apikey"
+    # Problème de sécurité (niveau de clé), distinct du workspace inconnu (404).
+    assert r.json()["detail"] == "insufficient_scope"

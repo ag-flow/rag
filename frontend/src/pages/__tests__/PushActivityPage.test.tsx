@@ -26,7 +26,12 @@ const makeWorkspace = (name: string): Workspace => ({
   endpoint_id: null,
   label: name,
   description: "",
-  indexer: { provider: "openai", model: "text-embedding-3-small", api_key_ref: null, base_url: null },
+  indexer: {
+    provider: "openai",
+    model: "text-embedding-3-small",
+    api_key_ref: null,
+    base_url: null,
+  },
   sources_count: 0,
   documents_count: 0,
   last_indexed_at: null,
@@ -69,6 +74,8 @@ describe("PushActivityPage", () => {
     expect(screen.getByRole("cell", { name: "Terminé" })).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "Erreur" })).toBeInTheDocument();
     expect(screen.getAllByText("3 modifiés / 1 ignorés")).toHaveLength(2);
+    // Durée de traitement (duration_ms: 1200 → 1.2 s).
+    expect(screen.getAllByText("1.2 s")).toHaveLength(2);
     expect(listGlobal).toHaveBeenCalledWith({});
   });
 
@@ -120,7 +127,9 @@ describe("PushActivityPage", () => {
 
     // "API REST" apparaît en option du filtre ET en badge de la ligne (≥ 2).
     expect(screen.getAllByText("API REST").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText("docs/a.md")).toBeInTheDocument();
+    // Le document est un lien profond vers l'onglet Index du workspace.
+    const docLink = screen.getByRole("link", { name: "docs/a.md" });
+    expect(docLink).toHaveAttribute("href", "/workspaces?ws=ws-a&tab=index&doc=docs%2Fa.md");
 
     listGlobal.mockResolvedValue([]);
     fireEvent.change(screen.getByLabelText("Filtrer par source"), {

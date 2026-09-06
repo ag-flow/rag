@@ -59,3 +59,11 @@ export function useAllVaultEndpoints() {
     },
   });
 }
+
+export function useEndpointsHealth(vaultId: string) {
+  return useQuery<Record<string, Record<string, string>>>({
+    queryKey: ["vault-endpoints-health", vaultId],
+    queryFn: () => vaultEndpointsApi.health(vaultId),
+    refetchInterval: 15_000,
+  });
+}

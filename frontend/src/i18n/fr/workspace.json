@@ -31,7 +31,8 @@
     "playground": "Playground",
     "triggers": "Triggers",
     "apikeys": "Api",
-    "index": "Index"
+    "index": "Index",
+    "search_test": "Banc de test"
   },
   "detail": {
     "stats": {
@@ -382,6 +383,12 @@
     "errors": {
       "engineUnavailable": "Le moteur « {{engine}} » n'est pas disponible sur cette instance Postgres.",
       "engineUnavailableExplain": "Installez l'extension pg_search sur l'instance Postgres, ou conservez le moteur FTS natif qui ne requiert aucune extension."
+    },
+    "help": {
+      "title": "Qu'est-ce que la recherche hybride ?",
+      "what": "La recherche vectorielle seule retrouve les passages par le sens, mais peut rater les correspondances exactes : identifiants techniques, noms de fonctions, codes d'erreur, sigles. La recherche hybride interroge en parallèle un second index lexical (plein-texte) et fusionne les deux classements par rangs (fusion RRF pondérée — les curseurs ci-dessous règlent le poids de chaque canal).",
+      "activation": "L'activation construit l'index lexical sur les documents déjà indexés (job de reconstruction, sans ré-embedding donc sans surcoût provider) ; la recherche existante reste disponible pendant l'opération et la bascule est réversible.",
+      "doc_link": "Documentation produit — Recherche hybride"
     }
   },
   "dialog": {
@@ -497,5 +504,30 @@
     "minutesAgo": "il y a {{count}} min",
     "hoursAgo": "il y a {{count}} h",
     "daysAgo": "il y a {{count}} j"
+  },
+  "search_test": {
+    "title": "Banc de test ({{count}} questions)",
+    "intro": "Questions poussées par les agents via MCP (push_test_question), avec le document attendu. La campagne pose chaque question au moteur et vérifie que le document ressort dans le top-10.",
+    "run_btn": "Lancer une campagne",
+    "running": "Campagne en cours…",
+    "run_done": "Campagne terminée — {{failed}} échec(s).",
+    "run_error": "La campagne a échoué.",
+    "empty": "Aucune question. Un agent peut en pousser via la primitive MCP push_test_question.",
+    "toggle_aria": "Question activée",
+    "delete_aria": "Supprimer la question",
+    "runs_title": "Campagnes",
+    "runs_empty": "Aucune campagne lancée.",
+    "cfg_hybrid": "hybride",
+    "cfg_vector": "vectoriel seul",
+    "failed_count": "{{failed}}/{{total}} échecs",
+    "miss_label": "Document attendu absent du top-10 :",
+    "rank_badge": "rang {{rank}}",
+    "absent_badge": "absent",
+    "error_badge": "erreur",
+    "expected_label": "Attendu :",
+    "error_label": "Erreur d'appel :",
+    "returned_title": "Retourné (top {{count}}) :",
+    "returned_empty": "Aucun résultat retourné.",
+    "runs_retention": "Historique conservé 72 h, puis purgé automatiquement."
   }
 }

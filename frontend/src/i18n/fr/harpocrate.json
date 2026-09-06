@@ -321,7 +321,8 @@
     "fallback_threshold": "Échecs avant bascule",
     "fallback_cooldown": "Re-test du primaire (secondes)",
     "fallback_breaker_help": "Après ce nombre d'échecs consécutifs, les appels basculent sur le fallback ; passé le délai, le primaire est re-testé et reprend la main dès qu'il répond.",
-    "limit_concurrency": "Requêtes parallèles max (tous workspaces)"
+    "limit_concurrency": "Requêtes parallèles max (tous workspaces)",
+    "health_degraded": "Fallback actif ou en re-test"
   },
   "expiry": {
     "banner_expired": "La clé d'accès de ce coffre est expirée — remplacez-la (menu ⋯ → Remplacer la clé) avant que la résolution de secrets n'échoue.",

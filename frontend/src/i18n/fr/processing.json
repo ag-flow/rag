@@ -1,0 +1,13 @@
+{
+  "page_title": "Traitement",
+  "description": "Réglages globaux d'exécution des jobs — plafond machine, communs à tous les workspaces (admin uniquement).",
+  "worker": {
+    "title": "Jobs en parallèle",
+    "help": "Nombre de jobs d'indexation exécutés simultanément par le worker. Chaque utilisateur obtient un slot avant qu'un autre n'en prenne un deuxième : le gros traitement d'un utilisateur ne bloque pas les autres. Un seul job à la fois par workspace.",
+    "max_label": "Jobs simultanés max",
+    "active_jobs": "En cours : {{count}}",
+    "submit": "Enregistrer",
+    "saved": "Réglages enregistrés",
+    "error": "Échec de l'enregistrement"
+  }
+}

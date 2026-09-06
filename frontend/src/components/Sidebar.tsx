@@ -14,6 +14,7 @@ import {
   Workflow,
   FileJson,
   UserRound,
+  Cpu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useVaultExpiries } from "@/hooks/useHarpocrateVaults";
@@ -31,7 +32,7 @@ function NavItem({ to, icon, label, disabled = false, badge }: NavItemProps) {
   if (disabled) {
     return (
       <div
-        className="mx-2 my-0.5 flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-slate-500 cursor-not-allowed select-none"
+        className="density-nav mx-2 my-0.5 flex items-center gap-2.5 rounded-md px-3 text-sm font-medium text-slate-500 cursor-not-allowed select-none"
         aria-disabled="true"
       >
         <span className="text-slate-400 [&>svg]:h-4 [&>svg]:w-4">{icon}</span>
@@ -45,7 +46,7 @@ function NavItem({ to, icon, label, disabled = false, badge }: NavItemProps) {
       to={to}
       className={({ isActive }) =>
         cn(
-          "mx-2 my-0.5 flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
+          "density-nav mx-2 my-0.5 flex items-center gap-2.5 rounded-md px-3 text-sm transition-colors",
           isActive
             ? "bg-primary text-primary-foreground font-bold"
             : "text-slate-900 font-semibold hover:bg-slate-100",
@@ -89,8 +90,8 @@ export function Sidebar() {
   return (
     <aside className="w-[220px] flex-shrink-0 border-r border-slate-200 bg-zinc-50 flex flex-col">
       <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
-        <div className="h-6 w-6 rounded-md bg-gradient-to-br from-sky-600 to-sky-500" />
-        <span className="font-semibold text-slate-900">ag-flow.rag</span>
+        <div className="h-6 w-6 rounded-md bg-primary" />
+        <span className="font-semibold text-slate-900">ragflow</span>
       </div>
 
       <nav className="flex-1 py-3">
@@ -124,6 +125,7 @@ export function Sidebar() {
         <NavItem to="/settings/profile" icon={<UserRound />} label={t("items.profile")} />
         <NavItem to="/settings/api-keys" icon={<KeyRound />} label={t("items.api_keys")} />
         <NavItem to="/settings/oidc-config" icon={<KeyRound />} label={t("items.oidc_config")} />
+        <NavItem to="/settings/processing" icon={<Cpu />} label={t("items.processing")} />
 
         <div className="px-5 pt-4 pb-1 text-xs font-bold uppercase tracking-wider text-slate-600">
           {t("sections.integration")}

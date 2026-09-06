@@ -5,7 +5,16 @@ import { BrowserRouter } from "react-router-dom";
 import App from "@/App";
 import { ApiError, isUnauthorized, redirectToLogin } from "@/lib/api";
 import "@/lib/i18n";
+import "@fontsource/barlow-condensed/500.css";
+import "@fontsource/barlow-condensed/600.css";
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/500.css";
+import "@fontsource/inter/600.css";
+import "@fontsource/inter/700.css";
 import "@/styles/globals.css";
+import { applyStoredDensity } from "@/lib/density";
+
+applyStoredDensity();
 
 // Session expirée : toute 401 (query ou mutation) redirige vers /ui/login. BUG-017.
 const onGlobalError = (error: unknown): void => {

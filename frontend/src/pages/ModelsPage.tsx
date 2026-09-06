@@ -217,7 +217,7 @@ export function ModelsPage() {
                       const pricingEntry = getModelPricingEntry(entry.provider, entry.model);
                       const description = getDescription(pricingEntry);
                       return (
-                        <li key={`${entry.provider}/${entry.model}`} className="px-4 py-2">
+                        <li key={`${entry.provider}/${entry.model}`} className="density-row px-4">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 text-sm">
                               <code className="font-mono text-slate-800">{entry.model}</code>

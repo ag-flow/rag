@@ -13,7 +13,6 @@ from rag.admin_env import AdminEnvStore
 from rag.api.admin import build_admin_router
 from rag.api.admin.circuit_breaker import build_circuit_breaker_router
 from rag.api.admin_auth_config import build_admin_auth_config_router
-from rag.api.admin_load_gate import build_admin_load_gate_router
 from rag.api.admin_chunking_preview import build_chunking_preview_router
 from rag.api.admin_chunking_strategies import build_chunking_strategies_router
 from rag.api.admin_events_producer import build_events_producer_router
@@ -21,9 +20,12 @@ from rag.api.admin_git_credentials import router as admin_git_credentials_router
 from rag.api.admin_git_credentials import router_global as admin_git_creds_global_router
 from rag.api.admin_harpocrate_vaults import router as admin_harpocrate_vaults_router
 from rag.api.admin_index_keys import build_index_keys_router
+from rag.api.admin_load_gate import build_admin_load_gate_router
 from rag.api.admin_oidc import build_admin_oidc_router
+from rag.api.admin_processing import build_admin_processing_router
 from rag.api.admin_provider_keys import router as admin_provider_keys_router
 from rag.api.admin_provider_keys import router_global as admin_provider_keys_global_router
+from rag.api.admin_search_test import router as admin_search_test_router
 from rag.api.admin_ssh_keys import router as admin_ssh_keys_router
 from rag.api.admin_ssh_keys import router_global as admin_ssh_keys_global_router
 from rag.api.admin_vault_endpoints import router as admin_vault_endpoints_router
@@ -314,6 +316,8 @@ def build_app(
     app.include_router(build_admin_oidc_router(), prefix="/api/admin")
     app.include_router(build_admin_auth_config_router(), prefix="/api/admin")
     app.include_router(build_admin_load_gate_router(), prefix="/api/admin")
+    app.include_router(build_admin_processing_router(), prefix="/api/admin")
+    app.include_router(admin_search_test_router)
     app.include_router(admin_harpocrate_vaults_router)
     app.include_router(admin_vault_endpoints_router)
     app.include_router(admin_provider_keys_router)

@@ -6,8 +6,10 @@ export type LoadGateStatus = {
   overloaded: boolean;
   cpu_psi_avg60: number | null;
   memory_used_pct: number | null;
+  io_psi_avg60: number | null;
   cpu_threshold_pct: number;
   memory_threshold_pct: number;
+  io_threshold_pct: number;
   reasons: string[];
 };
 
@@ -15,6 +17,7 @@ export type LoadGateSettings = {
   enabled: boolean;
   cpu_threshold_pct: number;
   memory_threshold_pct: number;
+  io_threshold_pct: number;
 };
 
 export const loadGateApi = {

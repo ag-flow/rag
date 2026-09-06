@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import {
   Table,
   TableBody,
@@ -14,9 +15,9 @@ import { useGlobalJobs } from "@/hooks/useGlobalJobs";
 import { useWorkspaces, useWorkspaceJob } from "@/hooks/useWorkspaces";
 import type { GlobalJob, GlobalJobsFilters } from "@/lib/jobs.types";
 import type { Job, JobSource } from "@/lib/workspaces.types";
+import { formatDurationMs } from "@/lib/duration";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { JobDetailPanel } from "@/pages/workspace/JobDetailPanel";
-import { LoadGatePanel } from "@/pages/push/LoadGatePanel";
 
 const JOB_SOURCES: JobSource[] = ["rest_api", "webhook", "git", "admin"];
 
@@ -94,7 +95,20 @@ function JobRow({
         </TableCell>
         <TableCell className="font-mono text-xs text-slate-600">{current.triggered_by}</TableCell>
         <TableCell className="max-w-[220px] truncate font-mono text-xs text-slate-700">
-          {current.path ?? "—"}
+          {current.path && job.workspace_name && !isRejected ? (
+            // Lien profond vers l'item dans l'onglet Index du workspace —
+            // stopPropagation pour ne pas déclencher le drill-down de la ligne.
+            <Link
+              to={`/workspaces?ws=${encodeURIComponent(job.workspace_name)}&tab=index&doc=${encodeURIComponent(current.path)}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-sky-700 underline-offset-2 hover:underline"
+              title={t("table.open_in_index")}
+            >
+              {current.path}
+            </Link>
+          ) : (
+            (current.path ?? "—")
+          )}
         </TableCell>
         <TableCell>
           <StatusBadge status={current.status} />
@@ -109,13 +123,16 @@ function JobRow({
             })
           )}
         </TableCell>
+        <TableCell className="text-right font-mono text-xs text-slate-600">
+          {formatDurationMs(current.duration_ms)}
+        </TableCell>
         <TableCell className="text-xs text-slate-500">
           {current.started_at ? formatRelativeTime(current.started_at, t) : "—"}
         </TableCell>
       </TableRow>
       {isOpen && !isRejected && job.workspace_name && (
         <TableRow>
-          <TableCell colSpan={7} className="p-0">
+          <TableCell colSpan={8} className="p-0">
             <JobDetailPanel name={job.workspace_name} job={current} />
           </TableCell>
         </TableRow>
@@ -145,8 +162,6 @@ export function PushActivityPage() {
         <h1 className="text-xl font-semibold text-slate-900">{t("page_title")}</h1>
         <p className="mt-1 text-sm text-slate-500">{t("description")}</p>
       </div>
-
-      <LoadGatePanel />
 
       <div className="flex gap-2">
         <select
@@ -210,6 +225,7 @@ export function PushActivityPage() {
                 <TableHead>{t("table.path")}</TableHead>
                 <TableHead>{t("table.status")}</TableHead>
                 <TableHead>{t("table.files")}</TableHead>
+                <TableHead className="text-right">{t("table.duration")}</TableHead>
                 <TableHead>{t("table.date")}</TableHead>
               </TableRow>
             </TableHeader>
