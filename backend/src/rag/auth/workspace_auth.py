@@ -180,14 +180,18 @@ async def resolve_apikey_write_workspace(
 ) -> AuthContext:
     """Résout un workspace pour une ÉCRITURE par clé API (workspace en paramètre).
 
-    Exige un scope `read_write`/`admin` et un workspace visible (partagé ou
-    possédé). 401 uniforme sinon (indistinction clé/scope/workspace)."""
+    Décision architecte (2026-09-06) — le 401 uniforme mélangeait sécurité et
+    workspace inconnu, rendant le diagnostic impossible :
+    - 401 `insufficient_scope`   : la clé n'a pas le niveau écriture ;
+    - 404 `workspace_not_found`  : workspace inexistant OU possédé par autrui
+      (le workspace d'un autre owner reste introuvable — un 401 révélerait
+      son existence)."""
     if scope not in ("read_write", "admin"):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid_workspace_apikey")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "insufficient_scope")
     pool: asyncpg.Pool = request.app.state.pools.config_pool
     row = await pool.fetchrow(_WRITE_WS_SQL, workspace, owner_id)
     if row is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid_workspace_apikey")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "workspace_not_found")
     return AuthContext(
         workspace_id=row["id"], indexer_used=row["indexer_used"], owner_id=owner_id
     )
@@ -198,11 +202,13 @@ async def resolve_apikey_read_workspace(
 ) -> ReadAuthContext:
     """Résout un workspace pour une LECTURE par clé API (workspace en query).
 
-    Scope `read`+ suffit. 401 uniforme si workspace non visible."""
+    Scope `read`+ suffit. 404 `workspace_not_found` si le workspace n'est pas
+    visible de cet owner (inexistant ou possédé par autrui — même règle que
+    l'écriture)."""
     pool: asyncpg.Pool = request.app.state.pools.config_pool
     row = await pool.fetchrow(_READ_WS_SQL, workspace, owner_id)
     if row is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid_workspace_apikey")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "workspace_not_found")
     return ReadAuthContext(
         workspace_id=row["id"],
         workspace_name=row["name"],

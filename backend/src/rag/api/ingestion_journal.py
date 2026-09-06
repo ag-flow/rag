@@ -13,8 +13,10 @@ _JOURNALED_PATH = "/api/v1/index"
 _RETENTION_DAYS = 7
 
 _AUTH_REASONS = {
+    # Legacy (chemin require_workspace_apikey) — conservé pour l'historique.
     "invalid_workspace_apikey": "Workspace inconnu ou non autorisé pour cette clé",
     "invalid_apikey": "Clé API invalide",
+    "insufficient_scope": "Niveau de la clé insuffisant (écriture requise)",
     "missing_bearer_token": "En-tête Authorization manquant",
     "invalid_auth_scheme": "Schéma d'authentification invalide (attendu : Bearer)",
 }
@@ -44,6 +46,8 @@ def rejection_reason(http_status: int, detail: Any) -> str:
     if http_status == 413:
         return "Contenu trop volumineux"
     if http_status == 404:
+        if detail == "workspace_not_found":
+            return "Workspace inconnu (à créer avant de pousser)"
         return "Ressource introuvable"
     if isinstance(detail, str) and detail:
         return detail

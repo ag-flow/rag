@@ -73,7 +73,7 @@ def test_delete_read_scope_key_returns_401(
     read_key = _make_ws(admin_client, admin_headers, "ws_del_readonly", scope="read")
     r = _delete(admin_client, key=read_key, workspace="ws_del_readonly", path="doc.md")
     assert r.status_code == 401
-    assert r.json()["detail"] == "invalid_workspace_apikey"
+    assert r.json()["detail"] == "insufficient_scope"
 
 
 def test_delete_nested_path(

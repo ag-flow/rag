@@ -15,8 +15,15 @@ def test_rejection_reason_mapping() -> None:
         == "Workspace inconnu ou non autorisé pour cette clé"
     )
     assert rejection_reason(401, "invalid_apikey") == "Clé API invalide"
+    assert rejection_reason(401, "insufficient_scope") == (
+        "Niveau de la clé insuffisant (écriture requise)"
+    )
     assert rejection_reason(401, "missing_bearer_token") == "En-tête Authorization manquant"
     assert rejection_reason(401, "weird") == "Non authentifié"
+    assert rejection_reason(404, "workspace_not_found") == (
+        "Workspace inconnu (à créer avant de pousser)"
+    )
+    assert rejection_reason(404, "autre") == "Ressource introuvable"
     assert "Corps invalide" in rejection_reason(422, [{"loc": ["body", "content"], "msg": "x"}])
     assert rejection_reason(413, None) == "Contenu trop volumineux"
 
@@ -33,13 +40,13 @@ def test_rejected_index_is_journaled(
     pg_container: str,
 ) -> None:
     key = _key(admin_client, admin_headers, "ws_journal")
-    # Clé valide mais workspace inexistant → 401, aucun job, rejet journalisé.
+    # Clé valide mais workspace inexistant → 404, aucun job, rejet journalisé.
     r = admin_client.post(
         "/api/v1/index",
         headers={"Authorization": f"Bearer {key}"},
         json={"workspace": "ghost", "path": "a.md", "content": "x"},
     )
-    assert r.status_code == 401
+    assert r.status_code == 404
 
     async def check() -> None:
         conn = await asyncpg.connect(pg_container)
@@ -54,8 +61,8 @@ def test_rejected_index_is_journaled(
         assert row["method"] == "POST"
         assert row["workspace"] == "ghost"
         assert row["doc_path"] == "a.md"
-        assert row["http_status"] == 401
-        assert row["reason"] == "Workspace inconnu ou non autorisé pour cette clé"
+        assert row["http_status"] == 404
+        assert row["reason"] == "Workspace inconnu (à créer avant de pousser)"
 
     asyncio.run(check())
 
@@ -68,7 +75,7 @@ def test_rejected_index_is_journaled(
     assert rej["status"] == "rejected"
     assert rej["source"] == "rest_api"
     assert rej["path"] == "a.md"
-    assert rej["error_message"] == "Workspace inconnu ou non autorisé pour cette clé"
+    assert rej["error_message"] == "Workspace inconnu (à créer avant de pousser)"
 
 
 def test_anonymous_rejection_does_not_break_jobs_list(
