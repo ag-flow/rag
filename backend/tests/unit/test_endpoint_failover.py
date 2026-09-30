@@ -4,6 +4,7 @@ par le circuit breaker."""
 
 from __future__ import annotations
 
+import contextlib
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -131,7 +132,7 @@ class TestCallWithFailover:
         failing = AsyncMock(side_effect=EmbeddingProviderUnreachable("down"))
         fallback = AsyncMock(return_value="secours")
         for _ in range(2):
-            try:
+            with contextlib.suppress(EmbeddingProviderUnreachable):
                 await call_with_failover(
                     registry=reg,
                     spec=_spec(),
@@ -139,8 +140,6 @@ class TestCallWithFailover:
                     primary=failing,
                     fallback_call=fallback,
                 )
-            except EmbeddingProviderUnreachable:
-                pass
         clock.now += 61  # cooldown écoulé → half-open, l'appel teste le primaire
         healthy = AsyncMock(return_value="reprise")
         out = await call_with_failover(

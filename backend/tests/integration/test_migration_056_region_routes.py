@@ -8,6 +8,7 @@ import pytest
 
 from rag.db.migrations import run_migrations
 from rag.services.chunking_routing import load_region_routes
+from tests.integration._pg_errors import RESTRICT_VIOLATION
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
@@ -73,7 +74,7 @@ async def test_delete_strategy_cascades_but_target_is_protected(
             owner_id,
             target_id,
         )
-        with pytest.raises(asyncpg.ForeignKeyViolationError):
+        with pytest.raises(RESTRICT_VIOLATION):
             await conn.execute("DELETE FROM chunking_strategies WHERE id = $1", target_id)
         await conn.execute("DELETE FROM chunking_strategies WHERE id = $1", owner_id)
         remaining = await conn.fetchval(

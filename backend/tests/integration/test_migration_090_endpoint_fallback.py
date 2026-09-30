@@ -20,8 +20,9 @@ async def _seed_vault_and_endpoint(
     conn: asyncpg.Connection, *, vault_name: str, slug: str
 ) -> tuple[str, str]:
     vault_id = await conn.fetchval(
-        "INSERT INTO harpocrate_vaults (name, label, base_url, api_key_id, api_key_encrypted) "
-        "VALUES ($1, $1, 'https://harpo', 'k1', pgp_sym_encrypt('secret', $2)) RETURNING id",
+        "INSERT INTO harpocrate_vaults (id, name, label, base_url, api_key_id, api_key_encrypted) "
+        "VALUES (gen_random_uuid(), $1, $1, 'https://harpo', 'k1', "
+        "pgp_sym_encrypt('secret', $2)) RETURNING id",
         vault_name,
         _PASSPHRASE,
     )

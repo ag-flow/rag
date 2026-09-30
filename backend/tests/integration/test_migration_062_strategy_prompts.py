@@ -8,6 +8,7 @@ import pytest
 from rag.db.migrations import run_migrations
 from rag.schemas.chunking_strategies import StrategyCreate, StrategyPromptSpec
 from rag.services import chunking_strategies as svc
+from tests.integration._pg_errors import RESTRICT_VIOLATION
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
@@ -88,7 +89,7 @@ async def test_strategy_prompts_roundtrip_guards_and_duplicate(
         assert len(copy.prompts) == 2
 
         # RESTRICT : template lié → suppression refusée côté DB.
-        with pytest.raises(asyncpg.ForeignKeyViolationError):
+        with pytest.raises(RESTRICT_VIOLATION):
             await conn.execute("DELETE FROM prompt_templates WHERE id=$1", chunk_tpl)
     finally:
         await session_pool.release(conn)

@@ -18,8 +18,9 @@ async def test_columns_default_null_and_check(session_pool: asyncpg.Pool) -> Non
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
         vault_id = await conn.fetchval(
-            "INSERT INTO harpocrate_vaults (name, label, base_url, api_key_id, api_key_encrypted) "
-            "VALUES ('v091', 'v091', 'https://harpo', 'k1', "
+            "INSERT INTO harpocrate_vaults "
+            "(id, name, label, base_url, api_key_id, api_key_encrypted) "
+            "VALUES (gen_random_uuid(), 'v091', 'v091', 'https://harpo', 'k1', "
             "pgp_sym_encrypt('secret', 'passphrase-of-at-least-32-characters-long')) RETURNING id"
         )
         row = await conn.fetchrow(

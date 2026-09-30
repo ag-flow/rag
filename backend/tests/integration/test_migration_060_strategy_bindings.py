@@ -6,6 +6,7 @@ import asyncpg
 import pytest
 
 from rag.db.migrations import run_migrations
+from tests.integration._pg_errors import RESTRICT_VIOLATION
 from tests.integration._workspace_seed import seed_workspace
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
@@ -50,9 +51,9 @@ async def test_bindings_columns_with_restrict(session_pool: asyncpg.Pool) -> Non
             trigger_sid,
         )
 
-        with pytest.raises(asyncpg.ForeignKeyViolationError):
+        with pytest.raises(RESTRICT_VIOLATION):
             await conn.execute("DELETE FROM chunking_strategies WHERE id=$1", default_sid)
-        with pytest.raises(asyncpg.ForeignKeyViolationError):
+        with pytest.raises(RESTRICT_VIOLATION):
             await conn.execute("DELETE FROM chunking_strategies WHERE id=$1", trigger_sid)
 
         # Détacher les bindings libère la suppression.
