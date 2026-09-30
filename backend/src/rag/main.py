@@ -56,6 +56,7 @@ from rag.api.playground import router_chat as playground_chat_router
 from rag.api.playground_search import router_search as playground_search_router
 from rag.api.setup import build_setup_router
 from rag.api.workspace import build_workspace_router
+from rag.api.workspace_lifecycle import build_workspace_lifecycle_router
 from rag.api.workspace_query import build_workspace_query_router
 from rag.api.ws import router as ws_router
 from rag.config import Settings
@@ -344,6 +345,7 @@ def build_app(
     # le reverse-proxy vers le backend (comme /api/v1/search). À la racine, Caddy
     # ne les proxifie pas et sert une réponse par défaut.
     app.include_router(build_workspace_router(), prefix="/api/v1")
+    app.include_router(build_workspace_lifecycle_router(), prefix="/api/v1")
     app.include_router(build_workspace_query_router(), prefix="/api/v1")
     app.include_router(build_library_apikey_router())
     app.include_router(build_mcp_router())

@@ -237,44 +237,31 @@ def register_workspace_admin_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
 
 async def _find_endpoint(ctx: Any, vault: str, endpoint: str) -> Any:
     """Endpoint visible par vault+slug, ou message d'erreur pédagogique (str)."""
-    from rag.services import vault_endpoints as endpoints_svc
+    from rag.services.workspace_lifecycle import (
+        EndpointNotInVault,
+        VaultNotVisible,
+        resolve_endpoint_by_slug,
+    )
 
-    async with ctx.config_pool.acquire() as conn:
-        v = await conn.fetchrow(
-            "SELECT id, owner_id FROM harpocrate_vaults "
-            "WHERE (is_default = true OR owner_id = $1) AND name = $2",
-            ctx.owner_id,
-            vault,
-        )
-        if v is None:
-            return (
-                f"Coffre '{vault}' introuvable ou invisible. Appelle list_endpoints() "
-                "pour les coffres accessibles."
+    try:
+        async with ctx.config_pool.acquire() as conn:
+            return await resolve_endpoint_by_slug(
+                conn, owner_id=ctx.owner_id, vault=vault, endpoint=endpoint
             )
-        eps = await endpoints_svc.list_endpoints(conn, vault_id=v["id"])
-    ep = next((e for e in eps if e.slug == endpoint), None)
-    if ep is None:
+    except VaultNotVisible:
+        return (
+            f"Coffre '{vault}' introuvable ou invisible. Appelle list_endpoints() "
+            "pour les coffres accessibles."
+        )
+    except EndpointNotInVault:
         return (
             f"Endpoint '{endpoint}' introuvable dans le coffre '{vault}'. "
             "Appelle list_endpoints() pour les slugs disponibles."
         )
-    return ep
 
 
 async def _emit_created(ctx: Any, resolved: Any) -> None:
     """Émet l'event workflow APRÈS le succès (fire-and-forget, parité REST)."""
-    from datetime import UTC, datetime
+    from rag.services.workspace_lifecycle import emit_workspace_created
 
-    from rag.events.emit import emit_workflow_event
-    from rag.events.registry import workspace_created
-
-    await emit_workflow_event(
-        ctx.config_pool,
-        workspace_created(
-            name=resolved.name,
-            label=resolved.label,
-            slug=resolved.name,
-            owner_id=resolved.owner_id,
-            occurred_at=datetime.now(UTC),
-        ),
-    )
+    await emit_workspace_created(ctx.config_pool, resolved)
