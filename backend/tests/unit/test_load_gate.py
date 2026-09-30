@@ -21,6 +21,7 @@ def _gate(
     psi_avg60: float | None = 5.0,
     mem_current: int | None = 2 * 1024**3,
     mem_max: str | None = str(8 * 1024**3),
+    inactive_file: int | None = None,
     env_lines: str = "",
 ) -> LoadGate:
     admin_env = AdminEnvStore(tmp_path / "admin.env")
@@ -35,6 +36,11 @@ def _gate(
         (cgroup / "memory.current").write_text(f"{mem_current}\n", encoding="utf-8")
     if mem_max is not None:
         (cgroup / "memory.max").write_text(f"{mem_max}\n", encoding="utf-8")
+    if inactive_file is not None:
+        (cgroup / "memory.stat").write_text(
+            f"anon 1000\nfile 5000\ninactive_file {inactive_file}\nactive_file 10\n",
+            encoding="utf-8",
+        )
     meminfo = tmp_path / "meminfo"
     meminfo.write_text(
         "MemTotal:       16000000 kB\nMemFree:         2000000 kB\nMemAvailable:    8000000 kB\n",
@@ -113,3 +119,47 @@ class TestIoPressure:
         st = _gate(tmp_path).status()
         assert st.io_psi_avg60 is None
         assert st.io_threshold_pct == 60
+
+
+class TestMemoryScope:
+    """Régression 2026-09-24 : le gate lisait le /proc du conteneur, qui décrit
+    le nœud Proxmox entier sur une machine LXC — faux 85 % pendant 4 jours."""
+
+    def test_cgroup_limit_uses_working_set(self, tmp_path: Path) -> None:
+        # 6 Gio courants dont 4 Gio de page cache inactif ⇒ 2 Gio / 8 Gio.
+        st = _gate(tmp_path, mem_current=6 * 1024**3, inactive_file=4 * 1024**3).status()
+        assert st.memory_used_pct == 25.0
+        assert st.memory_source == "cgroup"
+        assert st.overloaded is False
+
+    def test_unreadable_memory_stat_keeps_raw_current(self, tmp_path: Path) -> None:
+        st = _gate(tmp_path, mem_current=6 * 1024**3).status()
+        assert st.memory_used_pct == 75.0
+
+    def test_unlimited_cgroup_reports_meminfo_source(self, tmp_path: Path) -> None:
+        st = _gate(tmp_path, mem_max="max").status()
+        assert st.memory_source == "meminfo"
+
+    def test_proc_root_points_meminfo_and_psi_at_the_machine(self, tmp_path: Path) -> None:
+        # Le /proc du conteneur (nœud Proxmox, 90 % utilisés) doit être ignoré au
+        # profit du /proc monté de la machine (lxcfs, 20 % utilisés).
+        machine_proc = tmp_path / "host_proc"
+        (machine_proc / "pressure").mkdir(parents=True)
+        (machine_proc / "meminfo").write_text(
+            "MemTotal:       10000000 kB\nMemAvailable:    8000000 kB\n", encoding="utf-8"
+        )
+        (machine_proc / "pressure" / "cpu").write_text(_PSI.format(avg60=3.0), encoding="utf-8")
+        cgroup = tmp_path / "cgroup"
+        cgroup.mkdir()
+        (cgroup / "memory.max").write_text("max\n", encoding="utf-8")
+        (cgroup / "memory.current").write_text("123\n", encoding="utf-8")
+        gate = LoadGate(
+            AdminEnvStore(tmp_path / "admin.env"),
+            proc_root=machine_proc,
+            cgroup_dir=cgroup,
+        )
+        st = gate.status()
+        assert st.memory_used_pct == 20.0
+        assert st.memory_source == "meminfo"
+        assert st.cpu_psi_avg60 == 3.0
+        assert st.overloaded is False

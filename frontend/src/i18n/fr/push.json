@@ -59,6 +59,11 @@
     "saved": "Seuils enregistrés — pris en compte immédiatement.",
     "error": "Impossible d'enregistrer les seuils.",
     "io_metric": "Pression I/O 60 s",
-    "io_threshold": "Seuil I/O (%)"
+    "io_threshold": "Seuil I/O (%)",
+    "worker_paused_since": "Worker en pause {{since}} — aucun job n'est traité.",
+    "memory_source": {
+      "cgroup": "limite du conteneur",
+      "meminfo": "machine"
+    }
   }
 }

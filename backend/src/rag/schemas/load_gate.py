@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -21,8 +24,12 @@ class LoadGateStatusOut(BaseModel):
     overloaded: bool
     cpu_psi_avg60: float | None
     memory_used_pct: float | None
+    memory_source: Literal["cgroup", "meminfo"] | None = None
     io_psi_avg60: float | None
     cpu_threshold_pct: int
     memory_threshold_pct: int
     io_threshold_pct: int
     reasons: list[str]
+    # Pause effective du worker (début, UTC) — distincte du verdict instantané :
+    # le worker n'évalue le gate qu'à ses cycles de pick.
+    worker_paused_since: datetime | None = None

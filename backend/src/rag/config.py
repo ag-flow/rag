@@ -62,6 +62,14 @@ class Settings(BaseSettings):
         "du .env principal qui, lui, porte les secrets critiques.",
     )
 
+    rag_load_gate_proc_root: Path = Field(
+        default=Path("/proc"),
+        description="Racine /proc de la MACHINE lue par le gate de charge "
+        "(meminfo, PSI). En conteneur, monter le /proc de l'hôte (ex. "
+        "/proc:/host/proc:ro) et pointer ici : le procfs propre au conteneur "
+        "décrit le nœud Proxmox entier sur une machine LXC.",
+    )
+
     rag_session_secret: SecretStr = SecretStr("")
 
     rag_webhook_secret: SecretStr | None = Field(

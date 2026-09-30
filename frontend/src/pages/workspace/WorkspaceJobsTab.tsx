@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { useWorkspaceJobs } from "@/hooks/useWorkspaces";
 import type { Job } from "@/lib/workspaces.types";
 import { JobDetailPanel } from "./JobDetailPanel";
+import { WorkerPausedBanner } from "./WorkerPausedBanner";
 import { formatRelativeTime } from "@/lib/relativeTime";
 
 interface Props {
@@ -55,6 +56,7 @@ export function WorkspaceJobsTab({ name, enabled }: Props) {
 
   return (
     <div>
+      <WorkerPausedBanner hasPendingJobs={jobs.some((job) => job.status === "pending")} />
       <h3 className="text-sm font-semibold text-slate-900 mb-3">
         {t("jobs.title", { count: jobs.length })}
       </h3>

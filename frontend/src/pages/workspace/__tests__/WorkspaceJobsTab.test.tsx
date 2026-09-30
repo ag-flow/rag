@@ -38,6 +38,11 @@ const { mockJobsResult, mockJobFilesResult } = vi.hoisted(() => ({
   },
 }));
 
+// Le bandeau de pause du worker a son propre test ; ici, gate au repos.
+vi.mock("@/hooks/useLoadGate", () => ({
+  useLoadGate: () => ({ data: undefined }),
+}));
+
 vi.mock("@/hooks/useWorkspaces", () => ({
   useWorkspaceJobs: () => mockJobsResult,
   useWorkspaceJobFiles: () => mockJobFilesResult,

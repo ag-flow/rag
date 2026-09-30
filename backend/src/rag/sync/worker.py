@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Protocol
 
 import asyncpg
@@ -17,6 +18,14 @@ from rag.sync.repo_storage import RepoStorage
 from rag.sync.scheduler import schedule_due_sources
 
 log = structlog.get_logger(__name__)
+
+# Rappel périodique tant que le gate de charge bloque le pick : une pause qui
+# dure ne doit pas se résumer à une seule ligne de log noyée dans l'historique.
+PAUSE_REMINDER_SECONDS = 600
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
 
 
 class _ResolverProtocol(Protocol):
@@ -68,6 +77,7 @@ class SyncWorker:
         webhook_secret: str | None = None,
         load_gate: LoadGate | None = None,
         max_jobs_provider: Callable[[], int] | None = None,
+        clock: Callable[[], datetime] = _utcnow,
     ) -> None:
         self._config_pool = config_pool
         self._storage = storage
@@ -80,7 +90,9 @@ class SyncWorker:
         self._webhook_secret = webhook_secret
         self._load_gate = load_gate
         self._max_jobs_provider = max_jobs_provider
-        self._gate_paused = False
+        self._clock = clock
+        self._gate_paused_since: datetime | None = None
+        self._last_pause_log: datetime | None = None
         self._job_tasks: set[asyncio.Task[None]] = set()
         self._task: asyncio.Task[None] | None = None
         self._stop_event = asyncio.Event()
@@ -128,20 +140,46 @@ class SyncWorker:
             log.warning("sync.worker.max_jobs_provider_failed")
             return 1
 
+    @property
+    def gate_paused_since(self) -> datetime | None:
+        """Début de la pause courante imposée par le gate de charge (UTC), None
+        si le worker picke normalement."""
+        return self._gate_paused_since
+
     def _gate_allows_pickup(self) -> bool:
         """Gate de charge serveur (enabler 01f8992b) : surchargé ⇒ on saute le
         pick de job de ce cycle, la file DB fait le backpressure. Log aux
-        seules transitions (pause/reprise), pas à chaque cycle."""
+        transitions (pause/reprise) et rappel toutes les
+        `PAUSE_REMINDER_SECONDS` tant que la pause dure."""
         if self._load_gate is None:
             return True
         status = self._load_gate.status()
-        if status.overloaded and not self._gate_paused:
-            self._gate_paused = True
-            log.warning("sync.worker.load_gate_paused", reasons=status.reasons)
-        elif not status.overloaded and self._gate_paused:
-            self._gate_paused = False
-            log.info("sync.worker.load_gate_resumed")
+        now = self._clock()
+        if status.overloaded:
+            self._log_pause(now, status.reasons)
+        elif self._gate_paused_since is not None:
+            paused_for = (now - self._gate_paused_since).total_seconds()
+            log.info("sync.worker.load_gate_resumed", paused_for_seconds=int(paused_for))
+            self._gate_paused_since = None
+            self._last_pause_log = None
         return not status.overloaded
+
+    def _log_pause(self, now: datetime, reasons: list[str]) -> None:
+        if self._gate_paused_since is None:
+            self._gate_paused_since = now
+            self._last_pause_log = now
+            log.warning("sync.worker.load_gate_paused", reasons=reasons)
+            return
+        last = self._last_pause_log or self._gate_paused_since
+        if (now - last).total_seconds() < PAUSE_REMINDER_SECONDS:
+            return
+        self._last_pause_log = now
+        log.warning(
+            "sync.worker.load_gate_still_paused",
+            reasons=reasons,
+            paused_since=self._gate_paused_since.isoformat(),
+            paused_for_seconds=int((now - self._gate_paused_since).total_seconds()),
+        )
 
     async def _run_job(self, job: JobToProcess) -> None:
         """Exécute un job pické dans sa task dédiée — jamais d'exception qui
