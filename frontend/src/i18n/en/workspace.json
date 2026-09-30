@@ -183,6 +183,10 @@
       "loading": "Loading…",
       "error": "Failed to load files.",
       "params": "Request parameters"
+    },
+    "worker_paused": {
+      "title": "Indexing paused: server overloaded",
+      "body": "The worker stopped picking new jobs {{since}} ({{reasons}}). Pending jobs are kept and will resume once load drops below the thresholds (Configuration → Processing)."
     }
   },
   "model": {

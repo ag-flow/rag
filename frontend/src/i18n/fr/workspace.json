@@ -183,6 +183,10 @@
       "loading": "Chargement…",
       "error": "Échec du chargement des fichiers.",
       "params": "Paramètres de la demande"
+    },
+    "worker_paused": {
+      "title": "Indexation suspendue : serveur surchargé",
+      "body": "Le worker ne prend plus de nouveaux jobs {{since}} ({{reasons}}). Les jobs en attente sont conservés et repartiront dès que la charge redescendra sous les seuils (Configuration → Traitement)."
     }
   },
   "model": {

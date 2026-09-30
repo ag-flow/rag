@@ -31,6 +31,9 @@ services:
     environment:
       # SHA injecté par dev-deploy.sh au up — pas de rebuild requis quand le commit change.
       GIT_SHA: ${GIT_SHA:-unknown}
+      # Gate de charge : lire la mémoire / la PSI de la MACHINE (cf. volume
+      # /host/proc ci-dessous), pas le procfs du conteneur.
+      RAG_LOAD_GATE_PROC_ROOT: /host/proc
     # Exposé sur le LAN pour curl direct sur l'API depuis le Windows dev pendant les tests.
     ports:
       - "8000:8000"
@@ -45,6 +48,10 @@ services:
       # Réglages d'auth pilotés par l'IHM (admin.env, inscriptible + relu à
       # chaud). Le backend crée data/admin.env au premier enregistrement.
       - ./data:/app/data
+      # /proc de la machine pour le gate de charge. Dans le conteneur, /proc
+      # décrit le nœud Proxmox entier quand la machine est un LXC (lxcfs ne s'y
+      # applique pas) ; ce bind récursif embarque les montages lxcfs du LXC.
+      - /proc:/host/proc:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s

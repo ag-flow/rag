@@ -59,6 +59,11 @@
     "saved": "Thresholds saved — applied immediately.",
     "error": "Could not save the thresholds.",
     "io_metric": "I/O pressure 60 s",
-    "io_threshold": "I/O threshold (%)"
+    "io_threshold": "I/O threshold (%)",
+    "worker_paused_since": "Worker paused {{since}} — no job is being processed.",
+    "memory_source": {
+      "cgroup": "container limit",
+      "meminfo": "machine"
+    }
   }
 }

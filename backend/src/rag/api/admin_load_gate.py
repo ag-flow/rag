@@ -19,16 +19,19 @@ def build_admin_load_gate_router() -> APIRouter:
 
     def _status_out(request: Request) -> LoadGateStatusOut:
         status = request.app.state.load_gate.status()
+        worker = getattr(request.app.state, "sync_worker", None)
         return LoadGateStatusOut(
             enabled=status.enabled,
             overloaded=status.overloaded,
             cpu_psi_avg60=status.cpu_psi_avg60,
             memory_used_pct=status.memory_used_pct,
+            memory_source=status.memory_source,
             io_psi_avg60=status.io_psi_avg60,
             cpu_threshold_pct=status.cpu_threshold_pct,
             memory_threshold_pct=status.memory_threshold_pct,
             io_threshold_pct=status.io_threshold_pct,
             reasons=status.reasons,
+            worker_paused_since=worker.gate_paused_since if worker is not None else None,
         )
 
     @router.get("/load-gate", response_model=LoadGateStatusOut)

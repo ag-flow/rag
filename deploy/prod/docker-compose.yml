@@ -28,12 +28,17 @@ services:
       # Construits ici depuis les variables Postgres — ne pas mettre dans .env
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       RAG_POSTGRES_ADMIN_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/postgres
+      # Gate de charge : mémoire / PSI de la MACHINE (volume /host/proc).
+      RAG_LOAD_GATE_PROC_ROOT: /host/proc
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
       - rag_repos:/var/lib/rag/repos
       - ./pricing.yml:/app/config/pricing.yml:ro
+      # /proc de la machine pour le gate de charge : le procfs du conteneur
+      # décrit le nœud Proxmox entier sur un LXC (lxcfs non appliqué).
+      - /proc:/host/proc:ro
     healthcheck:
       test: ["CMD", "python", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]

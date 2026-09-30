@@ -56,6 +56,7 @@ from rag.api.playground import router_chat as playground_chat_router
 from rag.api.playground_search import router_search as playground_search_router
 from rag.api.setup import build_setup_router
 from rag.api.workspace import build_workspace_router
+from rag.api.workspace_lifecycle import build_workspace_lifecycle_router
 from rag.api.workspace_query import build_workspace_query_router
 from rag.api.ws import router as ws_router
 from rag.config import Settings
@@ -195,7 +196,9 @@ def build_app(
             app.state.admin_env = AdminEnvStore(settings.rag_admin_env_file)
             from rag.services.load_gate import LoadGate
 
-            app.state.load_gate = LoadGate(app.state.admin_env)
+            app.state.load_gate = LoadGate(
+                app.state.admin_env, proc_root=settings.rag_load_gate_proc_root
+            )
             app.state.oidc = OidcService(
                 config_pool=registry.config_pool,
                 public_url=str(settings.rag_public_url).rstrip("/"),
@@ -246,6 +249,7 @@ def build_app(
                 job_log_bus=app.state.job_log_bus,
                 webhook_secret=webhook_secret,
                 load_gate=app.state.load_gate,
+                max_jobs_provider=app.state.admin_env.get_worker_max_jobs,
             )
             await sync_worker.start()
             app.state.sync_worker = sync_worker
@@ -341,6 +345,7 @@ def build_app(
     # le reverse-proxy vers le backend (comme /api/v1/search). À la racine, Caddy
     # ne les proxifie pas et sert une réponse par défaut.
     app.include_router(build_workspace_router(), prefix="/api/v1")
+    app.include_router(build_workspace_lifecycle_router(), prefix="/api/v1")
     app.include_router(build_workspace_query_router(), prefix="/api/v1")
     app.include_router(build_library_apikey_router())
     app.include_router(build_mcp_router())

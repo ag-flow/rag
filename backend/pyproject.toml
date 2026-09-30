@@ -74,6 +74,8 @@ select = ["E", "F", "W", "I", "B", "UP", "N", "ASYNC", "S", "RUF", "SIM"]
 # N818 : les exceptions métier admin sont nommées par cas (WorkspaceNotFound,
 # ModelInUse, ...) — contrat figé par la spec, suffixe `Error` non souhaité.
 "src/rag/api/errors.py" = ["N818"]
+# Même convention pour les erreurs métier du cycle de vie des workspaces.
+"src/rag/services/workspace_lifecycle.py" = ["N818"]
 
 [tool.mypy]
 python_version = "3.12"

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useLoadGate, useSetLoadGate } from "@/hooks/useLoadGate";
 import { useToast } from "@/hooks/useToast";
+import { formatRelativeTime } from "@/lib/relativeTime";
 
 function metricLine(
   label: string,
@@ -41,6 +42,10 @@ export function LoadGatePanel() {
   }, [status]);
 
   if (!status) return null;
+
+  const memoryLabel = status.memory_source
+    ? `${t("load_gate.memory_metric")} (${t(`load_gate.memory_source.${status.memory_source}`)})`
+    : t("load_gate.memory_metric");
 
   const badge = !status.enabled
     ? { label: t("load_gate.badge_disabled"), cls: "bg-slate-100 text-slate-500" }
@@ -88,7 +93,7 @@ export function LoadGatePanel() {
         )}
         {" — "}
         {metricLine(
-          t("load_gate.memory_metric"),
+          memoryLabel,
           status.memory_used_pct,
           status.memory_threshold_pct,
           t("load_gate.unknown"),
@@ -101,6 +106,13 @@ export function LoadGatePanel() {
           t("load_gate.unknown"),
         )}
       </p>
+      {status.worker_paused_since && (
+        <p className="mt-2 text-xs font-medium text-amber-700">
+          {t("load_gate.worker_paused_since", {
+            since: formatRelativeTime(status.worker_paused_since, t),
+          })}
+        </p>
+      )}
       <div className="mt-3 flex flex-wrap items-end gap-3">
         <div className="flex items-center gap-2">
           <Switch

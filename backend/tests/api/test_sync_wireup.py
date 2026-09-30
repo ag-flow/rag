@@ -62,3 +62,10 @@ def test_sync_worker_uses_real_indexer_not_noop(wired_client: TestClient) -> Non
     assert isinstance(worker._indexer, RealIndexer), (
         f"Expected RealIndexer, got {type(worker._indexer).__name__}"
     )
+
+
+def test_sync_worker_slots_follow_admin_env(wired_client: TestClient) -> None:
+    """Le plafond de slots de l'IHM (RAG_WORKER_MAX_JOBS, admin.env) doit
+    piloter le worker — sans branchement, il retombait sur 1 slot."""
+    app = wired_client.app
+    assert app.state.sync_worker._max_jobs() == app.state.admin_env.get_worker_max_jobs()

@@ -27,11 +27,13 @@ function mockStatus(partial: Partial<LoadGateStatus>): void {
       overloaded: false,
       cpu_psi_avg60: 5.2,
       memory_used_pct: 42.0,
+      memory_source: "meminfo",
       io_psi_avg60: 1.5,
       cpu_threshold_pct: 40,
       memory_threshold_pct: 85,
       io_threshold_pct: 60,
       reasons: [],
+      worker_paused_since: null,
       ...partial,
     },
   } as unknown as ReturnType<typeof useLoadGate>);
@@ -95,5 +97,26 @@ describe("LoadGatePanel", () => {
     mockStatus({ cpu_psi_avg60: null });
     renderPanel();
     expect(screen.getByText(/n\/d.*seuil 40 %/)).toBeInTheDocument();
+  });
+
+  it("durée de pause du worker affichée quand il est suspendu", () => {
+    const since = new Date(Date.now() - 3 * 3_600_000).toISOString();
+    mockStatus({ overloaded: true, worker_paused_since: since });
+    renderPanel();
+    expect(
+      screen.getByText("Worker en pause il y a 3 h — aucun job n'est traité."),
+    ).toBeInTheDocument();
+  });
+
+  it("aucune mention de pause quand le worker picke", () => {
+    mockStatus({});
+    renderPanel();
+    expect(screen.queryByText(/Worker en pause/)).not.toBeInTheDocument();
+  });
+
+  it("indique la source de la mesure mémoire", () => {
+    mockStatus({ memory_source: "cgroup" });
+    renderPanel();
+    expect(screen.getByText(/Mémoire \(limite du conteneur\) : 42 %/)).toBeInTheDocument();
   });
 });
