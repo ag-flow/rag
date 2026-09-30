@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from hashlib import sha256
 from typing import Any
 
@@ -34,6 +35,56 @@ async def _resolve_harpo(
         return None
     client = await client_provider.get_client(vault.api_key_id)
     return await asyncio.to_thread(client.get_secret, secret_path)
+
+
+def _llm_calls(
+    *,
+    row: Any,
+    llm_api_key: str | None,
+    messages: list[dict[str, str]],
+    prompt_text: str,
+    workspace_id: str,
+    config_pool: Any | None,
+    vault_svc: Any,
+    client_provider: Any,
+) -> tuple[
+    Callable[[], Awaitable[dict[str, Any]]],
+    Callable[[ServiceSpec], Awaitable[dict[str, Any]]],
+]:
+    """Appels LLM primaire et de secours d'UN prompt, avec throttling
+    (fe6b8dcb) et bascule (f94bfd84 lot 2b). Fabrique hors de la boucle : les
+    valeurs sont liées en paramètres, jamais capturées depuis une variable de
+    boucle qu'une itération suivante aurait déjà réassignée."""
+
+    async def primary() -> dict[str, Any]:
+        slot = await llm_slot(config_pool, workspace_id, tokens=estimate_tokens(prompt_text))
+        async with slot:
+            return await call_llm(
+                provider=row["llm_provider"],
+                model=row["llm_model"],
+                api_key=llm_api_key,
+                base_url=row["llm_base_url"],
+                system_prompt="",
+                messages=messages,
+            )
+
+    async def fallback(fb: ServiceSpec) -> dict[str, Any]:
+        fb_key = (
+            await _resolve_harpo(fb.api_key_ref, vault_svc, client_provider, config_pool)
+            if fb.api_key_ref and config_pool
+            else None
+        )
+        async with fallback_slot(fb, "llm", tokens=estimate_tokens(prompt_text)):
+            return await call_llm(
+                provider=fb.provider,
+                model=fb.model,
+                api_key=fb_key,
+                base_url=fb.base_url,
+                system_prompt="",
+                messages=messages,
+            )
+
+    return primary, fallback
 
 
 async def run_enrichments(
@@ -129,41 +180,23 @@ async def run_enrichments(
         # Throttling LLM (fe6b8dcb) + bascule de fallback (f94bfd84 lot 2b).
         messages = [{"role": "user", "content": prompt_text}]
 
-        async def _primary() -> dict[str, Any]:
-            slot = await llm_slot(config_pool, workspace_id, tokens=estimate_tokens(prompt_text))
-            async with slot:
-                return await call_llm(
-                    provider=row["llm_provider"],
-                    model=row["llm_model"],
-                    api_key=llm_api_key,
-                    base_url=row["llm_base_url"],
-                    system_prompt="",
-                    messages=messages,
-                )
-
-        async def _fallback(fb: ServiceSpec) -> dict[str, Any]:
-            fb_key = (
-                await _resolve_harpo(fb.api_key_ref, vault_svc, client_provider, config_pool)
-                if fb.api_key_ref and config_pool
-                else None
-            )
-            async with fallback_slot(fb, "llm", tokens=estimate_tokens(prompt_text)):
-                return await call_llm(
-                    provider=fb.provider,
-                    model=fb.model,
-                    api_key=fb_key,
-                    base_url=fb.base_url,
-                    system_prompt="",
-                    messages=messages,
-                )
-
+        primary, fallback = _llm_calls(
+            row=row,
+            llm_api_key=llm_api_key,
+            messages=messages,
+            prompt_text=prompt_text,
+            workspace_id=workspace_id,
+            config_pool=config_pool,
+            vault_svc=vault_svc,
+            client_provider=client_provider,
+        )
         failover = (
             await load_failover(config_pool, workspace_id=workspace_id, service="llm")
             if config_pool
             else None
         )
         llm_result = await call_with_failover(
-            spec=failover, service="llm", primary=_primary, fallback_call=_fallback
+            spec=failover, service="llm", primary=primary, fallback_call=fallback
         )
         answer = (llm_result["answer"] or "").strip()
 

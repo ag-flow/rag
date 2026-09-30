@@ -6,6 +6,7 @@ import asyncpg
 import pytest
 
 from rag.db.migrations import run_migrations
+from tests.integration._pg_errors import RESTRICT_VIOLATION
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
@@ -42,7 +43,5 @@ async def test_migration_024_table_and_constraints(
             )
 
         # ON DELETE RESTRICT : le coffre ne peut pas être supprimé
-        with pytest.raises(asyncpg.ForeignKeyViolationError):
-            await conn.execute(
-                "DELETE FROM harpocrate_vaults WHERE id = $1", vault_id
-            )
+        with pytest.raises(RESTRICT_VIOLATION):
+            await conn.execute("DELETE FROM harpocrate_vaults WHERE id = $1", vault_id)

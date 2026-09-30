@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, TypeVar
+from typing import Any
 
 import httpx
 import structlog
@@ -30,9 +30,44 @@ from rag.services.endpoint_throttle import get_throttle_registry
 
 log = structlog.get_logger(__name__)
 
-T = TypeVar("T")
-
 _SERVICE_COLUMNS = {"vectorization": "indexer", "rerank": "rerank", "llm": "llm"}
+
+
+def _failover_sql(service: str) -> str:
+    """Requête de bascule d'un service. Les seuls fragments interpolés sont des
+    noms de colonnes issus de la liste blanche fermée `_SERVICE_COLUMNS` —
+    jamais une entrée utilisateur : un identifiant SQL ne se paramètre pas."""
+    prefix = _SERVICE_COLUMNS[service]
+    service_join = (
+        "LEFT JOIN model_dimensions fbmd "
+        "ON fbmd.provider = fb.indexer_provider AND fbmd.model = fb.indexer_model"
+        if service == "vectorization"
+        else ""
+    )
+    fb_service_col = (
+        "fbmd.service AS fb_service," if service == "vectorization" else "NULL AS fb_service,"
+    )
+    return f"""
+        SELECT ve.id AS endpoint_id, ve.failure_threshold, ve.cooldown_seconds,
+               fb.{prefix}_provider AS fb_provider, fb.{prefix}_model AS fb_model,
+               fb.{prefix}_api_key_ref AS fb_api_key_ref,
+               fb.{prefix}_base_url AS fb_base_url,
+               fb.id AS fb_endpoint_id,
+               fb.{prefix}_rpm_limit AS fb_rpm_limit,
+               fb.{prefix}_tpm_limit AS fb_tpm_limit,
+               fb.{prefix}_max_concurrency AS fb_max_concurrency,
+               {fb_service_col}
+               ve.fallback_endpoint_id
+        FROM workspaces w
+        JOIN vault_endpoints ve ON ve.id = w.endpoint_id
+        LEFT JOIN vault_endpoints fb ON fb.id = ve.fallback_endpoint_id
+        {service_join}
+        WHERE w.id = $1
+    """  # noqa: S608 — identifiants de la liste blanche, valeurs bindées ($1)
+
+
+# Construites une fois au chargement : aucune requête n'est assemblée à l'appel.
+_FAILOVER_SQL = {service: _failover_sql(service) for service in _SERVICE_COLUMNS}
 
 
 @dataclass(frozen=True)
@@ -79,35 +114,9 @@ async def load_failover(
     """Spec de bascule du workspace pour un service — via l'endpoint LIÉ
     (`workspaces.endpoint_id`, le snapshot ne porte pas le fallback).
     Best-effort : erreur ou workspace sans endpoint ⇒ None (pas de bascule)."""
-    prefix = _SERVICE_COLUMNS[service]
-    service_join = (
-        "LEFT JOIN model_dimensions fbmd "
-        "ON fbmd.provider = fb.indexer_provider AND fbmd.model = fb.indexer_model"
-        if service == "vectorization"
-        else ""
-    )
-    fb_service_col = (
-        "fbmd.service AS fb_service," if service == "vectorization" else "NULL AS fb_service,"
-    )
     try:
         row = await config_pool.fetchrow(
-            f"""
-            SELECT ve.id AS endpoint_id, ve.failure_threshold, ve.cooldown_seconds,
-                   fb.{prefix}_provider AS fb_provider, fb.{prefix}_model AS fb_model,
-                   fb.{prefix}_api_key_ref AS fb_api_key_ref,
-                   fb.{prefix}_base_url AS fb_base_url,
-                   fb.id AS fb_endpoint_id,
-                   fb.{prefix}_rpm_limit AS fb_rpm_limit,
-                   fb.{prefix}_tpm_limit AS fb_tpm_limit,
-                   fb.{prefix}_max_concurrency AS fb_max_concurrency,
-                   {fb_service_col}
-                   ve.fallback_endpoint_id
-            FROM workspaces w
-            JOIN vault_endpoints ve ON ve.id = w.endpoint_id
-            LEFT JOIN vault_endpoints fb ON fb.id = ve.fallback_endpoint_id
-            {service_join}
-            WHERE w.id = $1
-            """,
+            _FAILOVER_SQL[service],
             workspace_id,
         )
         if row is None:
@@ -156,7 +165,7 @@ def fallback_slot(fb: ServiceSpec, service: str, *, tokens: int = 0) -> Any:
     )
 
 
-async def call_with_failover(
+async def call_with_failover[T](
     *,
     registry: EndpointBreakerRegistry | None = None,
     spec: FailoverSpec | None,
