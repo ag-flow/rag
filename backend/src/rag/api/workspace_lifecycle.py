@@ -54,8 +54,10 @@ def build_workspace_lifecycle_router() -> APIRouter:
         description="Crée un workspace possédé par le porteur de la clé (scope `read_write` "
         "ou `admin`). La configuration vectorisation / rerank / LLM de l'endpoint désigné "
         "par `vault` + `endpoint` est COPIÉE : une modification ultérieure de l'endpoint "
-        "n'affecte pas le workspace. Une base pgvector dédiée est provisionnée et l'event "
-        "`workspace_created` est émis vers workflow.",
+        "n'affecte pas le workspace. L'endpoint doit être utilisable par le porteur (ou "
+        "l'humain OBO) : coffre visible, ou endpoint partagé avec tous ou avec lui. Une "
+        "base pgvector dédiée est provisionnée et l'event `workspace_created` est émis "
+        "vers workflow.",
         responses={
             **_AUTH_RESPONSES,
             404: {

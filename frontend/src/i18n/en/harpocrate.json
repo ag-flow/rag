@@ -322,7 +322,20 @@
     "fallback_cooldown": "Primary retry (seconds)",
     "fallback_breaker_help": "After this many consecutive failures, calls switch to the fallback; after the delay, the primary is retried and takes over again as soon as it responds.",
     "limit_concurrency": "Max parallel requests (all workspaces)",
-    "health_degraded": "Fallback active or probing"
+    "health_degraded": "Fallback active or probing",
+    "sharing": {
+      "col": "Sharing",
+      "btn": "Share",
+      "title": "Share “{{name}}”",
+      "help": "Recipients can create workspaces with this endpoint — their calls use this vault's keys. They can neither edit it nor see its secret references.",
+      "all": "Share with everyone",
+      "users": "Share with",
+      "no_users": "No other user is known to the application yet.",
+      "saved_toast": "Sharing updated.",
+      "badge_all": "Everyone",
+      "badge_users_one": "{{count}} person",
+      "badge_users_other": "{{count}} people"
+    }
   },
   "expiry": {
     "banner_expired": "This vault's access key has expired — replace it (⋯ menu → Replace key) before secret resolution fails.",

@@ -15,6 +15,7 @@ from rag.api.admin.circuit_breaker import build_circuit_breaker_router
 from rag.api.admin_auth_config import build_admin_auth_config_router
 from rag.api.admin_chunking_preview import build_chunking_preview_router
 from rag.api.admin_chunking_strategies import build_chunking_strategies_router
+from rag.api.admin_endpoint_sharing import router as admin_endpoint_sharing_router
 from rag.api.admin_events_producer import build_events_producer_router
 from rag.api.admin_git_credentials import router as admin_git_credentials_router
 from rag.api.admin_git_credentials import router_global as admin_git_creds_global_router
@@ -324,6 +325,7 @@ def build_app(
     app.include_router(admin_search_test_router)
     app.include_router(admin_harpocrate_vaults_router)
     app.include_router(admin_vault_endpoints_router)
+    app.include_router(admin_endpoint_sharing_router)
     app.include_router(admin_provider_keys_router)
     app.include_router(admin_provider_keys_global_router)
     app.include_router(admin_git_credentials_router)

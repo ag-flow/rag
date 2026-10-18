@@ -11,9 +11,11 @@ from rag.api.mcp_endpoint_support import (
     SERVICES,
     build_service_update,
     service_summary,
+    shared_endpoint_groups,
 )
 from rag.api.mcp_library_support import dump
 from rag.schemas.vault_endpoints import EndpointOut, EndpointUpdate
+from rag.services import endpoint_sharing as sharing_svc
 from rag.services import vault_endpoints as endpoints_svc
 from rag.services.endpoint_breaker import get_breaker_registry
 from rag.services.endpoint_fallback import EndpointFallbackInvalidError
@@ -75,12 +77,14 @@ def register_endpoint_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
 
         Un endpoint est un préréglage nommé des services IA (vectorisation,
         rerank, LLM) servant de source à la création de workspaces. Visibilité :
-        tes coffres + le coffre par défaut de l'instance ; `writable` indique si
-        cette clé peut modifier l'endpoint (coffre possédé). Requiert une clé
-        de niveau 'admin'.
+        tes coffres + le coffre par défaut de l'instance + les endpoints que
+        d'autres utilisateurs t'ont partagés (groupes `shared: true`, utilisables
+        dans create_workspace avec leur vault et leur slug, jamais modifiables) ;
+        `writable` indique si cette clé peut modifier l'endpoint (coffre
+        possédé). Requiert une clé de niveau 'admin'.
 
-        Sortie : JSON [{vault, vault_label, writable, endpoints: [{slug, label,
-        services: {vectorization|rerank|llm: {provider, model} | null}}]}].
+        Sortie : JSON [{vault, vault_label, writable, shared?, endpoints: [{slug,
+        label, services: {vectorization|rerank|llm: {provider, model} | null}}]}].
         Lecture seule. Détail complet via get_endpoint_configuration(vault, slug).
         """
         ctx = ws_ctx.get()
@@ -103,7 +107,8 @@ def register_endpoint_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
                         ],
                     }
                 )
-        return dump(result)
+            usable = await sharing_svc.db_list_usable_endpoints(conn, owner_id=ctx.owner_id)
+        return dump(result + shared_endpoint_groups(usable))
 
     @mcp.tool()
     async def get_endpoint_configuration(vault: str, endpoint: str) -> str:

@@ -105,21 +105,31 @@ def build_admin_router() -> APIRouter:
         # Résout l'endpoint choisi (préréglage du coffre) et copie sa config —
         # snapshot : les modifications ultérieures de l'endpoint n'affectent
         # pas ce workspace.
+        from rag.auth.owner import get_current_owner_id
+        from rag.services.endpoint_sharing import db_get_usable_endpoint
         from rag.services.vault_endpoints import get_endpoint
         from rag.services.workspaces import resolved_from_endpoint
 
+        owner_id = get_current_owner_id(request)
         pool = _config_pool(request)
         async with pool.acquire() as conn:
-            endpoint = await get_endpoint(conn, endpoint_id=payload.endpoint_id)
+            # L'id seul ne suffit pas : l'endpoint doit être UTILISABLE par
+            # l'appelant (coffre visible ou partage). Sans ce contrôle, un id
+            # connu donnait l'endpoint — et les clés — du coffre d'autrui.
+            usable = await db_get_usable_endpoint(
+                conn, owner_id=owner_id, endpoint_id=payload.endpoint_id
+            )
+            endpoint = (
+                await get_endpoint(conn, endpoint_id=payload.endpoint_id) if usable else None
+            )
         if endpoint is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="endpoint_not_found")
-        from rag.auth.owner import get_current_owner_id
 
         resolved = resolved_from_endpoint(
             name=payload.name,
             label=payload.label,
             description=payload.description,
-            owner_id=get_current_owner_id(request),
+            owner_id=owner_id,
             endpoint=endpoint,
         )
         resp = await create_workspace(
@@ -388,9 +398,11 @@ def build_admin_router() -> APIRouter:
         Logique dans `services/endpoint_refresh.py` (partagée avec l'outil MCP
         reset_workspace_from_endpoint).
         """
+        from rag.auth.owner import get_current_owner_id
         from rag.services.endpoint_refresh import (
             DefaultVaultMissingError,
             EndpointGoneError,
+            EndpointNotUsableError,
             NoEndpointLinkedError,
             refresh_workspace_from_endpoint,
         )
@@ -402,6 +414,7 @@ def build_admin_router() -> APIRouter:
             return await refresh_workspace_from_endpoint(
                 workspace_id=ws_id,
                 workspace_name=name,
+                owner_id=get_current_owner_id(request),
                 confirm=confirm,
                 config_pool=pool,
                 admin_dsn=_admin_dsn(request),
@@ -416,6 +429,8 @@ def build_admin_router() -> APIRouter:
             ) from exc
         except EndpointGoneError as exc:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "endpoint_deleted") from exc
+        except EndpointNotUsableError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "endpoint_not_usable") from exc
         except DefaultVaultMissingError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

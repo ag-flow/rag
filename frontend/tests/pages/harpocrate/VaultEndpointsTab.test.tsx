@@ -36,6 +36,8 @@ const EP: VaultEndpoint = {
   fallback_endpoint_id: null,
   failure_threshold: 3,
   cooldown_seconds: 60,
+  shared_with_all: false,
+  shared_user_count: 0,
   created_at: "2026-07-01T00:00:00Z",
   updated_at: "2026-07-01T00:00:00Z",
 };

@@ -18,6 +18,7 @@ from rag.events import emit as events_emit
 from rag.events.registry import workspace_created
 from rag.schemas.admin import WorkspaceCreateResolved
 from rag.schemas.vault_endpoints import EndpointOut
+from rag.services import endpoint_sharing as sharing_svc
 from rag.services import vault_endpoints as endpoints_svc
 
 
@@ -60,12 +61,22 @@ _OWNED_WS_SQL = "SELECT id FROM workspaces WHERE name = $1 AND owner_id = $2"
 async def resolve_endpoint_by_slug(
     conn: asyncpg.Connection, *, owner_id: str, vault: str, endpoint: str
 ) -> EndpointOut:
-    """Endpoint visible (coffre par défaut ou possédé) désigné par coffre + slug."""
-    vault_row = await conn.fetchrow(_VISIBLE_VAULT_SQL, owner_id, vault)
-    if vault_row is None:
-        raise VaultNotVisible(vault)
-    endpoints = await endpoints_svc.list_endpoints(conn, vault_id=vault_row["id"])
-    found = next((e for e in endpoints if e.slug == endpoint), None)
+    """Endpoint UTILISABLE par `owner_id` désigné par coffre + slug.
+
+    Utilisable = coffre visible OU endpoint partagé (avec tous ou avec lui) —
+    règle unique de `rag.services.endpoint_sharing`. Un endpoint partagé d'un
+    coffre invisible reste désignable par le nom de ce coffre.
+    """
+    usable = await sharing_svc.db_find_usable_endpoint_by_slug(
+        conn, owner_id=owner_id, vault=vault, endpoint=endpoint
+    )
+    if usable is None:
+        # Distinction conservée pour l'appelant légitime : coffre visible mais
+        # slug inconnu. Un coffre invisible ne révèle pas ses endpoints.
+        if await conn.fetchrow(_VISIBLE_VAULT_SQL, owner_id, vault) is None:
+            raise VaultNotVisible(vault)
+        raise EndpointNotInVault(vault, endpoint)
+    found = await endpoints_svc.get_endpoint(conn, endpoint_id=usable.id)
     if found is None:
         raise EndpointNotInVault(vault, endpoint)
     return found

@@ -54,7 +54,8 @@
     "endpoint_with_rerank": "Rerank inclus : {{rerank}}",
     "endpoint_no_rerank": "Sans reranking",
     "cancel": "Annuler",
-    "submit": "Créer"
+    "submit": "Créer",
+    "endpoint_shared_group": "Partagés avec moi"
   },
   "actions": {
     "rotate_apikey": "Régénérer l'api_key",

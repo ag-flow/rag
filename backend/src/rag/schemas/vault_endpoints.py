@@ -118,5 +118,8 @@ class EndpointOut(BaseModel):
     fallback_endpoint_id: UUID | None = None
     failure_threshold: int = 3
     cooldown_seconds: int = 60
+    # Partage (migration 095) : visible du propriétaire dans l'onglet Endpoints.
+    shared_with_all: bool = False
+    shared_user_count: int = 0
     created_at: datetime
     updated_at: datetime

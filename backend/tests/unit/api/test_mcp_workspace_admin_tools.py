@@ -15,6 +15,7 @@ from rag.api.mcp_workspace_admin_tools import (
     register_workspace_admin_tools,
 )
 from rag.schemas.vault_endpoints import EndpointIndexerSpec, EndpointOut
+from rag.services import endpoint_sharing as sharing_svc
 from rag.services import vault_endpoints as endpoints_svc
 
 
@@ -67,6 +68,27 @@ def _make_ctx(conn: Any, *, scope: str = "admin") -> _KeyCtx:
     )
 
 
+def _usable_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    """La règle de visibilité (coffre visible ou partage) accepte l'endpoint."""
+    ep = _endpoint_out()
+    usable = sharing_svc.UsableEndpoint(
+        id=ep.id,
+        slug=ep.slug,
+        label=ep.label,
+        vault_id=ep.vault_id,
+        vault_name="coffre-a",
+        vault_label="Coffre A",
+        access="owned",
+        indexer=(ep.indexer.provider, ep.indexer.model),
+        rerank=None,
+        llm=None,
+    )
+    monkeypatch.setattr(
+        sharing_svc, "db_find_usable_endpoint_by_slug", AsyncMock(return_value=usable)
+    )
+    monkeypatch.setattr(endpoints_svc, "get_endpoint", AsyncMock(return_value=ep))
+
+
 def _endpoint_out() -> EndpointOut:
     return EndpointOut(
         id=uuid4(),
@@ -112,9 +134,7 @@ async def test_create_workspace_unknown_vault() -> None:
 async def test_create_workspace_invalid_name(monkeypatch: pytest.MonkeyPatch) -> None:
     conn = MagicMock()
     conn.fetchrow = AsyncMock(return_value={"id": uuid4(), "owner_id": _OWNER})
-    monkeypatch.setattr(
-        endpoints_svc, "list_endpoints", AsyncMock(return_value=[_endpoint_out()])
-    )
+    _usable_endpoint(monkeypatch)
     tools, _ = _register(conn)
 
     out = await tools["create_workspace"]("Nom Invalide!", "coffre-a", "azure-prod")
@@ -129,9 +149,7 @@ async def test_create_workspace_success(monkeypatch: pytest.MonkeyPatch) -> None
 
     conn = MagicMock()
     conn.fetchrow = AsyncMock(return_value={"id": uuid4(), "owner_id": _OWNER})
-    monkeypatch.setattr(
-        endpoints_svc, "list_endpoints", AsyncMock(return_value=[_endpoint_out()])
-    )
+    _usable_endpoint(monkeypatch)
     create_mock = AsyncMock(return_value={"name": "mon-ws", "label": "Mon WS"})
     monkeypatch.setattr(ws_svc, "create_workspace", create_mock)
     emit_mock = AsyncMock()

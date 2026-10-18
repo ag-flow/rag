@@ -1,8 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { harpocrateVaultsApi } from "@/lib/harpocrate-vaults";
-import { vaultEndpointsApi } from "@/lib/vault-endpoints";
-import type { EndpointCreate, EndpointUpdate, VaultEndpoint } from "@/lib/vault-endpoints.types";
-import type { VaultSummary } from "@/lib/harpocrate-vaults.types";
+import { endpointSharingApi, vaultEndpointsApi } from "@/lib/vault-endpoints";
+import type {
+  EndpointCreate,
+  EndpointSharingUpdate,
+  EndpointUpdate,
+  UsableEndpoint,
+} from "@/lib/vault-endpoints.types";
 
 const KEY = (vaultId: string) => ["vault-endpoints", vaultId] as const;
 
@@ -38,25 +41,71 @@ export function useDeleteEndpoint(vaultId: string) {
   });
 }
 
-export type VaultWithEndpoints = {
-  vault: VaultSummary;
-  endpoints: VaultEndpoint[];
+export type UsableEndpointGroup = {
+  key: string;
+  /** Libellé du coffre ; null pour le groupe « partagés avec moi » (libellé i18n). */
+  vaultLabel: string | null;
+  endpoints: UsableEndpoint[];
 };
 
-/** Tous les endpoints, groupés par coffre — pour le sélecteur de création de workspace. */
-export function useAllVaultEndpoints() {
-  return useQuery<VaultWithEndpoints[]>({
-    queryKey: ["vault-endpoints", "all"],
-    queryFn: async () => {
-      const vaults = await harpocrateVaultsApi.list();
-      const grouped = await Promise.all(
-        vaults.map(async (vault) => ({
-          vault,
-          endpoints: await vaultEndpointsApi.list(vault.id),
-        })),
-      );
-      return grouped.filter((g) => g.endpoints.length > 0);
+/** Groupes du sélecteur de création : un par coffre visible, puis un unique
+ * groupe des endpoints partagés par d'autres (leurs coffres ne sont pas à moi). */
+export function groupUsableEndpoints(endpoints: UsableEndpoint[]): UsableEndpointGroup[] {
+  const groups = new Map<string, UsableEndpointGroup>();
+  const shared: UsableEndpoint[] = [];
+  for (const ep of endpoints) {
+    if (ep.access === "shared") {
+      shared.push(ep);
+      continue;
+    }
+    const group = groups.get(ep.vault_id) ?? {
+      key: ep.vault_id,
+      vaultLabel: ep.vault_label,
+      endpoints: [],
+    };
+    group.endpoints.push(ep);
+    groups.set(ep.vault_id, group);
+  }
+  const result = [...groups.values()];
+  if (shared.length > 0) result.push({ key: "shared", vaultLabel: null, endpoints: shared });
+  return result;
+}
+
+/** Endpoints utilisables pour créer un workspace, groupés pour le sélecteur. */
+export function useUsableEndpoints() {
+  return useQuery<UsableEndpointGroup[]>({
+    queryKey: ["vault-endpoints", "usable"],
+    queryFn: async () => groupUsableEndpoints(await endpointSharingApi.usable()),
+  });
+}
+
+const SHARING_KEY = (endpointId: string) => ["endpoint-sharing", endpointId] as const;
+
+export function useEndpointSharing(vaultId: string, endpointId: string | null) {
+  return useQuery({
+    queryKey: SHARING_KEY(endpointId ?? ""),
+    queryFn: () => vaultEndpointsApi.getSharing(vaultId, endpointId ?? ""),
+    enabled: endpointId !== null,
+  });
+}
+
+export function useSetEndpointSharing(vaultId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ endpointId, payload }: { endpointId: string; payload: EndpointSharingUpdate }) =>
+      vaultEndpointsApi.setSharing(vaultId, endpointId, payload),
+    onSuccess: (_data, { endpointId }) => {
+      void qc.invalidateQueries({ queryKey: SHARING_KEY(endpointId) });
+      void qc.invalidateQueries({ queryKey: KEY(vaultId) });
     },
+  });
+}
+
+export function useShareCandidates(enabled: boolean) {
+  return useQuery({
+    queryKey: ["endpoint-share-candidates"],
+    queryFn: () => endpointSharingApi.candidates(),
+    enabled,
   });
 }
 

@@ -7,6 +7,7 @@ import asyncpg
 import structlog
 
 from rag.schemas.admin import IndexerSpec, RerankSpec
+from rag.services.endpoint_sharing import db_get_usable_endpoint
 from rag.services.jobs import reindex_workspace
 from rag.services.rerank_configs import delete_rerank_config, upsert_rerank_config
 from rag.services.vault_endpoints import get_endpoint
@@ -26,6 +27,11 @@ class EndpointGoneError(Exception):
     """L'endpoint d'origine du workspace a été supprimé."""
 
 
+class EndpointNotUsableError(Exception):
+    """L'endpoint d'origine existe mais n'est plus utilisable par l'appelant
+    (partage retiré) : le workspace garde son snapshot, le refresh est refusé."""
+
+
 class DefaultVaultMissingError(Exception):
     """Aucun coffre par défaut configuré alors qu'un secret doit être résolu."""
 
@@ -34,6 +40,7 @@ async def refresh_workspace_from_endpoint(
     *,
     workspace_id: UUID,
     workspace_name: str,
+    owner_id: str,
     confirm: bool,
     config_pool: asyncpg.Pool,
     admin_dsn: str,
@@ -63,8 +70,16 @@ async def refresh_workspace_from_endpoint(
         raise NoEndpointLinkedError(workspace_name)
     async with config_pool.acquire() as conn:
         endpoint = await get_endpoint(conn, endpoint_id=row["endpoint_id"])
+        # Décision de cadrage : un partage retiré n'efface pas les workspaces
+        # créés (snapshot), mais leur interdit de recopier la config — sinon
+        # le retrait laisserait le tiers suivre les évolutions de l'endpoint.
+        usable = endpoint is not None and await db_get_usable_endpoint(
+            conn, owner_id=owner_id, endpoint_id=endpoint.id
+        )
     if endpoint is None:
         raise EndpointGoneError(workspace_name)
+    if not usable:
+        raise EndpointNotUsableError(workspace_name)
 
     def _default_vault() -> str:
         if default_vault_name is None:

@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useCreateWorkspace } from "@/hooks/useWorkspaces";
-import { useAllVaultEndpoints } from "@/hooks/useVaultEndpoints";
+import { useUsableEndpoints } from "@/hooks/useVaultEndpoints";
 import { useToast } from "@/hooks/useToast";
 import { slugifyLabel } from "@/lib/slugify";
 
@@ -45,7 +45,7 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
   const { t } = useTranslation("workspaces");
   const { toast } = useToast();
   const createMutation = useCreateWorkspace();
-  const { data: grouped = [], isLoading } = useAllVaultEndpoints();
+  const { data: grouped = [], isLoading } = useUsableEndpoints();
 
   const [label, setLabel] = useState("");
   const [description, setDescription] = useState("");
@@ -153,11 +153,13 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onCreated }: Props) 
                 </SelectTrigger>
                 <SelectContent>
                   {grouped.map((g) => (
-                    <SelectGroup key={g.vault.id}>
-                      <SelectLabel>{g.vault.label}</SelectLabel>
+                    <SelectGroup key={g.key}>
+                      <SelectLabel>{g.vaultLabel ?? t("form.endpoint_shared_group")}</SelectLabel>
                       {g.endpoints.map((ep) => (
                         <SelectItem key={ep.id} value={ep.id}>
                           {ep.label} — {ep.indexer.provider}/{ep.indexer.model}
+                          {/* Partagé : le coffre d'origine n'est pas à moi, on le nomme. */}
+                          {ep.access === "shared" && ` · ${ep.vault_label}`}
                         </SelectItem>
                       ))}
                     </SelectGroup>

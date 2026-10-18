@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 import i18n from "@/lib/i18n";
 import { CreateWorkspaceDialog } from "@/pages/workspace/CreateWorkspaceDialog";
-import type { VaultWithEndpoints } from "@/hooks/useVaultEndpoints";
+import type { UsableEndpointGroup } from "@/hooks/useVaultEndpoints";
 
 const createMutateAsync = vi.fn();
 
@@ -14,57 +14,41 @@ vi.mock("@/hooks/useWorkspaces", () => ({
 }));
 
 vi.mock("@/hooks/useVaultEndpoints", () => ({
-  useAllVaultEndpoints: vi.fn(),
+  useUsableEndpoints: vi.fn(),
 }));
 
 vi.mock("@/hooks/useToast", () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
-import { useAllVaultEndpoints } from "@/hooks/useVaultEndpoints";
+import { useUsableEndpoints } from "@/hooks/useVaultEndpoints";
 
-const GROUPED: VaultWithEndpoints[] = [
+const GROUPED: UsableEndpointGroup[] = [
   {
-    vault: {
-      id: "v-1",
-      name: "rag",
-      label: "Coffre RAG",
-      base_url: "https://vault.example",
-      api_key_id: "k-001",
-      probe_path: null,
-      is_default: true,
-      created_at: "2026-01-01T00:00:00Z",
-      updated_at: "2026-01-01T00:00:00Z",
-    },
+    key: "v-1",
+    vaultLabel: "Coffre RAG",
     endpoints: [
       {
         id: "ep-1",
-        vault_id: "v-1",
-        label: "Docs OpenAI",
         slug: "docs-openai",
-        indexer: {
-          provider: "openai",
-          model: "text-embedding-3-small",
-          api_key_ref: "ref",
-          base_url: null,
-        },
+        label: "Docs OpenAI",
+        vault_id: "v-1",
+        vault_name: "rag",
+        vault_label: "Coffre RAG",
+        access: "default",
+        indexer: { provider: "openai", model: "text-embedding-3-small" },
         rerank: null,
         llm: null,
-        fallback_endpoint_id: null,
-        failure_threshold: 3,
-        cooldown_seconds: 60,
-        created_at: "2026-01-01T00:00:00Z",
-        updated_at: "2026-01-01T00:00:00Z",
       },
     ],
   },
 ];
 
-function mockEndpoints(data: VaultWithEndpoints[]): void {
-  vi.mocked(useAllVaultEndpoints).mockReturnValue({
+function mockEndpoints(data: UsableEndpointGroup[]): void {
+  vi.mocked(useUsableEndpoints).mockReturnValue({
     data,
     isLoading: false,
-  } as unknown as ReturnType<typeof useAllVaultEndpoints>);
+  } as unknown as ReturnType<typeof useUsableEndpoints>);
 }
 
 function Wrapper({ children }: { children: ReactNode }) {
@@ -94,6 +78,37 @@ describe("CreateWorkspaceDialog (endpoint-based)", () => {
     expect(screen.getByPlaceholderText("Mon projet")).toBeInTheDocument();
     // endpoint unique → pré-sélectionné et visible dans le trigger
     expect(screen.getByText(/Docs OpenAI — openai\/text-embedding-3-small/)).toBeInTheDocument();
+  });
+
+  it("nomme le coffre d'origine d'un endpoint partagé avec moi", () => {
+    mockEndpoints([
+      {
+        key: "shared",
+        vaultLabel: null,
+        endpoints: [
+          {
+            id: "ep-alice",
+            slug: "alice-ep",
+            label: "Alice",
+            vault_id: "v-alice",
+            vault_name: "alice-vault",
+            vault_label: "Coffre d'Alice",
+            access: "shared",
+            indexer: { provider: "openai", model: "text-embedding-3-small" },
+            rerank: null,
+            llm: null,
+          },
+        ],
+      },
+    ]);
+    render(
+      <Wrapper>
+        <CreateWorkspaceDialog open onOpenChange={() => {}} />
+      </Wrapper>,
+    );
+    expect(
+      screen.getByText(/Alice — openai\/text-embedding-3-small · Coffre d'Alice/),
+    ).toBeInTheDocument();
   });
 
   it("dérive le slug depuis le label saisi", () => {

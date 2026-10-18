@@ -23,6 +23,8 @@ class EndpointSlugTakenError(ValueError):
     """Un endpoint avec ce slug existe déjà dans ce coffre."""
 
 
+# `shared_with_all` / `shared_user_count` (migration 095) : lus avec l'endpoint
+# pour que l'onglet Endpoints affiche l'état de partage de chaque ligne.
 _SELECT_BY_VAULT = """
     SELECT id, vault_id, label, slug,
            indexer_provider, indexer_model, indexer_api_key_ref, indexer_base_url,
@@ -34,6 +36,9 @@ _SELECT_BY_VAULT = """
            llm_rpm_limit, llm_tpm_limit,
            fallback_endpoint_id, failure_threshold, cooldown_seconds,
            indexer_max_concurrency, rerank_max_concurrency, llm_max_concurrency,
+           shared_with_all,
+           (SELECT count(*) FROM vault_endpoint_shares s
+            WHERE s.endpoint_id = vault_endpoints.id) AS shared_user_count,
            created_at, updated_at
     FROM vault_endpoints WHERE vault_id = $1 ORDER BY label
 """
@@ -49,6 +54,9 @@ _SELECT_BY_ID = """
            llm_rpm_limit, llm_tpm_limit,
            fallback_endpoint_id, failure_threshold, cooldown_seconds,
            indexer_max_concurrency, rerank_max_concurrency, llm_max_concurrency,
+           shared_with_all,
+           (SELECT count(*) FROM vault_endpoint_shares s
+            WHERE s.endpoint_id = vault_endpoints.id) AS shared_user_count,
            created_at, updated_at
     FROM vault_endpoints WHERE id = $1
 """
@@ -76,6 +84,9 @@ _INSERT = """
               llm_rpm_limit, llm_tpm_limit,
               fallback_endpoint_id, failure_threshold, cooldown_seconds,
               indexer_max_concurrency, rerank_max_concurrency, llm_max_concurrency,
+              shared_with_all,
+              (SELECT count(*) FROM vault_endpoint_shares s
+               WHERE s.endpoint_id = vault_endpoints.id) AS shared_user_count,
               created_at, updated_at
 """
 
@@ -106,6 +117,9 @@ _UPDATE = """
               llm_rpm_limit, llm_tpm_limit,
               fallback_endpoint_id, failure_threshold, cooldown_seconds,
               indexer_max_concurrency, rerank_max_concurrency, llm_max_concurrency,
+              shared_with_all,
+              (SELECT count(*) FROM vault_endpoint_shares s
+               WHERE s.endpoint_id = vault_endpoints.id) AS shared_user_count,
               created_at, updated_at
 """
 
@@ -153,6 +167,8 @@ def _to_out(row: asyncpg.Record) -> EndpointOut:
         fallback_endpoint_id=row["fallback_endpoint_id"],
         failure_threshold=row["failure_threshold"],
         cooldown_seconds=row["cooldown_seconds"],
+        shared_with_all=row["shared_with_all"],
+        shared_user_count=row["shared_user_count"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )

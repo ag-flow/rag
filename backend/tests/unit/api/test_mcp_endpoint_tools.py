@@ -15,6 +15,7 @@ from rag.schemas.vault_endpoints import (
     EndpointOut,
     EndpointRerankSpec,
 )
+from rag.services import endpoint_sharing as sharing_svc
 from rag.services import vault_endpoints as endpoints_svc
 
 
@@ -112,6 +113,7 @@ async def test_list_endpoints_groups_by_vault_with_writable_flag(
     conn = MagicMock()
     conn.fetch = AsyncMock(return_value=[own, shared])
     monkeypatch.setattr(endpoints_svc, "list_endpoints", AsyncMock(return_value=[_endpoint_out()]))
+    monkeypatch.setattr(sharing_svc, "db_list_usable_endpoints", AsyncMock(return_value=[]))
     tools = _register(conn)
 
     payload = json.loads(await tools["list_endpoints"]())
@@ -123,6 +125,66 @@ async def test_list_endpoints_groups_by_vault_with_writable_flag(
         "provider": "cohere",
         "model": "rerank-v4.0",
     }
+
+
+@pytest.mark.asyncio
+async def test_list_endpoints_appends_shared_endpoints_read_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Un endpoint partagé d'un coffre invisible apparaît, jamais modifiable et
+    sans refs de secrets ; les endpoints de coffres visibles ne sont pas doublés."""
+    conn = MagicMock()
+    conn.fetch = AsyncMock(return_value=[])
+    usable = [
+        sharing_svc.UsableEndpoint(
+            id=uuid4(),
+            slug="alice-ep",
+            label="Alice",
+            vault_id=uuid4(),
+            vault_name="alice-vault",
+            vault_label="Coffre d'Alice",
+            access="shared",
+            indexer=("openai", "text-embedding-3-small"),
+            rerank=None,
+            llm=("anthropic", "claude-sonnet-5"),
+        ),
+        sharing_svc.UsableEndpoint(
+            id=uuid4(),
+            slug="mine",
+            label="Mine",
+            vault_id=uuid4(),
+            vault_name="coffre-a",
+            vault_label="Coffre A",
+            access="owned",
+            indexer=("openai", "text-embedding-3-small"),
+            rerank=None,
+            llm=None,
+        ),
+    ]
+    monkeypatch.setattr(sharing_svc, "db_list_usable_endpoints", AsyncMock(return_value=usable))
+    tools = _register(conn)
+
+    payload = json.loads(await tools["list_endpoints"]())
+
+    assert payload == [
+        {
+            "vault": "alice-vault",
+            "vault_label": "Coffre d'Alice",
+            "writable": False,
+            "shared": True,
+            "endpoints": [
+                {
+                    "slug": "alice-ep",
+                    "label": "Alice",
+                    "services": {
+                        "vectorization": {"provider": "openai", "model": "text-embedding-3-small"},
+                        "rerank": None,
+                        "llm": {"provider": "anthropic", "model": "claude-sonnet-5"},
+                    },
+                }
+            ],
+        }
+    ]
 
 
 @pytest.mark.asyncio

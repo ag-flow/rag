@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Share2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -29,6 +29,7 @@ import {
 } from "@/hooks/useVaultEndpoints";
 import { useToast } from "@/hooks/useToast";
 import { EndpointFormDialog } from "./EndpointFormDialog";
+import { EndpointShareDialog } from "./EndpointShareDialog";
 import type { VaultEndpoint } from "@/lib/vault-endpoints.types";
 
 interface Props {
@@ -45,6 +46,7 @@ export function VaultEndpointsTab({ vaultId }: Props) {
   const [formOpen, setFormOpen] = useState(false);
   const [toEdit, setToEdit] = useState<VaultEndpoint | null>(null);
   const [toDelete, setToDelete] = useState<VaultEndpoint | null>(null);
+  const [toShare, setToShare] = useState<VaultEndpoint | null>(null);
 
   async function handleDelete() {
     if (!toDelete) return;
@@ -91,6 +93,7 @@ export function VaultEndpointsTab({ vaultId }: Props) {
                 <TableHead>{t("endpoints.col_label")}</TableHead>
                 <TableHead>{t("endpoints.col_vectorization")}</TableHead>
                 <TableHead>{t("endpoints.col_rerank")}</TableHead>
+                <TableHead>{t("endpoints.sharing.col")}</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
@@ -118,7 +121,19 @@ export function VaultEndpointsTab({ vaultId }: Props) {
                       <span className="text-xs text-slate-400">—</span>
                     )}
                   </TableCell>
+                  <TableCell>
+                    <SharingBadge endpoint={ep} />
+                  </TableCell>
                   <TableCell className="text-right">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setToShare(ep)}
+                      aria-label={t("endpoints.sharing.btn")}
+                    >
+                      <Share2 className="h-4 w-4" />
+                    </Button>
                     <Button
                       type="button"
                       variant="ghost"
@@ -155,6 +170,12 @@ export function VaultEndpointsTab({ vaultId }: Props) {
         onOpenChange={setFormOpen}
       />
 
+      <EndpointShareDialog
+        vaultId={vaultId}
+        endpoint={toShare}
+        onOpenChange={(o) => !o && setToShare(null)}
+      />
+
       <AlertDialog open={toDelete !== null} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -189,4 +210,19 @@ function HealthDot({ states }: { states: Record<string, string> | undefined }) {
       aria-label={t("endpoints.health_degraded")}
     />
   );
+}
+
+function SharingBadge({ endpoint }: { endpoint: VaultEndpoint }) {
+  const { t } = useTranslation("harpocrate");
+  if (endpoint.shared_with_all) {
+    return <Badge variant="outline">{t("endpoints.sharing.badge_all")}</Badge>;
+  }
+  if (endpoint.shared_user_count > 0) {
+    return (
+      <Badge variant="outline">
+        {t("endpoints.sharing.badge_users", { count: endpoint.shared_user_count })}
+      </Badge>
+    );
+  }
+  return <span className="text-xs text-slate-400">—</span>;
 }

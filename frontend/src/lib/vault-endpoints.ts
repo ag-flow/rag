@@ -1,5 +1,13 @@
 import { api } from "@/lib/api";
-import type { EndpointCreate, EndpointUpdate, VaultEndpoint } from "@/lib/vault-endpoints.types";
+import type {
+  EndpointCreate,
+  EndpointSharing,
+  EndpointSharingUpdate,
+  EndpointUpdate,
+  ShareUser,
+  UsableEndpoint,
+  VaultEndpoint,
+} from "@/lib/vault-endpoints.types";
 
 /** Test réel de la config saisie (avant Save) — sections optionnelles :
  *  l'IHM teste onglet par onglet (vectorisation / rerank / llm). */
@@ -39,4 +47,14 @@ export const vaultEndpointsApi = {
     api.delete<void>(`${BASE}/${vaultId}/endpoints/${endpointId}`),
   test: (vaultId: string, payload: EndpointTestRequest) =>
     api.post<EndpointTestResult>(`${BASE}/${vaultId}/endpoints/test`, payload),
+  getSharing: (vaultId: string, endpointId: string) =>
+    api.get<EndpointSharing>(`${BASE}/${vaultId}/endpoints/${endpointId}/sharing`),
+  setSharing: (vaultId: string, endpointId: string, payload: EndpointSharingUpdate) =>
+    api.put<EndpointSharing>(`${BASE}/${vaultId}/endpoints/${endpointId}/sharing`, payload),
+};
+
+export const endpointSharingApi = {
+  /** Endpoints utilisables par l'appelant : possédés, coffre par défaut, partagés. */
+  usable: () => api.get<UsableEndpoint[]>("/api/admin/endpoints/usable"),
+  candidates: () => api.get<ShareUser[]>("/api/admin/endpoint-share-candidates"),
 };

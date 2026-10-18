@@ -322,7 +322,20 @@
     "fallback_cooldown": "Re-test du primaire (secondes)",
     "fallback_breaker_help": "Après ce nombre d'échecs consécutifs, les appels basculent sur le fallback ; passé le délai, le primaire est re-testé et reprend la main dès qu'il répond.",
     "limit_concurrency": "Requêtes parallèles max (tous workspaces)",
-    "health_degraded": "Fallback actif ou en re-test"
+    "health_degraded": "Fallback actif ou en re-test",
+    "sharing": {
+      "col": "Partage",
+      "btn": "Partager",
+      "title": "Partager « {{name}} »",
+      "help": "Les bénéficiaires peuvent créer des workspaces avec cet endpoint — leurs appels utilisent les clés de ce coffre. Ils ne peuvent ni le modifier ni voir ses références de secrets.",
+      "all": "Partager avec tout le monde",
+      "users": "Partager avec",
+      "no_users": "Aucun autre utilisateur n'est encore connu de l'application.",
+      "saved_toast": "Partage mis à jour.",
+      "badge_all": "Tout le monde",
+      "badge_users_one": "{{count}} personne",
+      "badge_users_other": "{{count}} personnes"
+    }
   },
   "expiry": {
     "banner_expired": "La clé d'accès de ce coffre est expirée — remplacez-la (menu ⋯ → Remplacer la clé) avant que la résolution de secrets n'échoue.",

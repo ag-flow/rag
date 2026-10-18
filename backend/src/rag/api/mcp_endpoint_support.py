@@ -9,6 +9,7 @@ from rag.schemas.vault_endpoints import (
     EndpointRerankSpec,
     EndpointUpdate,
 )
+from rag.services.endpoint_sharing import UsableEndpoint
 
 SERVICES = ("vectorization", "rerank", "llm")
 
@@ -26,6 +27,45 @@ def service_summary(ep: EndpointOut) -> dict[str, Any]:
         "rerank": _spec(ep.rerank),
         "llm": _spec(ep.llm),
     }
+
+
+def shared_endpoint_groups(usable: list[UsableEndpoint]) -> list[dict[str, Any]]:
+    """Groupes du listing pour les endpoints PARTAGÉS avec l'appelant (095).
+
+    Leurs coffres ne sont pas visibles de lui : on n'expose que le nom et le
+    label du coffre (pour désigner l'endpoint) et le résumé des services — ni
+    refs de secrets ni configuration, et jamais `writable`.
+    """
+    groups: dict[str, dict[str, Any]] = {}
+    for ep in usable:
+        if ep.access != "shared":
+            continue
+        group = groups.setdefault(
+            ep.vault_name,
+            {
+                "vault": ep.vault_name,
+                "vault_label": ep.vault_label,
+                "writable": False,
+                "shared": True,
+                "endpoints": [],
+            },
+        )
+        group["endpoints"].append(
+            {
+                "slug": ep.slug,
+                "label": ep.label,
+                "services": {
+                    "vectorization": _pair(ep.indexer),
+                    "rerank": _pair(ep.rerank),
+                    "llm": _pair(ep.llm),
+                },
+            }
+        )
+    return list(groups.values())
+
+
+def _pair(spec: tuple[str, str] | None) -> dict[str, str] | None:
+    return None if spec is None else {"provider": spec[0], "model": spec[1]}
 
 
 def _merge_spec(
