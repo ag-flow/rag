@@ -284,6 +284,24 @@ class InvalidPath(AdminError):
         return {"error": "invalid_path", "reason": self.reason}
 
 
+class UnresolvedTemplateVariable(AdminError):
+    """Variable de gabarit d'appel arrivée littérale (`{event.blockSlug}`…)."""
+
+    http_status = 422
+
+    def __init__(self, field: str, variables: list[str]) -> None:
+        super().__init__(f"{field}: {', '.join(variables)}")
+        self.field = field
+        self.variables = variables
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "error": "unresolved_template_variable",
+            "field": self.field,
+            "variables": self.variables,
+        }
+
+
 class ContentTooLarge(AdminError):
     http_status = 413
 

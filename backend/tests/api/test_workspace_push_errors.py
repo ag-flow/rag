@@ -107,3 +107,47 @@ def test_push_returns_422_for_other_validation_errors_unchanged(
     body = r.json()
     # Format Pydantic standard : {"detail": [...]}
     assert "detail" in body
+
+
+def test_push_returns_422_for_unresolved_template_variable_and_enqueues_nothing(
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
+    cleanup_ws_dbs_api: None,
+) -> None:
+    """Un path `{event.blockSlug}` resté littéral est refusé, pas indexé (14a62570)."""
+    api_key = _make_ws(admin_client, admin_headers, "ws_e_tpl")
+    headers = {"Authorization": f"Bearer {api_key}"}
+    r = admin_client.post(
+        "/api/v1/index",
+        headers=headers,
+        json={
+            "workspace": "ws_e_tpl",
+            "path": "docflow/{event.blockSlug}/0111",
+            "title": "[{event.functionalTypeSlug}] - Titre",
+            "content": "corps",
+        },
+    )
+    assert r.status_code == 422
+    assert r.json() == {
+        "error": "unresolved_template_variable",
+        "field": "path",
+        "variables": ["{event.blockSlug}"],
+    }
+    jobs = admin_client.get("/api/v1/jobs", headers=headers, params={"workspace": "ws_e_tpl"})
+    assert jobs.status_code == 200, jobs.text
+    assert jobs.json() == []
+
+
+def test_delete_accepts_polluted_path_so_it_can_be_purged(
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
+    cleanup_ws_dbs_api: None,
+) -> None:
+    api_key = _make_ws(admin_client, admin_headers, "ws_e_tpl_del")
+    r = admin_client.request(
+        "DELETE",
+        "/api/v1/index",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={"workspace": "ws_e_tpl_del", "path": "docflow/{event.blockSlug}/0111"},
+    )
+    assert r.status_code == 202, r.text

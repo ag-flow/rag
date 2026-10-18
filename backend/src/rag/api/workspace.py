@@ -20,7 +20,7 @@ from rag.schemas.workspace import (
     PushRequest,
 )
 from rag.services.chunking_routing import UnknownStrategySlugError, resolve_caller_strategy
-from rag.services.push import normalize_path
+from rag.services.push import normalize_path, reject_unresolved_placeholders
 
 
 async def _resolve_strategy_id(
@@ -105,7 +105,9 @@ def build_workspace_router() -> APIRouter:
         "pour indexation (chunking + embeddings). Idempotent : contenu et indexeur "
         "inchangés → job 'skipped'. Passer `force=true` pour ré-évaluer un "
         "document déjà poussé même à contenu identique (nouvelle stratégie de "
-        "chunking ou modèle d'embedding).",
+        "chunking ou modèle d'embedding). Un `path` ou un `title` portant une "
+        "variable de gabarit non substituée (`{event.blockSlug}`…) est refusé en "
+        "422 `unresolved_template_variable`, avec le champ et les variables en cause.",
     )
     async def push_index(
         payload: PushRequest,
@@ -116,6 +118,9 @@ def build_workspace_router() -> APIRouter:
             request, owner_id=owner.owner_id, scope=owner.scope, workspace=payload.workspace
         )
         norm_path = normalize_path(payload.path)
+        reject_unresolved_placeholders(
+            workspace=payload.workspace, path=norm_path, title=payload.title
+        )
         correlation_id = str(_uuid_mod.uuid4())
         pool: asyncpg.Pool = request.app.state.pools.config_pool
 
