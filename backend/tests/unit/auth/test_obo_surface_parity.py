@@ -8,11 +8,13 @@ chemins attribuent le MÊME `owner_id`.
 
 from __future__ import annotations
 
+import json
 import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from fastapi import HTTPException
 
 from rag.api.mcp_standard import RagMcpDispatcher, _ws_ctx
 from rag.auth.obo import sign_actor
@@ -38,9 +40,11 @@ def _raw_headers(*, with_obo: bool) -> list[tuple[bytes, bytes]]:
     ]
 
 
-def _pool(identity_email: str | None) -> MagicMock:
+def _pool(identity_email: str | None, *, require_obo: bool = False) -> MagicMock:
     pool = MagicMock()
-    pool.fetchrow = AsyncMock(return_value={"owner_id": _KEY_OWNER, "scope": "admin"})
+    pool.fetchrow = AsyncMock(
+        return_value={"owner_id": _KEY_OWNER, "scope": "admin", "require_obo": require_obo}
+    )
     pool.fetchval = AsyncMock(return_value=identity_email)
     return pool
 
@@ -117,3 +121,36 @@ async def test_both_surfaces_ignore_an_unknown_identity_identically() -> None:
 
     assert rest_owner == mcp_ctx.owner_id == _KEY_OWNER
     assert mcp_ctx.owner_source == "apikey"
+
+
+@pytest.mark.parametrize("with_obo", [False, True], ids=["absent", "unknown_identity"])
+@pytest.mark.asyncio
+async def test_both_surfaces_refuse_a_require_obo_key_identically(with_obo: bool) -> None:
+    """Clé « OBO obligatoire » sans humain résolu : 401 `obo_required` des deux côtés,
+    et aucun outil MCP n'est atteint."""
+    raw = _raw_headers(with_obo=with_obo)
+
+    with pytest.raises(HTTPException) as rest_exc:
+        await _rest_owner(raw, _pool(None, require_obo=True))
+
+    inner = AsyncMock()
+    dispatcher = RagMcpDispatcher(inner)
+    dispatcher.set_app_state(
+        SimpleNamespace(
+            pools=SimpleNamespace(config_pool=_pool(None, require_obo=True)),
+            resolver=None,
+            client_provider=None,
+        )
+    )
+    sent: list[dict] = []
+
+    async def _send(message: dict) -> None:
+        sent.append(message)
+
+    await dispatcher({"type": "http", "path": "/", "headers": raw}, AsyncMock(), _send)
+
+    assert rest_exc.value.status_code == 401
+    assert rest_exc.value.detail == "obo_required"
+    assert sent[0]["status"] == 401
+    assert json.loads(sent[1]["body"]) == {"error": "obo_required"}
+    inner.assert_not_awaited()

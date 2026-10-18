@@ -7,7 +7,7 @@ from uuid import UUID
 import asyncpg
 from fastapi import HTTPException, Request, status
 
-from rag.auth.obo_resolver import resolve_effective_owner_id
+from rag.auth.obo_resolver import OboRequiredError, resolve_effective_owner_id
 
 
 @dataclass
@@ -56,6 +56,28 @@ def _extract_bearer(request: Request) -> str:
     return parts[1].strip()
 
 
+async def _resolve_owner_or_401(
+    request: Request, api_key: str, *, key_owner_id: str, require_obo: bool
+) -> str:
+    """Owner effectif (OBO) ; 401 `obo_required` si la clé l'exige et qu'il manque.
+
+    Raison détaillée de l'échec : journalisée par le resolver, jamais renvoyée
+    à l'appelant.
+    """
+    pool: asyncpg.Pool = request.app.state.pools.config_pool
+    try:
+        return await resolve_effective_owner_id(
+            pool,
+            list(request.headers.raw),
+            api_key,
+            key_owner_id=key_owner_id,
+            surface="rest",
+            require_obo=require_obo,
+        )
+    except OboRequiredError as exc:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "obo_required") from exc
+
+
 # Lookup clé utilisateur active de niveau ÉCRITURE (scope read_write | admin).
 # Le workspace doit être PARTAGÉ (owner NULL) ou possédé par le propriétaire de
 # la clé (migration 068). Le chemin lecture vit dans services/mcp.py et
@@ -63,7 +85,7 @@ def _extract_bearer(request: Request) -> str:
 _WRITE_LOOKUP_SQL = """
     SELECT w.id,
            ic.provider || '/' || ic.model AS indexer_used,
-           k.owner_id
+           k.owner_id, k.require_obo
     FROM workspaces w
     JOIN indexer_configs ic ON ic.workspace_id = w.id
     JOIN user_api_keys k ON (w.owner_id IS NULL OR w.owner_id = k.owner_id)
@@ -98,6 +120,13 @@ async def require_workspace_apikey(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid_workspace_apikey",
         )
+    if row["require_obo"]:
+        # Chemin historique (workspace dans l'URL) : la visibilité y est jointe
+        # sur l'owner de la CLÉ, on ne change donc pas l'attribution — mais une
+        # clé « OBO obligatoire » ne doit passer par AUCUN chemin sans humain.
+        await _resolve_owner_or_401(
+            request, api_key, key_owner_id=row["owner_id"], require_obo=True
+        )
     return AuthContext(
         workspace_id=row["id"],
         indexer_used=row["indexer_used"],
@@ -109,7 +138,7 @@ async def require_workspace_apikey(
 # admin). Même règle de visibilité workspace que l'écriture (partagé ou possédé),
 # mais autorise le scope `read`. `rag_cnx` sert à atteindre la base workspace.
 _READ_LOOKUP_SQL = """
-    SELECT w.id, w.name, w.rag_cnx, k.owner_id, k.scope
+    SELECT w.id, w.name, w.rag_cnx, k.owner_id, k.scope, k.require_obo
     FROM user_api_keys k
     JOIN workspaces w ON (w.owner_id IS NULL OR w.owner_id = k.owner_id)
     WHERE w.name = $1
@@ -120,7 +149,7 @@ _READ_LOOKUP_SQL = """
 """
 
 _OWNER_LOOKUP_SQL = """
-    SELECT owner_id, scope
+    SELECT owner_id, scope, require_obo
     FROM user_api_keys
     WHERE fingerprint = $1
       AND scope IN ('read', 'read_write', 'admin')
@@ -148,6 +177,11 @@ async def require_workspace_apikey_read(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid_workspace_apikey",
+        )
+    if row["require_obo"]:
+        # Même garde que le chemin écriture historique (voir plus haut).
+        await _resolve_owner_or_401(
+            request, api_key, key_owner_id=row["owner_id"], require_obo=True
         )
     return ReadAuthContext(
         workspace_id=row["id"],
@@ -240,11 +274,7 @@ async def require_apikey_owner(request: Request) -> OwnerAuthContext:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid_apikey",
         )
-    owner_id = await resolve_effective_owner_id(
-        pool,
-        list(request.headers.raw),
-        api_key,
-        key_owner_id=row["owner_id"],
-        surface="rest",
+    owner_id = await _resolve_owner_or_401(
+        request, api_key, key_owner_id=row["owner_id"], require_obo=row["require_obo"]
     )
     return OwnerAuthContext(owner_id=owner_id, scope=row["scope"])

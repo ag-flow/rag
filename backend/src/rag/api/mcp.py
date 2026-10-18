@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request, status
 
+from rag.auth.obo_resolver import OboRequiredError, resolve_obo_for_body_keys
 from rag.schemas.mcp import McpRequest, McpResponse
 from rag.services.mcp import normalize_refs, search
 
@@ -20,6 +21,15 @@ def build_mcp_router() -> APIRouter:
     @router.post("/api/v1/search", response_model=McpResponse, tags=["apikey"])
     async def post_search(payload: McpRequest, request: Request) -> McpResponse:
         refs = normalize_refs(payload)
+        try:
+            await resolve_obo_for_body_keys(
+                request.app.state.pools.config_pool,
+                list(request.headers.raw),
+                [ref.api_key for ref in refs],
+                surface="search",
+            )
+        except OboRequiredError as exc:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "obo_required") from exc
         provider = request.app.state.client_provider
         default_vault = await provider.get_default_vault_name()
         if default_vault is None:

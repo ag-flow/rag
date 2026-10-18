@@ -157,3 +157,56 @@ def test_revoked_key_disappears_from_list_after_24h(
     # Révoquée depuis > 24h → masquée de la liste.
     listed = admin_client.get("/api/me/api-keys", headers=admin_headers).json()
     assert not any(k["id"] == key_id for k in listed)
+
+
+def test_require_obo_set_at_creation_listed_and_inherited_by_rotation(
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    created = admin_client.post(
+        "/api/me/api-keys",
+        headers=admin_headers,
+        json={"name": "cle-obo", "scope": "read", "require_obo": True},
+    )
+    assert created.status_code == 201
+    assert created.json()["require_obo"] is True
+    key_id = created.json()["id"]
+
+    rotated = admin_client.post(f"/api/me/api-keys/{key_id}/rotate", headers=admin_headers)
+    assert rotated.status_code == 200
+    new_id = rotated.json()["new_key_id"]
+
+    listed = admin_client.get("/api/me/api-keys", headers=admin_headers).json()
+    # Une rotation qui perdrait le flag rouvrirait l'accès sans humain identifié.
+    assert next(k for k in listed if k["id"] == new_id)["require_obo"] is True
+
+
+def test_require_obo_defaults_false_and_can_be_toggled(
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    key = admin_client.post(
+        "/api/me/api-keys", headers=admin_headers, json={"name": "cle-toggle-obo"}
+    ).json()
+    assert key["require_obo"] is False
+
+    resp = admin_client.put(
+        f"/api/me/api-keys/{key['id']}/require-obo",
+        headers=admin_headers,
+        json={"require_obo": True},
+    )
+    assert resp.status_code == 204
+    listed = admin_client.get("/api/me/api-keys", headers=admin_headers).json()
+    assert next(k for k in listed if k["id"] == key["id"])["require_obo"] is True
+
+
+def test_require_obo_update_unknown_key_404(
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    resp = admin_client.put(
+        "/api/me/api-keys/00000000-0000-0000-0000-000000000000/require-obo",
+        headers=admin_headers,
+        json={"require_obo": True},
+    )
+    assert resp.status_code == 404

@@ -13,11 +13,14 @@ export type UserApiKey = {
   revoked_at: string | null;
   rotated_at: string | null;
   scope: KeyScope;
+  /** Exige une identité humaine signée (OBO) sur chaque appel — sinon 401. */
+  require_obo: boolean;
 };
 
 export type UserApiKeyCreate = {
   name: string;
   scope: KeyScope;
+  require_obo: boolean;
 };
 
 export type UserApiKeyCreated = {
@@ -26,6 +29,7 @@ export type UserApiKeyCreated = {
   api_key: string;
   fingerprint_preview: string;
   scope: KeyScope;
+  require_obo: boolean;
   created_at: string;
 };
 

@@ -418,7 +418,7 @@ class TestLoadContextGrants:
     @pytest.mark.asyncio
     async def test_load_context_exposes_owner_id_and_scope(self):
         dispatcher = RagMcpDispatcher(AsyncMock())
-        row = {"owner_id": "owner-abc", "scope": "admin"}
+        row = {"owner_id": "owner-abc", "scope": "admin", "require_obo": False}
         pool = MagicMock()
         pool.fetchrow = AsyncMock(return_value=row)
         dispatcher._config_pool = pool
@@ -426,7 +426,7 @@ class TestLoadContextGrants:
         dispatcher._resolver = MagicMock()
         dispatcher._client_provider = None
 
-        ctx = await dispatcher._load_context("tok")
+        ctx, _require_obo = await dispatcher._load_context("tok")
 
         assert ctx.owner_id == "owner-abc"
         assert ctx.scope == "admin"

@@ -44,3 +44,12 @@ export function useSetUserApiKeyScope() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: KEY }),
   });
 }
+
+export function useSetUserApiKeyRequireObo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ keyId, requireObo }: { keyId: string; requireObo: boolean }) =>
+      userApiKeysApi.setRequireObo(keyId, requireObo),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: KEY }),
+  });
+}

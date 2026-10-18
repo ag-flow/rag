@@ -16,4 +16,6 @@ export const userApiKeysApi = {
   revoke: (keyId: string) => api.delete<void>(`${BASE}/${keyId}`),
   setScope: (keyId: string, scope: KeyScope) =>
     api.put<void>(`${BASE}/${keyId}/scope`, { scope }),
+  setRequireObo: (keyId: string, requireObo: boolean) =>
+    api.put<void>(`${BASE}/${keyId}/require-obo`, { require_obo: requireObo }),
 };

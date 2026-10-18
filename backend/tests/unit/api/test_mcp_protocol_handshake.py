@@ -49,7 +49,7 @@ def _parse(text: str) -> dict:
 def _dispatcher(scope: str = "read") -> RagMcpDispatcher:
     disp = RagMcpDispatcher(build_mcp_asgi())
     pool = MagicMock()
-    pool.fetchrow = AsyncMock(return_value={"owner_id": "o", "scope": scope})
+    pool.fetchrow = AsyncMock(return_value={"owner_id": "o", "scope": scope, "require_obo": False})
     state = MagicMock()
     state.pools = MagicMock()
     state.pools.config_pool = pool

@@ -95,6 +95,22 @@ class TestOpenApiSecurity:
         assert spec["paths"]["/api/v1/search"]["post"]["security"] == [{"BearerApiKey": []}]
         assert spec["paths"]["/api/admin/fake"]["get"].get("security") is None
 
+    def test_apikey_ops_declare_optional_obo_headers(self) -> None:
+        """Les en-têtes OBO sont lus bruts : sans déclaration, le contrat publié
+        laisse croire qu'une route clé API ignore l'identité humaine."""
+        spec = self._secured_client().app.openapi()  # type: ignore[attr-defined]
+
+        params = spec["paths"]["/index"]["post"]["parameters"]
+        obo = {p["name"]: p for p in params if p["in"] == "header"}
+        assert set(obo) >= {
+            "x-portal-actor",
+            "x-portal-actor-timestamp",
+            "x-portal-actor-signature",
+        }
+        assert all(p["required"] is False for p in obo.values())
+        assert "obo_required" in spec["paths"]["/index"]["post"]["responses"]["401"]["description"]
+        assert "parameters" not in spec["paths"]["/api/admin/fake"]["get"]
+
     def test_filtered_contract_inherits_security(self) -> None:
         resp = self._secured_client().get("/api/contracts/openapi-apikey")
         data = resp.json()

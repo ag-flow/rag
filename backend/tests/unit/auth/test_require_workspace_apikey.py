@@ -14,6 +14,14 @@ from fastapi import HTTPException
 from rag.auth.workspace_auth import AuthContext, require_workspace_apikey
 
 
+class _RawHeaders(dict[str, str]):
+    """Mapping d'en-têtes exposant aussi `.raw` (liste ASGI), comme Starlette."""
+
+    @property
+    def raw(self) -> list[tuple[bytes, bytes]]:
+        return [(k.lower().encode(), v.encode()) for k, v in self.items()]
+
+
 def _fake_request(headers: dict[str, str], pool):
     return SimpleNamespace(
         headers=headers,
@@ -61,6 +69,7 @@ async def test_valid_key_with_write_scope_returns_context() -> None:
             "id": ws_id,
             "indexer_used": "openai/text-embedding-3-small",
             "owner_id": owner,
+            "require_obo": False,
         }
     )
     req = _fake_request({"Authorization": "Bearer good-key"}, pool)
@@ -84,8 +93,34 @@ async def test_write_lookup_never_touches_harpocrate() -> None:
     """Hash-only : un seul fetchrow, aucune résolution de secret."""
     pool = MagicMock()
     pool.fetchrow = AsyncMock(
-        return_value={"id": uuid4(), "indexer_used": "voyage/voyage-3", "owner_id": "d" * 64}
+        return_value={
+            "id": uuid4(),
+            "indexer_used": "voyage/voyage-3",
+            "owner_id": "d" * 64,
+            "require_obo": False,
+        }
     )
     req = _fake_request({"Authorization": "Bearer k"}, pool)
     await require_workspace_apikey("ws", req)  # type: ignore[arg-type]
     assert pool.fetchrow.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_legacy_write_lookup_with_require_obo_key_without_identity_raises_401() -> None:
+    """Chemin historique : une clé « OBO obligatoire » n'y passe pas sans humain."""
+    pool = MagicMock()
+    pool.fetchrow = AsyncMock(
+        return_value={
+            "id": uuid4(),
+            "indexer_used": "voyage/voyage-3",
+            "owner_id": "d" * 64,
+            "require_obo": True,
+        }
+    )
+    req = _fake_request(_RawHeaders({"Authorization": "Bearer k"}), pool)
+
+    with pytest.raises(HTTPException) as exc:
+        await require_workspace_apikey("ws", req)  # type: ignore[arg-type]
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "obo_required"

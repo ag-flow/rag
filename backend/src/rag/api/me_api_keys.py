@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.auth.owner import get_current_owner_id
 from rag.schemas.user_api_keys import (
+    RequireOboUpdate,
     ScopeUpdate,
     UserApiKeyCreate,
     UserApiKeyCreated,
@@ -81,6 +82,21 @@ def build_me_api_keys_router() -> APIRouter:
         owner_id = get_current_owner_id(request)
         async with _pool(request).acquire() as conn:
             updated = await svc.set_scope(
+                conn, owner_id=owner_id, key_id=str(key_id), req=req
+            )
+        if not updated:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, "api key not found or revoked"
+            )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @router.put("/{key_id}/require-obo", status_code=204)
+    async def set_my_key_require_obo(
+        key_id: UUID, req: RequireOboUpdate, request: Request
+    ) -> Response:
+        owner_id = get_current_owner_id(request)
+        async with _pool(request).acquire() as conn:
+            updated = await svc.db_set_require_obo(
                 conn, owner_id=owner_id, key_id=str(key_id), req=req
             )
         if not updated:

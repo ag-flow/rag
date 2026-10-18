@@ -14,7 +14,7 @@
   "status_expired": "Expired",
   "rotate_btn": "Rotate",
   "revoke_btn": "Revoke",
-  "edit_scope_btn": "Edit level",
+  "edit_scope_btn": "Edit key",
   "revoke_confirm_title": "Revoke this key?",
   "revoke_confirm_body": "The key becomes immediately invalid. Irreversible action.",
   "revoked_toast": "Key revoked.",
@@ -74,5 +74,10 @@
     "dialog_title": "MCP connection — {{name}}",
     "dialog_desc": "Settings to wire an MCP client to this key."
   },
-  "connect_btn": "MCP connection"
+  "connect_btn": "MCP connection",
+  "obo": {
+    "title": "Human identity required (OBO)",
+    "help": "Every call must carry the signed identity of a known user, forwarded by the portal. Without it, the call is refused (401) instead of being attributed to the key.",
+    "badge": "OBO required"
+  }
 }

@@ -119,6 +119,11 @@ export function ApiKeysPage() {
                   </TableCell>
                   <TableCell>
                     <Badge variant={SCOPE_VARIANTS[k.scope]}>{t(`scope.levels.${k.scope}.label`)}</Badge>
+                    {k.require_obo && (
+                      <Badge variant="outline" className="ml-2" title={t("obo.help")}>
+                        {t("obo.badge")}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     <span className={STATUS_COLORS[k.status] ?? ""}>{t(`status_${k.status}`)}</span>

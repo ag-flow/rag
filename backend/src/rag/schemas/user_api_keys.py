@@ -18,6 +18,8 @@ class UserApiKeyCreate(BaseModel):
 
     name: str = Field(min_length=1, max_length=128)
     scope: KeyScope = "read"
+    # Exiger une identité humaine signée (OBO) sur chaque appel — fail closed.
+    require_obo: bool = False
 
 
 class ScopeUpdate(BaseModel):
@@ -28,12 +30,21 @@ class ScopeUpdate(BaseModel):
     scope: KeyScope
 
 
+class RequireOboUpdate(BaseModel):
+    """Active ou retire l'exigence d'identité OBO d'une clé."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    require_obo: bool
+
+
 class UserApiKeyOut(BaseModel):
     id: UUID
     name: str
     fingerprint_preview: str
     status: str
     scope: KeyScope
+    require_obo: bool
     created_at: datetime
     revoked_at: datetime | None
     rotated_at: datetime | None
@@ -47,6 +58,7 @@ class UserApiKeyCreated(BaseModel):
     api_key: str
     fingerprint_preview: str
     scope: KeyScope
+    require_obo: bool
     created_at: datetime
 
 

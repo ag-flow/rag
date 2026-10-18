@@ -14,7 +14,7 @@
   "status_expired": "Expirée",
   "rotate_btn": "Rotation",
   "revoke_btn": "Révoquer",
-  "edit_scope_btn": "Modifier le niveau",
+  "edit_scope_btn": "Modifier la clé",
   "revoke_confirm_title": "Révoquer cette clé ?",
   "revoke_confirm_body": "La clé sera immédiatement invalide. Action irréversible.",
   "revoked_toast": "Clé révoquée.",
@@ -74,5 +74,10 @@
     "dialog_title": "Connexion MCP — {{name}}",
     "dialog_desc": "Paramètres pour brancher un client MCP sur cette clé."
   },
-  "connect_btn": "Connexion MCP"
+  "connect_btn": "Connexion MCP",
+  "obo": {
+    "title": "Identité humaine obligatoire (OBO)",
+    "help": "Chaque appel doit porter l'identité signée d'un utilisateur connu, propagée par le portail. Sans elle, l'appel est refusé (401) au lieu d'être attribué à la clé.",
+    "badge": "OBO obligatoire"
+  }
 }
