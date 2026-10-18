@@ -63,6 +63,20 @@ def test_get_models_includes_llm_enrichment_seed(
     assert ("dashscope", "qwen3.7-max") in llm
 
 
+def test_get_models_includes_mammouth_seed(
+    admin_client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    """La migration 096 seed Mammouth : 2 embeddings dimensionnés, 9 LLM."""
+    entries = admin_client.get("/api/admin/models", headers=admin_headers).json()
+    mammouth = {e["model"]: e for e in entries if e["provider"] == "mammouth"}
+    assert mammouth["text-embedding-3-large"]["dimension"] == 3072
+    assert mammouth["text-embedding-3-small"]["dimension"] == 1536
+    llm = {m for m, e in mammouth.items() if e["kind"] == "llm"}
+    assert len(llm) == 9
+    assert {"mammouth-recommended", "mistral-medium-3.1", "qwen3-coder"} <= llm
+    assert not any(e["kind"] == "rerank" for e in mammouth.values())
+
+
 def test_get_models_includes_cloud_embedding_seed(
     admin_client: TestClient, admin_headers: dict[str, str]
 ) -> None:

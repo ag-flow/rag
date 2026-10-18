@@ -51,8 +51,19 @@ def test_unknown_capability_or_missing_required_base_returns_none() -> None:
 def test_referential_covers_wired_llm_and_rerank_providers() -> None:
     """Chaque provider routé par le code a son masque (anti-dérive)."""
     for p in ("claude", "openai", "azure-openai", "ollama", "ollama-cloud",
-              "gemini", "deepseek", "dashscope"):
+              "gemini", "deepseek", "dashscope", "mammouth"):
         assert "chat" in PROVIDER_URL_TEMPLATES[p], p
     for p in ("cohere", "voyage", "ollama", "jina", "dashscope", "azure-foundry",
               "fireworks", "deepinfra", "mixedbread"):
         assert "rerank" in PROVIDER_URL_TEMPLATES[p], p
+
+
+def test_mammouth_default_base_resolves_v1_paths_without_rerank() -> None:
+    """La base par défaut porte /v1 : les adapters n'ajoutent que le suffixe."""
+    assert resolve_url(provider="mammouth", capability="embeddings", model="m") == (
+        "https://api.mammouth.ai/v1/embeddings"
+    )
+    assert resolve_url(provider="mammouth", capability="chat", model="m") == (
+        "https://api.mammouth.ai/v1/chat/completions"
+    )
+    assert resolve_url(provider="mammouth", capability="rerank", model="m") is None

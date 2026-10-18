@@ -126,6 +126,7 @@ _OPENAI_COMPATIBLE_URLS: dict[str, str] = {
     "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
     "deepseek": "https://api.deepseek.com/v1",
     "dashscope": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    "mammouth": "https://api.mammouth.ai/v1",
 }
 
 

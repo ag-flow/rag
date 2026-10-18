@@ -25,6 +25,7 @@ _DIRECT_URLS: dict[str, str] = {
     "deepinfra": "https://api.deepinfra.com/v1/openai",
     "together":  "https://api.together.xyz/v1",
     "cohere":    "https://api.cohere.ai/compatibility/v1",
+    "mammouth":  "https://api.mammouth.ai/v1",
 }
 
 _OLLAMA_DEFAULT_BASE_URL = "http://192.168.10.80:11434"
