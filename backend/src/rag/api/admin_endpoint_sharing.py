@@ -4,8 +4,8 @@
   (création de workspace) — possédés, du coffre par défaut, ou partagés ;
 - `GET|PUT /api/admin/harpocrate-vaults/{vault_id}/endpoints/{endpoint_id}/sharing` :
   état de partage, lu et remplacé par le PROPRIÉTAIRE du coffre seulement ;
-- `GET  /api/admin/endpoint-share-candidates` : utilisateurs existants à qui
-  partager.
+- `GET  /api/admin/endpoint-share-candidates?email=` : un utilisateur existant
+  désigné par son email exact — jamais la liste des comptes.
 """
 
 from __future__ import annotations
@@ -13,11 +13,11 @@ from __future__ import annotations
 from uuid import UUID
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from rag.api.admin_harpocrate_vaults import _check_vault_access
 from rag.auth.bearer import require_master_key_or_authenticated_admin
-from rag.auth.owner import get_current_owner_id
+from rag.auth.owner import get_current_owner_id, principal_to_owner_id
 from rag.schemas.endpoint_sharing import (
     EndpointSharingOut,
     EndpointSharingUpdate,
@@ -106,9 +106,15 @@ async def put_sharing(
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "unknown_user") from exc
 
 
-@router.get("/endpoint-share-candidates", response_model=list[ShareUser])
-async def list_share_candidates(request: Request) -> list[ShareUser]:
+@router.get("/endpoint-share-candidates", response_model=ShareUser)
+async def find_share_candidate(
+    request: Request, email: str = Query(min_length=3, max_length=320)
+) -> ShareUser:
+    """Bénéficiaire désigné par son email exact — 404 sinon, jamais de liste."""
     async with _pool(request).acquire() as conn:
-        return await svc.db_list_share_candidates(
-            conn, exclude_owner_id=get_current_owner_id(request)
-        )
+        user = await svc.db_find_share_candidate(conn, email=email.strip())
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "user_not_found")
+    if principal_to_owner_id(user.email) == get_current_owner_id(request):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "cannot_share_with_self")
+    return user

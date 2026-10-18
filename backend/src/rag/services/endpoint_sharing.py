@@ -192,13 +192,18 @@ async def db_set_sharing(
     return await db_get_sharing(conn, endpoint_id=endpoint_id)
 
 
-async def db_list_share_candidates(
-    conn: asyncpg.Connection, *, exclude_owner_id: str
-) -> list[ShareUser]:
-    """Utilisateurs existants à qui partager, l'appelant exclu."""
-    rows = await conn.fetch("SELECT id, username, email FROM users ORDER BY email")
-    return [
-        ShareUser(id=r["id"], username=r["username"], email=r["email"])
-        for r in rows
-        if principal_to_owner_id(r["email"]) != exclude_owner_id
-    ]
+async def db_find_share_candidate(conn: asyncpg.Connection, *, email: str) -> ShareUser | None:
+    """Utilisateur existant désigné par son email EXACT (casse ignorée), sinon None.
+
+    Décision architecte (2026-10-18) : on ne liste jamais l'annuaire — il
+    exposerait l'email de tous les comptes à tout utilisateur de l'IHM. Qui
+    partage doit déjà connaître l'adresse du bénéficiaire.
+    """
+    row = await conn.fetchrow(
+        "SELECT id, username, email FROM users WHERE lower(email) = lower($1)", email
+    )
+    return (
+        None
+        if row is None
+        else ShareUser(id=row["id"], username=row["username"], email=row["email"])
+    )

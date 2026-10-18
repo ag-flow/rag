@@ -56,5 +56,9 @@ export const vaultEndpointsApi = {
 export const endpointSharingApi = {
   /** Endpoints utilisables par l'appelant : possédés, coffre par défaut, partagés. */
   usable: () => api.get<UsableEndpoint[]>("/api/admin/endpoints/usable"),
-  candidates: () => api.get<ShareUser[]>("/api/admin/endpoint-share-candidates"),
+  /** Bénéficiaire par email exact (404 si inconnu) — jamais la liste des comptes. */
+  findCandidate: (email: string) =>
+    api.get<ShareUser>(
+      `/api/admin/endpoint-share-candidates?email=${encodeURIComponent(email)}`,
+    ),
 };

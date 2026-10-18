@@ -330,11 +330,15 @@
       "help": "Les bénéficiaires peuvent créer des workspaces avec cet endpoint — leurs appels utilisent les clés de ce coffre. Ils ne peuvent ni le modifier ni voir ses références de secrets.",
       "all": "Partager avec tout le monde",
       "users": "Partager avec",
-      "no_users": "Aucun autre utilisateur n'est encore connu de l'application.",
+      "no_users": "Aucun bénéficiaire.",
       "saved_toast": "Partage mis à jour.",
       "badge_all": "Tout le monde",
       "badge_users_one": "{{count}} personne",
-      "badge_users_other": "{{count}} personnes"
+      "badge_users_other": "{{count}} personnes",
+      "email_placeholder": "Email exact de l'utilisateur",
+      "add": "Ajouter",
+      "user_not_found": "Aucun utilisateur avec cet email (ou c'est vous). Il doit s'être connecté au moins une fois.",
+      "remove": "Retirer {{email}}"
     }
   },
   "expiry": {

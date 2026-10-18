@@ -243,9 +243,13 @@ async def test_get_sharing_of_unknown_endpoint_raises(migrated: asyncpg.Pool) ->
 
 
 @pytest.mark.asyncio
-async def test_share_candidates_exclude_the_caller(
+async def test_share_candidate_found_by_exact_email_case_insensitively(
     migrated: asyncpg.Pool, world: dict[str, UUID]
 ) -> None:
     async with migrated.acquire() as conn:
-        candidates = await svc.db_list_share_candidates(conn, exclude_owner_id=_ALICE_ID)
-    assert {c.email for c in candidates} == {_BOB, _CAROL}
+        found = await svc.db_find_share_candidate(conn, email="BOB@example.com")
+        partial = await svc.db_find_share_candidate(conn, email="bob@")
+    assert found is not None
+    assert found.id == world["bob"]
+    # Jamais de recherche partielle : ce serait un annuaire par morceaux.
+    assert partial is None

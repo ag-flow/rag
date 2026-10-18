@@ -330,11 +330,15 @@
       "help": "Recipients can create workspaces with this endpoint — their calls use this vault's keys. They can neither edit it nor see its secret references.",
       "all": "Share with everyone",
       "users": "Share with",
-      "no_users": "No other user is known to the application yet.",
+      "no_users": "No recipient.",
       "saved_toast": "Sharing updated.",
       "badge_all": "Everyone",
       "badge_users_one": "{{count}} person",
-      "badge_users_other": "{{count}} people"
+      "badge_users_other": "{{count}} people",
+      "email_placeholder": "User's exact email",
+      "add": "Add",
+      "user_not_found": "No user with this email (or it is you). They must have signed in at least once.",
+      "remove": "Remove {{email}}"
     }
   },
   "expiry": {

@@ -101,12 +101,8 @@ export function useSetEndpointSharing(vaultId: string) {
   });
 }
 
-export function useShareCandidates(enabled: boolean) {
-  return useQuery({
-    queryKey: ["endpoint-share-candidates"],
-    queryFn: () => endpointSharingApi.candidates(),
-    enabled,
-  });
+export function useFindShareCandidate() {
+  return useMutation({ mutationFn: (email: string) => endpointSharingApi.findCandidate(email) });
 }
 
 export function useEndpointsHealth(vaultId: string) {

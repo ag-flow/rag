@@ -25,3 +25,32 @@ async def require_owned_workspace_id(
             status_code=status.HTTP_404_NOT_FOUND, detail="workspace_not_found"
         )
     return ws_id
+
+
+async def require_writable_service_refs(
+    request: Request, refs: list[str | None], default_vault_name: str
+) -> None:
+    """403 `foreign_vault_ref` si une ref écrite vise un coffre non modifiable.
+
+    Voir `rag.services.secret_ref_guard` : sans ce contrôle, garder la ref
+    d'un coffre d'autrui (ou la saisir) en changeant le `base_url` faisait
+    envoyer sa clé vers un serveur choisi par l'appelant.
+    """
+    from rag.auth.owner import get_current_owner_id
+    from rag.services.secret_ref_guard import (
+        ForeignVaultRefError,
+        db_require_writable_vault_refs,
+    )
+
+    async with request.app.state.pools.config_pool.acquire() as conn:
+        try:
+            await db_require_writable_vault_refs(
+                conn,
+                owner_id=get_current_owner_id(request),
+                refs=refs,
+                default_vault_name=default_vault_name,
+            )
+        except ForeignVaultRefError as exc:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN, {"error": "foreign_vault_ref", "vault": exc.vault}
+            ) from exc

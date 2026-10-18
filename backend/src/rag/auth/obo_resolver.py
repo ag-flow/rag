@@ -80,7 +80,11 @@ async def resolve_effective_owner_id(
     if require_obo:
         # Fail closed, voulu par le propriétaire de la clé : sans humain signé
         # et connu, l'appel ne doit PAS retomber sur l'identité de la clé —
-        # c'est précisément le repli que le flag interdit.
+        # c'est précisément le repli que le flag interdit. Limite assumée
+        # (décision 2026-10-18) : le contrat d0e2dad3 signe AVEC la clé, donc
+        # qui la détient peut signer n'importe quel GUID connu. Le flag garantit
+        # l'attribution à un humain, pas sa présence ni la protection d'une clé
+        # volée — cela exigerait un secret propre au portail (contrat global).
         log.warning("obo.required_refused", surface=surface, reason=reason, owner=key_owner_id[:8])
         raise OboRequiredError(reason)
     return key_owner_id

@@ -290,7 +290,40 @@ def test_usable_endpoints_and_share_candidates(
     usable = admin_client.get("/api/admin/endpoints/usable", headers=admin_headers).json()
     assert {e["id"]: e for e in usable}[world["alice_ep"]]["access"] == "shared"
 
-    candidates = admin_client.get(
-        "/api/admin/endpoint-share-candidates", headers=admin_headers
-    ).json()
-    assert _BOB in {c["email"] for c in candidates}
+    bob = admin_client.get(
+        "/api/admin/endpoint-share-candidates",
+        headers=admin_headers,
+        params={"email": "Bob@Example.com"},
+    )
+    assert bob.status_code == 200
+    assert bob.json()["id"] == world["bob_id"]
+    unknown = admin_client.get(
+        "/api/admin/endpoint-share-candidates",
+        headers=admin_headers,
+        params={"email": "nobody@example.com"},
+    )
+    assert unknown.status_code == 404
+    # Sans email exact, aucune liste d'utilisateurs n'est renvoyée.
+    listing = admin_client.get("/api/admin/endpoint-share-candidates", headers=admin_headers)
+    assert listing.status_code == 422
+
+
+def test_share_candidate_lookup_refuses_the_caller_himself(
+    admin_client: TestClient, admin_headers: dict[str, str], pg_container: str
+) -> None:
+    """Le client de test s'authentifie comme l'owner système (system@rag.local)."""
+    _run(
+        pg_container,
+        (
+            "INSERT INTO users (username, email, password_hash) "
+            "VALUES ('system', 'system@rag.local', '') RETURNING id",
+            (),
+        ),
+    )
+    r = admin_client.get(
+        "/api/admin/endpoint-share-candidates",
+        headers=admin_headers,
+        params={"email": "system@rag.local"},
+    )
+    assert r.status_code == 422
+    assert r.json()["detail"] == "cannot_share_with_self"

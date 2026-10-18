@@ -77,7 +77,7 @@
   "connect_btn": "MCP connection",
   "obo": {
     "title": "Human identity required (OBO)",
-    "help": "Every call must carry the signed identity of a known user, forwarded by the portal. Without it, the call is refused (401) instead of being attributed to the key.",
+    "help": "Every call must carry the signed identity of a known user, forwarded by the portal: without it, the call is refused (401) instead of being attributed to the key. This does not protect against key theft — the signature uses the key itself.",
     "badge": "OBO required"
   }
 }

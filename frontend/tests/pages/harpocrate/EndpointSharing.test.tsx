@@ -51,11 +51,13 @@ function usable(id: string, access: UsableEndpoint["access"], vault: string): Us
   };
 }
 
-/** GET routé selon l'URL : partage enregistré + candidats. */
+/** GET routé selon l'URL : partage enregistré + recherche par email exact. */
 function mockGets(sharing: { shared_with_all: boolean; users: (typeof BOB)[] }) {
-  vi.spyOn(apiModule.api, "get").mockImplementation((url: string) =>
-    Promise.resolve(url.endsWith("/sharing") ? sharing : [BOB, CAROL]) as never,
-  );
+  vi.spyOn(apiModule.api, "get").mockImplementation((url: string) => {
+    if (url.endsWith("/sharing")) return Promise.resolve(sharing) as never;
+    if (url.includes("email=carol%40example.com")) return Promise.resolve(CAROL) as never;
+    return Promise.reject(new Error("404")) as never;
+  });
 }
 
 describe("groupUsableEndpoints", () => {
@@ -80,7 +82,7 @@ describe("EndpointShareDialog", () => {
     await i18n.changeLanguage("fr");
   });
 
-  it("pré-coche les bénéficiaires enregistrés et envoie la liste complète", async () => {
+  it("ajoute un bénéficiaire par email exact et envoie la liste complète", async () => {
     mockGets({ shared_with_all: false, users: [BOB] });
     const put = vi.spyOn(apiModule.api, "put").mockResolvedValue({
       shared_with_all: false,
@@ -92,9 +94,12 @@ describe("EndpointShareDialog", () => {
       </Wrapper>,
     );
 
-    const bob = await screen.findByRole("checkbox", { name: /bob@example.com/ });
-    await waitFor(() => expect(bob).toBeChecked());
-    fireEvent.click(screen.getByRole("checkbox", { name: /carol@example.com/ }));
+    expect(await screen.findByText("bob@example.com")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Email exact de l'utilisateur"), {
+      target: { value: "carol@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ajouter" }));
+    expect(await screen.findByText("carol@example.com")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     await waitFor(() =>
@@ -103,6 +108,35 @@ describe("EndpointShareDialog", () => {
         user_ids: ["u-bob", "u-carol"],
       }),
     );
+  });
+
+  it("signale un email inconnu sans rien ajouter", async () => {
+    mockGets({ shared_with_all: false, users: [] });
+    render(
+      <Wrapper>
+        <EndpointShareDialog vaultId="v-1" endpoint={EP} onOpenChange={() => {}} />
+      </Wrapper>,
+    );
+
+    fireEvent.change(await screen.findByLabelText("Email exact de l'utilisateur"), {
+      target: { value: "ghost@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ajouter" }));
+
+    expect(await screen.findByText(/Aucun utilisateur avec cet email/)).toBeInTheDocument();
+    expect(screen.getByText("Aucun bénéficiaire.")).toBeInTheDocument();
+  });
+
+  it("retire un bénéficiaire", async () => {
+    mockGets({ shared_with_all: false, users: [BOB] });
+    render(
+      <Wrapper>
+        <EndpointShareDialog vaultId="v-1" endpoint={EP} onOpenChange={() => {}} />
+      </Wrapper>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Retirer bob@example.com" }));
+    expect(screen.queryByText("bob@example.com")).not.toBeInTheDocument();
   });
 
   it("partage à tous : masque la liste et n'envoie aucun bénéficiaire nommé", async () => {
@@ -117,9 +151,9 @@ describe("EndpointShareDialog", () => {
       </Wrapper>,
     );
 
-    await screen.findByRole("checkbox", { name: /bob@example.com/ });
+    await screen.findByText("bob@example.com");
     fireEvent.click(screen.getByRole("switch", { name: "Partager avec tout le monde" }));
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.queryByText("bob@example.com")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     await waitFor(() =>
@@ -143,10 +177,8 @@ describe("VaultEndpointsTab — dialogue de partage", () => {
         url.endsWith("/health")
           ? {}
           : url.endsWith("/sharing")
-            ? { shared_with_all: false, users: [] }
-            : url.endsWith("/endpoints")
-              ? [EP]
-              : [BOB, CAROL],
+            ? { shared_with_all: false, users: [BOB] }
+            : [EP],
       ) as never,
     );
     render(
@@ -155,12 +187,12 @@ describe("VaultEndpointsTab — dialogue de partage", () => {
       </Wrapper>,
     );
     fireEvent.click(await screen.findByRole("button", { name: "Partager" }));
-    fireEvent.click(await screen.findByRole("checkbox", { name: /bob@example.com/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Retirer bob@example.com" }));
     fireEvent.click(screen.getByRole("button", { name: "Annuler" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: "Partager" }));
-    expect(await screen.findByRole("checkbox", { name: /bob@example.com/ })).not.toBeChecked();
+    expect(await screen.findByText("bob@example.com")).toBeInTheDocument();
   });
 });
 

@@ -77,7 +77,7 @@
   "connect_btn": "Connexion MCP",
   "obo": {
     "title": "Identité humaine obligatoire (OBO)",
-    "help": "Chaque appel doit porter l'identité signée d'un utilisateur connu, propagée par le portail. Sans elle, l'appel est refusé (401) au lieu d'être attribué à la clé.",
+    "help": "Chaque appel doit porter l'identité signée d'un utilisateur connu, propagée par le portail : sans elle, l'appel est refusé (401) au lieu d'être attribué à la clé. Ce n'est pas une protection contre le vol de la clé — la signature utilise la clé elle-même.",
     "badge": "OBO obligatoire"
   }
 }

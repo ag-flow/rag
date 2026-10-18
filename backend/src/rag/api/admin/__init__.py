@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel as _PydanticBase
 
-from rag.api.workspace_access import require_owned_workspace_id
+from rag.api.workspace_access import require_owned_workspace_id, require_writable_service_refs
 from rag.auth.admin_auth import require_admin
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.schemas.admin import (
@@ -180,6 +180,14 @@ def build_admin_router() -> APIRouter:
     ) -> WorkspaceResponse:
         await require_owned_workspace_id(request, name, _config_pool(request))
         default_vault = await _resolve_default_vault_or_503(request)
+        await require_writable_service_refs(
+            request,
+            [
+                payload.indexer.api_key_ref if payload.indexer else None,
+                payload.rerank.api_key_ref if payload.rerank else None,
+            ],
+            default_vault,
+        )
         await patch_workspace(
             name=name,
             request=payload,
@@ -369,6 +377,17 @@ def build_admin_router() -> APIRouter:
         await require_owned_workspace_id(request, name, _config_pool(request))
         new_indexer = payload.indexer if payload is not None else None
         default_vault = await _resolve_default_vault_or_503(request)
+        if new_indexer is not None:
+            # Ref EFFECTIVE : une ref omise est conservée (sémantique COALESCE
+            # du reindex) — c'est elle qui partirait vers le nouveau base_url.
+            kept_ref = await _config_pool(request).fetchval(
+                "SELECT ic.api_key_ref FROM indexer_configs ic "
+                "JOIN workspaces w ON w.id = ic.workspace_id WHERE w.name = $1",
+                name,
+            )
+            await require_writable_service_refs(
+                request, [new_indexer.api_key_ref or kept_ref], default_vault
+            )
         row = await reindex_workspace(
             name=name,
             new_indexer=new_indexer,
@@ -626,6 +645,7 @@ def build_admin_router() -> APIRouter:
         from rag.services.rerank_configs import upsert_rerank_config
 
         default_vault = await _resolve_default_vault_or_503(request)
+        await require_writable_service_refs(request, [payload.api_key_ref], default_vault)
         try:
             cfg = await upsert_rerank_config(
                 workspace_id=ws_id,
