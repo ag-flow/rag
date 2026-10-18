@@ -9,6 +9,7 @@
 #   3. Build les images locales (backend ; frontend skippé tant que M5 pas commencé)
 #   4. Down de la stack (avec -v si --reset)
 #   5. Pull images registry (postgres + caddy + pgweb + alloy) + up -d
+#      puis purge du cache Docker, au plus une fois par semaine (non bloquante)
 #   Final : attend que /health réponde et affiche /version (timeout 60s)
 #
 # Usage :
@@ -317,6 +318,13 @@ echo "      Démarrage de la stack..."
 # qui a forcément un .git, mais on garde le filet).
 export GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 docker compose -f "$COMPOSE_FILE" up -d --remove-orphans --pull never
+
+# ─── Purge hebdomadaire du cache Docker (non bloquante) ─────────────────────
+# Juste après le up : l'image courante est en service, donc protégée, et la
+# purge passe même si le smoke /health échoue plus bas — sans quoi un disque
+# plein ne serait jamais soulagé. Le témoin vit dans .git/ : non versionné,
+# jamais en conflit avec un pull, et conservé d'un déploiement à l'autre.
+bash scripts/docker-cache-prune.sh ".git/dev-deploy-last-prune" 7 || true
 
 echo
 echo "✓ Stack lancée. Services :"
