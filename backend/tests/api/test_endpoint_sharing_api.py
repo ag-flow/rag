@@ -107,9 +107,9 @@ def _share_with_bob(dsn: str, world: dict[str, Any]) -> None:
     _run(
         dsn,
         (
-            "INSERT INTO vault_endpoint_shares (endpoint_id, user_id) "
-            "VALUES ($1::uuid, $2::uuid) RETURNING endpoint_id",
-            (world["alice_ep"], world["bob_id"]),
+            "INSERT INTO vault_endpoint_shares (endpoint_id, user_id, owner_id) "
+            "VALUES ($1::uuid, $2::uuid, $3) RETURNING endpoint_id",
+            (world["alice_ep"], world["bob_id"], principal_to_owner_id(_BOB)),
         ),
     )
 

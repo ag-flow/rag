@@ -155,6 +155,23 @@ async def test_named_share_matches_email_case_insensitively(
 
 
 @pytest.mark.asyncio
+async def test_named_share_matches_non_ascii_email_like_python_owner_id(
+    migrated: asyncpg.Pool, world: dict[str, UUID]
+) -> None:
+    """Le lower() de Postgres ne replie pas « É » comme Python : l'owner_id du
+    bénéficiaire doit venir de `principal_to_owner_id`, pas d'un calcul SQL."""
+    async with migrated.acquire() as conn:
+        elodie = await _user(conn, "Élodie@example.com")
+        await svc.db_set_sharing(
+            conn,
+            endpoint_id=world["private_ep"],
+            req=EndpointSharingUpdate(shared_with_all=False, user_ids=[elodie]),
+        )
+        owner = principal_to_owner_id("élodie@example.com")
+        assert world["private_ep"] in await _usable_ids(conn, owner)
+
+
+@pytest.mark.asyncio
 async def test_set_sharing_replaces_previous_beneficiaries(
     migrated: asyncpg.Pool, world: dict[str, UUID]
 ) -> None:

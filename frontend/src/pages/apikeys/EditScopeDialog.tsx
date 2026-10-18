@@ -9,11 +9,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useSetUserApiKeyRequireObo, useSetUserApiKeyScope } from "@/hooks/useUserApiKeys";
+import { useUpdateUserApiKey } from "@/hooks/useUserApiKeys";
 import { useToast } from "@/hooks/useToast";
 import { ScopeSelector } from "./ScopeSelector";
 import { RequireOboToggle } from "./RequireOboToggle";
-import type { KeyScope, UserApiKey } from "@/lib/user-api-keys.types";
+import type { KeyScope, UserApiKey, UserApiKeyUpdate } from "@/lib/user-api-keys.types";
 
 interface Props {
   apiKey: UserApiKey | null;
@@ -23,8 +23,7 @@ interface Props {
 export function EditScopeDialog({ apiKey, onOpenChange }: Props) {
   const { t } = useTranslation("apikeys");
   const { toast } = useToast();
-  const setScopeMutation = useSetUserApiKeyScope();
-  const setRequireOboMutation = useSetUserApiKeyRequireObo();
+  const updateMutation = useUpdateUserApiKey();
 
   const [scope, setScope] = useState<KeyScope>("read");
   const [requireObo, setRequireObo] = useState(false);
@@ -40,12 +39,13 @@ export function EditScopeDialog({ apiKey, onOpenChange }: Props) {
   async function handleSave() {
     if (!apiKey) return;
     try {
-      // Deux routes distinctes côté API : on n'appelle que celle qui change.
-      if (scope !== apiKey.scope) {
-        await setScopeMutation.mutateAsync({ keyId: apiKey.id, scope });
-      }
-      if (requireObo !== apiKey.require_obo) {
-        await setRequireOboMutation.mutateAsync({ keyId: apiKey.id, requireObo });
+      // Un seul PATCH, champs modifiés seulement : le serveur applique tout ou
+      // rien — deux appels pouvaient changer le niveau sans activer l'OBO.
+      const payload: UserApiKeyUpdate = {};
+      if (scope !== apiKey.scope) payload.scope = scope;
+      if (requireObo !== apiKey.require_obo) payload.require_obo = requireObo;
+      if (Object.keys(payload).length > 0) {
+        await updateMutation.mutateAsync({ keyId: apiKey.id, payload });
       }
       toast({ title: t("scope.saved_toast") });
       onOpenChange(false);
@@ -70,7 +70,7 @@ export function EditScopeDialog({ apiKey, onOpenChange }: Props) {
           <Button
             type="button"
             onClick={() => void handleSave()}
-            disabled={setScopeMutation.isPending || setRequireOboMutation.isPending}
+            disabled={updateMutation.isPending}
           >
             {t("scope.save")}
           </Button>

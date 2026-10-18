@@ -190,23 +190,43 @@ def test_require_obo_defaults_false_and_can_be_toggled(
     ).json()
     assert key["require_obo"] is False
 
-    resp = admin_client.put(
-        f"/api/me/api-keys/{key['id']}/require-obo",
+    resp = admin_client.patch(
+        f"/api/me/api-keys/{key['id']}",
         headers=admin_headers,
-        json={"require_obo": True},
+        json={"scope": "read_write", "require_obo": True},
     )
     assert resp.status_code == 204
     listed = admin_client.get("/api/me/api-keys", headers=admin_headers).json()
-    assert next(k for k in listed if k["id"] == key["id"])["require_obo"] is True
+    entry = next(k for k in listed if k["id"] == key["id"])
+    assert (entry["scope"], entry["require_obo"]) == ("read_write", True)
+
+    # Champ omis = inchangé : seul le flag est retiré, le niveau reste.
+    admin_client.patch(
+        f"/api/me/api-keys/{key['id']}", headers=admin_headers, json={"require_obo": False}
+    )
+    listed = admin_client.get("/api/me/api-keys", headers=admin_headers).json()
+    entry = next(k for k in listed if k["id"] == key["id"])
+    assert (entry["scope"], entry["require_obo"]) == ("read_write", False)
 
 
 def test_require_obo_update_unknown_key_404(
     admin_client: TestClient,
     admin_headers: dict[str, str],
 ) -> None:
-    resp = admin_client.put(
-        "/api/me/api-keys/00000000-0000-0000-0000-000000000000/require-obo",
+    resp = admin_client.patch(
+        "/api/me/api-keys/00000000-0000-0000-0000-000000000000",
         headers=admin_headers,
         json={"require_obo": True},
     )
     assert resp.status_code == 404
+
+
+def test_update_key_without_any_field_422(
+    admin_client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    key = admin_client.post(
+        "/api/me/api-keys", headers=admin_headers, json={"name": "cle-patch-vide"}
+    ).json()
+    resp = admin_client.patch(f"/api/me/api-keys/{key['id']}", headers=admin_headers, json={})
+    assert resp.status_code == 422

@@ -8,12 +8,12 @@ import asyncpg
 import structlog
 
 from rag.schemas.user_api_keys import (
-    RequireOboUpdate,
     ScopeUpdate,
     UserApiKeyCreate,
     UserApiKeyCreated,
     UserApiKeyOut,
     UserApiKeyRotated,
+    UserApiKeyUpdate,
 )
 
 log = structlog.get_logger(__name__)
@@ -176,23 +176,26 @@ async def set_scope(
     return False
 
 
-async def db_set_require_obo(
-    conn: asyncpg.Connection, *, owner_id: str, key_id: str, req: RequireOboUpdate
+async def db_update_key(
+    conn: asyncpg.Connection, *, owner_id: str, key_id: str, req: UserApiKeyUpdate
 ) -> bool:
-    """Active ou retire l'exigence OBO d'une clé active du propriétaire."""
+    """Applique niveau et/ou exigence OBO d'une clé active, en une écriture."""
     result = await conn.execute(
-        "UPDATE user_api_keys SET require_obo = $3 "
+        "UPDATE user_api_keys SET scope = COALESCE($3, scope), "
+        "require_obo = COALESCE($4, require_obo) "
         "WHERE owner_id = $1 AND id = $2::uuid AND revoked_at IS NULL",
         owner_id,
         key_id,
+        req.scope,
         req.require_obo,
     )
     if result == "UPDATE 0":
         return False
     log.info(
-        "user_api_key.require_obo_updated",
+        "user_api_key.updated",
         owner_id=owner_id,
         key=key_id,
+        scope=req.scope,
         require_obo=req.require_obo,
     )
     return True

@@ -170,11 +170,17 @@ export function VaultEndpointsTab({ vaultId }: Props) {
         onOpenChange={setFormOpen}
       />
 
-      <EndpointShareDialog
-        vaultId={vaultId}
-        endpoint={toShare}
-        onOpenChange={(o) => !o && setToShare(null)}
-      />
+      {/* Monté seulement ouvert, une instance par endpoint : à chaque ouverture
+          l'état local repart de l'état ENREGISTRÉ — une sélection annulée ne
+          doit jamais réapparaître, sinon un Save la partagerait par mégarde. */}
+      {toShare && (
+        <EndpointShareDialog
+          key={toShare.id}
+          vaultId={vaultId}
+          endpoint={toShare}
+          onOpenChange={(o) => !o && setToShare(null)}
+        />
+      )}
 
       <AlertDialog open={toDelete !== null} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>

@@ -13,15 +13,13 @@ import { ApiKeysPage } from "@/pages/ApiKeysPage";
 import type { UserApiKey } from "@/lib/user-api-keys.types";
 
 const createMock = vi.fn();
-const scopeMock = vi.fn();
-const oboMock = vi.fn();
+const updateMock = vi.fn();
 let listed: UserApiKey[] = [];
 
 vi.mock("@/hooks/useUserApiKeys", () => ({
   useUserApiKeys: () => ({ data: listed, isLoading: false }),
   useCreateUserApiKey: () => ({ mutateAsync: createMock, isPending: false }),
-  useSetUserApiKeyScope: () => ({ mutateAsync: scopeMock, isPending: false }),
-  useSetUserApiKeyRequireObo: () => ({ mutateAsync: oboMock, isPending: false }),
+  useUpdateUserApiKey: () => ({ mutateAsync: updateMock, isPending: false }),
   useRotateUserApiKey: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRevokeUserApiKey: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
@@ -60,8 +58,7 @@ const KEY: UserApiKey = {
 
 beforeEach(() => {
   createMock.mockReset().mockResolvedValue({ api_key: "secret-value" });
-  scopeMock.mockReset().mockResolvedValue(undefined);
-  oboMock.mockReset().mockResolvedValue(undefined);
+  updateMock.mockReset().mockResolvedValue(undefined);
   listed = [];
 });
 
@@ -93,13 +90,23 @@ describe("CreateUserApiKeyDialog — OBO obligatoire", () => {
 });
 
 describe("EditScopeDialog — OBO obligatoire", () => {
-  it("n'appelle que la route OBO quand seul le flag change", async () => {
+  it("n'envoie que le flag quand seul le flag change", async () => {
     wrap(<EditScopeDialog apiKey={KEY} onOpenChange={() => {}} />);
     fireEvent.click(screen.getByRole("switch", { name: frApikeys.obo.title }));
     fireEvent.click(screen.getByRole("button", { name: frApikeys.scope.save }));
 
-    await waitFor(() => expect(oboMock).toHaveBeenCalledWith({ keyId: "k1", requireObo: true }));
-    expect(scopeMock).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(updateMock).toHaveBeenCalledWith({ keyId: "k1", payload: { require_obo: true } }),
+    );
+  });
+
+  it("n'appelle rien quand rien ne change", async () => {
+    const onOpenChange = vi.fn();
+    wrap(<EditScopeDialog apiKey={KEY} onOpenChange={onOpenChange} />);
+    fireEvent.click(screen.getByRole("button", { name: frApikeys.scope.save }));
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(updateMock).not.toHaveBeenCalled();
   });
 
   it("pré-remplit la bascule depuis la clé", () => {

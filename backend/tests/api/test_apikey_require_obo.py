@@ -29,8 +29,8 @@ def _obo_key(client: TestClient, admin_headers: dict[str, str], ws: str) -> str:
     _, api_key = make_ws_with_user_key(client, admin_headers, ws)
     keys = client.get("/api/me/api-keys", headers=admin_headers).json()
     key_id = next(k["id"] for k in keys if k["name"] == f"key-{ws}")
-    resp = client.put(
-        f"/api/me/api-keys/{key_id}/require-obo",
+    resp = client.patch(
+        f"/api/me/api-keys/{key_id}",
         headers=admin_headers,
         json={"require_obo": True},
     )

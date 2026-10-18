@@ -41,17 +41,21 @@ _OBO_HEADERS: list[dict[str, Any]] = [
         "schema": {"type": "string"},
         "description": (
             "OBO — HMAC-SHA256 hex de `{actor}\\n{timestamp}`, secret = la clé API "
-            "du Bearer de la même requête. Valide et connue : l'appel est attribué à "
-            "l'humain ; sinon à la clé — sauf clé « OBO obligatoire » : 401."
+            "présentée par la requête : le Bearer, ou sur `/api/v1/search` la clé du "
+            "corps. Valide et connue : l'appel est attribué à l'humain ; sinon à la "
+            "clé — sauf clé « OBO obligatoire » : 401."
         ),
     },
 ]
 
+_OBO_REQUIRED_401 = (
+    "Clé « OBO obligatoire » sans identité signée valide et connue (`obo_required`)."
+)
+
 _UNAUTHORIZED: dict[str, Any] = {
     "description": (
         "Clé absente ou invalide (`missing_bearer_token`, `invalid_auth_scheme`, "
-        "`invalid_apikey`, `insufficient_scope`), ou clé « OBO obligatoire » sans "
-        "identité signée valide et connue (`obo_required`)."
+        "`invalid_apikey`, `insufficient_scope`). " + _OBO_REQUIRED_401
     )
 }
 
@@ -61,7 +65,16 @@ def _declare_apikey_operation(op: dict[str, Any]) -> None:
     declared = {(p.get("in"), p.get("name")) for p in op.get("parameters", [])}
     params = op.setdefault("parameters", [])
     params.extend(h for h in _OBO_HEADERS if ("header", h["name"]) not in declared)
-    op.setdefault("responses", {}).setdefault("401", _UNAUTHORIZED)
+    responses = op.setdefault("responses", {})
+    declared_401 = responses.get("401")
+    if declared_401 is None:
+        responses["401"] = dict(_UNAUTHORIZED)
+    elif "obo_required" not in declared_401.get("description", ""):
+        # Une route qui documente déjà son 401 doit AUSSI annoncer obo_required :
+        # sinon le contrat publié tait un refus que toute route clé API peut rendre.
+        declared_401["description"] = (
+            f"{declared_401.get('description', '')} {_OBO_REQUIRED_401}".strip()
+        )
 
 
 def install_openapi_security(app: FastAPI) -> None:

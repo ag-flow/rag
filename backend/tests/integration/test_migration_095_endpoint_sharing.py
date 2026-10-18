@@ -36,13 +36,15 @@ async def test_endpoint_not_shared_by_default_and_share_cascades(
             "VALUES ('u095', 'u095@example.com', '') RETURNING id"
         )
         await conn.execute(
-            "INSERT INTO vault_endpoint_shares (endpoint_id, user_id) VALUES ($1, $2)",
+            "INSERT INTO vault_endpoint_shares (endpoint_id, user_id, owner_id) "
+                "VALUES ($1, $2, 'o095')",
             endpoint_id,
             user_id,
         )
         with pytest.raises(asyncpg.UniqueViolationError):
             await conn.execute(
-                "INSERT INTO vault_endpoint_shares (endpoint_id, user_id) VALUES ($1, $2)",
+                "INSERT INTO vault_endpoint_shares (endpoint_id, user_id, owner_id) "
+                "VALUES ($1, $2, 'o095')",
                 endpoint_id,
                 user_id,
             )

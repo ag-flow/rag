@@ -23,6 +23,12 @@ export type UserApiKeyCreate = {
   require_obo: boolean;
 };
 
+/** Modification partielle, appliquée côté serveur en une seule écriture. */
+export type UserApiKeyUpdate = {
+  scope?: KeyScope;
+  require_obo?: boolean;
+};
+
 export type UserApiKeyCreated = {
   id: string;
   name: string;

@@ -11,10 +11,9 @@ Cette règle est écrite UNE fois (`_ACCESS_SQL`) et sert à toutes les surfaces
 utilisateur voit selon le chemin, comme l'OBO l'a montré (LESSONS, 2026-09-05).
 
 L'appelant est désigné par son `owner_id` effectif (session, clé API, ou humain
-OBO). Le partage nominatif vise un `users.id` ; la correspondance passe par
-`owner_id = sha256(lower(email))`, recalculée en SQL à l'octet près comme
-`rag.auth.owner.principal_to_owner_id` — si la dérivation de l'owner change,
-ce prédicat doit changer avec elle.
+OBO). Le partage nominatif vise un `users.id` et mémorise son `owner_id`,
+calculé ICI par `principal_to_owner_id` — jamais recalculé en SQL, dont le
+lower() ne replie pas l'Unicode comme Python.
 """
 
 from __future__ import annotations
@@ -26,6 +25,7 @@ from uuid import UUID
 import asyncpg
 import structlog
 
+from rag.auth.owner import principal_to_owner_id
 from rag.schemas.endpoint_sharing import EndpointSharingOut, EndpointSharingUpdate, ShareUser
 
 log = structlog.get_logger(__name__)
@@ -52,9 +52,7 @@ _ACCESS_SQL = """
                    WHEN e.shared_with_all THEN 'shared'
                    WHEN EXISTS (
                        SELECT 1 FROM vault_endpoint_shares s
-                       JOIN users u ON u.id = s.user_id
-                       WHERE s.endpoint_id = e.id
-                         AND encode(sha256(convert_to(lower(u.email), 'UTF8')), 'hex') = $1
+                       WHERE s.endpoint_id = e.id AND s.owner_id = $1
                    ) THEN 'shared'
                END AS access
         FROM vault_endpoints e
@@ -173,15 +171,18 @@ async def db_set_sharing(
         await conn.execute("DELETE FROM vault_endpoint_shares WHERE endpoint_id = $1", endpoint_id)
         user_ids = list(dict.fromkeys(req.user_ids))
         if user_ids:
-            try:
-                await conn.execute(
-                    "INSERT INTO vault_endpoint_shares (endpoint_id, user_id) "
-                    "SELECT $1, unnest($2::uuid[])",
-                    endpoint_id,
-                    user_ids,
-                )
-            except asyncpg.ForeignKeyViolationError as exc:
-                raise UnknownShareUserError(str(endpoint_id)) from exc
+            # FOR SHARE : le compte ne peut disparaître entre sa lecture et
+            # l'INSERT — sinon un owner_id survivrait à son utilisateur.
+            users = await conn.fetch(
+                "SELECT id, email FROM users WHERE id = ANY($1::uuid[]) FOR SHARE", user_ids
+            )
+            if len(users) != len(user_ids):
+                raise UnknownShareUserError(str(endpoint_id))
+            await conn.executemany(
+                "INSERT INTO vault_endpoint_shares (endpoint_id, user_id, owner_id) "
+                "VALUES ($1, $2, $3)",
+                [(endpoint_id, u["id"], principal_to_owner_id(u["email"])) for u in users],
+            )
     log.info(
         "endpoint.sharing_updated",
         endpoint=str(endpoint_id),
@@ -195,10 +196,9 @@ async def db_list_share_candidates(
     conn: asyncpg.Connection, *, exclude_owner_id: str
 ) -> list[ShareUser]:
     """Utilisateurs existants à qui partager, l'appelant exclu."""
-    rows = await conn.fetch(
-        "SELECT id, username, email FROM users "
-        "WHERE encode(sha256(convert_to(lower(email), 'UTF8')), 'hex') <> $1 "
-        "ORDER BY email",
-        exclude_owner_id,
-    )
-    return [ShareUser(id=r["id"], username=r["username"], email=r["email"]) for r in rows]
+    rows = await conn.fetch("SELECT id, username, email FROM users ORDER BY email")
+    return [
+        ShareUser(id=r["id"], username=r["username"], email=r["email"])
+        for r in rows
+        if principal_to_owner_id(r["email"]) != exclude_owner_id
+    ]

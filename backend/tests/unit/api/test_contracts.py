@@ -111,6 +111,19 @@ class TestOpenApiSecurity:
         assert "obo_required" in spec["paths"]["/index"]["post"]["responses"]["401"]["description"]
         assert "parameters" not in spec["paths"]["/api/admin/fake"]["get"]
 
+    def test_apikey_op_with_its_own_401_also_announces_obo_required(self) -> None:
+        from rag.api.openapi_security import install_openapi_security
+        from rag.api.workspace_lifecycle import build_workspace_lifecycle_router
+
+        app = FastAPI()
+        app.include_router(build_workspace_lifecycle_router())
+        install_openapi_security(app)
+        spec = app.openapi()
+
+        description = spec["paths"]["/workspaces"]["post"]["responses"]["401"]["description"]
+        assert "insufficient_scope" in description  # 401 propre à la route conservé
+        assert "obo_required" in description
+
     def test_filtered_contract_inherits_security(self) -> None:
         resp = self._secured_client().get("/api/contracts/openapi-apikey")
         data = resp.json()

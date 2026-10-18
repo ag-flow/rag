@@ -398,7 +398,6 @@ def build_admin_router() -> APIRouter:
         Logique dans `services/endpoint_refresh.py` (partagée avec l'outil MCP
         reset_workspace_from_endpoint).
         """
-        from rag.auth.owner import get_current_owner_id
         from rag.services.endpoint_refresh import (
             DefaultVaultMissingError,
             EndpointGoneError,
@@ -414,7 +413,6 @@ def build_admin_router() -> APIRouter:
             return await refresh_workspace_from_endpoint(
                 workspace_id=ws_id,
                 workspace_name=name,
-                owner_id=get_current_owner_id(request),
                 confirm=confirm,
                 config_pool=pool,
                 admin_dsn=_admin_dsn(request),

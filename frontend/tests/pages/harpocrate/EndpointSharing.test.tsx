@@ -131,6 +131,39 @@ describe("EndpointShareDialog", () => {
   });
 });
 
+describe("VaultEndpointsTab — dialogue de partage", () => {
+  beforeEach(async () => {
+    vi.restoreAllMocks();
+    await i18n.changeLanguage("fr");
+  });
+
+  it("une sélection annulée ne réapparaît pas à la réouverture", async () => {
+    vi.spyOn(apiModule.api, "get").mockImplementation((url: string) =>
+      Promise.resolve(
+        url.endsWith("/health")
+          ? {}
+          : url.endsWith("/sharing")
+            ? { shared_with_all: false, users: [] }
+            : url.endsWith("/endpoints")
+              ? [EP]
+              : [BOB, CAROL],
+      ) as never,
+    );
+    render(
+      <Wrapper>
+        <VaultEndpointsTab vaultId="v-1" />
+      </Wrapper>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Partager" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: /bob@example.com/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Annuler" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Partager" }));
+    expect(await screen.findByRole("checkbox", { name: /bob@example.com/ })).not.toBeChecked();
+  });
+});
+
 describe("VaultEndpointsTab — badge de partage", () => {
   beforeEach(async () => {
     vi.restoreAllMocks();

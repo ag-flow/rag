@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # Niveau d'accès d'une clé (migration 067) — appliqué à TOUS les workspaces :
 #   read       : recherche / lecture MCP
@@ -30,12 +30,23 @@ class ScopeUpdate(BaseModel):
     scope: KeyScope
 
 
-class RequireOboUpdate(BaseModel):
-    """Active ou retire l'exigence d'identité OBO d'une clé."""
+class UserApiKeyUpdate(BaseModel):
+    """Modification partielle d'une clé, appliquée en UNE écriture.
+
+    Niveau et exigence OBO ensemble : deux appels successifs pouvaient n'en
+    appliquer qu'un et laisser croire l'OBO activé alors qu'il ne l'est pas.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    require_obo: bool
+    scope: KeyScope | None = None
+    require_obo: bool | None = None
+
+    @model_validator(mode="after")
+    def _at_least_one_field(self) -> UserApiKeyUpdate:
+        if self.scope is None and self.require_obo is None:
+            raise ValueError("au moins un champ parmi scope, require_obo")
+        return self
 
 
 class UserApiKeyOut(BaseModel):

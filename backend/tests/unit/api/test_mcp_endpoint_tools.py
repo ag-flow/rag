@@ -104,23 +104,38 @@ async def test_list_endpoints_requires_admin() -> None:
     assert await tools["list_endpoints"]() == ENDPOINT_ADMIN_REFUSAL
 
 
+def _usable(slug: str, vault: str, access: str, **services: Any) -> sharing_svc.UsableEndpoint:
+    return sharing_svc.UsableEndpoint(
+        id=uuid4(),
+        slug=slug,
+        label=slug.title(),
+        vault_id=uuid4(),
+        vault_name=vault,
+        vault_label=f"Coffre {vault}",
+        access=access,  # type: ignore[arg-type]
+        indexer=("openai", "text-embedding-3-small"),
+        rerank=services.get("rerank"),
+        llm=services.get("llm"),
+    )
+
+
 @pytest.mark.asyncio
 async def test_list_endpoints_groups_by_vault_with_writable_flag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    own = _vault_row(name="coffre-a")
-    shared = _vault_row(name="commun", owner_id="", is_default=True)
-    conn = MagicMock()
-    conn.fetch = AsyncMock(return_value=[own, shared])
-    monkeypatch.setattr(endpoints_svc, "list_endpoints", AsyncMock(return_value=[_endpoint_out()]))
-    monkeypatch.setattr(sharing_svc, "db_list_usable_endpoints", AsyncMock(return_value=[]))
-    tools = _register(conn)
+    usable = [
+        _usable("azure-prod", "coffre-a", "owned", rerank=("cohere", "rerank-v4.0")),
+        _usable("commun-ep", "commun", "default"),
+    ]
+    monkeypatch.setattr(sharing_svc, "db_list_usable_endpoints", AsyncMock(return_value=usable))
+    tools = _register(MagicMock())
 
     payload = json.loads(await tools["list_endpoints"]())
 
     assert [v["vault"] for v in payload] == ["coffre-a", "commun"]
     assert payload[0]["writable"] is True
     assert payload[1]["writable"] is False
+    assert "shared" not in payload[0]
     assert payload[0]["endpoints"][0]["services"]["rerank"] == {
         "provider": "cohere",
         "model": "rerank-v4.0",
@@ -128,54 +143,27 @@ async def test_list_endpoints_groups_by_vault_with_writable_flag(
 
 
 @pytest.mark.asyncio
-async def test_list_endpoints_appends_shared_endpoints_read_only(
+async def test_list_endpoints_marks_shared_endpoints_read_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Un endpoint partagé d'un coffre invisible apparaît, jamais modifiable et
-    sans refs de secrets ; les endpoints de coffres visibles ne sont pas doublés."""
-    conn = MagicMock()
-    conn.fetch = AsyncMock(return_value=[])
-    usable = [
-        sharing_svc.UsableEndpoint(
-            id=uuid4(),
-            slug="alice-ep",
-            label="Alice",
-            vault_id=uuid4(),
-            vault_name="alice-vault",
-            vault_label="Coffre d'Alice",
-            access="shared",
-            indexer=("openai", "text-embedding-3-small"),
-            rerank=None,
-            llm=("anthropic", "claude-sonnet-5"),
-        ),
-        sharing_svc.UsableEndpoint(
-            id=uuid4(),
-            slug="mine",
-            label="Mine",
-            vault_id=uuid4(),
-            vault_name="coffre-a",
-            vault_label="Coffre A",
-            access="owned",
-            indexer=("openai", "text-embedding-3-small"),
-            rerank=None,
-            llm=None,
-        ),
-    ]
+    sans refs de secrets."""
+    usable = [_usable("alice-ep", "alice-vault", "shared", llm=("anthropic", "claude-sonnet-5"))]
     monkeypatch.setattr(sharing_svc, "db_list_usable_endpoints", AsyncMock(return_value=usable))
-    tools = _register(conn)
+    tools = _register(MagicMock())
 
     payload = json.loads(await tools["list_endpoints"]())
 
     assert payload == [
         {
             "vault": "alice-vault",
-            "vault_label": "Coffre d'Alice",
+            "vault_label": "Coffre alice-vault",
             "writable": False,
             "shared": True,
             "endpoints": [
                 {
                     "slug": "alice-ep",
-                    "label": "Alice",
+                    "label": "Alice-Ep",
                     "services": {
                         "vectorization": {"provider": "openai", "model": "text-embedding-3-small"},
                         "rerank": None,

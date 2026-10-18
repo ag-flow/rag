@@ -14,42 +14,27 @@ from rag.services.endpoint_sharing import UsableEndpoint
 SERVICES = ("vectorization", "rerank", "llm")
 
 
-def service_summary(ep: EndpointOut) -> dict[str, Any]:
-    """Résumé {service: {provider, model} | None} pour le listing."""
+def endpoint_groups(usable: list[UsableEndpoint]) -> list[dict[str, Any]]:
+    """Groupes par coffre du listing MCP, depuis les endpoints UTILISABLES.
 
-    def _spec(spec: Any) -> dict[str, Any] | None:
-        if spec is None:
-            return None
-        return {"provider": spec.provider, "model": spec.model}
-
-    return {
-        "vectorization": _spec(ep.indexer),
-        "rerank": _spec(ep.rerank),
-        "llm": _spec(ep.llm),
-    }
-
-
-def shared_endpoint_groups(usable: list[UsableEndpoint]) -> list[dict[str, Any]]:
-    """Groupes du listing pour les endpoints PARTAGÉS avec l'appelant (095).
-
-    Leurs coffres ne sont pas visibles de lui : on n'expose que le nom et le
-    label du coffre (pour désigner l'endpoint) et le résumé des services — ni
-    refs de secrets ni configuration, et jamais `writable`.
+    `writable` = coffre possédé (seul le propriétaire modifie). Les groupes des
+    endpoints partagés par d'autres (095) portent `shared: true` : on n'y expose
+    que le nom et le label du coffre (pour désigner l'endpoint) et le résumé
+    des services — jamais de refs de secrets ni de configuration.
     """
     groups: dict[str, dict[str, Any]] = {}
     for ep in usable:
-        if ep.access != "shared":
-            continue
-        group = groups.setdefault(
-            ep.vault_name,
-            {
+        group = groups.get(ep.vault_name)
+        if group is None:
+            group = {
                 "vault": ep.vault_name,
                 "vault_label": ep.vault_label,
-                "writable": False,
-                "shared": True,
+                "writable": ep.access == "owned",
                 "endpoints": [],
-            },
-        )
+            }
+            if ep.access == "shared":
+                group["shared"] = True
+            groups[ep.vault_name] = group
         group["endpoints"].append(
             {
                 "slug": ep.slug,

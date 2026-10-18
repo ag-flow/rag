@@ -40,7 +40,6 @@ async def refresh_workspace_from_endpoint(
     *,
     workspace_id: UUID,
     workspace_name: str,
-    owner_id: str,
     confirm: bool,
     config_pool: asyncpg.Pool,
     admin_dsn: str,
@@ -60,7 +59,7 @@ async def refresh_workspace_from_endpoint(
     `reset_workspace_from_endpoint` (même flow, zéro duplication).
     """
     row = await config_pool.fetchrow(
-        "SELECT w.endpoint_id, ic.provider, ic.model, ic.api_key_ref, ic.base_url, "
+        "SELECT w.endpoint_id, w.owner_id, ic.provider, ic.model, ic.api_key_ref, ic.base_url, "
         "ic.rpm_limit, ic.tpm_limit "
         "FROM workspaces w JOIN indexer_configs ic ON ic.workspace_id = w.id "
         "WHERE w.id = $1",
@@ -73,8 +72,16 @@ async def refresh_workspace_from_endpoint(
         # Décision de cadrage : un partage retiré n'efface pas les workspaces
         # créés (snapshot), mais leur interdit de recopier la config — sinon
         # le retrait laisserait le tiers suivre les évolutions de l'endpoint.
-        usable = endpoint is not None and await db_get_usable_endpoint(
-            conn, owner_id=owner_id, endpoint_id=endpoint.id
+        # Jugé pour le PROPRIÉTAIRE du workspace, pas pour l'appelant : c'est
+        # lui qui a reçu le partage. Un workspace partagé (owner NULL) n'a pas
+        # de bénéficiaire — il garde le comportement d'avant le partage.
+        usable = (
+            endpoint is None
+            or row["owner_id"] is None
+            or await db_get_usable_endpoint(
+                conn, owner_id=row["owner_id"], endpoint_id=endpoint.id
+            )
+            is not None
         )
     if endpoint is None:
         raise EndpointGoneError(workspace_name)
