@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: harpocrate
-Version: 0.6.0
+Version: 0.8.0
 Summary: Harpocrate SDK — client Python zero-knowledge pour Vault
 License: MIT
 Requires-Python: >=3.10
@@ -10,6 +10,7 @@ Requires-Dist: cachetools>=5.3
 Requires-Dist: click>=8.1
 Requires-Dist: cryptography>=42
 Requires-Dist: httpx>=0.27
+Requires-Dist: joserfc>=1.7
 Requires-Dist: pydantic>=2.6
 Provides-Extra: dev
 Requires-Dist: mypy>=1.9; extra == 'dev'
