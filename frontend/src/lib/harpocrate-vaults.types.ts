@@ -23,6 +23,18 @@ export type VaultCreateRequest = {
   is_default?: boolean;
 };
 
+/** Départ « Connecter à Harpocrate » : le coffre sans sa clé, obtenue au retour. */
+export type VaultIdentity = {
+  name: string;
+  label: string;
+  base_url: string;
+  is_default?: boolean;
+};
+
+export type VaultConnectStartResponse = {
+  browser_url: string;
+};
+
 export type VaultUpdateRequest = {
   label?: string;
   base_url?: string;

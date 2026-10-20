@@ -345,5 +345,26 @@
     "banner_expired": "La clé d'accès de ce coffre est expirée — remplacez-la (menu ⋯ → Remplacer la clé) avant que la résolution de secrets n'échoue.",
     "banner_expiring": "La clé d'accès de ce coffre expire dans {{count}} jour(s) — pensez à la remplacer (menu ⋯ → Remplacer la clé).",
     "list_dot": "Clé d'accès expirée ou proche de l'expiration"
+  },
+  "connect": {
+    "explanation": "Recommandé : choisissez votre wallet dans Harpocrate, la clé est créée et enregistrée sans copier-coller. Elle appartient à VOTRE compte Harpocrate, alors que les coffres de ragflow sont partagés entre administrateurs.",
+    "button": "Connecter à Harpocrate",
+    "starting": "Redirection vers Harpocrate…",
+    "or_manual": "— ou saisissez une api_key existante ci-dessous —",
+    "connected_toast": "Coffre créé et connecté à Harpocrate.",
+    "connected_untested_toast": "Coffre créé, mais le test de connexion a échoué : vérifiez-le dans l'onglet Détail.",
+    "errors": {
+      "name_taken": "Ce nom de coffre est déjà utilisé.",
+      "name_taken_key_not_saved": "Ce nom de coffre a été pris entre-temps : la clé obtenue chez Harpocrate n'a PAS été enregistrée. Révoquez-la dans Harpocrate puis recommencez avec un autre nom.",
+      "https_required": "L'URL de Harpocrate doit être en https.",
+      "app_not_declared": "ragflow n'est pas déclaré dans les « Applications connectées » de cette instance Harpocrate (client_id ou URL de retour inconnus). Demandez la déclaration à l'admin Harpocrate, ou saisissez la clé à la main.",
+      "harpocrate_unreachable": "Harpocrate est injoignable. Réessayez plus tard.",
+      "exchange_failed": "Harpocrate a refusé l'échange : relancez la connexion depuis le début.",
+      "denied": "Connexion refusée dans Harpocrate : aucun coffre n'a été créé.",
+      "state_unknown": "Ce retour de Harpocrate n'appartient pas à votre session ou a expiré (15 min) : aucun coffre n'a été créé. Relancez la connexion.",
+      "already_used": "Cette connexion a déjà été traitée : aucun nouveau coffre n'a été créé.",
+      "harpocrate_dek_missing": "HARPOCRATE_DEK manque côté backend : la clé ne peut pas être chiffrée.",
+      "generic": "La connexion à Harpocrate a échoué."
+    }
   }
 }

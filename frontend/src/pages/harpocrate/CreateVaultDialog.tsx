@@ -28,6 +28,7 @@ import { vaultCreateSchema, type VaultCreateForm } from "@/lib/validators";
 import { ApiError } from "@/lib/api";
 import { useToast } from "@/hooks/useToast";
 import type { VaultSummary } from "@/lib/harpocrate-vaults.types";
+import { ConnectHarpocrateSection } from "./ConnectHarpocrateSection";
 
 interface CreateVaultDialogProps {
   open: boolean;
@@ -165,6 +166,8 @@ export function CreateVaultDialog({ open, onOpenChange, onCreated }: CreateVault
                     </FormItem>
                   )}
                 />
+
+                <ConnectHarpocrateSection form={form} onDekMissing={() => setDekMissing(true)} />
 
                 <div className="grid grid-cols-3 gap-3">
                   <FormField

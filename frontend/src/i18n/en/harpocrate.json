@@ -345,5 +345,26 @@
     "banner_expired": "This vault's access key has expired — replace it (⋯ menu → Replace key) before secret resolution fails.",
     "banner_expiring": "This vault's access key expires in {{count}} day(s) — consider replacing it (⋯ menu → Replace key).",
     "list_dot": "Access key expired or close to expiry"
+  },
+  "connect": {
+    "explanation": "Recommended: pick your wallet in Harpocrate, the key is created and stored without copy-paste. It belongs to YOUR Harpocrate account, while ragflow vaults are shared between administrators.",
+    "button": "Connect to Harpocrate",
+    "starting": "Redirecting to Harpocrate…",
+    "or_manual": "— or enter an existing api_key below —",
+    "connected_toast": "Vault created and connected to Harpocrate.",
+    "connected_untested_toast": "Vault created, but the connection test failed: check it in the Detail tab.",
+    "errors": {
+      "name_taken": "This vault name is already used.",
+      "name_taken_key_not_saved": "This vault name was taken meanwhile: the key obtained from Harpocrate was NOT saved. Revoke it in Harpocrate, then start again with another name.",
+      "https_required": "The Harpocrate URL must use https.",
+      "app_not_declared": "ragflow is not declared in this Harpocrate instance's “Connected applications” (unknown client_id or return URL). Ask the Harpocrate admin to declare it, or enter the key manually.",
+      "harpocrate_unreachable": "Harpocrate is unreachable. Try again later.",
+      "exchange_failed": "Harpocrate refused the exchange: restart the connection from the beginning.",
+      "denied": "Connection refused in Harpocrate: no vault was created.",
+      "state_unknown": "This Harpocrate return does not belong to your session or has expired (15 min): no vault was created. Restart the connection.",
+      "already_used": "This connection was already processed: no new vault was created.",
+      "harpocrate_dek_missing": "HARPOCRATE_DEK is missing on the backend: the key cannot be encrypted.",
+      "generic": "The connection to Harpocrate failed."
+    }
   }
 }

@@ -14,7 +14,9 @@ import type {
   SshKeyGenerate,
   SshKeyImport,
   SshKeyWithVault,
+  VaultConnectStartResponse,
   VaultCreateRequest,
+  VaultIdentity,
   VaultRevealApiKeyResponse,
   VaultRotateApiKeyRequest,
   VaultSummary,
@@ -33,6 +35,9 @@ export const harpocrateVaultsApi = {
   get: (id: string) => api.get<VaultSummary>(`${BASE}/${id}`),
 
   create: (payload: VaultCreateRequest) => api.post<VaultSummary>(BASE, payload),
+
+  connectStart: (payload: VaultIdentity) =>
+    api.post<VaultConnectStartResponse>(`${BASE}/connect/start`, payload),
 
   update: (id: string, payload: VaultUpdateRequest) =>
     api.patch<VaultSummary>(`${BASE}/${id}`, payload),

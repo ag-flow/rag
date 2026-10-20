@@ -33,7 +33,7 @@ import enMcp from "@/i18n/en/mcp.json";
 import enProfile from "@/i18n/en/profile.json";
 
 // i18n instance isolée pour les tests, forcée en FR
-const testI18n = i18next.createInstance();
+export const testI18n = i18next.createInstance();
 
 void testI18n.use(initReactI18next).init({
   lng: "fr",
@@ -66,7 +66,7 @@ void testI18n.use(initReactI18next).init({
       chunking_strategies: frChunkingStrategies,
       prompts: frPrompts,
       push: frPush,
-    profile: frProfile,
+      profile: frProfile,
       mcp: frMcp,
     },
     en: {
@@ -80,7 +80,7 @@ void testI18n.use(initReactI18next).init({
       chunking_strategies: enChunkingStrategies,
       prompts: enPrompts,
       push: enPush,
-    profile: enProfile,
+      profile: enProfile,
       mcp: enMcp,
     },
   },
