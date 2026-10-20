@@ -5,7 +5,8 @@ import { useToast } from "@/hooks/useToast";
 
 const KNOWN_RETURN_ERRORS = new Set([
   "name_taken_key_not_saved",
-  "app_not_declared",
+  "client_not_declared",
+  "redirect_uri_not_declared",
   "harpocrate_unreachable",
   "exchange_failed",
   "denied",

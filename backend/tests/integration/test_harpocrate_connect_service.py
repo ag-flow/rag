@@ -279,10 +279,17 @@ async def test_start_refuses_taken_name_and_http_url_without_calling_harpocrate(
     assert fake.calls == []
 
 
-async def test_start_undeclared_app_reports_app_not_declared(pool) -> None:
-    fake = FakeHarpocrate(start_error=ConnectError("invalid_redirect_uri"))
+@pytest.mark.parametrize(
+    ("error_code", "reason"),
+    [
+        ("invalid_client", "client_not_declared"),
+        ("invalid_redirect_uri", "redirect_uri_not_declared"),
+    ],
+)
+async def test_start_undeclared_app_reports_what_to_declare(pool, error_code, reason) -> None:
+    fake = FakeHarpocrate(start_error=ConnectError(error_code))
     async with pool.acquire() as conn:
         with pytest.raises(ConnectFlowError) as exc:
             await _start(_service(fake), conn)
-        assert exc.value.reason == "app_not_declared"
+        assert exc.value.reason == reason
         assert await conn.fetchval("SELECT count(*) FROM harpocrate_connect_requests") == 0

@@ -70,12 +70,24 @@ describe("CreateVaultDialog — Connecter à Harpocrate", () => {
     expect(connectStart).not.toHaveBeenCalled();
   });
 
-  it("explique une application non déclarée chez Harpocrate", async () => {
-    connectStart.mockRejectedValue(new ApiError(409, { detail: "app_not_declared" }));
+  it("explique une application non déclarée et affiche quoi déclarer", async () => {
+    connectStart.mockRejectedValue(
+      new ApiError(409, {
+        detail: {
+          reason: "client_not_declared",
+          client_id: "ragflow",
+          redirect_uri: "https://rag.example/api/admin/harpocrate-vaults/connect/callback",
+        },
+      }),
+    );
     openDialog();
     fillIdentity();
     fireEvent.click(screen.getByRole("button", { name: /Connecter à Harpocrate/ }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(/n'est pas déclaré/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/ne connaît pas l'application/);
+    expect(screen.getByText("ragflow")).toBeInTheDocument();
+    expect(
+      screen.getByText("https://rag.example/api/admin/harpocrate-vaults/connect/callback"),
+    ).toBeInTheDocument();
     expect(assignSpy).not.toHaveBeenCalled();
   });
 });

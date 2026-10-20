@@ -111,3 +111,18 @@ def test_connect_routes_refuse_anonymous(pg_container: str) -> None:
     with make_app_client(pg_container) as client:
         assert client.post(_START, json=_IDENTITY).status_code == 401
         assert client.get(_CALLBACK, params={"code": "c", "state": "s"}).status_code == 401
+
+
+def test_connect_start_undeclared_client_returns_values_to_declare(session_client) -> None:
+    """invalid_client : la réponse dit quel client_id et quelle URL déclarer."""
+    from harpocrate.exceptions import ConnectError
+
+    client, fake = session_client
+    fake.start_error = ConnectError("invalid_client")
+    resp = client.post(_START, json=_IDENTITY)
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == {
+        "reason": "client_not_declared",
+        "client_id": "ragflow",
+        "redirect_uri": f"http://testserver{_CALLBACK}",
+    }

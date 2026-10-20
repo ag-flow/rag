@@ -25,6 +25,7 @@ _CALLBACK_PATH = "/api/admin/harpocrate-vaults/connect/callback"
 # Retour vers l'IHM : chemin fixe, jamais une valeur de la requête (pas de
 # redirection ouverte).
 _UI_PATH = "/ui/settings/harpocrate-vaults"
+_DECLARATION_REASONS = frozenset({"client_not_declared", "redirect_uri_not_declared"})
 
 router = APIRouter(
     prefix="/api/admin/harpocrate-vaults/connect",
@@ -61,6 +62,15 @@ async def start_connect(identity: VaultIdentity, request: Request) -> VaultConne
                 conn, identity=identity, owner_id=owner_id, redirect_uri=redirect_uri
             )
         except ConnectFlowError as exc:
+            if exc.reason in _DECLARATION_REASONS:
+                # Valeurs publiques (aucun secret) : ce qu'il faut déclarer chez
+                # Harpocrate, au caractère près — sans elles l'admin devine.
+                detail: object = {
+                    "reason": exc.reason,
+                    "client_id": request.app.state.settings.harpocrate_connect_client_id,
+                    "redirect_uri": redirect_uri,
+                }
+                raise HTTPException(status.HTTP_409_CONFLICT, detail) from exc
             raise HTTPException(status.HTTP_409_CONFLICT, exc.reason) from exc
         except HarpocrateDekMissingError as exc:
             # Sans DEK, la clé obtenue ne pourrait pas être chiffrée au retour :

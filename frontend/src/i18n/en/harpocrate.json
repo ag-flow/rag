@@ -357,14 +357,17 @@
       "name_taken": "This vault name is already used.",
       "name_taken_key_not_saved": "This vault name was taken meanwhile: the key obtained from Harpocrate was NOT saved. Revoke it in Harpocrate, then start again with another name.",
       "https_required": "The Harpocrate URL must use https.",
-      "app_not_declared": "ragflow is not declared in this Harpocrate instance's “Connected applications” (unknown client_id or return URL). Ask the Harpocrate admin to declare it, or enter the key manually.",
       "harpocrate_unreachable": "Harpocrate is unreachable. Try again later.",
       "exchange_failed": "Harpocrate refused the exchange: restart the connection from the beginning.",
       "denied": "Connection refused in Harpocrate: no vault was created.",
       "state_unknown": "This Harpocrate return does not belong to your session or has expired (15 min): no vault was created. Restart the connection.",
       "already_used": "This connection was already processed: no new vault was created.",
       "harpocrate_dek_missing": "HARPOCRATE_DEK is missing on the backend: the key cannot be encrypted.",
-      "generic": "The connection to Harpocrate failed."
-    }
+      "generic": "The connection to Harpocrate failed.",
+      "client_not_declared": "Harpocrate does not know the ragflow application (unknown or disabled client_id). A Harpocrate admin must declare it in “Connected applications” with the values below — or enter the key manually.",
+      "redirect_uri_not_declared": "The ragflow application is declared in Harpocrate, but not with this return URL (exact match). Add the URL below to its declaration — or enter the key manually."
+    },
+    "declare_client_id": "client_id to declare",
+    "declare_redirect_uri": "Return URL to declare"
   }
 }

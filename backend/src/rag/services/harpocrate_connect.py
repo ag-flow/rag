@@ -236,8 +236,13 @@ class HarpocrateConnectService:
             # error_code est un code du contrat (invalid_grant, invalid_client…),
             # jamais un secret : on peut le journaliser.
             log.warning("harpocrate_connect.refused", error_code=exc.error_code)
-            if exc.error_code in ("invalid_client", "invalid_redirect_uri"):
-                raise ConnectFlowError("app_not_declared") from exc
+            # Les deux refus de déclaration sont distingués : l'admin Harpocrate
+            # n'a pas la même chose à corriger (application absente ou
+            # désactivée, ou URL de retour qui ne correspond pas au caractère près).
+            if exc.error_code == "invalid_client":
+                raise ConnectFlowError("client_not_declared") from exc
+            if exc.error_code == "invalid_redirect_uri":
+                raise ConnectFlowError("redirect_uri_not_declared") from exc
             raise ConnectFlowError("exchange_failed") from exc
         except httpx.HTTPError as exc:
             log.warning("harpocrate_connect.unreachable", error_type=type(exc).__name__)

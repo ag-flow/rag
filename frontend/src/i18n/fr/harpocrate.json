@@ -357,14 +357,17 @@
       "name_taken": "Ce nom de coffre est déjà utilisé.",
       "name_taken_key_not_saved": "Ce nom de coffre a été pris entre-temps : la clé obtenue chez Harpocrate n'a PAS été enregistrée. Révoquez-la dans Harpocrate puis recommencez avec un autre nom.",
       "https_required": "L'URL de Harpocrate doit être en https.",
-      "app_not_declared": "ragflow n'est pas déclaré dans les « Applications connectées » de cette instance Harpocrate (client_id ou URL de retour inconnus). Demandez la déclaration à l'admin Harpocrate, ou saisissez la clé à la main.",
       "harpocrate_unreachable": "Harpocrate est injoignable. Réessayez plus tard.",
       "exchange_failed": "Harpocrate a refusé l'échange : relancez la connexion depuis le début.",
       "denied": "Connexion refusée dans Harpocrate : aucun coffre n'a été créé.",
       "state_unknown": "Ce retour de Harpocrate n'appartient pas à votre session ou a expiré (15 min) : aucun coffre n'a été créé. Relancez la connexion.",
       "already_used": "Cette connexion a déjà été traitée : aucun nouveau coffre n'a été créé.",
       "harpocrate_dek_missing": "HARPOCRATE_DEK manque côté backend : la clé ne peut pas être chiffrée.",
-      "generic": "La connexion à Harpocrate a échoué."
-    }
+      "generic": "La connexion à Harpocrate a échoué.",
+      "client_not_declared": "Harpocrate ne connaît pas l'application ragflow (client_id inconnu ou désactivé). Un admin Harpocrate doit la déclarer dans « Applications connectées » avec les valeurs ci-dessous — ou saisissez la clé à la main.",
+      "redirect_uri_not_declared": "L'application ragflow est déclarée chez Harpocrate, mais pas avec cette URL de retour (comparaison au caractère près). Ajoutez l'URL ci-dessous à sa déclaration — ou saisissez la clé à la main."
+    },
+    "declare_client_id": "client_id à déclarer",
+    "declare_redirect_uri": "URL de retour à déclarer"
   }
 }
