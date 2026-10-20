@@ -27,8 +27,7 @@ import asyncpg
 import structlog
 
 from rag.auth.obo import ACTOR_HEADER, SIGNATURE_HEADER, TIMESTAMP_HEADER, read_obo_actor
-from rag.auth.owner import principal_to_owner_id
-from rag.services.user_profile import email_for_identity
+from rag.services.user_profile import owner_id_for_identity
 
 log = structlog.get_logger(__name__)
 
@@ -113,12 +112,11 @@ async def _resolve_obo_owner(
         log.warning("obo.invalid_signature", surface=surface, owner=key_owner_id[:8])
         return None, "invalid_signature"
 
-    email = await email_for_identity(config_pool, actor)
-    if email is None:
+    owner_id = await owner_id_for_identity(config_pool, actor)
+    if owner_id is None:
         log.warning("obo.unknown_identity", surface=surface, actor=actor[:8])
         return None, "unknown_identity"
 
-    owner_id = principal_to_owner_id(email)
     log.debug("obo.resolved", surface=surface, actor=actor[:8], owner=owner_id[:8])
     return owner_id, "resolved"
 

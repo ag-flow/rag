@@ -417,6 +417,19 @@ class OidcInvalidToken(AdminError):
         return {"error": "oidc_invalid_token", "reason": self.reason}
 
 
+class OidcIdentityRefused(AdminError):
+    """Login authentifié par l'IdP, refusé par la liaison d'identité (730cb2d6)."""
+
+    http_status = 403
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "oidc_identity_refused", "reason": self.reason}
+
+
 class OidcRoleForbidden(AdminError):
     http_status = 403
 

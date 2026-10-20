@@ -4,7 +4,7 @@
   "username_label": "Nom d'utilisateur",
   "email_label": "Email",
   "email_help": "Pivot d'identité : rapproche votre compte à la connexion OIDC (claim email du fournisseur d'identité).",
-  "email_change_warning": "Changer d'email change la clé de possession de vos objets — vos workspaces et stratégies existants devront être repris.",
+  "email_change_warning": "Vos objets restent à vous : la clé de possession est figée sur votre compte et ne dépend plus de l'email.",
   "identity_label": "GUID d'identité (OBO)",
   "identity_help": "Posez ici le MÊME GUID que dans votre profil du portail : les appels MCP passés par le portail vous seront attribués (contrat OBO).",
   "identity_placeholder": "ex. 0f8fad5b-d9cb-469f-a165-70867728950e",

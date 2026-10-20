@@ -64,8 +64,9 @@ async def update_profile(
 
     - identity : None = inchangé, "" = effacement, sinon validé (_IDENTITY_RE)
       et unique (IdentityTakenError).
-    - new_email : unique (EmailTakenError). ⚠️ changer d'email change le
-      owner_id dérivé — l'appelant (IHM) l'annonce à l'utilisateur.
+    - new_email : unique (EmailTakenError). Le owner_id est figé sur la
+      ligne (migration 099) : changer d'email ne change plus le propriétaire
+      des objets.
     """
     user = await get_or_create_user(conn, email=current_email)
 
@@ -104,10 +105,15 @@ async def update_profile(
     return dict(row)
 
 
-async def email_for_identity(pool: asyncpg.Pool, identity: str) -> str | None:
-    """Email du user dont le GUID d'identité correspond — mapping OBO (v6).
+async def owner_id_for_identity(pool: asyncpg.Pool, identity: str) -> str | None:
+    """owner_id FIGÉ du user dont le GUID d'identité correspond — mapping OBO (v6).
 
+    Lu sur la ligne (migration 099), jamais recalculé depuis l'email : un
+    changement d'adresse ne détourne pas les objets de l'humain propagé.
     None si aucun user ne porte ce GUID : l'appel reste attribué à la clé
     (fail-safe du contrat, jamais d'erreur).
     """
-    return await pool.fetchval("SELECT email FROM users WHERE identity = $1", identity)
+    owner: str | None = await pool.fetchval(
+        "SELECT owner_id FROM users WHERE identity = $1", identity
+    )
+    return owner

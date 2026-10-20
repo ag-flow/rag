@@ -60,11 +60,22 @@ def get_current_principal_email(request: Request) -> str | None:
 def get_current_owner_id(request: Request) -> str:
     """Résout le owner_id de la requête courante.
 
-    owner_id = sha256(email) — l'EMAIL du user (table users) est le pivot
-    d'identité unique : session OIDC (claim email), session locale (email),
-    et OBO (GUID → users.identity → users.email) donnent le MÊME owner_id.
+    owner_id = valeur FIGÉE sur le compte (users.owner_id, migration 099),
+    posée dans la session au login — local comme OIDC — et jamais recalculée
+    depuis l'email : un changement d'email ne rend plus les objets orphelins
+    (incident `vault1` du 2026-10-20). OBO : users.owner_id via le GUID.
     Master key / aucune session → owner système constant.
+
+    Repli volontaire pour une session ouverte AVANT la migration 099 (pas de
+    owner_id dedans) : sha256(email), soit exactement la valeur du backfill —
+    même propriétaire, le temps que cette session expire.
     """
+    if request.headers.get("Authorization"):
+        return principal_to_owner_id(_SYSTEM_OWNER_EMAIL)
+    for key in ("_local_session", "_oidc_session"):
+        session = request.session.get(key)
+        if session and session.get("owner_id"):
+            return str(session["owner_id"])
     email = get_current_principal_email(request)
     if email is None:
         return principal_to_owner_id(_SYSTEM_OWNER_EMAIL)

@@ -67,7 +67,10 @@ def _obo_headers(signature: bytes | None = None) -> list[tuple[bytes, bytes]]:
 def _pool(*, key_row: dict[str, str] | None, identity_email: str | None = None) -> MagicMock:
     pool = MagicMock()
     pool.fetchrow = AsyncMock(return_value=key_row)
-    pool.fetchval = AsyncMock(return_value=identity_email)
+    # La base rend l'owner_id FIGÉ du compte (migration 099), pas son email.
+    pool.fetchval = AsyncMock(
+        return_value=principal_to_owner_id(identity_email) if identity_email else None
+    )
     return pool
 
 

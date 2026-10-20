@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from rag.api.admin_harpocrate_vaults import _check_vault_access
 from rag.auth.bearer import require_master_key_or_authenticated_admin
-from rag.auth.owner import get_current_owner_id, principal_to_owner_id
+from rag.auth.owner import get_current_owner_id
 from rag.schemas.endpoint_sharing import (
     EndpointSharingOut,
     EndpointSharingUpdate,
@@ -113,8 +113,9 @@ async def find_share_candidate(
     """Bénéficiaire désigné par son email exact — 404 sinon, jamais de liste."""
     async with _pool(request).acquire() as conn:
         user = await svc.db_find_share_candidate(conn, email=email.strip())
+        owner_id = None if user is None else await svc.db_owner_id_of_user(conn, user.id)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "user_not_found")
-    if principal_to_owner_id(user.email) == get_current_owner_id(request):
+    if owner_id == get_current_owner_id(request):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "cannot_share_with_self")
     return user

@@ -11,9 +11,8 @@ Cette règle est écrite UNE fois (`_ACCESS_SQL`) et sert à toutes les surfaces
 utilisateur voit selon le chemin, comme l'OBO l'a montré (LESSONS, 2026-09-05).
 
 L'appelant est désigné par son `owner_id` effectif (session, clé API, ou humain
-OBO). Le partage nominatif vise un `users.id` et mémorise son `owner_id`,
-calculé ICI par `principal_to_owner_id` — jamais recalculé en SQL, dont le
-lower() ne replie pas l'Unicode comme Python.
+OBO). Le partage nominatif vise un `users.id` et mémorise son `owner_id`
+FIGÉ, lu sur la ligne (migration 099) — jamais recalculé depuis l'email.
 """
 
 from __future__ import annotations
@@ -25,7 +24,6 @@ from uuid import UUID
 import asyncpg
 import structlog
 
-from rag.auth.owner import principal_to_owner_id
 from rag.schemas.endpoint_sharing import EndpointSharingOut, EndpointSharingUpdate, ShareUser
 
 log = structlog.get_logger(__name__)
@@ -174,14 +172,14 @@ async def db_set_sharing(
             # FOR SHARE : le compte ne peut disparaître entre sa lecture et
             # l'INSERT — sinon un owner_id survivrait à son utilisateur.
             users = await conn.fetch(
-                "SELECT id, email FROM users WHERE id = ANY($1::uuid[]) FOR SHARE", user_ids
+                "SELECT id, owner_id FROM users WHERE id = ANY($1::uuid[]) FOR SHARE", user_ids
             )
             if len(users) != len(user_ids):
                 raise UnknownShareUserError(str(endpoint_id))
             await conn.executemany(
                 "INSERT INTO vault_endpoint_shares (endpoint_id, user_id, owner_id) "
                 "VALUES ($1, $2, $3)",
-                [(endpoint_id, u["id"], principal_to_owner_id(u["email"])) for u in users],
+                [(endpoint_id, u["id"], u["owner_id"]) for u in users],
             )
     log.info(
         "endpoint.sharing_updated",
@@ -207,3 +205,9 @@ async def db_find_share_candidate(conn: asyncpg.Connection, *, email: str) -> Sh
         if row is None
         else ShareUser(id=row["id"], username=row["username"], email=row["email"])
     )
+
+
+async def db_owner_id_of_user(conn: asyncpg.Connection, user_id: UUID) -> str | None:
+    """owner_id figé d'un compte (migration 099)."""
+    owner: str | None = await conn.fetchval("SELECT owner_id FROM users WHERE id = $1", user_id)
+    return owner

@@ -45,7 +45,10 @@ def _pool(identity_email: str | None, *, require_obo: bool = False) -> MagicMock
     pool.fetchrow = AsyncMock(
         return_value={"owner_id": _KEY_OWNER, "scope": "admin", "require_obo": require_obo}
     )
-    pool.fetchval = AsyncMock(return_value=identity_email)
+    # La base rend l'owner_id FIGÉ du compte (migration 099), pas son email.
+    pool.fetchval = AsyncMock(
+        return_value=principal_to_owner_id(identity_email) if identity_email else None
+    )
     return pool
 
 

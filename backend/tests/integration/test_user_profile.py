@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import asyncpg
@@ -9,8 +10,8 @@ from rag.db.migrations import run_migrations
 from rag.services.user_profile import (
     IdentityTakenError,
     InvalidIdentityError,
-    email_for_identity,
     get_or_create_user,
+    owner_id_for_identity,
     update_profile,
 )
 
@@ -47,9 +48,14 @@ async def test_set_identity_and_obo_matching(pool: asyncpg.Pool) -> None:
         )
         assert updated["identity"] == GUID
 
-    # Matching OBO (v6) : GUID → email ; inconnu → None (repli clé, fail-safe).
-    assert await email_for_identity(pool, GUID) == "alice@example.com"
-    assert await email_for_identity(pool, "unknown-guid-123") is None
+    # Matching OBO (v6) : GUID → owner_id FIGÉ du compte ; inconnu → None
+    # (repli clé, fail-safe). Un changement d'email ne le déplace pas.
+    alice_owner = hashlib.sha256(b"alice@example.com").hexdigest()
+    assert await owner_id_for_identity(pool, GUID) == alice_owner
+    async with pool.acquire() as conn:
+        await update_profile(conn, current_email="alice@example.com", new_email="a2@example.com")
+    assert await owner_id_for_identity(pool, GUID) == alice_owner
+    assert await owner_id_for_identity(pool, "unknown-guid-123") is None
 
 
 @pytest.mark.asyncio

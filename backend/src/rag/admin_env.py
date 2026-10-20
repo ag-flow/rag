@@ -7,6 +7,9 @@ from pathlib import Path
 # Clés gérées via l'IHM et persistées dans le fichier admin.env.
 KEY_OIDC_CLIENT_SECRET = "RAG_OIDC_CLIENT_SECRET"  # noqa: S105 — nom de variable, pas un secret
 KEY_LOCAL_AUTH_DISABLED = "RAG_LOCAL_AUTH_DISABLED"
+# Fenêtre de re-liaison OIDC (ticket 730cb2d6) : ouverte le temps d'une
+# migration d'émetteur, refermée ensuite. Relue à chaque login.
+KEY_OIDC_RELINK_ENABLED = "RAG_OIDC_RELINK_ENABLED"
 KEY_PUBLIC_URL = "RAG_PUBLIC_URL"
 KEY_LOAD_GATE_ENABLED = "RAG_LOAD_GATE_ENABLED"
 KEY_LOAD_GATE_CPU_PSI_PCT = "RAG_LOAD_GATE_CPU_PSI_PCT"
@@ -161,3 +164,8 @@ class AdminEnvStore:
 
     def set_local_auth_disabled(self, disabled: bool) -> None:
         self._write_key(KEY_LOCAL_AUTH_DISABLED, "true" if disabled else "false")
+
+    def is_oidc_relink_enabled(self) -> bool:
+        # Absente ⇒ fermée : rattacher un compte à un NOUVEL émetteur par email
+        # n'est permis que pendant une migration d'IdP décidée par un admin.
+        return self._read_all().get(KEY_OIDC_RELINK_ENABLED, "false").lower() == "true"

@@ -89,7 +89,7 @@ export function ProfilePage() {
           <p className="mb-1 mt-0.5 text-xs text-slate-500">{t("email_help")}</p>
           <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
           {emailChanged && (
-            <p className="mt-1 text-xs text-amber-700">{t("email_change_warning")}</p>
+            <p className="mt-1 text-xs text-slate-500">{t("email_change_warning")}</p>
           )}
         </div>
 

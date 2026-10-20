@@ -38,8 +38,9 @@ def _signed_headers(secret: str = _SECRET) -> list[tuple[bytes, bytes]]:
 
 
 def _pool(email: str | None) -> MagicMock:
+    """La base rend l'owner_id FIGÉ du compte (migration 099), pas son email."""
     pool = MagicMock()
-    pool.fetchval = AsyncMock(return_value=email)
+    pool.fetchval = AsyncMock(return_value=principal_to_owner_id(email) if email else None)
     return pool
 
 
@@ -215,7 +216,7 @@ class TestResolveOboForBodyKeys:
     async def test_flagged_key_with_identity_signed_by_another_key_raises(self) -> None:
         """Le secret de signature est LA clé du corps, pas une autre clé de l'appel."""
         pool = MagicMock()
-        pool.fetchval = AsyncMock(side_effect=[_KEY_OWNER, _HUMAN_EMAIL])
+        pool.fetchval = AsyncMock(side_effect=[_KEY_OWNER, principal_to_owner_id(_HUMAN_EMAIL)])
         # Horodatage courant : seule la clé de signature doit faire échouer.
         ts = int(time.time())
         headers = [
@@ -240,7 +241,7 @@ class TestResolveOboForBodyKeys:
     @pytest.mark.asyncio
     async def test_flagged_key_with_its_own_signature_passes(self) -> None:
         pool = MagicMock()
-        pool.fetchval = AsyncMock(side_effect=[_KEY_OWNER, _HUMAN_EMAIL])
+        pool.fetchval = AsyncMock(side_effect=[_KEY_OWNER, principal_to_owner_id(_HUMAN_EMAIL)])
         ts = int(time.time())
         headers = [
             (b"x-portal-actor", _ACTOR.encode()),
