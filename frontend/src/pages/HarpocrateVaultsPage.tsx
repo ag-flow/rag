@@ -60,6 +60,7 @@ export function HarpocrateVaultsPage() {
           open={createOpen}
           onOpenChange={setCreateOpen}
           onCreated={handleCreated}
+          isFirstVault={true}
         />
       </>
     );
@@ -83,7 +84,12 @@ export function HarpocrateVaultsPage() {
           )}
         </main>
       </div>
-      <CreateVaultDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreated} />
+      <CreateVaultDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={handleCreated}
+        isFirstVault={false}
+      />
     </>
   );
 }

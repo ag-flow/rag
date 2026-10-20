@@ -34,9 +34,16 @@ interface CreateVaultDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (vault: VaultSummary) => void;
+  /** Aucun coffre n'existe encore : le nouveau devient le coffre par défaut. */
+  isFirstVault: boolean;
 }
 
-export function CreateVaultDialog({ open, onOpenChange, onCreated }: CreateVaultDialogProps) {
+export function CreateVaultDialog({
+  open,
+  onOpenChange,
+  onCreated,
+  isFirstVault,
+}: CreateVaultDialogProps) {
   const { t } = useTranslation("harpocrate");
   const { toast } = useToast();
   const createMutation = useCreateVault();
@@ -52,7 +59,11 @@ export function CreateVaultDialog({ open, onOpenChange, onCreated }: CreateVault
       api_key_id: "",
       api_key: "",
       probe_path: "",
-      is_default: true,
+      // Cochée d'office seulement pour le premier coffre : désigner un nouveau
+      // coffre par défaut retire ce statut à l'actuel, qui sert à résoudre les
+      // clés des workspaces — et qui disparaît de la liste des admins dont il
+      // n'est pas le coffre (incident du 2026-10-20).
+      is_default: isFirstVault,
     },
   });
 
@@ -226,6 +237,11 @@ export function CreateVaultDialog({ open, onOpenChange, onCreated }: CreateVault
                     </FormItem>
                   )}
                 />
+                {!isFirstVault && form.watch("is_default") && (
+                  <p role="note" className="text-xs text-amber-700">
+                    {t("create_dialog.set_default_warning")}
+                  </p>
+                )}
 
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => handleClose(false)}>

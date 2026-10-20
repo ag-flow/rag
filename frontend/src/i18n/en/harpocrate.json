@@ -211,6 +211,7 @@
     "api_key_label": "api_key (token)",
     "api_key_placeholder": "hrpv_1_...",
     "set_default_label": "Set as default vault",
+    "set_default_warning": "The current default vault will lose that status: workspaces will resolve their keys in the new vault, and the old one will disappear from the list of administrators who do not own it.",
     "submit": "Create vault",
     "cancel": "Cancel",
     "created_toast": "Vault \"{{name}}\" created",

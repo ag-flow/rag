@@ -211,6 +211,7 @@
     "api_key_label": "api_key (token)",
     "api_key_placeholder": "hrpv_1_...",
     "set_default_label": "Désigner comme coffre par défaut",
+    "set_default_warning": "Le coffre par défaut actuel perdra ce statut : les workspaces résoudront leurs clés dans le nouveau coffre, et l'ancien disparaîtra de la liste des administrateurs à qui il n'appartient pas.",
     "submit": "Créer le coffre",
     "cancel": "Annuler",
     "created_toast": "Coffre « {{name}} » créé",

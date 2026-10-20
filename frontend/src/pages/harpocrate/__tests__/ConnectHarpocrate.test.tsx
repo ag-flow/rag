@@ -31,9 +31,14 @@ function fillIdentity(baseUrl = "https://vault.example") {
   });
 }
 
-function openDialog() {
+function openDialog(isFirstVault = false) {
   renderWithProviders(
-    <CreateVaultDialog open={true} onOpenChange={() => {}} onCreated={() => {}} />,
+    <CreateVaultDialog
+      open={true}
+      onOpenChange={() => {}}
+      onCreated={() => {}}
+      isFirstVault={isFirstVault}
+    />,
   );
 }
 
@@ -59,8 +64,22 @@ describe("CreateVaultDialog — Connecter à Harpocrate", () => {
       name: "rag-connect",
       label: "Coffre connecté",
       base_url: "https://vault.example",
-      is_default: true,
+      // Un coffre existe déjà : le nouveau ne lui vole pas le statut par défaut.
+      is_default: false,
     });
+  });
+
+  it("coche « par défaut » d'office uniquement pour le premier coffre", () => {
+    openDialog(true);
+    expect(screen.getByRole("checkbox")).toBeChecked();
+  });
+
+  it("avertit qu'un nouveau coffre par défaut retire ce statut à l'actuel", () => {
+    openDialog(false);
+    const box = screen.getByRole("checkbox");
+    expect(box).not.toBeChecked();
+    fireEvent.click(box);
+    expect(screen.getByRole("note")).toHaveTextContent(/perdra ce statut/);
   });
 
   it("ne part pas tant que le nom et l'URL ne sont pas valides", async () => {
