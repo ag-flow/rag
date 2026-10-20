@@ -1,7 +1,7 @@
 {
   "page": {
-    "title": "Harpocrate vaults",
-    "subtitle": "Configure the vaults used by the backend to resolve external secrets.",
+    "title": "Endpoints",
+    "subtitle": "Vectorization, rerank and LLM endpoints, with provider and SSH keys, organized by Harpocrate vault.",
     "no_selection": "Select a vault on the left to view its details."
   },
   "list": {

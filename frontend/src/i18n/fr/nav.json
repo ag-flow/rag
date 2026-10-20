@@ -12,7 +12,7 @@
     "models": "Modèles",
     "push": "Push activity",
     "mcp": "Recherche MCP",
-    "harpocrate_vaults": "Coffres Harpocrate",
+    "harpocrate_vaults": "Endpoints",
     "api_keys": "Clés API",
     "oidc_config": "Config OIDC",
     "processing": "Traitement",

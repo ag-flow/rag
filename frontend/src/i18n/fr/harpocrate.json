@@ -1,7 +1,7 @@
 {
   "page": {
-    "title": "Coffres Harpocrate",
-    "subtitle": "Configurer les coffres-forts utilisés par le backend pour résoudre les secrets externes.",
+    "title": "Endpoints",
+    "subtitle": "Endpoints de vectorisation, rerank et LLM, avec les clés de providers et SSH, rangés par coffre Harpocrate.",
     "no_selection": "Sélectionne un coffre à gauche pour voir ses détails."
   },
   "list": {
