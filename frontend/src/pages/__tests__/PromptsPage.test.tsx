@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "../workspace/__tests__/testUtils";
 import { PromptsPage } from "@/pages/PromptsPage";
 import type { PromptTemplate } from "@/lib/enrichments.types";
@@ -70,5 +70,38 @@ describe("PromptsPage — édition", () => {
     await screen.findByText("sys");
 
     expect(screen.getByRole("button", { name: "Modifier" })).toBeDisabled();
+  });
+});
+
+describe("PromptsPage — colonne Mode", () => {
+  beforeEach(() => {
+    listPrompts.mockReset();
+  });
+
+  it("affiche le mode de chaque prompt, avec le type de région", async () => {
+    listPrompts.mockResolvedValue([
+      makePrompt({ id: "d", name: "doc-prompt" }),
+      makePrompt({
+        id: "c",
+        name: "chunk-prompt",
+        target: "chunk",
+        timing: "embedding_inline",
+      }),
+      makePrompt({
+        id: "r",
+        name: "region-prompt",
+        target: "region:code:mermaid",
+        timing: "embedding_inline",
+      }),
+    ]);
+    renderWithProviders(<PromptsPage />);
+    await screen.findByText("doc-prompt");
+
+    expect(screen.getByRole("columnheader", { name: "Mode" })).toBeInTheDocument();
+    const rowOf = (name: string) => screen.getByText(name).closest("tr") as HTMLElement;
+    expect(within(rowOf("doc-prompt")).getByText("Document")).toBeInTheDocument();
+    expect(within(rowOf("chunk-prompt")).getByText("Chunk")).toBeInTheDocument();
+    expect(within(rowOf("region-prompt")).getByText("Région")).toBeInTheDocument();
+    expect(within(rowOf("region-prompt")).getByText("code:mermaid")).toBeInTheDocument();
   });
 });
