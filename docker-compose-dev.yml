@@ -75,7 +75,9 @@ services:
     container_name: rag-caddy
     restart: unless-stopped
     ports:
-      - "80:80"
+      # Port hôte choisi par dev-deploy.sh (premier libre à partir de 80) :
+      # une autre stack de la machine peut déjà tenir le 80.
+      - "${RAG_HTTP_PORT:-80}:80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

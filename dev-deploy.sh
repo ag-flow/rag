@@ -7,7 +7,8 @@
 #   1. git pull (ou clone si pas encore fait)
 #   2. Crée .env depuis .env.example si absent (+ secrets aléatoires)
 #   3. Build les images locales (backend ; frontend skippé tant que M5 pas commencé)
-#   4. Down de la stack (avec -v si --reset)
+#   4. Down de la stack (avec -v si --reset), puis choix du port HTTP de l'IHM :
+#      premier libre à partir de RAG_HTTP_PORT (défaut 80), mémorisé dans .env
 #   5. Pull images registry (postgres + caddy + pgweb + alloy) + up -d
 #      puis purge du cache Docker, au plus une fois par semaine (non bloquante)
 #   Final : attend que /health réponde et affiche /version (timeout 60s)
@@ -75,6 +76,12 @@ Installer Docker sur Debian/Ubuntu :
 
 Puis relancer ./dev-deploy.sh.
 EOF
+  exit 1
+fi
+
+if ! command -v ss >/dev/null 2>&1; then
+  echo "✗ Commande 'ss' absente (détection des ports occupés)." >&2
+  echo "  Installer iproute2 : sudo apt install iproute2" >&2
   exit 1
 fi
 
@@ -300,6 +307,42 @@ else
   docker compose -f "$COMPOSE_FILE" down --remove-orphans || true
 fi
 
+# ─── 4b) Port HTTP de l'IHM : premier libre à partir du port souhaité ───────
+# APRÈS l'arrêt de notre stack : avant, le 80 serait vu occupé par notre
+# propre Caddy et on dériverait d'un port à chaque déploiement. Le port
+# souhaité vient de RAG_HTTP_PORT dans .env (défaut 80) ; s'il est pris par une
+# autre stack (ex. docflow sur la même machine), on prend le suivant libre au
+# lieu de lui voler le port ou d'échouer au `up`.
+# shellcheck source=scripts/ports.sh
+source scripts/ports.sh
+HTTP_PORT_WANTED="$(read_env_var RAG_HTTP_PORT)"
+HTTP_PORT_WANTED="${HTTP_PORT_WANTED:-80}"
+if ! [[ "$HTTP_PORT_WANTED" =~ ^[0-9]+$ ]] || [ "$HTTP_PORT_WANTED" -lt 1 ] || [ "$HTTP_PORT_WANTED" -gt 65435 ]; then
+  echo "✗ RAG_HTTP_PORT invalide dans .env : '${HTTP_PORT_WANTED}'" >&2
+  exit 1
+fi
+if ! RAG_HTTP_PORT="$(first_free_port "$HTTP_PORT_WANTED" 100)"; then
+  echo "✗ Aucun port libre entre ${HTTP_PORT_WANTED} et $((HTTP_PORT_WANTED + 100)) pour l'IHM." >&2
+  exit 1
+fi
+export RAG_HTTP_PORT
+# Mémorisé dans .env, que compose lit seul : sans ça, un `docker compose up`
+# lancé à la main (cf. conseils plus bas) recréerait Caddy sur le 80 et
+# reprendrait le port de l'autre stack. Exception assumée à la règle « le sync
+# n'écrase jamais une clé » : cette valeur est un état calculé par le script,
+# pas un réglage saisi par l'admin.
+if [ -z "$(read_env_var RAG_HTTP_PORT)" ]; then
+  echo "RAG_HTTP_PORT=${RAG_HTTP_PORT}" >> .env
+elif [ "$(read_env_var RAG_HTTP_PORT)" != "$RAG_HTTP_PORT" ]; then
+  set_env_value .env RAG_HTTP_PORT "$RAG_HTTP_PORT"
+fi
+if [ "$RAG_HTTP_PORT" != "$HTTP_PORT_WANTED" ]; then
+  echo "      ⚠  Port ${HTTP_PORT_WANTED} déjà utilisé sur ce host — IHM publiée sur le port ${RAG_HTTP_PORT}."
+  echo "         Si l'accès passe par une URL publique ou un client OIDC, y reporter ce port."
+else
+  echo "      Port HTTP de l'IHM : ${RAG_HTTP_PORT}"
+fi
+
 # ─── 5) Pull images registry restantes (postgres) puis up ──────────────────
 
 echo "[5/5] Pull images registry (postgres + caddy + pgweb + alloy)..."
@@ -387,7 +430,12 @@ if [ -z "$IP" ]; then
   echo "  Le smoke ne peut pas afficher d'URL utilisable. Adapter detect_eth0_ip si besoin." >&2
   exit 1
 fi
-APP_URL="http://${IP}"
+# Le port n'apparaît dans l'URL que s'il diffère du 80 (cf. étape 4b).
+if [ "$RAG_HTTP_PORT" = "80" ]; then
+  APP_URL="http://${IP}"
+else
+  APP_URL="http://${IP}:${RAG_HTTP_PORT}"
+fi
 
 # ─── Smoke /health : on attend que le backend réponde ─────────────────────
 # Timeout 60s (12 × 5s). Le boot inclut : pool DB + migrations idempotentes
