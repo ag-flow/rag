@@ -52,6 +52,14 @@ class Settings(BaseSettings):
         "Min 32 chars. Requis dès qu'un coffre est créé.",
     )
 
+    harpocrate_connect_client_id: str = Field(
+        default="ragflow",
+        pattern=r"^[a-z0-9][a-z0-9._-]{2,63}$",
+        description="client_id de ragflow dans le registre « Applications connectées » "
+        "de l'instance Harpocrate (parcours « Connecter à Harpocrate »). Paramétrable : "
+        "la déclaration est propre à chaque instance Harpocrate.",
+    )
+
     rag_local_session_ttl_seconds: int = Field(default=28800, ge=60)
 
     rag_admin_env_file: Path = Field(

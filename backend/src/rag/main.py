@@ -19,6 +19,7 @@ from rag.api.admin_endpoint_sharing import router as admin_endpoint_sharing_rout
 from rag.api.admin_events_producer import build_events_producer_router
 from rag.api.admin_git_credentials import router as admin_git_credentials_router
 from rag.api.admin_git_credentials import router_global as admin_git_creds_global_router
+from rag.api.admin_harpocrate_connect import router as admin_harpocrate_connect_router
 from rag.api.admin_harpocrate_vaults import router as admin_harpocrate_vaults_router
 from rag.api.admin_index_keys import build_index_keys_router
 from rag.api.admin_load_gate import build_admin_load_gate_router
@@ -67,6 +68,7 @@ from rag.db.workspace_migrations import apply_pending_for_all_workspaces
 from rag.logging_setup import setup_logging
 from rag.secrets.client_provider import HarpocrateClientProvider
 from rag.secrets.resolver import SecretResolver
+from rag.services.harpocrate_connect import HarpocrateConnectService
 from rag.services.harpocrate_vaults import HarpocrateVaultsService
 from rag.services.local_auth import LocalAuthService
 from rag.services.oidc import OidcService
@@ -181,6 +183,9 @@ def build_app(
             # les tests qui injectent un `resolver_factory` stub bénéficient quand
             # même du service + du seed env (rétrocompat).
             app.state.harpocrate_vaults_service = HarpocrateVaultsService(settings)
+            app.state.harpocrate_connect_service = HarpocrateConnectService(
+                settings, app.state.harpocrate_vaults_service
+            )
 
             # Le `HarpocrateClientProvider` est branché en `app.state` AVANT le
             # resolver_factory pour que tous les sites (routers, worker, OidcService)
@@ -323,6 +328,9 @@ def build_app(
     app.include_router(build_admin_load_gate_router(), prefix="/api/admin")
     app.include_router(build_admin_processing_router(), prefix="/api/admin")
     app.include_router(admin_search_test_router)
+    # Avant le routeur des coffres : ses routes `/{vault_id}/…` ne doivent pas
+    # capter `/connect/…`.
+    app.include_router(admin_harpocrate_connect_router)
     app.include_router(admin_harpocrate_vaults_router)
     app.include_router(admin_vault_endpoints_router)
     app.include_router(admin_endpoint_sharing_router)
