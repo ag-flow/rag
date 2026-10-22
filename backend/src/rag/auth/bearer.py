@@ -83,8 +83,9 @@ async def require_master_key_or_authenticated_admin(request: Request) -> None:
     """
     # Import retardé pour éviter cycle (oidc_dependency dépend de
     # rag.api.errors qui dépend potentiellement de rag.auth).
-    from rag.api.errors import LocalSessionExpired
+    from rag.api.errors import LocalSessionExpired, OidcRoleForbidden
     from rag.auth.oidc_dependency import require_oidc_role
+    from rag.services.user_accounts import db_role_for_username
 
     auth_header = request.headers.get("Authorization")
     if auth_header:
@@ -94,10 +95,19 @@ async def require_master_key_or_authenticated_admin(request: Request) -> None:
     local_session = request.session.get(_LOCAL_SESSION_KEY)
     if local_session:
         expires_at = local_session.get("expires_at", 0)
-        if expires_at > int(time.time()):
-            return None
-        request.session.pop(_LOCAL_SESSION_KEY, None)
-        raise LocalSessionExpired()
+        if expires_at <= int(time.time()):
+            request.session.pop(_LOCAL_SESSION_KEY, None)
+            raise LocalSessionExpired()
+        # Même règle qu'en OIDC : c'est le rôle EN BASE qui autorise, relu à
+        # chaque requête. Avant, toute session locale valide était admin : un
+        # compte local rétrogradé depuis l'écran Utilisateurs gardait ses
+        # droits jusqu'à l'expiration de sa session (ticket a138f63b).
+        role = await db_role_for_username(
+            request.app.state.pools.config_pool, str(local_session.get("username", ""))
+        )
+        if role != "rag-admin":
+            raise OidcRoleForbidden(required="rag-admin", has=[role] if role else [])
+        return None
 
     oidc_dep = require_oidc_role("rag-admin")
     await oidc_dep(request)

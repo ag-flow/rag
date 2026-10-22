@@ -18,6 +18,7 @@ import frPrompts from "@/i18n/fr/prompts.json";
 import frPush from "@/i18n/fr/push.json";
 import frMcp from "@/i18n/fr/mcp.json";
 import frProfile from "@/i18n/fr/profile.json";
+import frUsers from "@/i18n/fr/users.json";
 
 import enCommon from "@/i18n/en/common.json";
 import enAuth from "@/i18n/en/auth.json";
@@ -31,6 +32,7 @@ import enPrompts from "@/i18n/en/prompts.json";
 import enPush from "@/i18n/en/push.json";
 import enMcp from "@/i18n/en/mcp.json";
 import enProfile from "@/i18n/en/profile.json";
+import enUsers from "@/i18n/en/users.json";
 
 // i18n instance isolée pour les tests, forcée en FR
 export const testI18n = i18next.createInstance();
@@ -51,6 +53,7 @@ void testI18n.use(initReactI18next).init({
     "prompts",
     "push",
     "profile",
+    "users",
     "mcp",
   ],
   defaultNS: "common",
@@ -67,6 +70,7 @@ void testI18n.use(initReactI18next).init({
       prompts: frPrompts,
       push: frPush,
       profile: frProfile,
+      users: frUsers,
       mcp: frMcp,
     },
     en: {
@@ -81,6 +85,7 @@ void testI18n.use(initReactI18next).init({
       prompts: enPrompts,
       push: enPush,
       profile: enProfile,
+      users: enUsers,
       mcp: enMcp,
     },
   },

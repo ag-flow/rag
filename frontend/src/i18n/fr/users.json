@@ -1,0 +1,18 @@
+{
+  "page_title": "Utilisateurs",
+  "description": "Comptes et rôles. Le rôle est relu à chaque requête : un changement s'applique tout de suite, sans reconnexion. Le rôle Keycloak n'amorce que celui d'un nouveau compte.",
+  "col_username": "Nom",
+  "col_email": "Email",
+  "col_type": "Type",
+  "col_role": "Rôle",
+  "type_local": "Local",
+  "type_oidc": "OIDC",
+  "type_pending": "OIDC (jamais connecté)",
+  "role_admin": "Administrateur",
+  "role_viewer": "Lecture seule",
+  "role_none": "Aucun accès",
+  "role_select_label": "Rôle de {{username}}",
+  "role_changed": "Rôle de « {{username}} » mis à jour.",
+  "error_last_admin": "Impossible : c'est le dernier administrateur. Désignez-en un autre d'abord.",
+  "error_generic": "Le changement de rôle a échoué."
+}

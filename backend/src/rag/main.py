@@ -30,6 +30,7 @@ from rag.api.admin_provider_keys import router_global as admin_provider_keys_glo
 from rag.api.admin_search_test import router as admin_search_test_router
 from rag.api.admin_ssh_keys import router as admin_ssh_keys_router
 from rag.api.admin_ssh_keys import router_global as admin_ssh_keys_global_router
+from rag.api.admin_users import router as admin_users_router
 from rag.api.admin_vault_endpoints import router as admin_vault_endpoints_router
 from rag.api.admin_webhooks import build_webhooks_router
 from rag.api.auth import build_auth_router
@@ -330,6 +331,7 @@ def build_app(
     app.include_router(admin_search_test_router)
     # Avant le routeur des coffres : ses routes `/{vault_id}/…` ne doivent pas
     # capter `/connect/…`.
+    app.include_router(admin_users_router)
     app.include_router(admin_harpocrate_connect_router)
     app.include_router(admin_harpocrate_vaults_router)
     app.include_router(admin_vault_endpoints_router)

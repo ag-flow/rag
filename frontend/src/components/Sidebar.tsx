@@ -15,6 +15,7 @@ import {
   FileJson,
   UserRound,
   Cpu,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useVaultExpiries } from "@/hooks/useHarpocrateVaults";
@@ -126,6 +127,7 @@ export function Sidebar() {
         <NavItem to="/settings/api-keys" icon={<KeyRound />} label={t("items.api_keys")} />
         <NavItem to="/settings/oidc-config" icon={<KeyRound />} label={t("items.oidc_config")} />
         <NavItem to="/settings/processing" icon={<Cpu />} label={t("items.processing")} />
+        <NavItem to="/settings/users" icon={<Users />} label={t("items.users")} />
 
         <div className="px-5 pt-4 pb-1 text-xs font-bold uppercase tracking-wider text-slate-600">
           {t("sections.integration")}

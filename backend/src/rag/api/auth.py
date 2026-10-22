@@ -30,6 +30,7 @@ from rag.services.oidc_identity import (
     ResolvedUser,
     resolve_oidc_user,
 )
+from rag.services.user_accounts import db_role_for_username
 
 log = structlog.get_logger(__name__)
 
@@ -229,11 +230,15 @@ def build_auth_router() -> APIRouter:
             expires_at = local_session.get("expires_at", 0)
             username = local_session.get("username")
             if expires_at > int(time.time()) and username:
+                # Rôle EN BASE, comme pour l'autorisation (ticket a138f63b).
+                role = await db_role_for_username(
+                    request.app.state.pools.config_pool, str(username)
+                )
                 return MeResponse(
                     sub=username,
                     email=None,
                     name=None,
-                    roles=["rag-admin"],
+                    roles=[role] if role else [],
                 )
             request.session.pop(_LOCAL_SESSION_KEY, None)
             raise LocalSessionExpired()

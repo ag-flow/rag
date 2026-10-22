@@ -1,0 +1,18 @@
+{
+  "page_title": "Users",
+  "description": "Accounts and roles. The role is re-read on every request: a change applies immediately, without signing in again. The Keycloak role only seeds a new account's role.",
+  "col_username": "Name",
+  "col_email": "Email",
+  "col_type": "Type",
+  "col_role": "Role",
+  "type_local": "Local",
+  "type_oidc": "OIDC",
+  "type_pending": "OIDC (never signed in)",
+  "role_admin": "Administrator",
+  "role_viewer": "Read-only",
+  "role_none": "No access",
+  "role_select_label": "Role of {{username}}",
+  "role_changed": "Role of “{{username}}” updated.",
+  "error_last_admin": "Not possible: this is the last administrator. Appoint another one first.",
+  "error_generic": "The role change failed."
+}

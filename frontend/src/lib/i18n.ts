@@ -23,6 +23,7 @@ import frEventsProducer from "@/i18n/fr/events_producer.json";
 import frIntegration from "@/i18n/fr/integration.json";
 import frProfile from "@/i18n/fr/profile.json";
 import frProcessing from "@/i18n/fr/processing.json";
+import frUsers from "@/i18n/fr/users.json";
 
 import enCommon from "@/i18n/en/common.json";
 import enAuth from "@/i18n/en/auth.json";
@@ -45,6 +46,7 @@ import enEventsProducer from "@/i18n/en/events_producer.json";
 import enIntegration from "@/i18n/en/integration.json";
 import enProfile from "@/i18n/en/profile.json";
 import enProcessing from "@/i18n/en/processing.json";
+import enUsers from "@/i18n/en/users.json";
 
 void i18n
   .use(LanguageDetector)
@@ -74,6 +76,7 @@ void i18n
       "mcp",
       "profile",
       "processing",
+      "users",
     ],
     defaultNS: "common",
     resources: {
@@ -99,6 +102,7 @@ void i18n
         mcp: frMcp,
         profile: frProfile,
         processing: frProcessing,
+        users: frUsers,
       },
       en: {
         common: enCommon,
@@ -122,6 +126,7 @@ void i18n
         mcp: enMcp,
         profile: enProfile,
         processing: enProcessing,
+        users: enUsers,
       },
     },
     interpolation: { escapeValue: false },
