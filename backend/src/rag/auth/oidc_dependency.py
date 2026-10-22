@@ -12,6 +12,7 @@ from rag.api.errors import (
     OidcSessionMissing,
 )
 from rag.schemas.oidc import OidcUserContext
+from rag.services.oidc_identity import db_role_for_user
 
 _SESSION_KEY = "_oidc_session"
 
@@ -58,7 +59,17 @@ def require_oidc_role(
                 raise OidcSessionExpired() from e
             raise
 
-        user_roles = oidc.extract_roles(claims, cfg.client_id)
+        # Le token AUTHENTIFIE (signature, iss, aud, exp vérifiés ci-dessus) ;
+        # c'est la BASE qui autorise (STANDARD OIDC §1, §9). Le rôle est relu
+        # à chaque requête sur le compte ancré au login : une rétrogradation
+        # s'applique tout de suite, et un IdP qui structure ses rôles autrement
+        # ne retire à personne ses droits. Session sans user_id = ouverte avant
+        # l'ancrage : on ne devine pas le compte, on fait se reconnecter.
+        user_id = session.get("user_id")
+        if not user_id:
+            raise OidcSessionMissing()
+        db_role = await db_role_for_user(request.app.state.pools.config_pool, user_id)
+        user_roles = [db_role] if db_role else []
         if not _role_grants(role, user_roles=user_roles):
             raise OidcRoleForbidden(required=role, has=user_roles)
 

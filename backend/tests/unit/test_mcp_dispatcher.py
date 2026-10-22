@@ -86,7 +86,9 @@ async def test_dispatcher_passes_to_inner_after_auth() -> None:
     inner = AsyncMock()
     dispatcher = RagMcpDispatcher(inner)
     pool = MagicMock()
-    pool.fetchrow = AsyncMock(return_value={"owner_id": "owner-1", "scope": "read"})
+    pool.fetchrow = AsyncMock(
+        return_value={"owner_id": "owner-1", "scope": "read", "require_obo": False}
+    )
     dispatcher._config_pool = pool
     dispatcher._pool_registry = MagicMock()
     dispatcher._resolver = MagicMock()
@@ -113,16 +115,19 @@ async def test_dispatcher_passes_to_inner_after_auth() -> None:
 async def test_load_context_returns_key_ctx() -> None:
     dispatcher = RagMcpDispatcher(AsyncMock())
     pool = MagicMock()
-    pool.fetchrow = AsyncMock(return_value={"owner_id": "owner-xyz", "scope": "admin"})
+    pool.fetchrow = AsyncMock(
+        return_value={"owner_id": "owner-xyz", "scope": "admin", "require_obo": True}
+    )
     dispatcher._config_pool = pool
     dispatcher._pool_registry = MagicMock()
     dispatcher._resolver = MagicMock()
     dispatcher._client_provider = None
 
-    ctx = await dispatcher._load_context("tok")
+    ctx, require_obo = await dispatcher._load_context("tok")
 
     assert ctx.owner_id == "owner-xyz"
     assert ctx.scope == "admin"
+    assert require_obo is True
     sql = pool.fetchrow.await_args.args[0]
     assert "owner_id" in sql
     assert "scope" in sql

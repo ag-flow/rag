@@ -14,7 +14,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from rag.auth.obo_resolver import resolve_effective_owner_id
+from rag.auth.obo_resolver import OboRequiredError, resolve_effective_owner_id
 from rag.db.enrichment_lookup import get_enrichment as get_enrichment_db
 from rag.db.workspace_search import vector_search
 from rag.indexer.providers.factory import make_provider
@@ -585,7 +585,7 @@ class RagMcpDispatcher:
             return
 
         try:
-            ctx = await self._load_context(token)
+            ctx, require_obo = await self._load_context(token)
         except PermissionError:
             await _json_error(send, 401, "invalid_token")
             return
@@ -596,13 +596,20 @@ class RagMcpDispatcher:
         # même owner_id que la session OIDC/locale). Résolution DÉLÉGUÉE au
         # point d'application partagé avec la surface REST : deux
         # implémentations divergentes attribuaient deux owners au même humain.
-        effective_owner = await resolve_effective_owner_id(
-            self._config_pool,
-            list(scope.get("headers", [])),
-            token,
-            key_owner_id=ctx.owner_id,
-            surface="mcp",
-        )
+        try:
+            effective_owner = await resolve_effective_owner_id(
+                self._config_pool,
+                list(scope.get("headers", [])),
+                token,
+                key_owner_id=ctx.owner_id,
+                surface="mcp",
+                require_obo=require_obo,
+            )
+        except OboRequiredError:
+            # Clé « OBO obligatoire » sans humain signé et connu : refus avant
+            # tout outil, même réponse que la surface REST.
+            await _json_error(send, 401, "obo_required")
+            return
         if effective_owner != ctx.owner_id:
             ctx = replace(ctx, owner_id=effective_owner, owner_source="obo")
 
@@ -618,7 +625,8 @@ class RagMcpDispatcher:
         finally:
             _ws_ctx.reset(token_var)
 
-    async def _load_context(self, token: str) -> _KeyCtx:
+    async def _load_context(self, token: str) -> tuple[_KeyCtx, bool]:
+        """(contexte de la clé, la clé exige-t-elle l'OBO)."""
         assert self._config_pool is not None  # noqa: S101
         fingerprint = sha256(token.encode()).hexdigest()
 
@@ -627,7 +635,7 @@ class RagMcpDispatcher:
         # fine (scope) est appliquée par chaque outil.
         row = await self._config_pool.fetchrow(
             """
-            SELECT owner_id, scope
+            SELECT owner_id, scope, require_obo
             FROM user_api_keys
             WHERE fingerprint = $1
               AND revoked_at IS NULL
@@ -642,7 +650,7 @@ class RagMcpDispatcher:
         if self._client_provider is not None:
             default_vault_name = await self._client_provider.get_default_vault_name()
 
-        return _KeyCtx(
+        ctx = _KeyCtx(
             owner_id=str(row["owner_id"]),
             scope=str(row["scope"]),
             config_pool=self._config_pool,
@@ -653,6 +661,7 @@ class RagMcpDispatcher:
             admin_dsn=self._admin_dsn,
             vaults_service=self._vaults_service,
         )
+        return ctx, bool(row["require_obo"])
 
 
 async def _json_error(send: Send, status: int, detail: str) -> None:

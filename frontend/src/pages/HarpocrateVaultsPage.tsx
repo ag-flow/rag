@@ -7,6 +7,7 @@ import { VaultsList } from "@/pages/harpocrate/VaultsList";
 import { VaultsEmptyState } from "@/pages/harpocrate/VaultsEmptyState";
 import { VaultDetailPanel } from "@/pages/harpocrate/VaultDetailPanel";
 import { CreateVaultDialog } from "@/pages/harpocrate/CreateVaultDialog";
+import { useConnectReturn } from "@/pages/harpocrate/useConnectReturn";
 
 export function HarpocrateVaultsPage() {
   const { t } = useTranslation("harpocrate");
@@ -14,6 +15,7 @@ export function HarpocrateVaultsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get("vault");
   const [createOpen, setCreateOpen] = useState(false);
+  useConnectReturn();
 
   // Auto-sélection au premier load : default ou premier de la liste.
   // On saute tant qu'un refetch (ex. invalidation après retrait d'un vault)
@@ -58,6 +60,7 @@ export function HarpocrateVaultsPage() {
           open={createOpen}
           onOpenChange={setCreateOpen}
           onCreated={handleCreated}
+          isFirstVault={true}
         />
       </>
     );
@@ -81,7 +84,12 @@ export function HarpocrateVaultsPage() {
           )}
         </main>
       </div>
-      <CreateVaultDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreated} />
+      <CreateVaultDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={handleCreated}
+        isFirstVault={false}
+      />
     </>
   );
 }

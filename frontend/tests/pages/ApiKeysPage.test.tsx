@@ -23,6 +23,7 @@ const KEY: UserApiKey = {
   revoked_at: null,
   rotated_at: null,
   scope: "read_write",
+  require_obo: false,
 };
 
 describe("ApiKeysPage", () => {
@@ -103,6 +104,7 @@ describe("ApiKeysPage", () => {
     expect(postSpy).toHaveBeenCalledWith("/api/me/api-keys", {
       name: "nouvelle",
       scope: "read",
+      require_obo: false,
     });
   });
 });

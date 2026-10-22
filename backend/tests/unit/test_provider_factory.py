@@ -5,6 +5,7 @@ import pytest
 
 from rag.indexer.providers.adapter import EmbeddingProviderAdapter
 from rag.indexer.providers.factory import make_provider
+from rag.services.provider_urls import resolve_url
 
 
 def _make(**kwargs):
@@ -86,6 +87,16 @@ def test_cloud_openai_compatible_platforms_return_adapter() -> None:
     for provider in ("fireworks", "deepinfra", "together", "cohere"):
         p = _make(service="openai", provider=provider, model="m")
         assert isinstance(p, EmbeddingProviderAdapter)
+
+
+def test_mammouth_embeddings_call_url_matches_referential() -> None:
+    """L'URL appelée par l'adapter est celle affichée à l'IHM (anti-dérive)."""
+    p = _make(service="openai", provider="mammouth", model="text-embedding-3-small")
+    called = p._platform.url(p._service.embeddings_path)
+    assert called == resolve_url(
+        provider="mammouth", capability="embeddings", model="text-embedding-3-small"
+    )
+    assert p._platform.auth_headers() == {"Authorization": "Bearer sk-x"}
 
 
 def test_unknown_provider_raises() -> None:

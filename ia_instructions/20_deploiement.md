@@ -32,8 +32,8 @@ répondre. Les étapes 7 et 8 se vérifient par le contrôle de santé et les lo
 ## ⚠ Écarts constatés au 2026-09-26 (à traiter en tickets, pas au passage)
 
 `dev-deploy.sh` ne couvre pas encore : l'étape 0 (ni SIGHUP ignoré, ni fichier de journal),
-l'étape 2 (pas de ré-exécution après mise à jour, pas de bootstrap de deploy key), l'étape 10
-(purge hebdomadaire — ticket backlog `cef4eff3` existant).
+l'étape 2 (pas de ré-exécution après mise à jour, pas de bootstrap de deploy key). L'étape 10
+est couverte depuis le 2026-10-18 (`scripts/docker-cache-prune.sh`, ticket `cef4eff3`).
 
 ## Part de checklist
 

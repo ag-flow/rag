@@ -854,6 +854,121 @@ providers:
           en: "When more reasoning is needed."
 
   # ===========================================================================
+  mammouth:
+    cost_model: per_token
+    pricing_url: "https://mammouth.ai/pricing"
+    description:
+      fr: >
+        Agrégateur français hébergé en France (RGPD), API OpenAI-compatible
+        (LiteLLM). Prix affichés = plafonds, le coût réel peut être inférieur.
+        Catalogue complet : GET https://api.mammouth.ai/public/models. Pas de
+        rerank.
+      en: >
+        French aggregator hosted in France (GDPR), OpenAI-compatible API
+        (LiteLLM). Listed prices are ceilings, actual cost may be lower. Full
+        catalog: GET https://api.mammouth.ai/public/models. No rerank.
+    models:
+      - name: "text-embedding-3-large"
+        type: embedding
+        dim: 3072
+        migration: "096"
+        statut: "current"
+        price_per_1m: 0.13
+        description:
+          fr: "OpenAI text-embedding-3-large servi par Mammouth."
+          en: "OpenAI text-embedding-3-large served by Mammouth."
+      - name: "text-embedding-3-small"
+        type: embedding
+        dim: 1536
+        migration: "096"
+        statut: "current"
+        price_per_1m: 0.02
+        description:
+          fr: "OpenAI text-embedding-3-small servi par Mammouth."
+          en: "OpenAI text-embedding-3-small served by Mammouth."
+      - name: "mammouth-recommended"
+        type: llm
+        dim: null
+        migration: "096"
+        statut: "current"
+        price_per_1m: null    # variable
+        description:
+          fr: "Alias dynamique vers le modèle recommandé par Mammouth (relevé 0.15/0.50)."
+          en: "Dynamic alias to Mammouth's recommended model (observed 0.15/0.50)."
+      - name: "mistral-medium-3.1"
+        type: llm
+        dim: null
+        migration: "096"
+        statut: "current"
+        price_per_1m: 0.40    # input ; output 2.00
+        description:
+          fr: "Bon ratio coût/qualité, français natif."
+          en: "Good cost/quality ratio, native French."
+      - name: "mistral-small-2603"
+        type: llm
+        dim: null
+        migration: "096"
+        statut: "current"
+        price_per_1m: 0.15    # input ; output 0.60
+        description:
+          fr: "Économique pour le traitement en volume."
+          en: "Cheap for bulk processing."
+      - name: "deepseek-v4-flash"
+        type: llm
+        dim: null
+        migration: "096"
+        statut: "current"
+        price_per_1m: 0.14    # input ; output 0.28
+        description:
+          fr: "Le moins cher, bon pour l'enrichissement massif."
+          en: "Cheapest, good for massive enrichment."
+      - name: "deepseek-v4-pro"
+        type: llm
+        dim: null
+        migration: "096"
+        statut: "current"
+        price_per_1m: 1.74    # input ; output 3.48
+        description:
+          fr: "Qualité supérieure."
+          en: "Higher quality."
+      - name: "claude-sonnet-4-6"
+        type: llm
+        dim: null
+        migration: "096"
+        statut: "current"
+        price_per_1m: 3.00    # input ; output 15.00
+        description:
+          fr: "Premium, raisonnement."
+          en: "Premium, reasoning."
+      - name: "gpt-5.1"
+        type: llm
+        dim: null
+        migration: "096"
+        statut: "current"
+        price_per_1m: 1.25    # input ; output 10.00
+        description:
+          fr: "Polyvalent."
+          en: "General purpose."
+      - name: "gemini-2.5-flash"
+        type: llm
+        dim: null
+        migration: "096"
+        statut: "current"
+        price_per_1m: 0.30    # input ; output 2.50
+        description:
+          fr: "Bon compromis, contexte large."
+          en: "Good trade-off, large context."
+      - name: "qwen3-coder"
+        type: llm
+        dim: null
+        migration: "096"
+        statut: "current"
+        price_per_1m: 0.25    # input ; output 1.45
+        description:
+          fr: "Économique, bon sur le code."
+          en: "Cheap, strong on code."
+
+  # ===========================================================================
   deepinfra:
     cost_model: per_token
     pricing_url: "https://deepinfra.com/pricing"

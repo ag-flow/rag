@@ -15,6 +15,7 @@ from rag.schemas.vault_endpoints import (
     EndpointOut,
     EndpointRerankSpec,
 )
+from rag.services import endpoint_sharing as sharing_svc
 from rag.services import vault_endpoints as endpoints_svc
 
 
@@ -103,26 +104,75 @@ async def test_list_endpoints_requires_admin() -> None:
     assert await tools["list_endpoints"]() == ENDPOINT_ADMIN_REFUSAL
 
 
+def _usable(slug: str, vault: str, access: str, **services: Any) -> sharing_svc.UsableEndpoint:
+    return sharing_svc.UsableEndpoint(
+        id=uuid4(),
+        slug=slug,
+        label=slug.title(),
+        vault_id=uuid4(),
+        vault_name=vault,
+        vault_label=f"Coffre {vault}",
+        access=access,  # type: ignore[arg-type]
+        indexer=("openai", "text-embedding-3-small"),
+        rerank=services.get("rerank"),
+        llm=services.get("llm"),
+    )
+
+
 @pytest.mark.asyncio
 async def test_list_endpoints_groups_by_vault_with_writable_flag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    own = _vault_row(name="coffre-a")
-    shared = _vault_row(name="commun", owner_id="", is_default=True)
-    conn = MagicMock()
-    conn.fetch = AsyncMock(return_value=[own, shared])
-    monkeypatch.setattr(endpoints_svc, "list_endpoints", AsyncMock(return_value=[_endpoint_out()]))
-    tools = _register(conn)
+    usable = [
+        _usable("azure-prod", "coffre-a", "owned", rerank=("cohere", "rerank-v4.0")),
+        _usable("commun-ep", "commun", "default"),
+    ]
+    monkeypatch.setattr(sharing_svc, "db_list_usable_endpoints", AsyncMock(return_value=usable))
+    tools = _register(MagicMock())
 
     payload = json.loads(await tools["list_endpoints"]())
 
     assert [v["vault"] for v in payload] == ["coffre-a", "commun"]
     assert payload[0]["writable"] is True
     assert payload[1]["writable"] is False
+    assert "shared" not in payload[0]
     assert payload[0]["endpoints"][0]["services"]["rerank"] == {
         "provider": "cohere",
         "model": "rerank-v4.0",
     }
+
+
+@pytest.mark.asyncio
+async def test_list_endpoints_marks_shared_endpoints_read_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Un endpoint partagé d'un coffre invisible apparaît, jamais modifiable et
+    sans refs de secrets."""
+    usable = [_usable("alice-ep", "alice-vault", "shared", llm=("anthropic", "claude-sonnet-5"))]
+    monkeypatch.setattr(sharing_svc, "db_list_usable_endpoints", AsyncMock(return_value=usable))
+    tools = _register(MagicMock())
+
+    payload = json.loads(await tools["list_endpoints"]())
+
+    assert payload == [
+        {
+            "vault": "alice-vault",
+            "vault_label": "Coffre alice-vault",
+            "writable": False,
+            "shared": True,
+            "endpoints": [
+                {
+                    "slug": "alice-ep",
+                    "label": "Alice-Ep",
+                    "services": {
+                        "vectorization": {"provider": "openai", "model": "text-embedding-3-small"},
+                        "rerank": None,
+                        "llm": {"provider": "anthropic", "model": "claude-sonnet-5"},
+                    },
+                }
+            ],
+        }
+    ]
 
 
 @pytest.mark.asyncio

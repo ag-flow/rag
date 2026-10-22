@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { userApiKeysApi } from "@/lib/user-api-keys";
-import type { KeyScope, UserApiKeyCreate } from "@/lib/user-api-keys.types";
+import type { UserApiKeyCreate, UserApiKeyUpdate } from "@/lib/user-api-keys.types";
 
 const KEY = ["user-api-keys"] as const;
 
@@ -36,11 +36,11 @@ export function useRevokeUserApiKey() {
   });
 }
 
-export function useSetUserApiKeyScope() {
+export function useUpdateUserApiKey() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ keyId, scope }: { keyId: string; scope: KeyScope }) =>
-      userApiKeysApi.setScope(keyId, scope),
+    mutationFn: ({ keyId, payload }: { keyId: string; payload: UserApiKeyUpdate }) =>
+      userApiKeysApi.update(keyId, payload),
     onSuccess: () => void qc.invalidateQueries({ queryKey: KEY }),
   });
 }

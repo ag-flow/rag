@@ -62,6 +62,8 @@ def _row(**overrides):
         "indexer_max_concurrency": None,
         "rerank_max_concurrency": None,
         "llm_max_concurrency": None,
+        "shared_with_all": True,
+        "shared_user_count": 2,
         "created_at": datetime(2026, 7, 16, tzinfo=UTC),
         "updated_at": datetime(2026, 7, 16, tzinfo=UTC),
     }
@@ -88,6 +90,9 @@ class TestCreateEndpoint:
 
         assert out.slug == "docs-openai"
         assert out.rerank is None
+        # État de partage (095) remonté tel que lu en base.
+        assert out.shared_with_all is True
+        assert out.shared_user_count == 2
         # Le slug calculé est bien passé à l'INSERT ($3).
         assert conn.fetchrow.await_args.args[3] == "docs-openai"
 

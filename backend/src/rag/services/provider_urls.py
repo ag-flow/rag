@@ -182,6 +182,19 @@ PROVIDER_URL_TEMPLATES: dict[str, dict[str, CapabilityUrl]] = {
             "default_base_url": "https://api.deepseek.com/v1",
         },
     },
+    "mammouth": {
+        # Base portant /v1, comme openai : les adapters ajoutent seulement
+        # /embeddings et /chat/completions. Pas de rerank chez Mammouth, le
+        # service rerank se prend chez un autre provider.
+        "embeddings": {
+            "template": "{base_url}/embeddings",
+            "default_base_url": "https://api.mammouth.ai/v1",
+        },
+        "chat": {
+            "template": "{base_url}/chat/completions",
+            "default_base_url": "https://api.mammouth.ai/v1",
+        },
+    },
 }
 
 

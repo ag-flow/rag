@@ -1,7 +1,7 @@
 {
   "page": {
-    "title": "Coffres Harpocrate",
-    "subtitle": "Configurer les coffres-forts utilisés par le backend pour résoudre les secrets externes.",
+    "title": "Endpoints",
+    "subtitle": "Endpoints de vectorisation, rerank et LLM, avec les clés de providers et SSH, rangés par coffre Harpocrate.",
     "no_selection": "Sélectionne un coffre à gauche pour voir ses détails."
   },
   "list": {
@@ -211,6 +211,7 @@
     "api_key_label": "api_key (token)",
     "api_key_placeholder": "hrpv_1_...",
     "set_default_label": "Désigner comme coffre par défaut",
+    "set_default_warning": "Le coffre par défaut actuel perdra ce statut : les workspaces résoudront leurs clés dans le nouveau coffre, et l'ancien disparaîtra de la liste des administrateurs à qui il n'appartient pas.",
     "submit": "Créer le coffre",
     "cancel": "Annuler",
     "created_toast": "Coffre « {{name}} » créé",
@@ -322,11 +323,52 @@
     "fallback_cooldown": "Re-test du primaire (secondes)",
     "fallback_breaker_help": "Après ce nombre d'échecs consécutifs, les appels basculent sur le fallback ; passé le délai, le primaire est re-testé et reprend la main dès qu'il répond.",
     "limit_concurrency": "Requêtes parallèles max (tous workspaces)",
-    "health_degraded": "Fallback actif ou en re-test"
+    "health_degraded": "Fallback actif ou en re-test",
+    "sharing": {
+      "col": "Partage",
+      "btn": "Partager",
+      "title": "Partager « {{name}} »",
+      "help": "Les bénéficiaires peuvent créer des workspaces avec cet endpoint — leurs appels utilisent les clés de ce coffre. Ils ne peuvent ni le modifier ni voir ses références de secrets.",
+      "all": "Partager avec tout le monde",
+      "users": "Partager avec",
+      "no_users": "Aucun bénéficiaire.",
+      "saved_toast": "Partage mis à jour.",
+      "badge_all": "Tout le monde",
+      "badge_users_one": "{{count}} personne",
+      "badge_users_other": "{{count}} personnes",
+      "email_placeholder": "Email exact de l'utilisateur",
+      "add": "Ajouter",
+      "user_not_found": "Aucun utilisateur avec cet email (ou c'est vous). Il doit s'être connecté au moins une fois.",
+      "remove": "Retirer {{email}}"
+    }
   },
   "expiry": {
     "banner_expired": "La clé d'accès de ce coffre est expirée — remplacez-la (menu ⋯ → Remplacer la clé) avant que la résolution de secrets n'échoue.",
     "banner_expiring": "La clé d'accès de ce coffre expire dans {{count}} jour(s) — pensez à la remplacer (menu ⋯ → Remplacer la clé).",
     "list_dot": "Clé d'accès expirée ou proche de l'expiration"
+  },
+  "connect": {
+    "explanation": "Recommandé : choisissez votre wallet dans Harpocrate, la clé est créée et enregistrée sans copier-coller. Elle appartient à VOTRE compte Harpocrate, alors que les coffres de ragflow sont partagés entre administrateurs.",
+    "button": "Connecter à Harpocrate",
+    "starting": "Redirection vers Harpocrate…",
+    "or_manual": "— ou saisissez une api_key existante ci-dessous —",
+    "connected_toast": "Coffre créé et connecté à Harpocrate.",
+    "connected_untested_toast": "Coffre créé, mais le test de connexion a échoué : vérifiez-le dans l'onglet Détail.",
+    "errors": {
+      "name_taken": "Ce nom de coffre est déjà utilisé.",
+      "name_taken_key_not_saved": "Ce nom de coffre a été pris entre-temps : la clé obtenue chez Harpocrate n'a PAS été enregistrée. Révoquez-la dans Harpocrate puis recommencez avec un autre nom.",
+      "https_required": "L'URL de Harpocrate doit être en https.",
+      "harpocrate_unreachable": "Harpocrate est injoignable. Réessayez plus tard.",
+      "exchange_failed": "Harpocrate a refusé l'échange : relancez la connexion depuis le début.",
+      "denied": "Connexion refusée dans Harpocrate : aucun coffre n'a été créé.",
+      "state_unknown": "Ce retour de Harpocrate n'appartient pas à votre session ou a expiré (15 min) : aucun coffre n'a été créé. Relancez la connexion.",
+      "already_used": "Cette connexion a déjà été traitée : aucun nouveau coffre n'a été créé.",
+      "harpocrate_dek_missing": "HARPOCRATE_DEK manque côté backend : la clé ne peut pas être chiffrée.",
+      "generic": "La connexion à Harpocrate a échoué.",
+      "client_not_declared": "Harpocrate ne connaît pas l'application ragflow (client_id inconnu ou désactivé). Un admin Harpocrate doit la déclarer dans « Applications connectées » avec les valeurs ci-dessous — ou saisissez la clé à la main.",
+      "redirect_uri_not_declared": "L'application ragflow est déclarée chez Harpocrate, mais pas avec cette URL de retour (comparaison au caractère près). Ajoutez l'URL ci-dessous à sa déclaration — ou saisissez la clé à la main."
+    },
+    "declare_client_id": "client_id à déclarer",
+    "declare_redirect_uri": "URL de retour à déclarer"
   }
 }

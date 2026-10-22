@@ -27,6 +27,16 @@ import { AddPromptDialog } from "./workspace/AddPromptDialog";
 import { EditPromptDialog } from "./prompts/EditPromptDialog";
 import type { PromptTemplate } from "@/lib/enrichments.types";
 
+/** Mode d'un prompt dérivé de sa cible : `document`, `chunk` ou
+ * `region:<type>[:<qualifier>]` — la région affiche son type, c'est ce qui
+ * distingue deux prompts de région dans la liste. */
+function modeOf(target: string): { key: "document" | "chunk" | "region"; detail: string | null } {
+  if (target === "chunk") return { key: "chunk", detail: null };
+  if (target.startsWith("region:"))
+    return { key: "region", detail: target.slice("region:".length) };
+  return { key: "document", detail: null };
+}
+
 export function PromptsPage() {
   const { t } = useTranslation("prompts");
   const { toast } = useToast();
@@ -74,6 +84,7 @@ export function PromptsPage() {
                 <TableHead>{t("col_language")}</TableHead>
                 <TableHead>{t("col_metadata_key")}</TableHead>
                 <TableHead>{t("col_result_type")}</TableHead>
+                <TableHead>{t("col_mode")}</TableHead>
                 <TableHead>{t("col_description")}</TableHead>
                 <TableHead className="w-16" />
               </TableRow>
@@ -100,6 +111,9 @@ export function PromptsPage() {
                     >
                       {p.result_type}
                     </span>
+                  </TableCell>
+                  <TableCell>
+                    <ModeBadge target={p.target} label={t(`mode_short_${modeOf(p.target).key}`)} />
                   </TableCell>
                   <TableCell className="text-xs text-slate-400 max-w-[200px] truncate">
                     {p.description ?? "—"}
@@ -158,5 +172,24 @@ export function PromptsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+interface ModeBadgeProps {
+  target: string;
+  label: string;
+}
+
+function ModeBadge({ target, label }: ModeBadgeProps) {
+  const { key, detail } = modeOf(target);
+  // Document = métadonnée hors vecteurs (neutre) ; chunk et région modifient
+  // le texte embeddé, d'où une couleur distincte : changer un tel prompt
+  // implique une réindexation.
+  const tone = key === "document" ? "bg-slate-100 text-slate-700" : "bg-sky-100 text-sky-800";
+  return (
+    <span className={`whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium ${tone}`}>
+      {label}
+      {detail && <span className="ml-1 font-mono">{detail}</span>}
+    </span>
   );
 }

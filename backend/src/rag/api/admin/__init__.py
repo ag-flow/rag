@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel as _PydanticBase
 
-from rag.api.workspace_access import require_owned_workspace_id
+from rag.api.workspace_access import require_owned_workspace_id, require_writable_service_refs
 from rag.auth.admin_auth import require_admin
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.schemas.admin import (
@@ -105,21 +105,31 @@ def build_admin_router() -> APIRouter:
         # Résout l'endpoint choisi (préréglage du coffre) et copie sa config —
         # snapshot : les modifications ultérieures de l'endpoint n'affectent
         # pas ce workspace.
+        from rag.auth.owner import get_current_owner_id
+        from rag.services.endpoint_sharing import db_get_usable_endpoint
         from rag.services.vault_endpoints import get_endpoint
         from rag.services.workspaces import resolved_from_endpoint
 
+        owner_id = get_current_owner_id(request)
         pool = _config_pool(request)
         async with pool.acquire() as conn:
-            endpoint = await get_endpoint(conn, endpoint_id=payload.endpoint_id)
+            # L'id seul ne suffit pas : l'endpoint doit être UTILISABLE par
+            # l'appelant (coffre visible ou partage). Sans ce contrôle, un id
+            # connu donnait l'endpoint — et les clés — du coffre d'autrui.
+            usable = await db_get_usable_endpoint(
+                conn, owner_id=owner_id, endpoint_id=payload.endpoint_id
+            )
+            endpoint = (
+                await get_endpoint(conn, endpoint_id=payload.endpoint_id) if usable else None
+            )
         if endpoint is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="endpoint_not_found")
-        from rag.auth.owner import get_current_owner_id
 
         resolved = resolved_from_endpoint(
             name=payload.name,
             label=payload.label,
             description=payload.description,
-            owner_id=get_current_owner_id(request),
+            owner_id=owner_id,
             endpoint=endpoint,
         )
         resp = await create_workspace(
@@ -170,6 +180,14 @@ def build_admin_router() -> APIRouter:
     ) -> WorkspaceResponse:
         await require_owned_workspace_id(request, name, _config_pool(request))
         default_vault = await _resolve_default_vault_or_503(request)
+        await require_writable_service_refs(
+            request,
+            [
+                payload.indexer.api_key_ref if payload.indexer else None,
+                payload.rerank.api_key_ref if payload.rerank else None,
+            ],
+            default_vault,
+        )
         await patch_workspace(
             name=name,
             request=payload,
@@ -359,6 +377,17 @@ def build_admin_router() -> APIRouter:
         await require_owned_workspace_id(request, name, _config_pool(request))
         new_indexer = payload.indexer if payload is not None else None
         default_vault = await _resolve_default_vault_or_503(request)
+        if new_indexer is not None:
+            # Ref EFFECTIVE : une ref omise est conservée (sémantique COALESCE
+            # du reindex) — c'est elle qui partirait vers le nouveau base_url.
+            kept_ref = await _config_pool(request).fetchval(
+                "SELECT ic.api_key_ref FROM indexer_configs ic "
+                "JOIN workspaces w ON w.id = ic.workspace_id WHERE w.name = $1",
+                name,
+            )
+            await require_writable_service_refs(
+                request, [new_indexer.api_key_ref or kept_ref], default_vault
+            )
         row = await reindex_workspace(
             name=name,
             new_indexer=new_indexer,
@@ -391,6 +420,7 @@ def build_admin_router() -> APIRouter:
         from rag.services.endpoint_refresh import (
             DefaultVaultMissingError,
             EndpointGoneError,
+            EndpointNotUsableError,
             NoEndpointLinkedError,
             refresh_workspace_from_endpoint,
         )
@@ -416,6 +446,8 @@ def build_admin_router() -> APIRouter:
             ) from exc
         except EndpointGoneError as exc:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "endpoint_deleted") from exc
+        except EndpointNotUsableError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "endpoint_not_usable") from exc
         except DefaultVaultMissingError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -613,6 +645,7 @@ def build_admin_router() -> APIRouter:
         from rag.services.rerank_configs import upsert_rerank_config
 
         default_vault = await _resolve_default_vault_or_503(request)
+        await require_writable_service_refs(request, [payload.api_key_ref], default_vault)
         try:
             cfg = await upsert_rerank_config(
                 workspace_id=ws_id,

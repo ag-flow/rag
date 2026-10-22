@@ -25,15 +25,16 @@ class VaultSummary(BaseModel):
     updated_at: datetime
 
 
-class VaultCreateRequest(BaseModel):
+class VaultIdentity(BaseModel):
+    """Ce que l'admin saisit pour un coffre, hors clé : partagé par la création
+    manuelle et le départ « Connecter à Harpocrate », pour que les deux chemins
+    valident le nom et l'URL exactement pareil."""
+
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=3, max_length=64)
     label: str = Field(min_length=1, max_length=128)
     base_url: str = Field(min_length=8, max_length=512)
-    api_key_id: str = Field(min_length=1, max_length=128)
-    api_key: str = Field(min_length=8, max_length=2048)
-    probe_path: str | None = None
     is_default: bool = False
 
     @field_validator("name")
@@ -49,6 +50,12 @@ class VaultCreateRequest(BaseModel):
         if not v.startswith(("http://", "https://")):
             raise ValueError("base_url doit commencer par http:// ou https://")
         return v.rstrip("/")
+
+
+class VaultCreateRequest(VaultIdentity):
+    api_key_id: str = Field(min_length=1, max_length=128)
+    api_key: str = Field(min_length=8, max_length=2048)
+    probe_path: str | None = None
 
     @field_validator("probe_path")
     @classmethod
@@ -153,3 +160,9 @@ class SecretListResponse(BaseModel):
 
     secrets: list[SecretListItem]
     next_cursor: str | None
+
+
+class VaultConnectStartResponse(BaseModel):
+    """URL Harpocrate où envoyer le navigateur — rien d'autre ne sort du backend."""
+
+    browser_url: str

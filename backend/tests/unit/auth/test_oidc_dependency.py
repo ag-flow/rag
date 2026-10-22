@@ -40,11 +40,30 @@ def _fake_request(
     *,
     session: dict[str, Any] | None,
     oidc_service: MagicMock,
+    db_role: str | None = None,
 ) -> SimpleNamespace:
+    """`db_role` : le rôle du compte en BASE, seule source d'autorisation."""
+    pool = MagicMock()
+    pool.fetchval = AsyncMock(return_value=db_role)
     return SimpleNamespace(
         session=session if session is not None else {},
-        app=SimpleNamespace(state=SimpleNamespace(oidc=oidc_service)),
+        app=SimpleNamespace(
+            state=SimpleNamespace(oidc=oidc_service, pools=SimpleNamespace(config_pool=pool))
+        ),
     )
+
+
+def _session(**extra: Any) -> dict[str, Any]:
+    exp_future = int(time.time()) + 300
+    return {
+        "_oidc_session": {
+            "id_token": "x.y.z",
+            "refresh_token": "rt",
+            "exp": exp_future,
+            "user_id": "11111111-1111-1111-1111-111111111111",
+            **extra,
+        }
+    }
 
 
 @pytest.mark.asyncio
@@ -76,78 +95,59 @@ async def test_dependency_raises_session_expired_when_token_expired() -> None:
         await dep(req)  # type: ignore[arg-type]
 
 
-@pytest.mark.asyncio
-async def test_dependency_returns_user_context_when_role_matches() -> None:
+def _oidc(claims: dict[str, Any]) -> MagicMock:
     oidc = MagicMock()
-    oidc.verify_id_token = AsyncMock(
-        return_value={
-            "sub": "user-uuid",
-            "email": "user@example.com",
-            "name": "Test User",
-            "resource_access": {"rag-service": {"roles": ["rag-admin"]}},
-        }
-    )
+    oidc.verify_id_token = AsyncMock(return_value=claims)
     oidc.get_config = AsyncMock(
-        return_value=OidcConfig(
-            issuer="https://kc.example.com/realms/r",
-            client_id="rag-service",
-        )
+        return_value=OidcConfig(issuer="https://kc.example.com/realms/r", client_id="rag-service")
     )
-    oidc.extract_roles = MagicMock(return_value=["rag-admin"])
-    exp_future = int(time.time()) + 300
-    req = _fake_request(
-        session={"_oidc_session": {"id_token": "x.y.z", "refresh_token": "rt", "exp": exp_future}},
-        oidc_service=oidc,
-    )
-    dep = require_oidc_role("rag-admin")
-    ctx = await dep(req)  # type: ignore[arg-type]
-    assert ctx.sub == "user-uuid"
-    assert ctx.email == "user@example.com"
-    assert ctx.roles == ["rag-admin"]
+    return oidc
+
+
+@pytest.mark.asyncio
+async def test_dependency_returns_user_context_with_role_from_database() -> None:
+    oidc = _oidc({"sub": "user-uuid", "email": "user@example.com", "name": "Test User"})
+    req = _fake_request(session=_session(), oidc_service=oidc, db_role="rag-admin")
+    ctx = await require_oidc_role("rag-admin")(req)  # type: ignore[arg-type]
+    assert (ctx.sub, ctx.email, ctx.roles) == ("user-uuid", "user@example.com", ["rag-admin"])
 
 
 @pytest.mark.asyncio
 async def test_dependency_admin_grants_viewer_endpoint() -> None:
-    oidc = MagicMock()
-    oidc.verify_id_token = AsyncMock(return_value={"sub": "u", "email": None, "name": None})
-    oidc.get_config = AsyncMock(
-        return_value=OidcConfig(
-            issuer="https://kc.example.com/realms/r",
-            client_id="rag-service",
-        )
-    )
-    oidc.extract_roles = MagicMock(return_value=["rag-admin"])
-    exp_future = int(time.time()) + 300
-    req = _fake_request(
-        session={"_oidc_session": {"id_token": "x", "refresh_token": "rt", "exp": exp_future}},
-        oidc_service=oidc,
-    )
-    dep = require_oidc_role("rag-viewer")
-    ctx = await dep(req)  # type: ignore[arg-type]
+    req = _fake_request(session=_session(), oidc_service=_oidc({"sub": "u"}), db_role="rag-admin")
+    ctx = await require_oidc_role("rag-viewer")(req)  # type: ignore[arg-type]
     assert "rag-admin" in ctx.roles
 
 
 @pytest.mark.asyncio
 async def test_dependency_viewer_cannot_access_admin_endpoint() -> None:
-    oidc = MagicMock()
-    oidc.verify_id_token = AsyncMock(return_value={"sub": "u", "email": None, "name": None})
-    oidc.get_config = AsyncMock(
-        return_value=OidcConfig(
-            issuer="https://kc.example.com/realms/r",
-            client_id="rag-service",
-        )
-    )
-    oidc.extract_roles = MagicMock(return_value=["rag-viewer"])
-    exp_future = int(time.time()) + 300
-    req = _fake_request(
-        session={"_oidc_session": {"id_token": "x", "refresh_token": "rt", "exp": exp_future}},
-        oidc_service=oidc,
-    )
-    dep = require_oidc_role("rag-admin")
+    req = _fake_request(session=_session(), oidc_service=_oidc({"sub": "u"}), db_role="rag-viewer")
     with pytest.raises(OidcRoleForbidden) as exc:
-        await dep(req)  # type: ignore[arg-type]
+        await require_oidc_role("rag-admin")(req)  # type: ignore[arg-type]
     assert exc.value.required == "rag-admin"
     assert "rag-viewer" in exc.value.has
+
+
+@pytest.mark.asyncio
+async def test_dependency_ignores_roles_carried_by_token() -> None:
+    """Le token dit admin, la base dit viewer : c'est la base qui décide (§1, §9)."""
+    claims = {"sub": "u", "resource_access": {"rag-service": {"roles": ["rag-admin"]}}}
+    oidc = _oidc(claims)
+    oidc.extract_roles = MagicMock(return_value=["rag-admin"])
+    req = _fake_request(session=_session(), oidc_service=oidc, db_role="rag-viewer")
+    with pytest.raises(OidcRoleForbidden):
+        await require_oidc_role("rag-admin")(req)  # type: ignore[arg-type]
+    oidc.extract_roles.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_dependency_session_without_anchored_user_forces_relogin() -> None:
+    """Session ouverte avant l'ancrage (pas de user_id) : on ne devine pas le compte."""
+    session = _session()
+    del session["_oidc_session"]["user_id"]
+    req = _fake_request(session=session, oidc_service=_oidc({"sub": "u"}), db_role="rag-admin")
+    with pytest.raises(OidcSessionMissing):
+        await require_oidc_role("rag-viewer")(req)  # type: ignore[arg-type]
 
 
 @pytest.mark.asyncio

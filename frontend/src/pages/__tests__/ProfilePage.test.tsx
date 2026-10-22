@@ -66,15 +66,13 @@ describe("ProfilePage", () => {
     });
   });
 
-  it("avertit quand l'email change (bascule d'owner)", async () => {
+  it("rassure quand l'email change : la possession des objets ne bouge plus", async () => {
     renderWithProviders(<ProfilePage />);
     await screen.findByText("gael");
 
     fireEvent.change(screen.getByDisplayValue("gael@corp.example"), {
       target: { value: "autre@corp.example" },
     });
-    expect(
-      screen.getByText(/Changer d'email change la clé de possession/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/la clé de possession est figée sur votre compte/)).toBeInTheDocument();
   });
 });

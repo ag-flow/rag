@@ -50,6 +50,7 @@ const LLM_PROVIDERS = [
   "gemini",
   "deepseek",
   "dashscope",
+  "mammouth",
 ] as const;
 
 type TestSection = "vectorization" | "rerank" | "llm";

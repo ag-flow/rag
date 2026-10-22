@@ -4,7 +4,7 @@
   "username_label": "Username",
   "email_label": "Email",
   "email_help": "Identity pivot: matches your account at OIDC sign-in (email claim from the identity provider).",
-  "email_change_warning": "Changing your email changes the ownership key of your objects — existing workspaces and strategies will need to be migrated.",
+  "email_change_warning": "Your objects stay yours: the ownership key is frozen on your account and no longer depends on the email.",
   "identity_label": "Identity GUID (OBO)",
   "identity_help": "Set the SAME GUID here as in your portal profile: MCP calls routed through the portal will be attributed to you (OBO contract).",
   "identity_placeholder": "e.g. 0f8fad5b-d9cb-469f-a165-70867728950e",

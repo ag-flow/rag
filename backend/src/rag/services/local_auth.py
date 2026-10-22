@@ -43,16 +43,32 @@ class LocalAuthService:
     async def create_user(
         self, *, username: str, email: str, password_hash: str
     ) -> None:
+        # Un compte local est admin (toute session locale valide l'est) : le
+        # rôle est écrit en base pour qu'il le RESTE s'il se connecte un jour
+        # en OIDC (pont par email vérifié, STANDARD OIDC §4).
         await self._pool.execute(
-            "INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3)",
+            "INSERT INTO users (username, email, password_hash, role) "
+            "VALUES ($1, $2, $3, 'rag-admin')",
             username,
             email,
             password_hash,
         )
 
-    def build_session_payload(self, username: str, email: str) -> dict[str, int | str]:
-        return {
+    async def db_owner_id(self, username: str) -> str | None:
+        """owner_id figé du compte (migration 099) — mis en session au login."""
+        owner: str | None = await self._pool.fetchval(
+            "SELECT owner_id FROM users WHERE username = $1", username
+        )
+        return owner
+
+    def build_session_payload(
+        self, username: str, email: str, owner_id: str | None = None
+    ) -> dict[str, int | str]:
+        payload: dict[str, int | str] = {
             "username": username,
             "email": email,
             "expires_at": int(time.time()) + self._ttl_seconds,
         }
+        if owner_id:
+            payload["owner_id"] = owner_id
+        return payload

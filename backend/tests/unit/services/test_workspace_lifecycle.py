@@ -11,8 +11,10 @@ import pytest
 
 from rag.api.errors import WorkspaceNotFound
 from rag.schemas.vault_endpoints import EndpointIndexerSpec, EndpointOut
+from rag.services import endpoint_sharing as sharing_svc
 from rag.services import vault_endpoints as endpoints_svc
 from rag.services import workspace_lifecycle as lifecycle
+from rag.services.endpoint_sharing import UsableEndpoint
 
 _OWNER = "b" * 64
 
@@ -31,25 +33,52 @@ def _endpoint(slug: str) -> EndpointOut:
     )
 
 
+def _usable(ep: EndpointOut, access: str) -> UsableEndpoint:
+    return UsableEndpoint(
+        id=ep.id,
+        slug=ep.slug,
+        label=ep.label,
+        vault_id=ep.vault_id,
+        vault_name="coffre",
+        vault_label="Coffre",
+        access=access,  # type: ignore[arg-type]
+        indexer=("openai", "text-embedding-3-small"),
+        rerank=None,
+        llm=None,
+    )
+
+
+@pytest.mark.parametrize("access", ["owned", "default", "shared"])
 @pytest.mark.asyncio
-async def test_resolve_endpoint_by_slug_returns_matching_endpoint(
+async def test_resolve_endpoint_by_slug_returns_usable_endpoint(
+    monkeypatch: pytest.MonkeyPatch, access: str
+) -> None:
+    """Coffre visible OU endpoint partagé : la règle unique tranche, puis la
+    config complète est relue pour le snapshot."""
+    ep = _endpoint("azure-prod")
+    find = AsyncMock(return_value=_usable(ep, access))
+    monkeypatch.setattr(sharing_svc, "db_find_usable_endpoint_by_slug", find)
+    monkeypatch.setattr(endpoints_svc, "get_endpoint", AsyncMock(return_value=ep))
+
+    got = await lifecycle.resolve_endpoint_by_slug(
+        MagicMock(), owner_id=_OWNER, vault="coffre", endpoint="azure-prod"
+    )
+
+    assert got is ep
+    assert find.await_args.kwargs == {
+        "owner_id": _OWNER,
+        "vault": "coffre",
+        "endpoint": "azure-prod",
+    }
+
+
+@pytest.mark.asyncio
+async def test_resolve_endpoint_by_slug_unknown_vault_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    conn = MagicMock(fetchrow=AsyncMock(return_value={"id": uuid4()}))
     monkeypatch.setattr(
-        endpoints_svc,
-        "list_endpoints",
-        AsyncMock(return_value=[_endpoint("a"), _endpoint("azure-prod")]),
+        sharing_svc, "db_find_usable_endpoint_by_slug", AsyncMock(return_value=None)
     )
-    ep = await lifecycle.resolve_endpoint_by_slug(
-        conn, owner_id=_OWNER, vault="coffre", endpoint="azure-prod"
-    )
-    assert ep.slug == "azure-prod"
-    assert conn.fetchrow.await_args.args[1:] == (_OWNER, "coffre")
-
-
-@pytest.mark.asyncio
-async def test_resolve_endpoint_by_slug_unknown_vault_raises() -> None:
     conn = MagicMock(fetchrow=AsyncMock(return_value=None))
     with pytest.raises(lifecycle.VaultNotVisible):
         await lifecycle.resolve_endpoint_by_slug(
@@ -58,15 +87,18 @@ async def test_resolve_endpoint_by_slug_unknown_vault_raises() -> None:
 
 
 @pytest.mark.asyncio
-async def test_resolve_endpoint_by_slug_unknown_endpoint_raises(
+async def test_resolve_endpoint_by_slug_unknown_endpoint_in_visible_vault_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(
+        sharing_svc, "db_find_usable_endpoint_by_slug", AsyncMock(return_value=None)
+    )
     conn = MagicMock(fetchrow=AsyncMock(return_value={"id": uuid4()}))
-    monkeypatch.setattr(endpoints_svc, "list_endpoints", AsyncMock(return_value=[_endpoint("a")]))
     with pytest.raises(lifecycle.EndpointNotInVault):
         await lifecycle.resolve_endpoint_by_slug(
             conn, owner_id=_OWNER, vault="coffre", endpoint="absent"
         )
+    assert conn.fetchrow.await_args.args[1:] == (_OWNER, "coffre")
 
 
 @pytest.mark.asyncio

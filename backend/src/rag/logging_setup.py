@@ -8,6 +8,25 @@ import structlog
 
 Environment = Literal["dev", "staging", "prod"]
 
+# Routes dont la query string porte un secret à usage unique : le retour de
+# « Connecter à Harpocrate » reçoit `code` et `state` (contrat Harpocrate :
+# ni l'un ni l'autre ne se journalisent). uvicorn écrit l'URL complète dans
+# son journal d'accès — on n'y garde que le chemin.
+_REDACTED_QUERY_PATHS = ("/api/admin/harpocrate-vaults/connect/callback",)
+
+
+class _RedactSensitiveQueryFilter(logging.Filter):
+    """Retire la query string des lignes d'accès uvicorn des routes sensibles."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        # Format uvicorn.access : (client, méthode, chemin complet, version, statut).
+        if isinstance(args, tuple) and len(args) >= 3 and isinstance(args[2], str):
+            path, _, query = args[2].partition("?")
+            if query and path in _REDACTED_QUERY_PATHS:
+                record.args = (*args[:2], f"{path}?<masqué>", *args[3:])
+        return True
+
 
 def setup_logging(level: str, environment: Environment) -> None:
     """Configure structlog + stdlib logging.
@@ -25,6 +44,9 @@ def setup_logging(level: str, environment: Environment) -> None:
         level=numeric_level,
         force=True,
     )
+    access_logger = logging.getLogger("uvicorn.access")
+    if not any(isinstance(f, _RedactSensitiveQueryFilter) for f in access_logger.filters):
+        access_logger.addFilter(_RedactSensitiveQueryFilter())
 
     shared_processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,

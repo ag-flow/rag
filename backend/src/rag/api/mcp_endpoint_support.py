@@ -9,23 +9,48 @@ from rag.schemas.vault_endpoints import (
     EndpointRerankSpec,
     EndpointUpdate,
 )
+from rag.services.endpoint_sharing import UsableEndpoint
 
 SERVICES = ("vectorization", "rerank", "llm")
 
 
-def service_summary(ep: EndpointOut) -> dict[str, Any]:
-    """Résumé {service: {provider, model} | None} pour le listing."""
+def endpoint_groups(usable: list[UsableEndpoint]) -> list[dict[str, Any]]:
+    """Groupes par coffre du listing MCP, depuis les endpoints UTILISABLES.
 
-    def _spec(spec: Any) -> dict[str, Any] | None:
-        if spec is None:
-            return None
-        return {"provider": spec.provider, "model": spec.model}
+    `writable` = coffre possédé (seul le propriétaire modifie). Les groupes des
+    endpoints partagés par d'autres (095) portent `shared: true` : on n'y expose
+    que le nom et le label du coffre (pour désigner l'endpoint) et le résumé
+    des services — jamais de refs de secrets ni de configuration.
+    """
+    groups: dict[str, dict[str, Any]] = {}
+    for ep in usable:
+        group = groups.get(ep.vault_name)
+        if group is None:
+            group = {
+                "vault": ep.vault_name,
+                "vault_label": ep.vault_label,
+                "writable": ep.access == "owned",
+                "endpoints": [],
+            }
+            if ep.access == "shared":
+                group["shared"] = True
+            groups[ep.vault_name] = group
+        group["endpoints"].append(
+            {
+                "slug": ep.slug,
+                "label": ep.label,
+                "services": {
+                    "vectorization": _pair(ep.indexer),
+                    "rerank": _pair(ep.rerank),
+                    "llm": _pair(ep.llm),
+                },
+            }
+        )
+    return list(groups.values())
 
-    return {
-        "vectorization": _spec(ep.indexer),
-        "rerank": _spec(ep.rerank),
-        "llm": _spec(ep.llm),
-    }
+
+def _pair(spec: tuple[str, str] | None) -> dict[str, str] | None:
+    return None if spec is None else {"provider": spec[0], "model": spec[1]}
 
 
 def _merge_spec(

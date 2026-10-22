@@ -126,6 +126,7 @@ def register_workspace_admin_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
         from rag.services.endpoint_refresh import (
             DefaultVaultMissingError,
             EndpointGoneError,
+            EndpointNotUsableError,
             NoEndpointLinkedError,
             refresh_workspace_from_endpoint,
         )
@@ -158,6 +159,11 @@ def register_workspace_admin_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
             return (
                 f"L'endpoint d'origine du workspace '{workspace}' a été supprimé : "
                 "reset impossible."
+            )
+        except EndpointNotUsableError:
+            return (
+                f"L'endpoint d'origine du workspace '{workspace}' n'est plus partagé avec "
+                "toi : le workspace garde sa configuration, mais le reset est impossible."
             )
         except DefaultVaultMissingError:
             return "Aucun coffre Harpocrate par défaut configuré : reset impossible."

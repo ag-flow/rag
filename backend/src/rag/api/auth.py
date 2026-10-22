@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from typing import Any
 
 import structlog
 from fastapi import APIRouter, Request, Response, status
@@ -10,6 +11,7 @@ from rag.api.errors import (
     LocalAuthDisabled,
     LocalAuthInvalidCredentials,
     LocalSessionExpired,
+    OidcIdentityRefused,
     OidcNotConfigured,
     OidcSessionExpired,
     OidcSessionMissing,
@@ -22,6 +24,13 @@ from rag.auth.bearer import _LOCAL_SESSION_KEY
 from rag.auth.oidc_dependency import require_oidc_role
 from rag.schemas.local_auth import LocalLoginRequest, LocalLoginResponse
 from rag.schemas.oidc import MeResponse
+from rag.services.oidc_identity import (
+    OidcIdentityRefusedError,
+    OidcLogin,
+    ResolvedUser,
+    resolve_oidc_user,
+)
+from rag.services.user_accounts import db_role_for_username
 
 log = structlog.get_logger(__name__)
 
@@ -36,6 +45,29 @@ def _safe_next(raw: str | None) -> str:
     if not raw or not raw.startswith("/") or raw.startswith("//"):
         return "/"
     return raw
+
+
+async def _resolve_login_user(request: Request, id_token: str, cfg: Any) -> ResolvedUser:
+    """Compte local d'un login OIDC : ancrage (issuer, sub), pont email vérifié."""
+    oidc = request.app.state.oidc
+    claims = await oidc.verify_id_token(id_token, config=cfg)
+    login = OidcLogin(
+        issuer=str(claims["iss"]),
+        sub=str(claims["sub"]),
+        email=claims.get("email"),
+        # Seul un booléen True vaut vérification : absent ou "true" en chaîne
+        # ne suffisent pas à ouvrir le pont vers un compte existant.
+        email_verified=claims.get("email_verified") is True,
+        username=claims.get("preferred_username"),
+        token_roles=tuple(oidc.extract_roles(claims, cfg.client_id)),
+    )
+    relink = request.app.state.admin_env.is_oidc_relink_enabled()
+    async with request.app.state.pools.config_pool.acquire() as conn:
+        try:
+            return await resolve_oidc_user(conn, login, relink_enabled=relink)
+        except OidcIdentityRefusedError as exc:
+            log.warning("auth.oidc.identity_refused", reason=exc.reason)
+            raise OidcIdentityRefused(exc.reason) from exc
 
 
 def build_auth_router() -> APIRouter:
@@ -90,11 +122,16 @@ def build_auth_router() -> APIRouter:
             config=cfg,
             redirect_uri=state_payload.get("redirect_uri"),
         )
-        # Set session cookie (signée par SessionMiddleware).
+        user = await _resolve_login_user(request, tokens.id_token, cfg)
+        # Set session cookie (signée par SessionMiddleware). user_id et
+        # owner_id viennent de la BASE (compte ancré sur issuer+sub) : ils ne
+        # se recalculent plus depuis l'email du token à chaque requête.
         request.session[_SESSION_KEY] = {
             "id_token": tokens.id_token,
             "refresh_token": tokens.refresh_token,
             "exp": tokens.expires_at,
+            "user_id": user.user_id,
+            "owner_id": user.owner_id,
         }
         # Clear state payload
         request.session.pop(_STATE_KEY, None)
@@ -126,6 +163,9 @@ def build_auth_router() -> APIRouter:
             "id_token": tokens.id_token,
             "refresh_token": tokens.refresh_token or session["refresh_token"],
             "exp": tokens.expires_at,
+            # L'identité résolue au login ne change pas au rafraîchissement.
+            "user_id": session.get("user_id"),
+            "owner_id": session.get("owner_id"),
         }
         return {"ok": True}
 
@@ -172,7 +212,7 @@ def build_auth_router() -> APIRouter:
             log.warning("auth.local.login.failure", username=payload.username)
             raise LocalAuthInvalidCredentials()
         request.session[_LOCAL_SESSION_KEY] = local_auth.build_session_payload(
-            payload.username, email
+            payload.username, email, await local_auth.db_owner_id(payload.username)
         )
         log.info("auth.local.login.success", username=payload.username)
         return LocalLoginResponse()
@@ -190,11 +230,15 @@ def build_auth_router() -> APIRouter:
             expires_at = local_session.get("expires_at", 0)
             username = local_session.get("username")
             if expires_at > int(time.time()) and username:
+                # Rôle EN BASE, comme pour l'autorisation (ticket a138f63b).
+                role = await db_role_for_username(
+                    request.app.state.pools.config_pool, str(username)
+                )
                 return MeResponse(
                     sub=username,
                     email=None,
                     name=None,
-                    roles=["rag-admin"],
+                    roles=[role] if role else [],
                 )
             request.session.pop(_LOCAL_SESSION_KEY, None)
             raise LocalSessionExpired()

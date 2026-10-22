@@ -16,6 +16,66 @@ _BEARER_SCHEME: dict[str, Any] = {
     ),
 }
 
+# En-têtes OBO (contrat d0e2dad3 v6) : lus bruts par `rag.auth.obo_resolver`,
+# FastAPI ne peut donc pas les déduire. Sans cette déclaration, le contrat
+# publié laissait croire qu'une route clé API ignorait l'identité humaine.
+_OBO_HEADERS: list[dict[str, Any]] = [
+    {
+        "name": "x-portal-actor",
+        "in": "header",
+        "required": False,
+        "schema": {"type": "string"},
+        "description": "OBO — GUID d'identité de l'humain (users.identity), posé par le portail.",
+    },
+    {
+        "name": "x-portal-actor-timestamp",
+        "in": "header",
+        "required": False,
+        "schema": {"type": "string"},
+        "description": "OBO — instant d'émission, unix secondes (fenêtre anti-rejeu 300 s).",
+    },
+    {
+        "name": "x-portal-actor-signature",
+        "in": "header",
+        "required": False,
+        "schema": {"type": "string"},
+        "description": (
+            "OBO — HMAC-SHA256 hex de `{actor}\\n{timestamp}`, secret = la clé API "
+            "présentée par la requête : le Bearer, ou sur `/api/v1/search` la clé du "
+            "corps. Valide et connue : l'appel est attribué à l'humain ; sinon à la "
+            "clé — sauf clé « OBO obligatoire » : 401."
+        ),
+    },
+]
+
+_OBO_REQUIRED_401 = (
+    "Clé « OBO obligatoire » sans identité signée valide et connue (`obo_required`)."
+)
+
+_UNAUTHORIZED: dict[str, Any] = {
+    "description": (
+        "Clé absente ou invalide (`missing_bearer_token`, `invalid_auth_scheme`, "
+        "`invalid_apikey`, `insufficient_scope`). " + _OBO_REQUIRED_401
+    )
+}
+
+
+def _declare_apikey_operation(op: dict[str, Any]) -> None:
+    op["security"] = [{"BearerApiKey": []}]
+    declared = {(p.get("in"), p.get("name")) for p in op.get("parameters", [])}
+    params = op.setdefault("parameters", [])
+    params.extend(h for h in _OBO_HEADERS if ("header", h["name"]) not in declared)
+    responses = op.setdefault("responses", {})
+    declared_401 = responses.get("401")
+    if declared_401 is None:
+        responses["401"] = dict(_UNAUTHORIZED)
+    elif "obo_required" not in declared_401.get("description", ""):
+        # Une route qui documente déjà son 401 doit AUSSI annoncer obo_required :
+        # sinon le contrat publié tait un refus que toute route clé API peut rendre.
+        declared_401["description"] = (
+            f"{declared_401.get('description', '')} {_OBO_REQUIRED_401}".strip()
+        )
+
 
 def install_openapi_security(app: FastAPI) -> None:
     """Déclare le scheme d'authentification par clé API et l'applique aux
@@ -37,7 +97,7 @@ def install_openapi_security(app: FastAPI) -> None:
         for path_item in schema.get("paths", {}).values():
             for op in path_item.values():
                 if isinstance(op, dict) and "apikey" in (op.get("tags") or []):
-                    op["security"] = [{"BearerApiKey": []}]
+                    _declare_apikey_operation(op)
         app.openapi_schema = schema
         return schema
 

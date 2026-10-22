@@ -47,7 +47,12 @@ describe("CreateVaultDialog", () => {
 
     render(
       <Wrapper>
-        <CreateVaultDialog open={true} onOpenChange={() => {}} onCreated={onCreated} />
+        <CreateVaultDialog
+          open={true}
+          onOpenChange={() => {}}
+          onCreated={onCreated}
+          isFirstVault={true}
+        />
       </Wrapper>,
     );
 
@@ -64,14 +69,17 @@ describe("CreateVaultDialog", () => {
   });
 
   it("shows the name_taken error on HTTP 409", async () => {
-    vi.spyOn(apiModule.api, "post").mockRejectedValue(
-      new ApiError(409, { detail: "name_taken" }),
-    );
+    vi.spyOn(apiModule.api, "post").mockRejectedValue(new ApiError(409, { detail: "name_taken" }));
     const user = userEvent.setup();
 
     render(
       <Wrapper>
-        <CreateVaultDialog open={true} onOpenChange={() => {}} onCreated={() => {}} />
+        <CreateVaultDialog
+          open={true}
+          onOpenChange={() => {}}
+          onCreated={() => {}}
+          isFirstVault={true}
+        />
       </Wrapper>,
     );
 
@@ -84,14 +92,17 @@ describe("CreateVaultDialog", () => {
   });
 
   it("renders the DEK missing panel on HTTP 503", async () => {
-    vi.spyOn(apiModule.api, "post").mockRejectedValue(
-      new ApiError(503, { detail: "dek_missing" }),
-    );
+    vi.spyOn(apiModule.api, "post").mockRejectedValue(new ApiError(503, { detail: "dek_missing" }));
     const user = userEvent.setup();
 
     render(
       <Wrapper>
-        <CreateVaultDialog open={true} onOpenChange={() => {}} onCreated={() => {}} />
+        <CreateVaultDialog
+          open={true}
+          onOpenChange={() => {}}
+          onCreated={() => {}}
+          isFirstVault={true}
+        />
       </Wrapper>,
     );
 

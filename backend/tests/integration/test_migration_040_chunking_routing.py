@@ -48,7 +48,8 @@ async def test_engine_check_rejects_unknown(session_pool: asyncpg.Pool) -> None:
 @pytest.mark.asyncio
 async def test_global_seeds_present(session_pool: asyncpg.Pool) -> None:
     """État des seeds à HEAD : 040 + 042 (code-aware→code) + 043 (data) + 057
-    (name → label/slug, seeds devenus stratégies système)."""
+    (name → label/slug, seeds devenus stratégies système) + 097 (exemple
+    docflow-docs, hors cascade de catégories)."""
     await run_migrations(session_pool, MIGRATIONS_DIR)
     async with session_pool.acquire() as conn:
         strategies = {
@@ -82,6 +83,7 @@ async def test_global_seeds_present(session_pool: asyncpg.Pool) -> None:
         "code-aware": "code",
         "table": "table",
         "data-structured": "data",
+        "docflow-docs": "prose",
     }
     assert cat_strat == {
         "prose": "markdown-deep",

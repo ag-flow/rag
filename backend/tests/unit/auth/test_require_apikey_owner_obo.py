@@ -27,7 +27,8 @@ _ACTOR = "3f2a9c81-0000-4000-8000-000000000001"
 _KEY_OWNER = "k" * 64
 _HUMAN_EMAIL = "gael@yoops.org"
 
-_VALID_KEY = {"owner_id": _KEY_OWNER, "scope": "read_write"}
+_VALID_KEY = {"owner_id": _KEY_OWNER, "scope": "read_write", "require_obo": False}
+_OBO_KEY = {**_VALID_KEY, "require_obo": True}
 
 
 class _Headers:
@@ -66,7 +67,10 @@ def _obo_headers(signature: bytes | None = None) -> list[tuple[bytes, bytes]]:
 def _pool(*, key_row: dict[str, str] | None, identity_email: str | None = None) -> MagicMock:
     pool = MagicMock()
     pool.fetchrow = AsyncMock(return_value=key_row)
-    pool.fetchval = AsyncMock(return_value=identity_email)
+    # La base rend l'owner_id FIGÉ du compte (migration 099), pas son email.
+    pool.fetchval = AsyncMock(
+        return_value=principal_to_owner_id(identity_email) if identity_email else None
+    )
     return pool
 
 
@@ -133,3 +137,35 @@ async def test_missing_bearer_raises_401() -> None:
 
     assert exc.value.status_code == 401
     assert exc.value.detail == "missing_bearer_token"
+
+
+@pytest.mark.asyncio
+async def test_require_obo_key_with_signed_identity_attributes_call_to_human() -> None:
+    pool = _pool(key_row=_OBO_KEY, identity_email=_HUMAN_EMAIL)
+
+    ctx = await require_apikey_owner(_request(_obo_headers(), pool))  # type: ignore[arg-type]
+
+    assert ctx.owner_id == principal_to_owner_id(_HUMAN_EMAIL)
+
+
+@pytest.mark.parametrize(
+    ("headers", "identity_email"),
+    [
+        pytest.param(_bearer(), _HUMAN_EMAIL, id="absent"),
+        pytest.param(_obo_headers()[:-1], _HUMAN_EMAIL, id="incomplete"),
+        pytest.param(_obo_headers(b"0" * 64), _HUMAN_EMAIL, id="forged"),
+        pytest.param(_obo_headers(), None, id="unknown_identity"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_require_obo_key_without_valid_identity_raises_401(
+    headers: list[tuple[bytes, bytes]], identity_email: str | None
+) -> None:
+    """Fail closed : aucun repli sur l'owner de la clé quand elle exige l'OBO."""
+    pool = _pool(key_row=_OBO_KEY, identity_email=identity_email)
+
+    with pytest.raises(HTTPException) as exc:
+        await require_apikey_owner(_request(headers, pool))  # type: ignore[arg-type]
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "obo_required"

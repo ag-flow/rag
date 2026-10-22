@@ -14,6 +14,7 @@ from rag.schemas.user_api_keys import (
     UserApiKeyCreated,
     UserApiKeyOut,
     UserApiKeyRotated,
+    UserApiKeyUpdate,
 )
 from rag.services import user_api_keys as svc
 
@@ -81,6 +82,19 @@ def build_me_api_keys_router() -> APIRouter:
         owner_id = get_current_owner_id(request)
         async with _pool(request).acquire() as conn:
             updated = await svc.set_scope(
+                conn, owner_id=owner_id, key_id=str(key_id), req=req
+            )
+        if not updated:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, "api key not found or revoked"
+            )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @router.patch("/{key_id}", status_code=204)
+    async def update_my_key(key_id: UUID, req: UserApiKeyUpdate, request: Request) -> Response:
+        owner_id = get_current_owner_id(request)
+        async with _pool(request).acquire() as conn:
+            updated = await svc.db_update_key(
                 conn, owner_id=owner_id, key_id=str(key_id), req=req
             )
         if not updated:

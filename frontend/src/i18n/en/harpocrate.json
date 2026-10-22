@@ -1,7 +1,7 @@
 {
   "page": {
-    "title": "Harpocrate vaults",
-    "subtitle": "Configure the vaults used by the backend to resolve external secrets.",
+    "title": "Endpoints",
+    "subtitle": "Vectorization, rerank and LLM endpoints, with provider and SSH keys, organized by Harpocrate vault.",
     "no_selection": "Select a vault on the left to view its details."
   },
   "list": {
@@ -211,6 +211,7 @@
     "api_key_label": "api_key (token)",
     "api_key_placeholder": "hrpv_1_...",
     "set_default_label": "Set as default vault",
+    "set_default_warning": "The current default vault will lose that status: workspaces will resolve their keys in the new vault, and the old one will disappear from the list of administrators who do not own it.",
     "submit": "Create vault",
     "cancel": "Cancel",
     "created_toast": "Vault \"{{name}}\" created",
@@ -322,11 +323,52 @@
     "fallback_cooldown": "Primary retry (seconds)",
     "fallback_breaker_help": "After this many consecutive failures, calls switch to the fallback; after the delay, the primary is retried and takes over again as soon as it responds.",
     "limit_concurrency": "Max parallel requests (all workspaces)",
-    "health_degraded": "Fallback active or probing"
+    "health_degraded": "Fallback active or probing",
+    "sharing": {
+      "col": "Sharing",
+      "btn": "Share",
+      "title": "Share “{{name}}”",
+      "help": "Recipients can create workspaces with this endpoint — their calls use this vault's keys. They can neither edit it nor see its secret references.",
+      "all": "Share with everyone",
+      "users": "Share with",
+      "no_users": "No recipient.",
+      "saved_toast": "Sharing updated.",
+      "badge_all": "Everyone",
+      "badge_users_one": "{{count}} person",
+      "badge_users_other": "{{count}} people",
+      "email_placeholder": "User's exact email",
+      "add": "Add",
+      "user_not_found": "No user with this email (or it is you). They must have signed in at least once.",
+      "remove": "Remove {{email}}"
+    }
   },
   "expiry": {
     "banner_expired": "This vault's access key has expired — replace it (⋯ menu → Replace key) before secret resolution fails.",
     "banner_expiring": "This vault's access key expires in {{count}} day(s) — consider replacing it (⋯ menu → Replace key).",
     "list_dot": "Access key expired or close to expiry"
+  },
+  "connect": {
+    "explanation": "Recommended: pick your wallet in Harpocrate, the key is created and stored without copy-paste. It belongs to YOUR Harpocrate account, while ragflow vaults are shared between administrators.",
+    "button": "Connect to Harpocrate",
+    "starting": "Redirecting to Harpocrate…",
+    "or_manual": "— or enter an existing api_key below —",
+    "connected_toast": "Vault created and connected to Harpocrate.",
+    "connected_untested_toast": "Vault created, but the connection test failed: check it in the Detail tab.",
+    "errors": {
+      "name_taken": "This vault name is already used.",
+      "name_taken_key_not_saved": "This vault name was taken meanwhile: the key obtained from Harpocrate was NOT saved. Revoke it in Harpocrate, then start again with another name.",
+      "https_required": "The Harpocrate URL must use https.",
+      "harpocrate_unreachable": "Harpocrate is unreachable. Try again later.",
+      "exchange_failed": "Harpocrate refused the exchange: restart the connection from the beginning.",
+      "denied": "Connection refused in Harpocrate: no vault was created.",
+      "state_unknown": "This Harpocrate return does not belong to your session or has expired (15 min): no vault was created. Restart the connection.",
+      "already_used": "This connection was already processed: no new vault was created.",
+      "harpocrate_dek_missing": "HARPOCRATE_DEK is missing on the backend: the key cannot be encrypted.",
+      "generic": "The connection to Harpocrate failed.",
+      "client_not_declared": "Harpocrate does not know the ragflow application (unknown or disabled client_id). A Harpocrate admin must declare it in “Connected applications” with the values below — or enter the key manually.",
+      "redirect_uri_not_declared": "The ragflow application is declared in Harpocrate, but not with this return URL (exact match). Add the URL below to its declaration — or enter the key manually."
+    },
+    "declare_client_id": "client_id to declare",
+    "declare_redirect_uri": "Return URL to declare"
   }
 }

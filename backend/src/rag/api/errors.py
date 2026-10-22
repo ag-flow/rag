@@ -284,6 +284,24 @@ class InvalidPath(AdminError):
         return {"error": "invalid_path", "reason": self.reason}
 
 
+class UnresolvedTemplateVariable(AdminError):
+    """Variable de gabarit d'appel arrivée littérale (`{event.blockSlug}`…)."""
+
+    http_status = 422
+
+    def __init__(self, field: str, variables: list[str]) -> None:
+        super().__init__(f"{field}: {', '.join(variables)}")
+        self.field = field
+        self.variables = variables
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "error": "unresolved_template_variable",
+            "field": self.field,
+            "variables": self.variables,
+        }
+
+
 class ContentTooLarge(AdminError):
     http_status = 413
 
@@ -397,6 +415,19 @@ class OidcInvalidToken(AdminError):
 
     def to_payload(self) -> dict[str, object]:
         return {"error": "oidc_invalid_token", "reason": self.reason}
+
+
+class OidcIdentityRefused(AdminError):
+    """Login authentifié par l'IdP, refusé par la liaison d'identité (730cb2d6)."""
+
+    http_status = 403
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+    def to_payload(self) -> dict[str, object]:
+        return {"error": "oidc_identity_refused", "reason": self.reason}
 
 
 class OidcRoleForbidden(AdminError):

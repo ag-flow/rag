@@ -154,6 +154,7 @@ async def test_call_llm_openai_compatible_providers_use_default_base_url() -> No
         "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
         "deepseek": "https://api.deepseek.com/v1",
         "dashscope": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        "mammouth": "https://api.mammouth.ai/v1",
     }
     for provider, url in expected.items():
         mock_choice = MagicMock()

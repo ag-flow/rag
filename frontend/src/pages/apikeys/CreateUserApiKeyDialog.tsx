@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { useCreateUserApiKey } from "@/hooks/useUserApiKeys";
 import { useToast } from "@/hooks/useToast";
 import { ScopeSelector } from "./ScopeSelector";
+import { RequireOboToggle } from "./RequireOboToggle";
 import { ShowOncePanel } from "./ShowOncePanel";
 import { McpClientPanel } from "./McpClientPanel";
 import type { KeyScope } from "@/lib/user-api-keys.types";
@@ -30,6 +31,7 @@ export function CreateUserApiKeyDialog({ open, onOpenChange }: Props) {
 
   const [name, setName] = useState("");
   const [scope, setScope] = useState<KeyScope>("read");
+  const [requireObo, setRequireObo] = useState(false);
   const [createdKey, setCreatedKey] = useState<string | null>(null);
 
   function handleClose(next: boolean) {
@@ -37,13 +39,14 @@ export function CreateUserApiKeyDialog({ open, onOpenChange }: Props) {
     if (!next) {
       setName("");
       setScope("read");
+      setRequireObo(false);
       setCreatedKey(null);
     }
   }
 
   async function handleCreate() {
     try {
-      const created = await createMutation.mutateAsync({ name, scope });
+      const created = await createMutation.mutateAsync({ name, scope, require_obo: requireObo });
       setCreatedKey(created.api_key);
     } catch {
       toast({ title: t("error_toast"), variant: "destructive" });
@@ -79,6 +82,7 @@ export function CreateUserApiKeyDialog({ open, onOpenChange }: Props) {
               <p className="mb-2 mt-1 text-xs text-slate-500">{t("scope.help")}</p>
               <ScopeSelector value={scope} onChange={setScope} />
             </div>
+            <RequireOboToggle checked={requireObo} onChange={setRequireObo} />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => handleClose(false)}>
                 {t("cancel")}

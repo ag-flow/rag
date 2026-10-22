@@ -51,6 +51,9 @@ export type VaultEndpoint = {
   fallback_endpoint_id: string | null;
   failure_threshold: number;
   cooldown_seconds: number;
+  /** Partage (migration 095) : à tous, ou nombre de bénéficiaires nommés. */
+  shared_with_all: boolean;
+  shared_user_count: number;
   created_at: string;
   updated_at: string;
 };
@@ -73,4 +76,27 @@ export type EndpointUpdate = {
   clear_fallback?: boolean;
   failure_threshold?: number | null;
   cooldown_seconds?: number | null;
+};
+
+/** Utilisateur existant — bénéficiaire ou candidat au partage. */
+export type ShareUser = { id: string; username: string; email: string };
+
+export type EndpointSharing = { shared_with_all: boolean; users: ShareUser[] };
+
+export type EndpointSharingUpdate = { shared_with_all: boolean; user_ids: string[] };
+
+type ServiceModel = { provider: string; model: string };
+
+/** Endpoint utilisable pour créer un workspace (sans références de secrets). */
+export type UsableEndpoint = {
+  id: string;
+  slug: string;
+  label: string;
+  vault_id: string;
+  vault_name: string;
+  vault_label: string;
+  access: "owned" | "default" | "shared";
+  indexer: ServiceModel;
+  rerank: ServiceModel | null;
+  llm: ServiceModel | null;
 };

@@ -41,15 +41,17 @@ def build_setup_router() -> APIRouter:
                 bcrypt.gensalt(12),
             )
             password_hash = password_hash_bytes.decode("utf-8")
-            await conn.execute(
-                "INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3)",
+            # Premier compte = admin, écrit en base (cf. LocalAuthService).
+            owner_id = await conn.fetchval(
+                "INSERT INTO users (username, email, password_hash, role) "
+                "VALUES ($1, $2, $3, 'rag-admin') RETURNING owner_id",
                 payload.username,
                 payload.email,
                 password_hash,
             )
 
         request.session[_LOCAL_SESSION_KEY] = local_auth.build_session_payload(
-            payload.username, payload.email
+            payload.username, payload.email, owner_id
         )
         log.info("setup.init_admin.done", username=payload.username)
         return InitAdminResponse()

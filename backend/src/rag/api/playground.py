@@ -9,7 +9,7 @@ import asyncpg
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
-from rag.api.workspace_access import require_owned_workspace_id
+from rag.api.workspace_access import require_owned_workspace_id, require_writable_service_refs
 from rag.auth.bearer import require_master_key_or_authenticated_admin
 from rag.schemas.playground import (
     LlmConfigCreate,
@@ -92,6 +92,10 @@ async def create_config(
     from rag.services.llm_configs import create_llm_config
 
     await require_owned_workspace_id(request, workspace_name, _pool(request))
+    # Sans coffre par défaut, une clé logique nue n'est attribuable à aucun
+    # coffre : la garde la refuse (fail closed).
+    default_vault = await request.app.state.client_provider.get_default_vault_name()
+    await require_writable_service_refs(request, [body.api_key_ref], default_vault or "")
     async with _pool(request).acquire() as conn:
         try:
             return await create_llm_config(conn, workspace_name=workspace_name, req=body)

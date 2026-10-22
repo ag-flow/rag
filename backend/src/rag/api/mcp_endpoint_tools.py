@@ -10,10 +10,11 @@ from pydantic import ValidationError
 from rag.api.mcp_endpoint_support import (
     SERVICES,
     build_service_update,
-    service_summary,
+    endpoint_groups,
 )
 from rag.api.mcp_library_support import dump
 from rag.schemas.vault_endpoints import EndpointOut, EndpointUpdate
+from rag.services import endpoint_sharing as sharing_svc
 from rag.services import vault_endpoints as endpoints_svc
 from rag.services.endpoint_breaker import get_breaker_registry
 from rag.services.endpoint_fallback import EndpointFallbackInvalidError
@@ -37,10 +38,6 @@ _UNKNOWN_ENDPOINT = (
     "Appelle list_endpoints() pour les slugs disponibles."
 )
 
-_VISIBLE_VAULTS = (
-    "SELECT id, name, label, is_default, owner_id FROM harpocrate_vaults "
-    "WHERE is_default = true OR owner_id = $1 ORDER BY created_at"
-)
 _VAULT_BY_NAME = (
     "SELECT id, name, label, is_default, owner_id FROM harpocrate_vaults "
     "WHERE (is_default = true OR owner_id = $1) AND name = $2"
@@ -75,35 +72,25 @@ def register_endpoint_tools(mcp: Any, ws_ctx: ContextVar[Any]) -> None:
 
         Un endpoint est un préréglage nommé des services IA (vectorisation,
         rerank, LLM) servant de source à la création de workspaces. Visibilité :
-        tes coffres + le coffre par défaut de l'instance ; `writable` indique si
-        cette clé peut modifier l'endpoint (coffre possédé). Requiert une clé
-        de niveau 'admin'.
+        tes coffres + le coffre par défaut de l'instance + les endpoints que
+        d'autres utilisateurs t'ont partagés (groupes `shared: true`, utilisables
+        dans create_workspace avec leur vault et leur slug, jamais modifiables) ;
+        `writable` indique si cette clé peut modifier l'endpoint (coffre
+        possédé). Requiert une clé de niveau 'admin'.
 
-        Sortie : JSON [{vault, vault_label, writable, endpoints: [{slug, label,
-        services: {vectorization|rerank|llm: {provider, model} | null}}]}].
+        Sortie : JSON [{vault, vault_label, writable, shared?, endpoints: [{slug,
+        label, services: {vectorization|rerank|llm: {provider, model} | null}}]}].
         Lecture seule. Détail complet via get_endpoint_configuration(vault, slug).
         """
         ctx = ws_ctx.get()
         refusal = _refusal(ctx)
         if refusal:
             return refusal
+        # Règle de visibilité unique (rag.services.endpoint_sharing) : le
+        # listing ne réimplémente pas sa propre visibilité de coffre.
         async with ctx.config_pool.acquire() as conn:
-            vaults = await conn.fetch(_VISIBLE_VAULTS, ctx.owner_id)
-            result = []
-            for v in vaults:
-                eps = await endpoints_svc.list_endpoints(conn, vault_id=v["id"])
-                result.append(
-                    {
-                        "vault": v["name"],
-                        "vault_label": v["label"],
-                        "writable": v["owner_id"] == ctx.owner_id,
-                        "endpoints": [
-                            {"slug": e.slug, "label": e.label, "services": service_summary(e)}
-                            for e in eps
-                        ],
-                    }
-                )
-        return dump(result)
+            usable = await sharing_svc.db_list_usable_endpoints(conn, owner_id=ctx.owner_id)
+        return dump(endpoint_groups(usable))
 
     @mcp.tool()
     async def get_endpoint_configuration(vault: str, endpoint: str) -> str:
