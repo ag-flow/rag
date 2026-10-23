@@ -17,6 +17,8 @@ import type {
   VaultConnectStartResponse,
   VaultCreateRequest,
   VaultIdentity,
+  VaultReconnectConfirmResponse,
+  VaultReconnectPending,
   VaultRevealApiKeyResponse,
   VaultRotateApiKeyRequest,
   VaultSummary,
@@ -38,6 +40,18 @@ export const harpocrateVaultsApi = {
 
   connectStart: (payload: VaultIdentity) =>
     api.post<VaultConnectStartResponse>(`${BASE}/connect/start`, payload),
+
+  reconnectStart: (id: string) =>
+    api.post<VaultConnectStartResponse>(`${BASE}/connect/reconnect/${id}/start`, {}),
+
+  getPendingReconnect: (requestId: string) =>
+    api.get<VaultReconnectPending>(`${BASE}/connect/pending/${requestId}`),
+
+  confirmReconnect: (requestId: string) =>
+    api.post<VaultReconnectConfirmResponse>(`${BASE}/connect/pending/${requestId}/confirm`, {}),
+
+  cancelReconnect: (requestId: string) =>
+    api.post<void>(`${BASE}/connect/pending/${requestId}/cancel`, {}),
 
   update: (id: string, payload: VaultUpdateRequest) =>
     api.patch<VaultSummary>(`${BASE}/${id}`, payload),

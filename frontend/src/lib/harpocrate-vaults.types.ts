@@ -35,6 +35,24 @@ export type VaultConnectStartResponse = {
   browser_url: string;
 };
 
+/**
+ * Reconnexion en attente : la clé obtenue ouvre un autre wallet que la clé
+ * actuelle. `previous_wallet_id` null = la clé actuelle ne répond plus.
+ */
+export type VaultReconnectPending = {
+  request_id: string;
+  vault_id: string;
+  vault_name: string;
+  previous_wallet_id: string | null;
+  new_wallet_id: string;
+  expires_at: string;
+};
+
+export type VaultReconnectConfirmResponse = {
+  vault: VaultSummary;
+  tested: boolean;
+};
+
 export type VaultUpdateRequest = {
   label?: string;
   base_url?: string;

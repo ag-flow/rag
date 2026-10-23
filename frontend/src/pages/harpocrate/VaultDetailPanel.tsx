@@ -10,12 +10,13 @@ import { VaultSecretsTab } from "@/pages/harpocrate/VaultSecretsTab";
 import { VaultWalletInfoTab } from "@/pages/harpocrate/VaultWalletInfoTab";
 import { RevealApiKeyDialog } from "@/pages/harpocrate/RevealApiKeyDialog";
 import { ReplaceApiKeyDialog } from "@/pages/harpocrate/ReplaceApiKeyDialog";
+import { ReconnectVaultDialog } from "@/pages/harpocrate/ReconnectVaultDialog";
 import { RetireVaultDialog } from "@/pages/harpocrate/RetireVaultDialog";
 import { VaultApikeysTab } from "@/pages/harpocrate/VaultApikeysTab";
 import { VaultSshTab } from "@/pages/harpocrate/VaultSshTab";
 import { VaultEndpointsTab } from "@/pages/harpocrate/VaultEndpointsTab";
 
-type DialogKind = "reveal" | "replace" | "retire" | null;
+type DialogKind = "reveal" | "replace" | "reconnect" | "retire" | null;
 
 interface VaultDetailPanelProps {
   vaultId: string;
@@ -70,6 +71,7 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
               vault={vault}
               onReveal={() => setDialogOpen("reveal")}
               onReplaceKey={() => setDialogOpen("replace")}
+              onReconnect={() => setDialogOpen("reconnect")}
               onRetire={() => setDialogOpen("retire")}
             />
           </TabsContent>
@@ -106,6 +108,11 @@ export function VaultDetailPanel({ vaultId }: VaultDetailPanelProps) {
         currentApiKeyId={vault.api_key_id}
         open={dialogOpen === "replace"}
         onOpenChange={(o) => setDialogOpen(o ? "replace" : null)}
+      />
+      <ReconnectVaultDialog
+        vaultId={vault.id}
+        open={dialogOpen === "reconnect"}
+        onOpenChange={(o) => setDialogOpen(o ? "reconnect" : null)}
       />
       <RetireVaultDialog
         vault={vault}

@@ -8,6 +8,7 @@ import { VaultsEmptyState } from "@/pages/harpocrate/VaultsEmptyState";
 import { VaultDetailPanel } from "@/pages/harpocrate/VaultDetailPanel";
 import { CreateVaultDialog } from "@/pages/harpocrate/CreateVaultDialog";
 import { useConnectReturn } from "@/pages/harpocrate/useConnectReturn";
+import { ConfirmWalletChangeDialog } from "@/pages/harpocrate/ConfirmWalletChangeDialog";
 
 export function HarpocrateVaultsPage() {
   const { t } = useTranslation("harpocrate");
@@ -15,7 +16,7 @@ export function HarpocrateVaultsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get("vault");
   const [createOpen, setCreateOpen] = useState(false);
-  useConnectReturn();
+  const { pendingRequestId, clearPending } = useConnectReturn();
 
   // Auto-sélection au premier load : default ou premier de la liste.
   // On saute tant qu'un refetch (ex. invalidation après retrait d'un vault)
@@ -90,6 +91,7 @@ export function HarpocrateVaultsPage() {
         onCreated={handleCreated}
         isFirstVault={false}
       />
+      <ConfirmWalletChangeDialog requestId={pendingRequestId} onDone={clearPending} />
     </>
   );
 }

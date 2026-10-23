@@ -40,6 +40,7 @@ describe("VaultDetailTab", () => {
           vault={vault}
           onReveal={() => {}}
           onReplaceKey={() => {}}
+          onReconnect={() => {}}
           onRetire={() => {}}
         />
       </Wrapper>,
@@ -50,10 +51,11 @@ describe("VaultDetailTab", () => {
     expect(screen.getByDisplayValue("k-001")).toBeInTheDocument();
   });
 
-  it("invokes the retire, reveal and replace-key handlers", async () => {
+  it("invokes the retire, reveal, replace-key and reconnect handlers", async () => {
     const onRetire = vi.fn();
     const onReveal = vi.fn();
     const onReplaceKey = vi.fn();
+    const onReconnect = vi.fn();
     const user = userEvent.setup();
 
     render(
@@ -62,6 +64,7 @@ describe("VaultDetailTab", () => {
           vault={vault}
           onReveal={onReveal}
           onReplaceKey={onReplaceKey}
+          onReconnect={onReconnect}
           onRetire={onRetire}
         />
       </Wrapper>,
@@ -75,6 +78,9 @@ describe("VaultDetailTab", () => {
 
     await user.click(screen.getByRole("button", { name: /remplacer la clé/i }));
     expect(onReplaceKey).toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /reconnecter/i }));
+    expect(onReconnect).toHaveBeenCalled();
   });
 
   it("calls api.patch when Enregistrer is clicked after editing", async () => {
@@ -89,6 +95,7 @@ describe("VaultDetailTab", () => {
           vault={vault}
           onReveal={() => {}}
           onReplaceKey={() => {}}
+          onReconnect={() => {}}
           onRetire={() => {}}
         />
       </Wrapper>,

@@ -21,10 +21,17 @@ interface VaultDetailTabProps {
   vault: VaultSummary;
   onReveal: () => void;
   onReplaceKey: () => void;
+  onReconnect: () => void;
   onRetire: () => void;
 }
 
-export function VaultDetailTab({ vault, onReveal, onReplaceKey, onRetire }: VaultDetailTabProps) {
+export function VaultDetailTab({
+  vault,
+  onReveal,
+  onReplaceKey,
+  onReconnect,
+  onRetire,
+}: VaultDetailTabProps) {
   const { t } = useTranslation("harpocrate");
   const { toast } = useToast();
   const updateMutation = useUpdateVault(vault.id);
@@ -110,6 +117,9 @@ export function VaultDetailTab({ vault, onReveal, onReplaceKey, onRetire }: Vaul
             />
             <Button type="button" variant="outline" onClick={onReveal}>
               {t("detail.reveal_key")}
+            </Button>
+            <Button type="button" variant="outline" onClick={onReconnect}>
+              {t("detail.reconnect")}
             </Button>
             <Button type="button" variant="outline" onClick={onReplaceKey}>
               {t("detail.replace_key")}

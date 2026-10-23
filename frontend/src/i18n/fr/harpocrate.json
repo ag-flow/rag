@@ -38,7 +38,8 @@
     "cancel": "Annuler",
     "saved_toast": "Coffre mis à jour",
     "save_error_toast": "Erreur lors de la mise à jour",
-    "load_error": "Erreur lors du chargement du coffre."
+    "load_error": "Erreur lors du chargement du coffre.",
+    "reconnect": "🔗 Reconnecter"
   },
   "secrets": {
     "filter_name_placeholder": "Filtrer par nom...",
@@ -359,16 +360,37 @@
       "name_taken_key_not_saved": "Ce nom de coffre a été pris entre-temps : la clé obtenue chez Harpocrate n'a PAS été enregistrée. Révoquez-la dans Harpocrate puis recommencez avec un autre nom.",
       "https_required": "L'URL de Harpocrate doit être en https.",
       "harpocrate_unreachable": "Harpocrate est injoignable. Réessayez plus tard.",
-      "exchange_failed": "Harpocrate a refusé l'échange : relancez la connexion depuis le début.",
-      "denied": "Connexion refusée dans Harpocrate : aucun coffre n'a été créé.",
-      "state_unknown": "Ce retour de Harpocrate n'appartient pas à votre session ou a expiré (15 min) : aucun coffre n'a été créé. Relancez la connexion.",
-      "already_used": "Cette connexion a déjà été traitée : aucun nouveau coffre n'a été créé.",
+      "exchange_failed": "Harpocrate a refusé l'échange : rien n'a été créé ni modifié. Relancez la connexion depuis le début.",
+      "denied": "Connexion refusée dans Harpocrate : rien n'a été créé ni modifié.",
+      "state_unknown": "Ce retour de Harpocrate n'appartient pas à votre session ou a expiré (15 min) : rien n'a été créé ni modifié. Relancez la connexion.",
+      "already_used": "Cette connexion a déjà été traitée : rien n'a été créé ni modifié de nouveau.",
       "harpocrate_dek_missing": "HARPOCRATE_DEK manque côté backend : la clé ne peut pas être chiffrée.",
       "generic": "La connexion à Harpocrate a échoué.",
       "client_not_declared": "Harpocrate ne connaît pas l'application ragflow (client_id inconnu ou désactivé). Un admin Harpocrate doit la déclarer dans « Applications connectées » avec les valeurs ci-dessous — ou saisissez la clé à la main.",
       "redirect_uri_not_declared": "L'application ragflow est déclarée chez Harpocrate, mais pas avec cette URL de retour (comparaison au caractère près). Ajoutez l'URL ci-dessous à sa déclaration — ou saisissez la clé à la main."
     },
     "declare_client_id": "client_id à déclarer",
-    "declare_redirect_uri": "URL de retour à déclarer"
+    "declare_redirect_uri": "URL de retour à déclarer",
+    "reconnected_toast": "Clé du coffre remplacée par la nouvelle clé Harpocrate.",
+    "reconnected_untested_toast": "Clé remplacée, mais le test de connexion a échoué : vérifiez-le dans l'onglet Détail."
+  },
+  "reconnect": {
+    "title": "Reconnecter à Harpocrate",
+    "explanation": "Obtenez une nouvelle clé pour ce coffre sans copier-coller : choisissez le wallet dans Harpocrate, la clé enregistrée est remplacée au retour. Utile quand la clé a expiré, a été révoquée, ou pour une rotation.",
+    "owner_warning": "La nouvelle clé appartiendra à VOTRE compte Harpocrate, alors que les coffres de ragflow sont partagés entre administrateurs.",
+    "old_key_note": "ragflow ne révoque pas l'ancienne clé : l'écran de consentement de Harpocrate vous proposera de révoquer les anciennes clés de ragflow sur ce wallet (gardez-les si une autre instance de ragflow s'en sert).",
+    "submit": "Continuer vers Harpocrate",
+    "cancel": "Annuler",
+    "confirm_title": "Changer de wallet ?",
+    "confirm_explanation": "La clé obtenue ouvre un autre wallet que la clé actuelle — ou la clé actuelle ne répond plus et son wallet n'a pas pu être vérifié. Si vous confirmez, les secrets déjà référencés seront cherchés dans le nouveau wallet. Rien n'est enregistré sans votre confirmation.",
+    "vault": "Coffre",
+    "previous_wallet": "Wallet actuel",
+    "previous_wallet_unknown": "inconnu — la clé actuelle ne répond plus",
+    "new_wallet": "Wallet de la nouvelle clé",
+    "confirm": "Remplacer la clé",
+    "refuse": "Garder l'ancienne clé",
+    "refused_toast": "Ancienne clé conservée. La clé obtenue n'est pas enregistrée : révoquez-la dans Harpocrate.",
+    "confirm_error": "Le remplacement a échoué : l'ancienne clé est restée en place.",
+    "pending_gone": "Cette demande a expiré ou a déjà été traitée : l'ancienne clé est restée en place."
   }
 }

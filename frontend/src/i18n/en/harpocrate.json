@@ -38,7 +38,8 @@
     "cancel": "Cancel",
     "saved_toast": "Vault updated",
     "save_error_toast": "Update failed",
-    "load_error": "Failed to load vault."
+    "load_error": "Failed to load vault.",
+    "reconnect": "🔗 Reconnect"
   },
   "secrets": {
     "filter_name_placeholder": "Filter by name…",
@@ -359,16 +360,37 @@
       "name_taken_key_not_saved": "This vault name was taken meanwhile: the key obtained from Harpocrate was NOT saved. Revoke it in Harpocrate, then start again with another name.",
       "https_required": "The Harpocrate URL must use https.",
       "harpocrate_unreachable": "Harpocrate is unreachable. Try again later.",
-      "exchange_failed": "Harpocrate refused the exchange: restart the connection from the beginning.",
-      "denied": "Connection refused in Harpocrate: no vault was created.",
-      "state_unknown": "This Harpocrate return does not belong to your session or has expired (15 min): no vault was created. Restart the connection.",
-      "already_used": "This connection was already processed: no new vault was created.",
+      "exchange_failed": "Harpocrate refused the exchange: nothing was created or changed. Restart the connection from the beginning.",
+      "denied": "Connection refused in Harpocrate: nothing was created or changed.",
+      "state_unknown": "This Harpocrate return does not belong to your session or has expired (15 min): nothing was created or changed. Restart the connection.",
+      "already_used": "This connection was already processed: nothing was created or changed again.",
       "harpocrate_dek_missing": "HARPOCRATE_DEK is missing on the backend: the key cannot be encrypted.",
       "generic": "The connection to Harpocrate failed.",
       "client_not_declared": "Harpocrate does not know the ragflow application (unknown or disabled client_id). A Harpocrate admin must declare it in “Connected applications” with the values below — or enter the key manually.",
       "redirect_uri_not_declared": "The ragflow application is declared in Harpocrate, but not with this return URL (exact match). Add the URL below to its declaration — or enter the key manually."
     },
     "declare_client_id": "client_id to declare",
-    "declare_redirect_uri": "Return URL to declare"
+    "declare_redirect_uri": "Return URL to declare",
+    "reconnected_toast": "Vault key replaced by the new Harpocrate key.",
+    "reconnected_untested_toast": "Key replaced, but the connection test failed: check it in the Detail tab."
+  },
+  "reconnect": {
+    "title": "Reconnect to Harpocrate",
+    "explanation": "Get a new key for this vault without copy-paste: pick the wallet in Harpocrate, the stored key is replaced on return. Useful when the key expired, was revoked, or for a rotation.",
+    "owner_warning": "The new key will belong to YOUR Harpocrate account, while ragflow vaults are shared between administrators.",
+    "old_key_note": "ragflow does not revoke the old key: Harpocrate's consent screen will offer to revoke ragflow's old keys on this wallet (keep them if another ragflow instance uses them).",
+    "submit": "Continue to Harpocrate",
+    "cancel": "Cancel",
+    "confirm_title": "Change wallet?",
+    "confirm_explanation": "The obtained key opens a different wallet than the current key — or the current key no longer answers and its wallet could not be checked. If you confirm, already referenced secrets will be looked up in the new wallet. Nothing is saved without your confirmation.",
+    "vault": "Vault",
+    "previous_wallet": "Current wallet",
+    "previous_wallet_unknown": "unknown — the current key no longer answers",
+    "new_wallet": "New key's wallet",
+    "confirm": "Replace the key",
+    "refuse": "Keep the old key",
+    "refused_toast": "Old key kept. The obtained key was not saved: revoke it in Harpocrate.",
+    "confirm_error": "The replacement failed: the old key is still in place.",
+    "pending_gone": "This request expired or was already processed: the old key is still in place."
   }
 }
