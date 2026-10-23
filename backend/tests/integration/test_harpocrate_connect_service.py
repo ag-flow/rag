@@ -22,11 +22,8 @@ from harpocrate.exceptions import ConnectError
 from rag.config import Settings
 from rag.db.migrations import run_migrations
 from rag.schemas.harpocrate_vaults import VaultIdentity
-from rag.services.harpocrate_connect import (
-    CONNECT_PERMISSIONS,
-    ConnectFlowError,
-    HarpocrateConnectService,
-)
+from rag.services.harpocrate_connect import CONNECT_PERMISSIONS, HarpocrateConnectService
+from rag.services.harpocrate_connect_common import ConnectFlowError
 from rag.services.harpocrate_vaults import HarpocrateVaultsService
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
@@ -48,6 +45,8 @@ class FakeHarpocrate:
     state: str = "state-xyz"
     finish_error: Exception | None = None
     start_error: Exception | None = None
+    wallet_id: UUID = field(default_factory=uuid4)
+    token: str = TOKEN
     calls: list[tuple[str, Any]] = field(default_factory=list)
 
     def start(
@@ -78,11 +77,11 @@ class FakeHarpocrate:
 
         @dataclass
         class _Result:
-            token: str = TOKEN
+            token: str
+            wallet_id: UUID
             api_key_id: UUID = API_KEY_ID
-            wallet_id: UUID = field(default_factory=uuid4)
 
-        return _Result()
+        return _Result(token=self.token, wallet_id=self.wallet_id)
 
 
 @pytest.fixture
@@ -153,7 +152,8 @@ async def test_callback_nominal_creates_vault_with_obtained_key(pool) -> None:
     svc = _service(fake)
     async with pool.acquire() as conn:
         binding = await _start(svc, conn)
-        vault = await _callback(svc, conn, binding)
+        outcome = await _callback(svc, conn, binding)
+        vault = outcome.vault
         stored = await conn.fetchval(
             "SELECT pgp_sym_decrypt(api_key_encrypted, $1)::text FROM harpocrate_vaults "
             "WHERE id = $2",
@@ -168,6 +168,7 @@ async def test_callback_nominal_creates_vault_with_obtained_key(pool) -> None:
     assert vault.api_key_id == str(API_KEY_ID)
     assert vault.owner_id == OWNER
     assert stored == TOKEN
+    assert outcome.kind == "created"
     assert fake.calls[1] == ("finish", ("verifier-secret", "code-1", "state-xyz"))
 
 

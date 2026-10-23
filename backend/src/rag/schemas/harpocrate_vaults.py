@@ -166,3 +166,22 @@ class VaultConnectStartResponse(BaseModel):
     """URL Harpocrate où envoyer le navigateur — rien d'autre ne sort du backend."""
 
     browser_url: str
+
+
+class VaultReconnectPending(BaseModel):
+    """Reconnexion en attente : la clé obtenue ouvre un autre wallet que la clé
+    actuelle (ou celle-ci ne permet plus de le vérifier). Rien n'est enregistré
+    avant la décision de l'admin. Aucun champ secret."""
+
+    request_id: UUID
+    vault_id: UUID
+    vault_name: str
+    # None : la clé actuelle ne répond plus (expirée, révoquée), son wallet est inconnu.
+    previous_wallet_id: UUID | None
+    new_wallet_id: UUID
+    expires_at: datetime
+
+
+class VaultReconnectConfirmResponse(BaseModel):
+    vault: VaultSummary
+    tested: bool

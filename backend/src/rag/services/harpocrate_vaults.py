@@ -108,10 +108,17 @@ class HarpocrateVaultsService:
         self._settings = settings
         self._default_cache: tuple[float, VaultSummary | None] | None = None
         self._client_provider: Any = None
+        self._resolved_values: Any = None
 
     def bind_client_provider(self, provider: Any) -> None:
         """Lié post-construction par le lifespan pour éviter le cycle d'import."""
         self._client_provider = provider
+
+    def bind_resolved_values_cache(self, resolver: Any) -> None:
+        """Lié par le lifespan : le `SecretResolver` garde les valeurs résolues
+        (TTL) ; une clé remplacée — surtout vers un autre wallet — doit les
+        oublier tout de suite, pas au bout du TTL."""
+        self._resolved_values = resolver
 
     def _require_dek(self) -> str:
         dek = self._settings.harpocrate_dek
@@ -632,3 +639,5 @@ class HarpocrateVaultsService:
         self._default_cache = None
         if self._client_provider is not None:
             self._client_provider.invalidate()
+        if self._resolved_values is not None:
+            self._resolved_values.clear_cache()

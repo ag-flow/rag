@@ -199,6 +199,9 @@ def build_app(
             # retourner un resolver arbitraire ; `client_provider` reste attaché
             # à `app.state` indépendamment.
             app.state.resolver = resolver_factory(settings, app)
+            # Les résolveurs stub des tests n'ont pas de cache à invalider.
+            if isinstance(app.state.resolver, SecretResolver):
+                app.state.harpocrate_vaults_service.bind_resolved_values_cache(app.state.resolver)
 
             app.state.admin_env = AdminEnvStore(settings.rag_admin_env_file)
             from rag.services.load_gate import LoadGate

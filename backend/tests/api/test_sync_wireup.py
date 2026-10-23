@@ -69,3 +69,16 @@ def test_sync_worker_slots_follow_admin_env(wired_client: TestClient) -> None:
     piloter le worker — sans branchement, il retombait sur 1 slot."""
     app = wired_client.app
     assert app.state.sync_worker._max_jobs() == app.state.admin_env.get_worker_max_jobs()
+
+
+def test_vault_key_change_forgets_resolved_secret_values(wired_client: TestClient) -> None:
+    """Une clé de coffre remplacée (Reconnecter, Remplacer la clé) doit vider
+    le cache des valeurs résolues : sans branchement, elles survivaient au
+    remplacement jusqu'au bout du TTL — y compris vers un autre wallet."""
+    from rag.secrets.resolver import _CacheEntry
+
+    app = wired_client.app
+    resolver = app.state.resolver
+    resolver._cache["${vault://k:chemin}"] = _CacheEntry(value="v", expires_at=1e12)
+    app.state.harpocrate_vaults_service._invalidate_caches()
+    assert resolver._cache == {}
