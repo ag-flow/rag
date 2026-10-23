@@ -12,8 +12,17 @@ import structlog
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
+from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from rag.api.public_base import public_base_from_request
+from rag.auth.mcp_resource import (
+    McpTokenRefusedError,
+    looks_like_jwt,
+    resolve_token_identity,
+    resource_uri,
+    www_authenticate,
+)
 from rag.auth.obo_resolver import OboRequiredError, resolve_effective_owner_id
 from rag.db.enrichment_lookup import get_enrichment as get_enrichment_db
 from rag.db.workspace_search import vector_search
@@ -41,9 +50,10 @@ class _KeyCtx:
     resolver: Any
     client_provider: Any
     default_vault_name: str | None = None
-    # Provenance de `owner_id` : "apikey" (propriétaire de la clé) ou "obo"
-    # (identité humaine signée du portail). Journalisée par les outils qui
-    # attribuent une ressource, sans quoi l'owner tracé est ambigu.
+    # Provenance de `owner_id` : "apikey" (propriétaire de la clé), "obo"
+    # (identité humaine signée du portail) ou "oidc" (jeton de l'IdP).
+    # Journalisée par les outils qui attribuent une ressource, sans quoi
+    # l'owner tracé est ambigu.
     owner_source: str = "apikey"
     # Administration (outils create_workspace / reset_workspace_from_endpoint) :
     # DSN admin Postgres (CREATE DATABASE) et service coffres Harpocrate.
@@ -123,6 +133,7 @@ async def _resolve_indexer_key(key: _KeyCtx, ws: _WsData) -> str | None:
         )
     log.warning("mcp_standard.logical_ref_without_default_vault", workspace=ws.workspace_name)
     return None
+
 
 # ── FastMCP server (singleton, stateless) ────────────────────────────────────
 
@@ -546,7 +557,9 @@ class RagMcpDispatcher:
     """Dispatcher ASGI monté sur /mcp dans FastAPI.
 
     Connecteur UNIQUE (plus de workspace_id dans l'URL) :
-    - Valide le Bearer token via user_api_keys (empreinte SHA-256, non révoquée).
+    - Bearer JWT de l'IdP → serveur de ressources OAuth 2.1 (`auth.mcp_resource`) ;
+    - sinon clé API, validée via user_api_keys (empreinte SHA-256, non révoquée) ;
+    - tout refus 401 porte `WWW-Authenticate` vers les métadonnées RFC 9728.
     - Injecte le contexte d'authentification (owner_id, scope) dans _ws_ctx.
     - Le workspace ciblé est un PARAMÈTRE de chaque outil, résolu à l'appel.
     - Délègue à l'inner FastMCP app sans réécrire le path.
@@ -560,9 +573,11 @@ class RagMcpDispatcher:
         self._client_provider: Any = None
         self._admin_dsn: str | None = None
         self._vaults_service: Any = None
+        self._app_state: Any = None
 
     def set_app_state(self, app_state: Any) -> None:
         """Appelé depuis le lifespan après initialisation des pools."""
+        self._app_state = app_state
         self._config_pool = app_state.pools.config_pool
         self._pool_registry = app_state.pools
         self._resolver = app_state.resolver
@@ -577,17 +592,23 @@ class RagMcpDispatcher:
 
         token = _extract_bearer(list(scope.get("headers", [])))
         if token is None:
-            await _json_error(send, 401, "authorization_required")
+            # Sans error= (RFC 6750 §3.1) : le client n'a rien présenté, il
+            # découvre le serveur d'autorisation par les métadonnées.
+            await self._refuse(scope, send, 401, "authorization_required", error=None)
             return
 
         if self._config_pool is None:
             await _json_error(send, 503, "service_not_ready")
             return
 
+        if looks_like_jwt(token):
+            await self._serve_with_idp_token(scope, receive, send, token)
+            return
+
         try:
             ctx, require_obo = await self._load_context(token)
         except PermissionError:
-            await _json_error(send, 401, "invalid_token")
+            await self._refuse(scope, send, 401, "invalid_token", error="invalid_token")
             return
 
         # OBO (contrat d0e2dad3 v6, GUID-only) : si le portail a propagé une
@@ -612,7 +633,46 @@ class RagMcpDispatcher:
             return
         if effective_owner != ctx.owner_id:
             ctx = replace(ctx, owner_id=effective_owner, owner_source="obo")
+        await self._dispatch(scope, receive, send, ctx)
 
+    async def _serve_with_idp_token(
+        self, scope: Scope, receive: Receive, send: Send, token: str
+    ) -> None:
+        """Jeton de l'IdP : l'identité est son `sub` ancré en base, la portée
+        son rôle en base. Pas d'OBO sur ce chemin : l'humain EST le porteur,
+        des en-têtes d'identité ne peuvent pas le remplacer."""
+        base = self._public_base(scope)
+        audience = resource_uri(base, self._app_state.settings.rag_mcp_resource)
+        try:
+            ident = await resolve_token_identity(
+                self._app_state.oidc, self._config_pool, token, audience=audience
+            )
+        except McpTokenRefusedError as exc:
+            log.info("mcp.idp_token_refused", reason=exc.reason, status=exc.status)
+            await self._refuse(scope, send, exc.status, exc.reason, error=exc.error)
+            return
+        ctx = await self._build_ctx(owner_id=ident.owner_id, scope=ident.scope)
+        ctx = replace(ctx, owner_source="oidc")
+        await self._dispatch(scope, receive, send, ctx)
+
+    def _public_base(self, scope: Scope) -> str:
+        # Même résolution que le login OIDC et « Connecter à Harpocrate » :
+        # l'URL publique fixée dans l'IHM, sinon l'adresse d'appel.
+        fixed = self._app_state.admin_env.get_public_url()
+        base: str = fixed or public_base_from_request(Request(scope))
+        return base.rstrip("/")
+
+    async def _refuse(
+        self, scope: Scope, send: Send, status: int, detail: str, *, error: str | None
+    ) -> None:
+        # Avant la fin du lifespan, l'URL publique n'est pas connue : refus
+        # sans désignation des métadonnées plutôt qu'une URL devinée.
+        header = None
+        if self._app_state is not None:
+            header = www_authenticate(self._public_base(scope), error=error)
+        await _json_error(send, status, detail, www_authenticate=header)
+
+    async def _dispatch(self, scope: Scope, receive: Receive, send: Send, ctx: _KeyCtx) -> None:
         # Le mount Starlette "/mcp" ampute le préfixe : une requête sur `/mcp`
         # nu arrive ici avec un path vide → normalisé sur "/" pour matcher la
         # route racine de l'app streamable interne.
@@ -645,14 +705,18 @@ class RagMcpDispatcher:
         )
         if row is None:
             raise PermissionError("invalid token")
+        ctx = await self._build_ctx(owner_id=str(row["owner_id"]), scope=str(row["scope"]))
+        return ctx, bool(row["require_obo"])
 
+    async def _build_ctx(self, *, owner_id: str, scope: str) -> _KeyCtx:
+        assert self._config_pool is not None  # noqa: S101
         default_vault_name: str | None = None
         if self._client_provider is not None:
             default_vault_name = await self._client_provider.get_default_vault_name()
 
-        ctx = _KeyCtx(
-            owner_id=str(row["owner_id"]),
-            scope=str(row["scope"]),
+        return _KeyCtx(
+            owner_id=owner_id,
+            scope=scope,
             config_pool=self._config_pool,
             pool_registry=self._pool_registry,
             resolver=self._resolver,
@@ -661,14 +725,20 @@ class RagMcpDispatcher:
             admin_dsn=self._admin_dsn,
             vaults_service=self._vaults_service,
         )
-        return ctx, bool(row["require_obo"])
 
 
-async def _json_error(send: Send, status: int, detail: str) -> None:
+async def _json_error(
+    send: Send, status: int, detail: str, *, www_authenticate: str | None = None
+) -> None:
     body = json.dumps({"error": detail}).encode()
-    await send({
-        "type": "http.response.start",
-        "status": status,
-        "headers": [[b"content-type", b"application/json"]],
-    })
+    headers = [[b"content-type", b"application/json"]]
+    if www_authenticate is not None:
+        headers.append([b"www-authenticate", www_authenticate.encode()])
+    await send(
+        {
+            "type": "http.response.start",
+            "status": status,
+            "headers": headers,
+        }
+    )
     await send({"type": "http.response.body", "body": body, "more_body": False})

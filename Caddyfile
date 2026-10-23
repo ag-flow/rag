@@ -4,6 +4,7 @@
 # /me     → backend:8000 (OIDC)
 # /ws/*   → backend:8000 (WebSocket logs jobs)
 # /mcp*   → backend:8000 (endpoint MCP, POST + mount ASGI /mcp/{workspace_id})
+# /.well-known/oauth-protected-resource* → backend:8000 (métadonnées MCP, RFC 9728)
 # /ui*    → frontend:80 (Nginx static, M5b)
 # /health → backend:8000 (smoke direct)
 # /version → backend:8000 (smoke direct)
@@ -29,6 +30,12 @@
         reverse_proxy backend:8000
     }
     handle /mcp* {
+        reverse_proxy backend:8000
+    }
+    # Métadonnées de ressource protégée de /mcp (RFC 9728) : sans elles, un
+    # client MCP ne découvre pas le serveur d'autorisation et ne peut pas
+    # obtenir de jeton. Préfixe précis : le reste de /.well-known n'est pas à nous.
+    handle /.well-known/oauth-protected-resource* {
         reverse_proxy backend:8000
     }
     handle /health {

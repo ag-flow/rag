@@ -44,6 +44,12 @@
     handle /mcp* {
         reverse_proxy backend:8000
     }
+    # Métadonnées de ressource protégée de /mcp (RFC 9728) : sans elles, un
+    # client MCP ne découvre pas le serveur d'autorisation et ne peut pas
+    # obtenir de jeton. Préfixe précis : le reste de /.well-known n'est pas à nous.
+    handle /.well-known/oauth-protected-resource* {
+        reverse_proxy backend:8000
+    }
 
     # Webhooks git entrants
     handle /api/webhooks/* {

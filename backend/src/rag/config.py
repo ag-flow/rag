@@ -60,6 +60,15 @@ class Settings(BaseSettings):
         "la déclaration est propre à chaque instance Harpocrate.",
     )
 
+    rag_mcp_resource: str | None = Field(
+        default=None,
+        pattern=r"^https?://[^\s\"]+$",
+        description="Identifiant de ressource de la surface MCP : l'audience (`aud`) "
+        "exigée des jetons de l'IdP et le `resource` des métadonnées RFC 9728. "
+        "Vide = `<url publique>/mcp`. Valeur de configuration, jamais dérivée de "
+        "l'IdP : c'est le mapper d'audience côté IdP qui doit la reproduire.",
+    )
+
     rag_local_session_ttl_seconds: int = Field(default=28800, ge=60)
 
     rag_admin_env_file: Path = Field(

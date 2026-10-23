@@ -53,6 +53,7 @@ from rag.api.mcp_standard import (
 )
 from rag.api.me_api_keys import build_me_api_keys_router
 from rag.api.me_profile import build_me_profile_router
+from rag.api.oauth_metadata import router as oauth_metadata_router
 from rag.api.openapi_security import install_openapi_security
 from rag.api.playground import router_admin as playground_admin_router
 from rag.api.playground import router_chat as playground_chat_router
@@ -364,6 +365,7 @@ def build_app(
     app.include_router(build_workspace_query_router(), prefix="/api/v1")
     app.include_router(build_library_apikey_router())
     app.include_router(build_mcp_router())
+    app.include_router(oauth_metadata_router)
     app.mount("/mcp", _mcp_dispatcher)
     app.include_router(build_git_webhooks_router())
     app.include_router(ws_router)
