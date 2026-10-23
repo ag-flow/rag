@@ -146,3 +146,56 @@ async def test_verify_id_token_rejects_wrong_audience() -> None:
     token = _make_signed_jwt(claims)
     with pytest.raises(OidcInvalidToken):
         await svc.verify_id_token(token, config=cfg)
+
+
+@pytest.mark.asyncio
+async def test_verify_id_token_unknown_kid_refreshes_jwks_after_key_rotation() -> None:
+    """Rotation des clés côté IdP : un jeton signé par une clé au `kid` encore
+    absent du trousseau en cache doit déclencher UN rechargement du JWKS —
+    sans quoi tout login échoue jusqu'au redémarrage."""
+    issuer = "https://kc.example.com/realms/test"
+    rotated = RSAKey.generate_key(key_size=2048, private=True)
+    served = [_jwks_payload()]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if "well-known" in url:
+            return httpx.Response(200, json=_discovery_payload(issuer))
+        if "jwks" in url:
+            return httpx.Response(200, json=served[0])
+        return httpx.Response(404)
+
+    svc = OidcService(
+        config_pool=None,
+        public_url="https://rag.example.com",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+    cfg = OidcConfig(issuer=issuer, client_id="rag-service")
+    now = int(time.time())
+    claims = {"iss": issuer, "aud": "rag-service", "sub": "u", "exp": now + 300, "iat": now}
+    await svc.verify_id_token(_make_signed_jwt(claims), config=cfg)  # trousseau en cache
+
+    pub = rotated.as_dict(private=False) | {"kid": "rotated-kid", "alg": "RS256", "use": "sig"}
+    served[0] = {"keys": [pub]}
+    token = jwt.encode({"alg": "RS256", "kid": "rotated-kid", "typ": "JWT"}, claims, rotated)
+    decoded = await svc.verify_id_token(token, config=cfg)
+    assert decoded["sub"] == "u"
+
+
+@pytest.mark.asyncio
+async def test_verify_access_token_checks_resource_audience_not_ui_client() -> None:
+    issuer = "https://kc.example.com/realms/test"
+    svc, cfg = _make_service(issuer)
+    now = int(time.time())
+    base = {"iss": issuer, "sub": "u", "exp": now + 300, "iat": now}
+    resource = "https://rag.example.com/mcp"
+    ok = await svc.verify_access_token(
+        _make_signed_jwt(base | {"aud": [resource, "account"]}), config=cfg, audience=resource
+    )
+    assert ok["sub"] == "u"
+    # Jeton du client de l'IHM, ou d'un autre serveur MCP de la stack : refusé.
+    for other in ("rag-service", "https://devpod.example.com/mcp"):
+        with pytest.raises(OidcInvalidToken, match="invalid_claim:aud"):
+            await svc.verify_access_token(
+                _make_signed_jwt(base | {"aud": other}), config=cfg, audience=resource
+            )

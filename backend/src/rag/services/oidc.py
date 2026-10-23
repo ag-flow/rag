@@ -12,7 +12,13 @@ import httpx
 import structlog
 from joserfc import jwt as joserfc_jwt
 from joserfc._keys import KeySetSerialization
-from joserfc.errors import BadSignatureError, ExpiredTokenError, InvalidClaimError, JoseError
+from joserfc.errors import (
+    BadSignatureError,
+    ExpiredTokenError,
+    InvalidClaimError,
+    InvalidKeyIdError,
+    JoseError,
+)
 from joserfc.jwk import KeySet
 from joserfc.jwt import JWTClaimsRegistry
 
@@ -93,9 +99,7 @@ class OidcService:
     # --- CRUD config ---
 
     async def get_config(self) -> OidcConfig | None:
-        row = await self._config_pool.fetchrow(
-            "SELECT issuer, client_id FROM oidc_config LIMIT 1"
-        )
+        row = await self._config_pool.fetchrow("SELECT issuer, client_id FROM oidc_config LIMIT 1")
         if row is None:
             return None
         return OidcConfig(
@@ -207,20 +211,41 @@ class OidcService:
         Raise OidcInvalidToken("expired") sur exp dépassé.
         Raise OidcInvalidToken("...") sur signature/iss/aud invalides.
         """
+        return await self._verify_jwt(id_token, config=config, audience=config.client_id)
+
+    async def verify_access_token(
+        self,
+        access_token: str,
+        *,
+        config: OidcConfig,
+        audience: str,
+    ) -> dict[str, Any]:
+        """Jeton d'accès présenté à un serveur de ressources (surface MCP).
+
+        Mêmes contrôles que l'id_token, mais l'audience attendue est celle de
+        la RESSOURCE, pas le client OIDC de l'IHM : un jeton émis pour un autre
+        service de la stack (même realm, même signature) est refusé ici.
+        """
+        return await self._verify_jwt(access_token, config=config, audience=audience)
+
+    async def _verify_jwt(self, raw: str, *, config: OidcConfig, audience: str) -> dict[str, Any]:
         discovery = await self._discover(config)
         keyset = await self._jwks(discovery)
 
         try:
-            token = joserfc_jwt.decode(id_token, key=keyset, algorithms=["RS256"])
-        except BadSignatureError:
+            token = joserfc_jwt.decode(raw, key=keyset, algorithms=["RS256"])
+        except (BadSignatureError, InvalidKeyIdError):
             # Le trousseau JWKS en cache peut etre perime (rotation des cles
             # de signature cote Keycloak) : on l'evince et on retente une
             # fois avec un trousseau frais avant d'abandonner (BUG-061).
+            # Une nouvelle cle arrive avec un `kid` absent du cache : joserfc
+            # leve alors InvalidKeyIdError, pas BadSignatureError — sans ce
+            # cas, une rotation bloquait tout login jusqu'au redemarrage.
             self._jwks_cache.pop(discovery.jwks_uri, None)
             keyset = await self._jwks(discovery)
             try:
-                token = joserfc_jwt.decode(id_token, key=keyset, algorithms=["RS256"])
-            except BadSignatureError as e:
+                token = joserfc_jwt.decode(raw, key=keyset, algorithms=["RS256"])
+            except (BadSignatureError, InvalidKeyIdError) as e:
                 raise OidcInvalidToken("bad_signature") from e
             except JoseError as e:
                 raise OidcInvalidToken(f"jose_error: {type(e).__name__}") from e
@@ -229,7 +254,7 @@ class OidcService:
 
         registry = JWTClaimsRegistry(
             iss={"essential": True, "value": config.issuer},
-            aud={"essential": True, "value": config.client_id},
+            aud={"essential": True, "value": audience},
             exp={"essential": True},
         )
         try:
